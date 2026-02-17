@@ -242,7 +242,7 @@ struct SettingsView: View {
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Control how VoiceInk handles your transcription data and audio recordings.")
+                Text("Control how Voco handles your transcription data and audio recordings.")
             }
 
             // MARK: - Diagnostics
@@ -285,8 +285,8 @@ struct SettingsView: View {
 struct ExpandableSettingsRow<Content: View>: View {
     @Binding var isExpanded: Bool
     @Binding var isEnabled: Bool
-    let label: String
-    var infoMessage: String? = nil
+    let label: LocalizedStringKey
+    var infoMessage: LocalizedStringKey? = nil
     var infoURL: String? = nil
     @ViewBuilder let content: () -> Content
 

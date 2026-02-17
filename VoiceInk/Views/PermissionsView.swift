@@ -84,13 +84,13 @@ class PermissionManager: ObservableObject {
 
 struct PermissionCard: View {
     let icon: String
-    let title: String
-    let description: String
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
     let isGranted: Bool
-    let buttonTitle: String
+    let buttonTitle: LocalizedStringKey
     let buttonAction: () -> Void
     let checkPermission: () -> Void
-    var infoTipMessage: String?
+    var infoTipMessage: LocalizedStringKey?
     var infoTipLink: String?
     @State private var isRefreshing = false
 
@@ -204,7 +204,7 @@ struct PermissionsView: View {
                 CompactHeroSection(
                     icon: "shield.lefthalf.filled",
                     title: "App Permissions",
-                    description: "VoiceInk requires the following permissions to function properly"
+                    description: "Voco requires the following permissions to function properly"
                 )
                 
                 // Permission Cards
@@ -213,7 +213,7 @@ struct PermissionsView: View {
                     PermissionCard(
                         icon: "keyboard",
                         title: "Keyboard Shortcut",
-                        description: "Set up a keyboard shortcut to use VoiceInk anywhere",
+                        description: "Set up a keyboard shortcut to use Voco anywhere",
                         isGranted: hotkeyManager.selectedHotkey1 != .none,
                         buttonTitle: "Configure Shortcut",
                         buttonAction: {
@@ -230,7 +230,7 @@ struct PermissionsView: View {
                     PermissionCard(
                         icon: "mic",
                         title: "Microphone Access",
-                        description: "Allow VoiceInk to record your voice for transcription",
+                        description: "Allow Voco to record your voice for transcription",
                         isGranted: permissionManager.audioPermissionStatus == .authorized,
                         buttonTitle: permissionManager.audioPermissionStatus == .notDetermined ? "Request Permission" : "Open System Settings",
                         buttonAction: {
@@ -249,7 +249,7 @@ struct PermissionsView: View {
                     PermissionCard(
                         icon: "hand.raised",
                         title: "Accessibility Access",
-                        description: "Allow VoiceInk to paste transcribed text directly at your cursor position",
+                        description: "Allow Voco to paste transcribed text directly at your cursor position",
                         isGranted: permissionManager.isAccessibilityEnabled,
                         buttonTitle: "Open System Settings",
                         buttonAction: {
@@ -258,14 +258,14 @@ struct PermissionsView: View {
                             }
                         },
                         checkPermission: { permissionManager.checkAccessibilityPermissions() },
-                        infoTipMessage: "VoiceInk uses Accessibility permissions to paste the transcribed text directly into other applications at your cursor's position. This allows for a seamless dictation experience across your Mac."
+                        infoTipMessage: "Voco uses Accessibility permissions to paste the transcribed text directly into other applications at your cursor's position. This allows for a seamless dictation experience across your Mac."
                     )
                     
                     // Screen Recording Permission
                     PermissionCard(
                         icon: "rectangle.on.rectangle",
                         title: "Screen Recording Access",
-                        description: "Allow VoiceInk to understand context from your screen for transcript Enhancement",
+                        description: "Allow Voco to understand context from your screen for transcript Enhancement",
                         isGranted: permissionManager.isScreenRecordingEnabled,
                         buttonTitle: "Request Permission",
                         buttonAction: {
@@ -276,7 +276,7 @@ struct PermissionsView: View {
                             }
                         },
                         checkPermission: { permissionManager.checkScreenRecordingPermission() },
-                        infoTipMessage: "VoiceInk captures on-screen text to understand the context of your voice input, which significantly improves transcription accuracy. Your privacy is important: this data is processed locally and is not stored.",
+                        infoTipMessage: "Voco captures on-screen text to understand the context of your voice input, which significantly improves transcription accuracy. Your privacy is important: this data is processed locally and is not stored.",
                         infoTipLink: "https://tryvoiceink.com/docs/contextual-awareness"
                     )
                 }

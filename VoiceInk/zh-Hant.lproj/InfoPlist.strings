@@ -1,0 +1,7 @@
+/* Localized InfoPlist.strings (zh-Hant) */
+
+"NSMicrophoneUsageDescription" = "VoiceInk 需要取用您的麥克風來錄製語音以進行轉錄。";
+
+"NSAppleEventsUsageDescription" = "VoiceInk 需要與您的瀏覽器互動，以偵測目前的網站來套用網站專屬設定。";
+
+"NSScreenCaptureUsageDescription" = "VoiceInk 需要螢幕錄製權限，以理解螢幕上的內容來提升轉錄準確度。";

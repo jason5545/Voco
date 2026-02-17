@@ -46,7 +46,7 @@ struct HelpAndResourcesSection: View {
         )
     }
     
-    private func resourceLink(icon: String, title: String, url: String? = nil, action: (() -> Void)? = nil) -> some View {
+    private func resourceLink(icon: String, title: LocalizedStringKey, url: String? = nil, action: (() -> Void)? = nil) -> some View {
         Button(action: {
             if let action = action {
                 action()

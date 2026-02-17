@@ -13,7 +13,7 @@ struct EnhancementShortcutsView: View {
                         .font(.system(size: 13))
 
                     InfoTip(
-                        "Quickly enable or disable AI enhancement while recording. Available only when VoiceInk is running and the recorder is visible.",
+                        "Quickly enable or disable AI enhancement while recording. Available only when Voco is running and the recorder is visible.",
                         learnMoreURL: "https://tryvoiceink.com/docs/enhancement-shortcuts"
                     )
                 }

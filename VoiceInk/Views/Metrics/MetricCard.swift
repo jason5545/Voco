@@ -2,9 +2,9 @@ import SwiftUI
 
 struct MetricCard: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
     let value: String
-    let detail: String?
+    let detail: LocalizedStringKey?
     let color: Color
     
     var body: some View {
@@ -32,7 +32,7 @@ struct MetricCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             
-            if let detail, !detail.isEmpty {
+            if let detail {
                 Text(detail)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)

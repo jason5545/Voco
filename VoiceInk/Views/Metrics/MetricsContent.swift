@@ -160,7 +160,7 @@ struct MetricsContent: View {
                     .font(.system(size: 36, design: .rounded))
                     .foregroundStyle(.white)
                  +
-                 Text(" with VoiceInk")
+                 Text(" with Voco")
                     .fontWeight(.bold)
                     .foregroundColor(.white.opacity(0.85))
                 )
@@ -198,7 +198,7 @@ struct MetricsContent: View {
                 icon: "mic.fill",
                 title: "Sessions Recorded",
                 value: "\(totalCount)",
-                detail: "VoiceInk sessions completed",
+                detail: "Voco sessions completed",
                 color: .purple
             )
 
@@ -216,7 +216,7 @@ struct MetricsContent: View {
                 value: averageWordsPerMinute > 0
                     ? String(format: "%.1f", averageWordsPerMinute)
                     : "–",
-                detail: "VoiceInk vs. typing by hand",
+                detail: "Voco vs. typing by hand",
                 color: .yellow
             )
             
@@ -235,19 +235,21 @@ struct MetricsContent: View {
     }
     
     private var formattedTimeSaved: String {
-        let formatted = Formatters.formattedDuration(timeSaved, style: .full, fallback: "Time savings coming soon")
+        let formatted = Formatters.formattedDuration(timeSaved, style: .full, fallback: String(localized: "Time savings coming soon"))
         return formatted
     }
     
     private var heroSubtitle: String {
         guard totalCount > 0 else {
-            return "Your VoiceInk journey starts with your first recording."
+            return String(localized: "Your Voco journey starts with your first recording.")
         }
 
         let wordsText = Formatters.formattedNumber(totalWords)
-        let sessionText = totalCount == 1 ? "session" : "sessions"
-
-        return "Dictated \(wordsText) words across \(totalCount) \(sessionText)."
+        if totalCount == 1 {
+            return String(localized: "Dictated \(wordsText) words across 1 session.")
+        } else {
+            return String(localized: "Dictated \(wordsText) words across \(totalCount) sessions.")
+        }
     }
     
     private var heroGradient: LinearGradient {

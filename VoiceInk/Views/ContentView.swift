@@ -17,6 +17,21 @@ enum ViewType: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var localizedName: String {
+        switch self {
+        case .metrics: return String(localized: "Dashboard")
+        case .transcribeAudio: return String(localized: "Transcribe Audio")
+        case .history: return String(localized: "History")
+        case .models: return String(localized: "AI Models")
+        case .enhancement: return String(localized: "Enhancement")
+        case .powerMode: return String(localized: "Power Mode")
+        case .permissions: return String(localized: "Permissions")
+        case .audioInput: return String(localized: "Audio Input")
+        case .dictionary: return String(localized: "Dictionary")
+        case .settings: return String(localized: "Settings")
+        }
+    }
+
     var icon: String {
         switch self {
         case .metrics: return "gauge.medium"
@@ -121,7 +136,7 @@ struct ContentView: View {
             if let selectedView = selectedView {
                 detailView(for: selectedView)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle(selectedView.rawValue)
+                    .navigationTitle(selectedView.localizedName)
             } else {
                 Text("Select a view")
                     .foregroundColor(.secondary)
@@ -195,7 +210,7 @@ private struct SidebarItemView: View {
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 24, height: 24)
 
-            Text(viewType.rawValue)
+            Text(viewType.localizedName)
                 .font(.system(size: 14, weight: .medium))
 
             Spacer()

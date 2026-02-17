@@ -17,7 +17,7 @@ struct MetricsSetupView: View {
                         .padding(.bottom, 20)
                        
                     VStack(spacing: 4) {
-                        Text("Welcome to VoiceInk")
+                        Text("Welcome to Voco")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.center)
                         
@@ -63,7 +63,7 @@ struct MetricsSetupView: View {
     }
     
     private func setupStep(for index: Int) -> some View {
-        let stepInfo: (isCompleted: Bool, icon: String, title: String, description: String)
+        let stepInfo: (isCompleted: Bool, icon: String, title: LocalizedStringKey, description: LocalizedStringKey)
         
         switch index {
         case 0:
@@ -71,7 +71,7 @@ struct MetricsSetupView: View {
                 isCompleted: hotkeyManager.selectedHotkey1 != .none,
                 icon: "command",
                 title: "Set Keyboard Shortcut",
-                description: "Use VoiceInk anywhere with a shortcut."
+                description: "Use Voco anywhere with a shortcut."
             )
         case 1:
             stepInfo = (
@@ -166,7 +166,7 @@ struct MetricsSetupView: View {
         }
     }
     
-    private func getActionButtonTitle() -> String {
+    private func getActionButtonTitle() -> LocalizedStringKey {
         if hotkeyManager.selectedHotkey1 == .none {
             return "Configure Shortcut"
         } else if !AXIsProcessTrusted() {
