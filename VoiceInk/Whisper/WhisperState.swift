@@ -406,7 +406,21 @@ class WhisperState: NSObject, ObservableObject {
             transcription.powerModeName = powerModeName
             transcription.powerModeEmoji = powerModeEmoji
             finalPastedText = text
-            
+
+            // Voice command detection — intercept before AI enhancement
+            if let command = VoiceCommandService.shared.detectCommand(in: text) {
+                logger.notice("🎤 Voice command detected: \(command.rawValue, privacy: .public)")
+                transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
+                try? modelContext.save()
+                NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    command.execute()
+                }
+                await self.dismissMiniRecorder()
+                shouldCancelRecording = false
+                return
+            }
+
             if let enhancementService = enhancementService, enhancementService.isConfigured {
                 let detectionResult = await promptDetectionService.analyzeText(text, with: enhancementService)
                 promptDetectionResult = detectionResult
