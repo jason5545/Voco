@@ -16,8 +16,13 @@ class VoiceCommandService {
 
     private init() {}
 
+    /// Trailing punctuation that Whisper may append to short utterances
+    private static let trailingPunctuation = CharacterSet(charactersIn: "。，！？、；：.!?,;:")
+
     func detectCommand(in text: String) -> VoiceCommand? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return VoiceCommand.allCases.first { $0.rawValue == trimmed }
+        let cleaned = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: Self.trailingPunctuation)
+        return VoiceCommand.allCases.first { $0.rawValue == cleaned }
     }
 }
