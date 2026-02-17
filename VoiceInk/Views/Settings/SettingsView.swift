@@ -198,6 +198,9 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: - Chinese Post-Processing
+            ChinesePostProcessingSettingsView()
+
             // MARK: - Experimental
             ExperimentalSection()
 

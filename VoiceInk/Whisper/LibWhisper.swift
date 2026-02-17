@@ -14,7 +14,7 @@ actor WhisperContext {
     private var prompt: String?
     private var promptCString: [CChar]?
     private var vadModelPath: String?
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "WhisperContext")
+    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "WhisperContext")
 
     private init() {}
 
@@ -108,6 +108,46 @@ actor WhisperContext {
             transcription += String(cString: whisper_full_get_segment_text(context, i))
         }
         return transcription
+    }
+
+    /// Transcription result with confidence metrics
+    struct TranscriptionWithConfidence {
+        let text: String
+        let avgLogProb: Double
+        let segmentCount: Int
+    }
+
+    /// Get transcription text along with confidence metrics from token probabilities
+    func getTranscriptionWithConfidence() -> TranscriptionWithConfidence {
+        guard let context = context else {
+            return TranscriptionWithConfidence(text: "", avgLogProb: 0.0, segmentCount: 0)
+        }
+
+        var transcription = ""
+        var totalLogProb: Double = 0.0
+        var totalTokens: Int = 0
+        let nSegments = whisper_full_n_segments(context)
+
+        for i in 0..<nSegments {
+            transcription += String(cString: whisper_full_get_segment_text(context, i))
+
+            let nTokens = whisper_full_n_tokens(context, i)
+            for j in 0..<nTokens {
+                let tokenProb = whisper_full_get_token_p(context, i, j)
+                if tokenProb > 0 {
+                    totalLogProb += log(Double(tokenProb))
+                    totalTokens += 1
+                }
+            }
+        }
+
+        let avgLogProb = totalTokens > 0 ? totalLogProb / Double(totalTokens) : 0.0
+
+        return TranscriptionWithConfidence(
+            text: transcription,
+            avgLogProb: avgLogProb,
+            segmentCount: Int(nSegments)
+        )
     }
 
     static func createContext(path: String) async throws -> WhisperContext {

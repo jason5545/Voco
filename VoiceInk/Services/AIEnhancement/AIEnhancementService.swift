@@ -10,7 +10,7 @@ enum EnhancementPrompt {
 
 @MainActor
 class AIEnhancementService: ObservableObject {
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "AIEnhancementService")
+    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "AIEnhancementService")
 
     @Published var isEnhancementEnabled: Bool {
         didSet {
@@ -184,7 +184,28 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
-        let finalContextSection = allContextSections + customVocabularySection
+        // Recent transcriptions context (for Chinese post-processing disambiguation)
+        let postProcessor = ChinesePostProcessingService.shared
+        let recentTranscriptionsSection: String
+        if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
+            let recent = postProcessor.contextMemory.getRecent(count: 5)
+            if !recent.isEmpty {
+                let numbered = recent.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+                recentTranscriptionsSection = """
+
+
+                <RECENT_TRANSCRIPTIONS>
+                \(numbered)
+                </RECENT_TRANSCRIPTIONS>
+                """
+            } else {
+                recentTranscriptionsSection = ""
+            }
+        } else {
+            recentTranscriptionsSection = ""
+        }
+
+        let finalContextSection = allContextSections + customVocabularySection + recentTranscriptionsSection
 
         if let activePrompt = activePrompt {
             if activePrompt.id == PredefinedPrompts.assistantPromptId {

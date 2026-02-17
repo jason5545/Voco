@@ -46,6 +46,18 @@ enum AppDefaults {
 
             // Model
             "PrewarmModelOnWake": true,
+
+            // Chinese Post-Processing
+            "ChinesePostProcessingEnabled": false,
+            "ChinesePostProcessingOpenCC": true,
+            "ChinesePostProcessingPinyin": true,
+            "ChinesePostProcessingSpokenPunctuation": true,
+            "ChinesePostProcessingHalfWidth": true,
+            "ChinesePostProcessingRepetition": true,
+            "ChinesePostProcessingConfidence": false,
+            "ChinesePostProcessingContextMemory": true,
+            "ChinesePostProcessingLLMValidation": true,
+            "ChinesePostProcessingLogProbThreshold": -0.3,
         ])
     }
 }

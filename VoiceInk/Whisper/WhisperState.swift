@@ -99,7 +99,7 @@ class WhisperState: NSObject, ObservableObject {
     let recordingsDirectory: URL
     let enhancementService: AIEnhancementService?
     var licenseViewModel: LicenseViewModel
-    let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "WhisperState")
+    let logger = Logger(subsystem: "com.jasonchien.voco", category: "WhisperState")
     var notchWindowManager: NotchWindowManager?
     var miniWindowManager: MiniWindowManager?
     
@@ -110,7 +110,7 @@ class WhisperState: NSObject, ObservableObject {
     init(modelContext: ModelContext, enhancementService: AIEnhancementService? = nil) {
         self.modelContext = modelContext
         let appSupportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.prakashjoshipax.VoiceInk")
+            .appendingPathComponent("com.jasonchien.Voco")
         
         self.modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
         self.recordingsDirectory = appSupportDirectory.appendingPathComponent("Recordings")
@@ -341,6 +341,7 @@ class WhisperState: NSObject, ObservableObject {
         
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
+        let postProcessor = ChinesePostProcessingService.shared
 
         do {
             guard let model = currentTranscriptionModel else {
@@ -377,6 +378,24 @@ class WhisperState: NSObject, ObservableObject {
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             logger.notice("📝 WordReplacement: \(text, privacy: .public)")
 
+            // === Chinese Post-Processing Pipeline ===
+            if postProcessor.isEnabled {
+                let ppResult = postProcessor.process(text)
+                text = ppResult.processedText
+                logger.notice("📝 ChinesePostProcessing: \(text, privacy: .public) (steps: \(ppResult.appliedSteps.joined(separator: ", ")))")
+
+                // Severe repetition → discard output (Whisper hallucination)
+                if let repInfo = ppResult.repetitionInfo, repInfo.isSevere {
+                    logger.warning("⚠️ Severe repetition detected (\(String(format: "%.0f%%", repInfo.repetitionRatio * 100))), discarding output")
+                    transcription.text = "Discarded: severe repetition"
+                    transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
+                    try? modelContext.save()
+                    await self.dismissMiniRecorder()
+                    shouldCancelRecording = false
+                    return
+                }
+            }
+
             let audioAsset = AVURLAsset(url: url)
             let actualDuration = (try? CMTimeGetSeconds(await audioAsset.load(.duration))) ?? 0.0
             
@@ -394,29 +413,50 @@ class WhisperState: NSObject, ObservableObject {
                 await promptDetectionService.applyDetectionResult(detectionResult, to: enhancementService)
             }
 
-            if let enhancementService = enhancementService,
+            // Determine if AI Enhancement should be skipped (confidence routing)
+            let shouldSkipEnhancement = postProcessor.isEnabled
+                && postProcessor.isConfidenceRoutingEnabled
+                && postProcessor.shouldSkipLLMEnhancement(text: text)
+
+            if !shouldSkipEnhancement,
+               let enhancementService = enhancementService,
                enhancementService.isEnhancementEnabled,
                enhancementService.isConfigured {
                 if await checkCancellationAndCleanup() { return }
 
                 await MainActor.run { self.recordingState = .enhancing }
                 let textForAI = promptDetectionResult?.processedText ?? text
-                
+
                 do {
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
                     logger.notice("📝 AI enhancement: \(enhancedText, privacy: .public)")
-                    transcription.enhancedText = enhancedText
+
+                    // LLM response validation
+                    if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
+                        if !postProcessor.llmResponseValidator.isValid(response: enhancedText, original: textForAI) {
+                            logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
+                            // Keep text as-is (pre-LLM), don't use enhancedText
+                        } else {
+                            transcription.enhancedText = enhancedText
+                            finalPastedText = enhancedText
+                        }
+                    } else {
+                        transcription.enhancedText = enhancedText
+                        finalPastedText = enhancedText
+                    }
+
                     transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
                     transcription.promptName = promptName
                     transcription.enhancementDuration = enhancementDuration
                     transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
                     transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
-                    finalPastedText = enhancedText
                 } catch {
                     transcription.enhancedText = "Enhancement failed: \(error)"
-                  
+
                     if await checkCancellationAndCleanup() { return }
                 }
+            } else if shouldSkipEnhancement {
+                logger.notice("📝 Skipping AI enhancement (confidence routing)")
             }
 
             transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
@@ -444,6 +484,11 @@ class WhisperState: NSObject, ObservableObject {
                     Your trial has expired. Upgrade to VoiceInk Pro at tryvoiceink.com/buy
                     \n\(textToPaste)
                     """
+            }
+
+            // Add to context memory for future LLM disambiguation
+            if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
+                postProcessor.contextMemory.add(textToPaste)
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {

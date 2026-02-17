@@ -5,7 +5,7 @@ import os
 /// Soniox stt-rt-v4 realtime streaming provider using WebSocket.
 final class SonioxStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SonioxStreaming")
+    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "SonioxStreaming")
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?

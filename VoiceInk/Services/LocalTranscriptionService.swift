@@ -5,7 +5,7 @@ import os
 class LocalTranscriptionService: TranscriptionService {
     
     private var whisperContext: WhisperContext?
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "LocalTranscriptionService")
+    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "LocalTranscriptionService")
     private let modelsDirectory: URL
     private weak var whisperState: WhisperState?
     
@@ -69,9 +69,15 @@ class LocalTranscriptionService: TranscriptionService {
             throw WhisperStateError.whisperCoreFailed
         }
         
-        var text = await whisperContext.getTranscription()
+        let transcriptionResult = await whisperContext.getTranscriptionWithConfidence()
+        var text = transcriptionResult.text
 
-        logger.notice("✅ Local transcription completed successfully.")
+        // Store confidence metrics for Chinese post-processing service
+        await MainActor.run {
+            ChinesePostProcessingService.shared.lastAvgLogProb = transcriptionResult.avgLogProb
+        }
+
+        logger.notice("✅ Local transcription completed (avgLogProb=\(String(format: "%.3f", transcriptionResult.avgLogProb)))")
         
         // Only release resources if we created a new context (not using the shared one)
         if await whisperState?.whisperContext !== whisperContext {

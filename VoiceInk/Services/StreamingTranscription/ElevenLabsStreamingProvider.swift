@@ -4,7 +4,7 @@ import os
 /// ElevenLabs Scribe V2 Real-Time streaming provider using WebSocket.
 final class ElevenLabsStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ElevenLabsStreaming")
+    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "ElevenLabsStreaming")
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?

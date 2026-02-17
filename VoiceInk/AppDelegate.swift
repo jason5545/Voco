@@ -7,6 +7,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBarManager?.applyActivationPolicy()
+
+        // VoiceInk → Voco data migration
+        if VoiceInkMigrationService.shared.needsMigration {
+            Task {
+                let result = await VoiceInkMigrationService.shared.migrateIfNeeded()
+                if !result.isFullySuccessful {
+                    await MainActor.run {
+                        NotificationManager.shared.showNotification(
+                            title: "Migration partially completed",
+                            type: .warning
+                        )
+                    }
+                }
+            }
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
