@@ -5863,6 +5863,16 @@
           }
         }
       }
+    },
+    "Press ESC again to cancel recording": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再按一次 ESC 取消錄音"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
