@@ -9,6 +9,7 @@ class VoiceInkMigrationService {
     private let logger = Logger(subsystem: "com.jasonchien.voco", category: "VoiceInkMigration")
 
     private let migrationCompletedKey = "VocoMigrationFromVoiceInkCompleted"
+    private let xvoiceMigrationCompletedKey = "VocoMigrationFromXVoiceCompleted"
     private let voiceInkBundleId = "com.prakashjoshipax.VoiceInk"
 
     /// Result of migration attempt
@@ -39,10 +40,52 @@ class VoiceInkMigrationService {
 
     // MARK: - Public API
 
-    /// Whether migration is needed (VoiceInk data exists and hasn't been migrated)
+    /// Whether VoiceInk migration is needed
     var needsMigration: Bool {
         return !UserDefaults.standard.bool(forKey: migrationCompletedKey)
             && voiceInkDataExists()
+    }
+
+    /// Whether XVoice API key migration is needed
+    var needsXVoiceMigration: Bool {
+        return !UserDefaults.standard.bool(forKey: xvoiceMigrationCompletedKey)
+    }
+
+    /// Migrate XVoice OpenRouter API key from .env file
+    func migrateXVoiceAPIKeyIfNeeded() {
+        guard needsXVoiceMigration else { return }
+
+        let xvoiceEnvPaths = [
+            NSHomeDirectory() + "/GitHub/xvoice/.env",
+            NSHomeDirectory() + "/xvoice/.env",
+        ]
+
+        for envPath in xvoiceEnvPaths {
+            guard FileManager.default.fileExists(atPath: envPath),
+                  let content = try? String(contentsOfFile: envPath, encoding: .utf8) else { continue }
+
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("OPENROUTER_API_KEY=") else { continue }
+                let key = String(trimmed.dropFirst("OPENROUTER_API_KEY=".count))
+                guard !key.isEmpty else { continue }
+
+                // Only set if Voco doesn't already have an OpenRouter key
+                if !APIKeyManager.shared.hasAPIKey(forProvider: "openrouter") {
+                    APIKeyManager.shared.saveAPIKey(key, forProvider: "openrouter")
+                    logger.notice("Migrated OpenRouter API key from XVoice")
+                } else {
+                    logger.info("OpenRouter API key already exists in Voco, skipping XVoice migration")
+                }
+
+                UserDefaults.standard.set(true, forKey: xvoiceMigrationCompletedKey)
+                return
+            }
+        }
+
+        // No .env found or no key in it, mark as done
+        UserDefaults.standard.set(true, forKey: xvoiceMigrationCompletedKey)
+        logger.info("No XVoice .env found, skipping API key migration")
     }
 
     /// Perform migration if needed

@@ -8,6 +8,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBarManager?.applyActivationPolicy()
 
+        // XVoice API key migration (sync, runs first)
+        VoiceInkMigrationService.shared.migrateXVoiceAPIKeyIfNeeded()
+
         // VoiceInk → Voco data migration
         if VoiceInkMigrationService.shared.needsMigration {
             Task {
