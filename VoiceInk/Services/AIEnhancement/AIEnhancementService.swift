@@ -36,6 +36,12 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
+    @Published var useAppContext: Bool {
+        didSet {
+            UserDefaults.standard.set(useAppContext, forKey: "useAppContext")
+        }
+    }
+
     @Published var customPrompts: [CustomPrompt] {
         didSet {
             if let encoded = try? JSONEncoder().encode(customPrompts) {
@@ -82,6 +88,7 @@ class AIEnhancementService: ObservableObject {
         self.isEnhancementEnabled = UserDefaults.standard.bool(forKey: "isAIEnhancementEnabled")
         self.useClipboardContext = UserDefaults.standard.bool(forKey: "useClipboardContext")
         self.useScreenCaptureContext = UserDefaults.standard.bool(forKey: "useScreenCaptureContext")
+        self.useAppContext = UserDefaults.standard.object(forKey: "useAppContext") as? Bool ?? true
 
         if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
            let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
@@ -167,9 +174,29 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
+        let appContext: String
+        if useAppContext, let frontApp = NSWorkspace.shared.frontmostApplication {
+            let appName = frontApp.localizedName ?? "Unknown"
+            var windowTitle = ""
+            if AXIsProcessTrusted() {
+                let axApp = AXUIElementCreateApplication(frontApp.processIdentifier)
+                var focusedWindow: AnyObject?
+                if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
+                    var titleValue: AnyObject?
+                    if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
+                        windowTitle = titleValue as? String ?? ""
+                    }
+                }
+            }
+            let titlePart = windowTitle.isEmpty ? "" : " - \(windowTitle)"
+            appContext = "\n\n<ACTIVE_APPLICATION>\n\(appName)\(titlePart)\n</ACTIVE_APPLICATION>"
+        } else {
+            appContext = ""
+        }
+
         let customVocabulary = customVocabularyService.getCustomVocabulary(from: modelContext)
 
-        let allContextSections = selectedTextContext + clipboardContext + screenCaptureContext
+        let allContextSections = selectedTextContext + clipboardContext + screenCaptureContext + appContext
 
         let customVocabularySection = if !customVocabulary.isEmpty {
             """

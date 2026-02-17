@@ -49,6 +49,14 @@ struct EnhancementSettingsView: View {
                             }
                         }
                         .toggleStyle(.switch)
+
+                        Toggle(isOn: $enhancementService.useAppContext) {
+                            HStack(spacing: 4) {
+                                Text("App Context")
+                                InfoTip("Automatically detect the active application to adjust enhancement style.")
+                            }
+                        }
+                        .toggleStyle(.switch)
                     }
                     .opacity(enhancementService.isEnhancementEnabled ? 1.0 : 0.8)
                 } header: {
