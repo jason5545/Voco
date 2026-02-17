@@ -256,7 +256,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 %lld 個工作階段中口述了 %@ 個字。"
+            "value": "在 %2$lld 個工作階段中口述了 %1$@ 個字。"
           }
         }
       }
