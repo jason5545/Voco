@@ -225,7 +225,7 @@ class ChinesePostProcessingService: ObservableObject {
     }
 
     /// Check if a long sentence needs punctuation added by LLM
-    private func needsPunctuation(_ text: String, minLength: Int = 15) -> Bool {
+    private func needsPunctuation(_ text: String, minLength: Int = 10) -> Bool {
         guard text.count >= minLength else { return false }
         let punctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
         let hasPunctuation = text.contains { punctuationMarks.contains($0) }

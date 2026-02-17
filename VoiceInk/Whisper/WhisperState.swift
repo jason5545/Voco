@@ -379,10 +379,12 @@ class WhisperState: NSObject, ObservableObject {
             logger.notice("📝 WordReplacement: \(text, privacy: .public)")
 
             // === Chinese Post-Processing Pipeline ===
+            var ppNeedsLLM = true
             if postProcessor.isEnabled {
                 let ppResult = postProcessor.process(text)
                 text = ppResult.processedText
-                logger.notice("📝 ChinesePostProcessing: \(text, privacy: .public) (steps: \(ppResult.appliedSteps.joined(separator: ", ")))")
+                ppNeedsLLM = ppResult.needsLLMCorrection
+                logger.notice("📝 ChinesePostProcessing: \(text, privacy: .public) (steps: \(ppResult.appliedSteps.joined(separator: ", ")), needsLLM: \(ppNeedsLLM))")
 
                 // Severe repetition → discard output (Whisper hallucination)
                 if let repInfo = ppResult.repetitionInfo, repInfo.isSevere {
@@ -428,9 +430,7 @@ class WhisperState: NSObject, ObservableObject {
             }
 
             // Determine if AI Enhancement should be skipped (confidence routing)
-            let shouldSkipEnhancement = postProcessor.isEnabled
-                && postProcessor.isConfidenceRoutingEnabled
-                && postProcessor.shouldSkipLLMEnhancement(text: text)
+            let shouldSkipEnhancement = postProcessor.isEnabled && !ppNeedsLLM
 
             if !shouldSkipEnhancement,
                let enhancementService = enhancementService,
@@ -471,6 +471,32 @@ class WhisperState: NSObject, ObservableObject {
                 }
             } else if shouldSkipEnhancement {
                 logger.notice("📝 Skipping AI enhancement (confidence routing)")
+
+                // Safety net: if skipped text is long and has no CJK punctuation, force LLM
+                let cjkPunctuation: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
+                let pastedText = finalPastedText ?? ""
+                let hasCJKPunctuation = pastedText.contains { cjkPunctuation.contains($0) }
+                if pastedText.count >= 10 && !hasCJKPunctuation,
+                   let enhancementService = enhancementService,
+                   enhancementService.isEnhancementEnabled,
+                   enhancementService.isConfigured {
+                    logger.notice("📝 Safety net triggered: long text without punctuation, forcing LLM")
+                    await MainActor.run { self.recordingState = .enhancing }
+                    let textForAI = promptDetectionResult?.processedText ?? text
+                    do {
+                        let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
+                        logger.notice("📝 Safety net AI enhancement: \(enhancedText, privacy: .public)")
+                        transcription.enhancedText = enhancedText
+                        finalPastedText = enhancedText
+                        transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
+                        transcription.promptName = promptName
+                        transcription.enhancementDuration = enhancementDuration
+                        transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
+                        transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
+                    } catch {
+                        logger.warning("⚠️ Safety net enhancement failed: \(error.localizedDescription)")
+                    }
+                }
             }
 
             transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
