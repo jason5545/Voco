@@ -235,8 +235,7 @@ struct MetricsContent: View {
     }
     
     private var formattedTimeSaved: String {
-        let formatted = Formatters.formattedDuration(timeSaved, style: .full, fallback: String(localized: "Time savings coming soon"))
-        return formatted
+        Formatters.formattedDuration(timeSaved, style: .full)
     }
     
     private var heroSubtitle: String {
@@ -266,14 +265,13 @@ struct MetricsContent: View {
     
     // MARK: - Computed Metrics
 
-    private var estimatedTypingTime: TimeInterval {
-        let averageTypingSpeed: Double = 35 // words per minute
-        let estimatedTypingTimeInMinutes = Double(totalWords) / averageTypingSpeed
-        return estimatedTypingTimeInMinutes * 60
-    }
-
     private var timeSaved: TimeInterval {
-        max(estimatedTypingTime - totalDuration, 0)
+        // Average typing speed: ~15 WPM (single-finger typing)
+        // Average speaking speed: ~130 WPM
+        // Time saved = time it would take to type - time it takes to speak
+        let typingTimeSeconds = (Double(totalWords) / 15.0) * 60.0
+        let speakingTimeSeconds = (Double(totalWords) / 130.0) * 60.0
+        return typingTimeSeconds - speakingTimeSeconds
     }
 
     private var averageWordsPerMinute: Double {

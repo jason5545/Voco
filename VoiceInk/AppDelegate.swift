@@ -8,22 +8,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBarManager?.applyActivationPolicy()
 
-        // XVoice API key migration (sync, runs first)
-        VoiceInkMigrationService.shared.migrateXVoiceAPIKeyIfNeeded()
-
-        // VoiceInk → Voco data migration
+        // VoiceInk → Voco data migration (one-time, first launch only)
         if VoiceInkMigrationService.shared.needsMigration {
             Task {
-                let result = await VoiceInkMigrationService.shared.migrateIfNeeded()
-                if !result.isFullySuccessful {
-                    await MainActor.run {
-                        NotificationManager.shared.showNotification(
-                            title: "Migration partially completed",
-                            type: .warning
-                        )
-                    }
-                }
+                // Run VoiceInk migration first (copies UserDefaults, SwiftData, etc.)
+                await VoiceInkMigrationService.shared.migrateIfNeeded()
+                // XVoice migration after UserDefaults are available
+                VoiceInkMigrationService.shared.migrateXVoiceAPIKeyIfNeeded()
             }
+        } else {
+            // No VoiceInk data to migrate, just check XVoice
+            VoiceInkMigrationService.shared.migrateXVoiceAPIKeyIfNeeded()
         }
     }
 

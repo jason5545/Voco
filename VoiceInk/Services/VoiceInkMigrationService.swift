@@ -42,8 +42,24 @@ class VoiceInkMigrationService {
 
     /// Whether VoiceInk migration is needed
     var needsMigration: Bool {
-        return !UserDefaults.standard.bool(forKey: migrationCompletedKey)
-            && voiceInkDataExists()
+        // Already marked as completed
+        if UserDefaults.standard.bool(forKey: migrationCompletedKey) {
+            return false
+        }
+        // No VoiceInk data to migrate from
+        if !voiceInkDataExists() {
+            return false
+        }
+        // Voco already has its own SwiftData stores — migration was already done
+        // (manually or partially) so no need to run again
+        let vocoAppSupport = vocoAppSupportURL()
+        let fm = FileManager.default
+        if fm.fileExists(atPath: vocoAppSupport.appendingPathComponent("default.store").path) {
+            logger.info("Voco already has SwiftData stores, marking migration as completed")
+            UserDefaults.standard.set(true, forKey: migrationCompletedKey)
+            return false
+        }
+        return true
     }
 
     /// Whether XVoice API key migration is needed
@@ -125,12 +141,12 @@ class VoiceInkMigrationService {
         // 5. Migrate Keychain items
         result.keychainMigrated = migrateKeychain(result: &result)
 
-        // Mark as completed only if fully successful
+        // Always mark as completed after first run — don't retry on every launch
+        UserDefaults.standard.set(true, forKey: migrationCompletedKey)
         if result.isFullySuccessful {
-            UserDefaults.standard.set(true, forKey: migrationCompletedKey)
             logger.notice("Migration completed successfully: \(result.summary)")
         } else {
-            logger.warning("Migration partially completed: \(result.summary)")
+            logger.warning("Migration completed with issues: \(result.summary)")
         }
 
         return result
@@ -278,9 +294,11 @@ class VoiceInkMigrationService {
 
     private func migrateKeychain(result: inout MigrationResult) -> Bool {
         // Query for all keychain items with VoiceInk service name
+        // Use kSecAttrSynchronizableAny to match both syncable and non-syncable items
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: voiceInkBundleId,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
             kSecReturnAttributes as String: true,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
@@ -299,39 +317,23 @@ class VoiceInkMigrationService {
             return false
         }
 
-        let vocoBundleId = Bundle.main.bundleIdentifier ?? voiceInkBundleId
+        let keychainService = KeychainService.shared
         var success = true
 
         for item in items {
             guard let account = item[kSecAttrAccount as String] as? String,
                   let data = item[kSecValueData as String] as? Data else { continue }
 
-            // Check if already exists in Voco keychain
-            let checkQuery: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: vocoBundleId,
-                kSecAttrAccount as String: account,
-            ]
-
-            let checkStatus = SecItemCopyMatching(checkQuery as CFDictionary, nil)
-            if checkStatus == errSecSuccess {
+            if keychainService.exists(forKey: account) {
                 logger.info("Keychain item '\(account)' already exists in Voco, skipping")
                 continue
             }
 
-            // Add to Voco keychain
-            let addQuery: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: vocoBundleId,
-                kSecAttrAccount as String: account,
-                kSecValueData as String: data,
-            ]
-
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus == errSecSuccess {
+            // Use KeychainService to write with correct attributes (syncable + data protection)
+            if keychainService.save(data: data, forKey: account) {
                 logger.info("Migrated keychain item: \(account)")
             } else {
-                result.errors.append("Failed to migrate keychain item '\(account)': \(addStatus)")
+                result.errors.append("Failed to migrate keychain item '\(account)'")
                 success = false
             }
         }
