@@ -5,7 +5,6 @@ import os
 struct MetricsContent: View {
     private let logger = Logger(subsystem: "com.jasonchien.voco", category: "MetricsContent")
     let modelContext: ModelContext
-    let licenseState: LicenseViewModel.LicenseState
 
     @State private var totalCount: Int = 0
     @State private var totalWords: Int = 0
@@ -28,7 +27,7 @@ struct MetricsContent: View {
                             metricsSection
                             HStack(alignment: .top, spacing: 18) {
                                 HelpAndResourcesSection()
-                                DashboardPromotionsSection(licenseState: licenseState)
+                                DashboardPromotionsSection()
                             }
 
                             Spacer(minLength: 20)

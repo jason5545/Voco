@@ -11,8 +11,7 @@ struct MetricsView: View {
     var body: some View {
         VStack {
             MetricsContent(
-                modelContext: modelContext,
-                licenseState: .licensed
+                modelContext: modelContext
             )
         }
         .background(Color(.controlBackgroundColor))

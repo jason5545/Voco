@@ -101,7 +101,6 @@ class WhisperState: NSObject, ObservableObject {
     let modelsDirectory: URL
     let recordingsDirectory: URL
     let enhancementService: AIEnhancementService?
-    var licenseViewModel: LicenseViewModel
     let logger = Logger(subsystem: "com.jasonchien.voco", category: "WhisperState")
     var notchWindowManager: NotchWindowManager?
     var miniWindowManager: MiniWindowManager?
@@ -120,8 +119,7 @@ class WhisperState: NSObject, ObservableObject {
         self.recordingsDirectory = appSupportDirectory.appendingPathComponent("Recordings")
         
         self.enhancementService = enhancementService
-        self.licenseViewModel = LicenseViewModel()
-        
+
         super.init()
         
         // Configure the session manager
@@ -363,9 +361,9 @@ class WhisperState: NSObject, ObservableObject {
             } else {
                 text = try await serviceRegistry.transcribe(audioURL: url, model: model)
             }
-            logger.notice("📝 Transcript: \(text, privacy: .public)")
+            logger.notice("📝 Transcript: \(text, privacy: .private)")
             text = TranscriptionOutputFilter.filter(text)
-            logger.notice("📝 Output filter result: \(text, privacy: .public)")
+            logger.notice("📝 Output filter result: \(text, privacy: .private)")
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
 
             let powerModeManager = PowerModeManager.shared
@@ -379,11 +377,11 @@ class WhisperState: NSObject, ObservableObject {
 
             if UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled") {
                 text = WhisperTextFormatter.format(text)
-                logger.notice("📝 Formatted transcript: \(text, privacy: .public)")
+                logger.notice("📝 Formatted transcript: \(text, privacy: .private)")
             }
 
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
-            logger.notice("📝 WordReplacement: \(text, privacy: .public)")
+            logger.notice("📝 WordReplacement: \(text, privacy: .private)")
 
             // Set model provider for confidence routing
             postProcessor.lastModelProvider = model.provider
@@ -399,7 +397,7 @@ class WhisperState: NSObject, ObservableObject {
                 let ppResult = postProcessor.process(text)
                 text = ppResult.processedText
                 ppNeedsLLM = ppResult.needsLLMCorrection
-                logger.notice("📝 ChinesePostProcessing: \(text, privacy: .public) (steps: \(ppResult.appliedSteps.joined(separator: ", ")), needsLLM: \(ppNeedsLLM))")
+                logger.notice("📝 ChinesePostProcessing: \(text, privacy: .private) (steps: \(ppResult.appliedSteps.joined(separator: ", ")), needsLLM: \(ppNeedsLLM))")
 
                 // Severe repetition → discard output (Whisper hallucination)
                 if let repInfo = ppResult.repetitionInfo, repInfo.isSevere {
@@ -415,6 +413,7 @@ class WhisperState: NSObject, ObservableObject {
 
             // Unexpected script retry: if output contains non-CJK/non-English/non-Japanese text,
             // it's a Qwen3 language misdetection — retry as Japanese
+            var didScriptRetry = false
             if model.provider == .qwen3,
                text.unicodeScalars.contains(where: { scalar in
                    let v = scalar.value
@@ -440,8 +439,34 @@ class WhisperState: NSObject, ObservableObject {
 
                 if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
                     text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    didScriptRetry = true
                     ChinesePostProcessingService.debugLog("[SCRIPT_RETRY] \(originalText) → \(text)")
-                    logger.notice("🔄 Unexpected script retry: \(originalText, privacy: .public) → \(text, privacy: .public)")
+                    logger.notice("🔄 Unexpected script retry: \(originalText, privacy: .private) → \(text, privacy: .private)")
+
+                    if postProcessor.isEnabled {
+                        let retryPPResult = postProcessor.process(text)
+                        text = retryPPResult.processedText
+                        ppNeedsLLM = retryPPResult.needsLLMCorrection
+                    }
+                }
+            }
+
+            // Japanese sentence drift retry: Qwen3 auto-detect may misidentify Chinese as Japanese,
+            // producing full Japanese sentences the user couldn't have spoken.
+            // Only trigger when: Qwen3 + auto-detect mode + no prior script retry + drift detected
+            if model.provider == .qwen3,
+               !didScriptRetry,
+               UserDefaults.standard.string(forKey: "SelectedLanguage") == "auto",
+               ChinesePostProcessingService.detectsJapaneseSentenceDrift(text) {
+                let originalText = text
+                let qwen3Service = serviceRegistry.qwen3TranscriptionService
+                qwen3Service.languageOverride = "Chinese"
+                defer { qwen3Service.languageOverride = nil }
+
+                if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
+                    text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ChinesePostProcessingService.debugLog("[JP_DRIFT_RETRY] \(originalText) → \(text)")
+                    logger.notice("🔄 Japanese drift retry: \(originalText, privacy: .private) → \(text, privacy: .private)")
 
                     if postProcessor.isEnabled {
                         let retryPPResult = postProcessor.process(text)
@@ -465,7 +490,7 @@ class WhisperState: NSObject, ObservableObject {
             if isEditMode, let selectedText = editModeSelectedText {
                 // 1. Direct edit commands (no LLM needed)
                 if let editCommand = VoiceCommandService.shared.detectEditModeCommand(in: text) {
-                    logger.notice("🎤 Edit mode command detected: \(editCommand.rawValue, privacy: .public)")
+                    logger.notice("🎤 Edit mode command detected: \(editCommand.rawValue, privacy: .private)")
                     transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
                     try? modelContext.save()
                     NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
@@ -502,7 +527,7 @@ class WhisperState: NSObject, ObservableObject {
                     let (editedText, editDuration) = try await enhancementService.enhanceForEditMode(
                         instruction: text, selectedText: selectedText
                     )
-                    logger.notice("📝 Edit mode result: \(editedText, privacy: .public)")
+                    logger.notice("📝 Edit mode result: \(editedText, privacy: .private)")
                     transcription.enhancedText = editedText
                     transcription.enhancementDuration = editDuration
                     transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
@@ -548,7 +573,7 @@ class WhisperState: NSObject, ObservableObject {
 
             // Voice command detection — intercept before AI enhancement (normal mode only)
             if let command = VoiceCommandService.shared.detectCommand(in: text) {
-                logger.notice("🎤 Voice command detected: \(command.rawValue, privacy: .public)")
+                logger.notice("🎤 Voice command detected: \(command.rawValue, privacy: .private)")
                 transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
                 try? modelContext.save()
                 NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
@@ -581,7 +606,7 @@ class WhisperState: NSObject, ObservableObject {
 
                 do {
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
-                    logger.notice("📝 AI enhancement: \(enhancedText, privacy: .public)")
+                    logger.notice("📝 AI enhancement: \(enhancedText, privacy: .private)")
 
                     // LLM response validation
                     if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
@@ -629,7 +654,7 @@ class WhisperState: NSObject, ObservableObject {
                     let textForAI = promptDetectionResult?.processedText ?? text
                     do {
                         let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
-                        logger.notice("📝 Safety net AI enhancement: \(enhancedText, privacy: .public)")
+                        logger.notice("📝 Safety net AI enhancement: \(enhancedText, privacy: .private)")
                         transcription.enhancedText = enhancedText
                         finalPastedText = enhancedText
                         transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
@@ -666,13 +691,6 @@ class WhisperState: NSObject, ObservableObject {
             // Enforce vocabulary casing as the final text processing step (after AI enhancement)
             textToPaste = WordReplacementService.shared.enforceVocabularyCasing(
                 text: textToPaste, using: modelContext)
-
-            if case .trialExpired = licenseViewModel.licenseState {
-                textToPaste = """
-                    Your trial has expired. Upgrade to Voco Pro at tryvoiceink.com/buy
-                    \n\(textToPaste)
-                    """
-            }
 
             // Add to context memory for future LLM disambiguation
             if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {

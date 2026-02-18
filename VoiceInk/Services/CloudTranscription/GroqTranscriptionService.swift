@@ -30,7 +30,7 @@ class GroqTranscriptionService {
         
         if !(200...299).contains(httpResponse.statusCode) {
             let errorMessage = String(data: data, encoding: .utf8) ?? "No error message"
-            logger.error("Groq API request failed with status \(httpResponse.statusCode): \(errorMessage, privacy: .public)")
+            logger.error("Groq API request failed with status \(httpResponse.statusCode): \(errorMessage, privacy: .private)")
             throw CloudTranscriptionError.apiRequestFailed(statusCode: httpResponse.statusCode, message: errorMessage)
         }
         

@@ -7,7 +7,7 @@ class GeminiTranscriptionService {
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         let config = try getAPIConfig(for: model)
         
-        logger.notice("Starting Gemini transcription with model: \(model.name, privacy: .public)")
+        logger.notice("Starting Gemini transcription with model: \(model.name, privacy: .private)")
         
         var request = URLRequest(url: config.url)
         request.httpMethod = "POST"
@@ -54,7 +54,7 @@ class GeminiTranscriptionService {
         
         if !(200...299).contains(httpResponse.statusCode) {
             let errorMessage = String(data: data, encoding: .utf8) ?? "No error message"
-            logger.error("Gemini API request failed with status \(httpResponse.statusCode): \(errorMessage, privacy: .public)")
+            logger.error("Gemini API request failed with status \(httpResponse.statusCode): \(errorMessage, privacy: .private)")
             throw CloudTranscriptionError.apiRequestFailed(statusCode: httpResponse.statusCode, message: errorMessage)
         }
         

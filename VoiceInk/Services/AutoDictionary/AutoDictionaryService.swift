@@ -37,7 +37,7 @@ final class AutoDictionaryService {
         lastPreFieldContent = fieldContent
         lastAppBundleID = bundleID
 
-        logger.debug("Snapshot captured – app=\(bundleID ?? "nil", privacy: .public), fieldLen=\(fieldContent?.count ?? -1), insertedLen=\(insertedText.count)")
+        logger.debug("Snapshot captured – app=\(bundleID ?? "nil", privacy: .private), fieldLen=\(fieldContent?.count ?? -1), insertedLen=\(insertedText.count)")
     }
 
     /// Call this when the user starts a **new** recording to check whether the previous
@@ -135,7 +135,7 @@ final class AutoDictionaryService {
         // Similarity guard: reject substitutions where original and corrected are too dissimilar
         // (e.g. "深度思考" vs "Reply...", "立場" vs "LiSA")
         guard areSimilarEnough(trimmedOrig, trimmedCorr) else {
-            logger.debug("Substitution rejected (too dissimilar): \"\(trimmedOrig, privacy: .public)\" → \"\(trimmedCorr, privacy: .public)\"")
+            logger.debug("Substitution rejected (too dissimilar): \"\(trimmedOrig, privacy: .private)\" → \"\(trimmedCorr, privacy: .private)\"")
             return []
         }
 
@@ -170,7 +170,7 @@ final class AutoDictionaryService {
     // MARK: - Candidate Management
 
     private func recordCorrection(original: String, corrected: String, modelContext: ModelContext) {
-        logger.notice("Correction detected: \"\(original, privacy: .public)\" → \"\(corrected, privacy: .public)\"")
+        logger.notice("Correction detected: \"\(original, privacy: .private)\" → \"\(corrected, privacy: .private)\"")
 
         // Check if this WordReplacement already exists
         let existingReplacements = (try? modelContext.fetch(
@@ -180,7 +180,7 @@ final class AutoDictionaryService {
         )) ?? []
 
         if !existingReplacements.isEmpty {
-            logger.debug("WordReplacement already exists for \"\(original, privacy: .public)\" → \"\(corrected, privacy: .public)\", skipping")
+            logger.debug("WordReplacement already exists for \"\(original, privacy: .private)\" → \"\(corrected, privacy: .private)\", skipping")
             return
         }
 
@@ -194,7 +194,7 @@ final class AutoDictionaryService {
         if let existing = candidates.first {
             existing.count += 1
             existing.lastSeen = Date()
-            logger.notice("Candidate count updated: \"\(original, privacy: .public)\" → \"\(corrected, privacy: .public)\" (count=\(existing.count))")
+            logger.notice("Candidate count updated: \"\(original, privacy: .private)\" → \"\(corrected, privacy: .private)\" (count=\(existing.count))")
 
             if existing.count >= promotionThreshold {
                 promoteCandidate(existing, modelContext: modelContext)
@@ -202,7 +202,7 @@ final class AutoDictionaryService {
         } else {
             let candidate = CorrectionCandidate(originalText: original, correctedText: corrected)
             modelContext.insert(candidate)
-            logger.notice("New candidate created: \"\(original, privacy: .public)\" → \"\(corrected, privacy: .public)\"")
+            logger.notice("New candidate created: \"\(original, privacy: .private)\" → \"\(corrected, privacy: .private)\"")
         }
 
         try? modelContext.save()
@@ -218,7 +218,7 @@ final class AutoDictionaryService {
         modelContext.insert(replacement)
         try? modelContext.save()
 
-        logger.notice("Promoted to WordReplacement: \"\(candidate.originalText, privacy: .public)\" → \"\(candidate.correctedText, privacy: .public)\"")
+        logger.notice("Promoted to WordReplacement: \"\(candidate.originalText, privacy: .private)\" → \"\(candidate.correctedText, privacy: .private)\"")
 
         // Show notification with undo action
         let originalText = candidate.originalText

@@ -253,6 +253,71 @@ class ChinesePostProcessingService: ObservableObject {
         }
     }
 
+    // MARK: - Japanese Sentence Drift Detection
+
+    /// Detect if text looks like a complete Japanese sentence (indicates Qwen3 misdetected Chinese as Japanese)
+    /// Users only produce single Japanese words or song titles — never full sentences.
+    static func detectsJapaneseSentenceDrift(_ text: String) -> Bool {
+        // Must contain at least one hiragana/katakana to be considered Japanese
+        let hasKana = text.unicodeScalars.contains { scalar in
+            let v = scalar.value
+            return (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v)
+        }
+        guard hasKana else { return false }
+
+        let particles = countJapaneseParticles(in: text)
+
+        // Path A: Polite ending + >= 2 particles
+        let politeEndings = ["です", "ます", "ました", "ません", "ました", "でした", "ましょう", "ください"]
+        let hasPoliteEnding = politeEndings.contains { text.hasSuffix($0) }
+        if hasPoliteEnding && particles >= 2 {
+            debugLog("[JP_DRIFT] Path A: polite ending + \(particles) particles | text: \(text)")
+            return true
+        }
+
+        // Path B: >= 3 particles + text length >= 10
+        if particles >= 3 && text.count >= 10 {
+            debugLog("[JP_DRIFT] Path B: \(particles) particles + len \(text.count) | text: \(text)")
+            return true
+        }
+
+        // Path C: >= 2 multi-char grammatical particles
+        let multiCharParticles = ["から", "まで", "より", "けど", "ので", "のに", "だけ", "ばかり", "ながら", "たり"]
+        let multiCount = multiCharParticles.reduce(0) { count, particle in
+            count + text.components(separatedBy: particle).count - 1
+        }
+        if multiCount >= 2 {
+            debugLog("[JP_DRIFT] Path C: \(multiCount) multi-char particles | text: \(text)")
+            return true
+        }
+
+        return false
+    }
+
+    /// Count single-char Japanese grammatical particles that follow CJK/kana characters.
+    /// Excludes の (commonly used in song titles like 空の椅子).
+    /// Only counts when preceded by kanji/hiragana/katakana to avoid false positives
+    /// (e.g. こんにちは — the は is word-final, not a particle).
+    private static func countJapaneseParticles(in text: String) -> Int {
+        let particles: Set<Character> = ["は", "が", "を", "に", "で", "と", "も", "へ"]
+        let chars = Array(text)
+        var count = 0
+
+        for i in 1..<chars.count {
+            guard particles.contains(chars[i]) else { continue }
+            // Check if previous character is CJK/hiragana/katakana
+            let prev = chars[i - 1].unicodeScalars.first?.value ?? 0
+            let isCJK = (0x4E00...0x9FFF).contains(prev) || (0x3400...0x4DBF).contains(prev)
+            let isHiragana = (0x3040...0x309F).contains(prev)
+            let isKatakana = (0x30A0...0x30FF).contains(prev)
+            if isCJK || isHiragana || isKatakana {
+                count += 1
+            }
+        }
+
+        return count
+    }
+
     // MARK: - Private Helpers
 
     /// Check if text is mainly English/numbers (no CJK characters)
