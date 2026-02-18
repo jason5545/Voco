@@ -529,6 +529,10 @@ class WhisperState: NSObject, ObservableObject {
         if await checkCancellationAndCleanup() { return }
 
         if var textToPaste = finalPastedText, transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+            // Enforce vocabulary casing as the final text processing step (after AI enhancement)
+            textToPaste = WordReplacementService.shared.enforceVocabularyCasing(
+                text: textToPaste, using: modelContext)
+
             if case .trialExpired = licenseViewModel.licenseState {
                 textToPaste = """
                     Your trial has expired. Upgrade to Voco Pro at tryvoiceink.com/buy

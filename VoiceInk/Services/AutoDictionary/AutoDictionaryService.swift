@@ -132,7 +132,39 @@ final class AutoDictionaryService {
         let trimmedCorr = correctedSegment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedOrig != trimmedCorr else { return [] }
 
+        // Similarity guard: reject substitutions where original and corrected are too dissimilar
+        // (e.g. "深度思考" vs "Reply...", "立場" vs "LiSA")
+        guard areSimilarEnough(trimmedOrig, trimmedCorr) else {
+            logger.debug("Substitution rejected (too dissimilar): \"\(trimmedOrig, privacy: .public)\" → \"\(trimmedCorr, privacy: .public)\"")
+            return []
+        }
+
         return [Substitution(original: trimmedOrig, corrected: trimmedCorr)]
+    }
+
+    /// Checks whether two strings are similar enough to be a plausible user correction.
+    /// Filters out cases where the text field was cleared (message sent) and shows placeholder text.
+    private func areSimilarEnough(_ a: String, _ b: String) -> Bool {
+        // Layer 1: identical after lowercasing (pure casing correction like "sa" → "SA")
+        if a.lowercased() == b.lowercased() { return true }
+
+        // Layer 2: one contains the other (partial correction or expansion)
+        if a.lowercased().contains(b.lowercased()) || b.lowercased().contains(a.lowercased()) { return true }
+
+        // Layer 3: length ratio check – if lengths are wildly different, it's noise
+        let minLen = Double(min(a.count, b.count))
+        let maxLen = Double(max(a.count, b.count))
+        if maxLen > 0 && minLen / maxLen < 0.3 { return false }
+
+        // Layer 4: character overlap (Jaccard similarity on character sets)
+        let setA = Set(a.lowercased())
+        let setB = Set(b.lowercased())
+        let intersection = setA.intersection(setB).count
+        let union = setA.union(setB).count
+        let jaccard = union > 0 ? Double(intersection) / Double(union) : 0.0
+        if jaccard < 0.4 { return false }
+
+        return true
     }
 
     // MARK: - Candidate Management

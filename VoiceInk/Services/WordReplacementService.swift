@@ -53,6 +53,53 @@ class WordReplacementService {
         return modifiedText
     }
 
+    /// Enforces the exact casing of VocabularyWords on the given text.
+    /// E.g. if "LiSA" is in the vocabulary, "Lisa" in the text becomes "LiSA".
+    func enforceVocabularyCasing(text: String, using context: ModelContext) -> String {
+        let descriptor = FetchDescriptor<VocabularyWord>()
+        guard let words = try? context.fetch(descriptor), !words.isEmpty else {
+            return text
+        }
+
+        var modifiedText = text
+
+        for vocabWord in words {
+            let vocab = vocabWord.word
+            guard !vocab.isEmpty else { continue }
+
+            let usesBoundaries = usesWordBoundaries(for: vocab)
+
+            if usesBoundaries {
+                let pattern = "\\b\(NSRegularExpression.escapedPattern(for: vocab))\\b"
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
+                // Iterate matches in reverse to preserve indices during replacement
+                let nsString = modifiedText as NSString
+                let fullRange = NSRange(location: 0, length: nsString.length)
+                let matches = regex.matches(in: modifiedText, range: fullRange)
+                for match in matches.reversed() {
+                    let matchedString = nsString.substring(with: match.range)
+                    if matchedString != vocab {
+                        modifiedText = (modifiedText as NSString).replacingCharacters(in: match.range, with: vocab)
+                    }
+                }
+            } else {
+                // CJK / non-spaced: simple case-insensitive scan
+                let searchRange = modifiedText.startIndex..<modifiedText.endIndex
+                var cursor = searchRange.lowerBound
+                while cursor < modifiedText.endIndex {
+                    guard let range = modifiedText.range(of: vocab, options: .caseInsensitive, range: cursor..<modifiedText.endIndex) else { break }
+                    let matched = String(modifiedText[range])
+                    if matched != vocab {
+                        modifiedText.replaceSubrange(range, with: vocab)
+                    }
+                    cursor = modifiedText.index(range.lowerBound, offsetBy: vocab.count)
+                }
+            }
+        }
+
+        return modifiedText
+    }
+
     private func usesWordBoundaries(for text: String) -> Bool {
         // Returns false for languages without spaces (CJK, Thai), true for spaced languages
         let nonSpacedScripts: [ClosedRange<UInt32>] = [
