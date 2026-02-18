@@ -19,17 +19,24 @@ class EditModeDiffService {
         let commonSuffix = origSuffix.commonPrefix(with: editSuffix)
         var suffixLen = min(commonSuffix.count, min(original.count, edited.count) - prefixLen)
 
-        // Expand left to nearest word boundary (whitespace or string start)
+        // Expand left to nearest word boundary (whitespace, punctuation, or CJK).
+        // For CJK: include one extra character for word context (e.g. 全綠 not just 綠).
         while prefixLen > 0 {
             let idx = original.index(original.startIndex, offsetBy: prefixLen - 1)
-            if original[idx].isWhitespace { break }
+            let ch = original[idx]
+            if ch.isWhitespace || ch.isPunctuation { break }
+            if ch.isCJK {
+                prefixLen -= 1  // include this CJK character as word context
+                break
+            }
             prefixLen -= 1
         }
 
-        // Expand right to nearest word boundary (whitespace or string end)
+        // Expand right to nearest word boundary (stop at CJK — don't pull in the next word)
         while suffixLen > 0 {
             let idx = original.index(original.endIndex, offsetBy: -suffixLen)
-            if original[idx].isWhitespace { break }
+            let ch = original[idx]
+            if ch.isWhitespace || ch.isPunctuation || ch.isCJK { break }
             suffixLen -= 1
         }
 
@@ -45,11 +52,30 @@ class EditModeDiffService {
 
         // Both sides must have content (substitution, not pure insertion/deletion)
         guard !origSegment.isEmpty, !editSegment.isEmpty else { return nil }
-        // Minimum length: single-char replacements are too generic for dictionary rules
-        guard origSegment.count >= 2, editSegment.count >= 2 else { return nil }
+        // Minimum length: single Latin-letter replacements (e.g. B→V) are too generic.
+        // CJK single-character substitutions are valid — each character is a word.
+        let isCJKSubstitution = origSegment.first?.isCJK == true
+        if !isCJKSubstitution {
+            guard origSegment.count >= 2, editSegment.count >= 2 else { return nil }
+        }
         // Length limit: not a simple word swap if too long
         guard origSegment.count <= 20, editSegment.count <= 20 else { return nil }
 
         return WordSubstitution(original: origSegment, replacement: editSegment)
+    }
+}
+
+private extension Character {
+    /// Whether this character is a CJK ideograph, kana, or hangul — languages without inter-word spaces.
+    var isCJK: Bool {
+        guard let scalar = unicodeScalars.first else { return false }
+        let v = scalar.value
+        return (0x4E00...0x9FFF).contains(v)     // CJK Unified Ideographs
+            || (0x3400...0x4DBF).contains(v)     // Extension A
+            || (0x20000...0x2A6DF).contains(v)   // Extension B
+            || (0xF900...0xFAFF).contains(v)     // Compatibility Ideographs
+            || (0x3040...0x309F).contains(v)     // Hiragana
+            || (0x30A0...0x30FF).contains(v)     // Katakana
+            || (0xAC00...0xD7AF).contains(v)     // Hangul
     }
 }
