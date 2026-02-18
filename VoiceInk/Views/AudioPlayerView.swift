@@ -457,20 +457,21 @@ struct AudioPlayerView: View {
     }
     
     private func retranscribeAudio() {
-        guard let currentTranscriptionModel = whisperState.currentTranscriptionModel else {
-            errorMessage = "No transcription model selected"
+        // File transcription is locked to Whisper for accuracy
+        guard let localModel = whisperState.bestLocalModelForFileTranscription else {
+            errorMessage = "No Whisper model available for file transcription"
             showRetranscribeError = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 withAnimation { showRetranscribeError = false }
             }
             return
         }
-        
+
         isRetranscribing = true
-        
+
         Task {
             do {
-                let _ = try await transcriptionService.retranscribeAudio(from: url, using: currentTranscriptionModel)
+                let _ = try await transcriptionService.retranscribeAudio(from: url, using: localModel)
                 await MainActor.run {
                     isRetranscribing = false
                     showRetranscribeSuccess = true

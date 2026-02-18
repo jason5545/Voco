@@ -28,6 +28,7 @@ class AudioTranscriptionService: ObservableObject {
         self.whisperState = whisperState
         self.enhancementService = whisperState.enhancementService
         self.serviceRegistry = TranscriptionServiceRegistry(whisperState: whisperState, modelsDirectory: whisperState.modelsDirectory)
+        self.serviceRegistry.localTranscriptionService.useVAD = false  // Disable VAD for file transcription
     }
     
     func retranscribeAudio(from url: URL, using model: any TranscriptionModel) async throws -> Transcription {

@@ -55,11 +55,13 @@ class AudioTranscriptionManager: ObservableObject {
 
         currentTask = Task {
             do {
-                guard let currentModel = whisperState.currentTranscriptionModel else {
-                    throw TranscriptionError.noModelSelected
+                // File transcription is locked to Whisper for accuracy
+                guard let currentModel = whisperState.bestLocalModelForFileTranscription else {
+                    throw TranscriptionError.noWhisperModel
                 }
 
                 let serviceRegistry = TranscriptionServiceRegistry(whisperState: whisperState, modelsDirectory: whisperState.modelsDirectory)
+                serviceRegistry.localTranscriptionService.useVAD = false  // Disable VAD for file transcription
                 defer {
                     serviceRegistry.cleanup()
                 }
@@ -216,12 +218,15 @@ class AudioTranscriptionManager: ObservableObject {
 
 enum TranscriptionError: Error, LocalizedError {
     case noModelSelected
+    case noWhisperModel
     case transcriptionCancelled
-    
+
     var errorDescription: String? {
         switch self {
         case .noModelSelected:
             return "No transcription model selected"
+        case .noWhisperModel:
+            return "File transcription requires a Whisper model. Please download one from the Models page."
         case .transcriptionCancelled:
             return "Transcription was cancelled"
         }

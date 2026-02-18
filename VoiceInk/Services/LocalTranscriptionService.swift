@@ -3,12 +3,16 @@ import AVFoundation
 import os
 
 class LocalTranscriptionService: TranscriptionService {
-    
+
     private var whisperContext: WhisperContext?
     private let logger = Logger(subsystem: "com.jasonchien.voco", category: "LocalTranscriptionService")
     private let modelsDirectory: URL
     private weak var whisperState: WhisperState?
-    
+
+    /// When `false`, VAD is disabled for the next transcription call.
+    /// File transcription sets this to `false` to prevent speech trimming.
+    var useVAD: Bool = true
+
     init(modelsDirectory: URL, whisperState: WhisperState? = nil) {
         self.modelsDirectory = modelsDirectory
         self.whisperState = whisperState
@@ -61,8 +65,8 @@ class LocalTranscriptionService: TranscriptionService {
         let currentPrompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? ""
         await whisperContext.setPrompt(currentPrompt)
         
-        // Transcribe
-        let success = await whisperContext.fullTranscribe(samples: data)
+        // Transcribe (file transcription disables VAD to prevent speech trimming)
+        let success = await whisperContext.fullTranscribe(samples: data, useVAD: useVAD)
         
         guard success else {
             logger.error("Core transcription engine failed (whisper_full).")

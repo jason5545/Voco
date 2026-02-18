@@ -111,17 +111,18 @@ class LastTranscriptionService: ObservableObject {
                 return
             }
             
-            guard let currentModel = whisperState.currentTranscriptionModel else {
+            // File transcription is locked to Whisper for accuracy
+            guard let localModel = whisperState.bestLocalModelForFileTranscription else {
                 NotificationManager.shared.showNotification(
-                    title: "No transcription model selected",
+                    title: "No Whisper model available for file transcription",
                     type: .error
                 )
                 return
             }
-            
+
             let transcriptionService = AudioTranscriptionService(modelContext: modelContext, whisperState: whisperState)
             do {
-                let newTranscription = try await transcriptionService.retranscribeAudio(from: audioURL, using: currentModel)
+                let newTranscription = try await transcriptionService.retranscribeAudio(from: audioURL, using: localModel)
                 
                 let textToCopy = newTranscription.enhancedText?.isEmpty == false ? newTranscription.enhancedText! : newTranscription.text
                 ClipboardManager.copyToClipboard(textToCopy)

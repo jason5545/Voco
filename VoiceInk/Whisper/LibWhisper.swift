@@ -28,12 +28,14 @@ actor WhisperContext {
         }
     }
 
-    func fullTranscribe(samples: [Float]) -> Bool {
+    /// - Parameter useVAD: When `false`, VAD is force-disabled regardless of user setting.
+    ///   File transcription passes `false` so no speech is accidentally trimmed.
+    func fullTranscribe(samples: [Float], useVAD: Bool = true) -> Bool {
         guard let context = context else { return false }
-        
+
         let maxThreads = max(1, min(8, cpuCount() - 2))
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
-        
+
         // Read language directly from UserDefaults
         let selectedLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto"
         if selectedLanguage != "auto" {
@@ -45,7 +47,7 @@ actor WhisperContext {
             languageCString = nil
             params.language = nil
         }
-        
+
         if prompt != nil {
             promptCString = Array(prompt!.utf8CString)
             params.initial_prompt = promptCString?.withUnsafeBufferPointer { ptr in
@@ -55,7 +57,7 @@ actor WhisperContext {
             promptCString = nil
             params.initial_prompt = nil
         }
-        
+
         params.print_realtime = true
         params.print_progress = false
         params.print_timestamps = true
@@ -68,13 +70,13 @@ actor WhisperContext {
         params.temperature = 0.2
 
         whisper_reset_timings(context)
-        
-        // Configure VAD if enabled by user and model is available
-        let isVADEnabled = UserDefaults.standard.bool(forKey: "IsVADEnabled")
+
+        // Configure VAD: only when caller allows it AND user has enabled it
+        let isVADEnabled = useVAD && UserDefaults.standard.bool(forKey: "IsVADEnabled")
         if isVADEnabled, let vadModelPath = self.vadModelPath {
             params.vad = true
             params.vad_model_path = (vadModelPath as NSString).utf8String
-            
+
             var vadParams = whisper_vad_default_params()
             vadParams.threshold = 0.50
             vadParams.min_speech_duration_ms = 250

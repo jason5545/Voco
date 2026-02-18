@@ -12,14 +12,22 @@ struct AudioTranscribeView: View {
     @State private var isAudioFileSelected = false
     @State private var isEnhancementEnabled = false
     @State private var selectedPromptId: UUID?
-    
+    @State private var isDownloadingWhisper = false
+
+    /// True when no Whisper (local) model is downloaded at all
+    private var hasNoWhisperModel: Bool {
+        whisperState.bestLocalModelForFileTranscription == nil
+    }
+
     var body: some View {
         ZStack {
             Color(NSColor.controlBackgroundColor)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                if transcriptionManager.isProcessing {
+                if hasNoWhisperModel {
+                    whisperModelRequiredView
+                } else if transcriptionManager.isProcessing {
                     processingView
                 } else {
                     dropZoneView
@@ -201,6 +209,71 @@ struct AudioTranscribeView: View {
         .padding()
     }
     
+    private var whisperModelRequiredView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundColor(.orange)
+
+            Text("Whisper Model Required")
+                .font(.title2.bold())
+
+            Text("File transcription requires a Whisper model for best accuracy. No Whisper model is currently installed.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+
+            if isDownloadingWhisper {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    if let progress = whisperState.downloadProgress["ggml-large-v2_main"] {
+                        ProgressView(value: progress)
+                            .frame(width: 200)
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Preparing download...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } else {
+                Button {
+                    downloadLargeV2()
+                } label: {
+                    Label("Download Large v2 (2.9 GB)", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(32)
+    }
+
+    private func downloadLargeV2() {
+        guard let largeV2 = PredefinedModels.models.compactMap({ $0 as? LocalModel }).first(where: { $0.name == "ggml-large-v2" }) else {
+            return
+        }
+        isDownloadingWhisper = true
+        Task {
+            await whisperState.downloadModel(largeV2)
+            await MainActor.run {
+                isDownloadingWhisper = false
+                whisperState.refreshAllAvailableModels()
+                // Auto-select the newly downloaded model
+                if let downloaded = whisperState.allAvailableModels.first(where: { $0.name == "ggml-large-v2" }) {
+                    whisperState.setDefaultTranscriptionModel(downloaded)
+                }
+            }
+            await NotificationManager.shared.showNotification(
+                title: "Whisper Large v2 ready for file transcription",
+                type: .success
+            )
+        }
+    }
+
     private var processingView: some View {
         VStack(spacing: 16) {
             ProgressView()

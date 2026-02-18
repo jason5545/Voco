@@ -1,6 +1,23 @@
 import Foundation
 
 extension WhisperState {
+    /// Returns the best available local (Whisper) model for file transcription.
+    /// File transcription is locked to Whisper for accuracy; Qwen3-ASR is for real-time voice input only.
+    var bestLocalModelForFileTranscription: (any TranscriptionModel)? {
+        // If current model is already Whisper and downloaded, use it
+        if let current = currentTranscriptionModel, current.provider == .local,
+           availableModels.contains(where: { $0.name == current.name }) {
+            return current
+        }
+        // Otherwise find the best downloaded local model (highest accuracy)
+        let localModels = usableModels.filter { $0.provider == .local }
+        return localModels.sorted { m1, m2 in
+            let a1 = (m1 as? LocalModel)?.accuracy ?? 0
+            let a2 = (m2 as? LocalModel)?.accuracy ?? 0
+            return a1 > a2
+        }.first
+    }
+
     var usableModels: [any TranscriptionModel] {
         allAvailableModels.filter { model in
             switch model.provider {
