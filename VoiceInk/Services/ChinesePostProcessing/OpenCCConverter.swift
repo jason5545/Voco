@@ -37,8 +37,17 @@ class OpenCCConverter {
         if let convertFunction = convertFunction {
             return convertFunction(text)
         }
-        // Fallback: basic s2tw conversion table for common characters
-        return fallbackConvert(text)
+        // Fallback: phrase + char table first, then Apple's built-in S→T as safety net
+        let result = fallbackConvert(text)
+        return appleSimplifiedToTraditional(result)
+    }
+
+    /// Use Apple's built-in CFStringTransform to catch any remaining simplified characters
+    /// that the fallback table missed.
+    private func appleSimplifiedToTraditional(_ text: String) -> String {
+        let mutable = NSMutableString(string: text)
+        CFStringTransform(mutable, nil, "Simplified-Traditional" as CFString, false)
+        return mutable as String
     }
 
     // MARK: - Fallback conversion (subset of s2twp)
