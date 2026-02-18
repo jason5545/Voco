@@ -293,35 +293,73 @@ struct RecorderStatusDisplay: View {
     let currentState: RecordingState
     let audioMeter: AudioMeter
     let menuBarHeight: CGFloat?
+    let isEditMode: Bool
 
-    init(currentState: RecordingState, audioMeter: AudioMeter, menuBarHeight: CGFloat? = nil) {
+    init(currentState: RecordingState, audioMeter: AudioMeter, menuBarHeight: CGFloat? = nil, isEditMode: Bool = false) {
         self.currentState = currentState
         self.audioMeter = audioMeter
         self.menuBarHeight = menuBarHeight
+        self.isEditMode = isEditMode
     }
 
     var body: some View {
         Group {
             if currentState == .enhancing {
-                ProcessingStatusDisplay(mode: .enhancing, color: .white)
-                    .transition(.opacity)
+                ProcessingStatusDisplay(
+                    mode: isEditMode ? .editing : .enhancing,
+                    color: isEditMode ? .orange : .white
+                )
+                .transition(.opacity)
             } else if currentState == .transcribing {
-                ProcessingStatusDisplay(mode: .transcribing, color: .white)
+                ProcessingStatusDisplay(mode: .transcribing, color: isEditMode ? .orange : .white)
                     .transition(.opacity)
             } else if currentState == .recording {
                 AudioVisualizer(
                     audioMeter: audioMeter,
-                    color: .white,
+                    color: isEditMode ? .orange : .white,
                     isActive: currentState == .recording
                 )
                 .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
                 .transition(.opacity)
             } else {
-                StaticVisualizer(color: .white)
+                StaticVisualizer(color: isEditMode ? .orange : .white)
                     .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: currentState)
+    }
+}
+
+// MARK: - Dictionary Confirmation View (Edit Mode)
+struct DictionaryConfirmationView: View {
+    let original: String
+    let replacement: String
+    let onConfirm: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(original) → \(replacement)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Button(action: onConfirm) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 12)
     }
 }

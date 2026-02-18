@@ -246,18 +246,27 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
-    private func makeRequest(text: String, mode: EnhancementPrompt) async throws -> String {
+    private func makeRequest(text: String, mode: EnhancementPrompt,
+                             systemMessageOverride: String? = nil,
+                             userMessageOverride: String? = nil) async throws -> String {
         guard isConfigured else {
             throw EnhancementError.notConfigured
         }
 
-        guard !text.isEmpty else {
-            return "" // Silently return empty string instead of throwing error
+        if systemMessageOverride == nil && userMessageOverride == nil {
+            guard !text.isEmpty else {
+                return "" // Silently return empty string instead of throwing error
+            }
         }
 
-        let formattedText = "\n<TRANSCRIPT>\n\(text)\n</TRANSCRIPT>"
-        let systemMessage = await getSystemMessage(for: mode)
-        
+        let formattedText = userMessageOverride ?? "\n<TRANSCRIPT>\n\(text)\n</TRANSCRIPT>"
+        let systemMessage: String
+        if let override = systemMessageOverride {
+            systemMessage = override
+        } else {
+            systemMessage = await getSystemMessage(for: mode)
+        }
+
         // Persist the exact payload being sent (also used for UI)
         await MainActor.run {
             self.lastSystemMessageSent = systemMessage
@@ -397,13 +406,18 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
-    private func makeRequestWithRetry(text: String, mode: EnhancementPrompt, maxRetries: Int = 3, initialDelay: TimeInterval = 1.0) async throws -> String {
+    private func makeRequestWithRetry(text: String, mode: EnhancementPrompt,
+                                      systemMessageOverride: String? = nil,
+                                      userMessageOverride: String? = nil,
+                                      maxRetries: Int = 3, initialDelay: TimeInterval = 1.0) async throws -> String {
         var retries = 0
         var currentDelay = initialDelay
 
         while retries < maxRetries {
             do {
-                return try await makeRequest(text: text, mode: mode)
+                return try await makeRequest(text: text, mode: mode,
+                                             systemMessageOverride: systemMessageOverride,
+                                             userMessageOverride: userMessageOverride)
             } catch let error as EnhancementError {
                 switch error {
                 case .networkError, .serverError, .rateLimitExceeded:
@@ -455,6 +469,45 @@ class AIEnhancementService: ObservableObject {
         } catch {
             throw error
         }
+    }
+
+    func enhanceForEditMode(instruction: String, selectedText: String) async throws -> (String, TimeInterval) {
+        let startTime = Date()
+        guard isConfigured else { throw EnhancementError.notConfigured }
+        guard !instruction.isEmpty else { return (selectedText, 0) }
+
+        let systemMessage = """
+        You are a precise text editor. The user has selected text and given you a spoken instruction to modify it.
+
+        Rules:
+        - Apply the instruction to the selected text
+        - Return ONLY the modified result text
+        - Do NOT add explanations, commentary, or metadata
+        - Do NOT wrap the result in quotes or tags
+        - Preserve the original formatting style and language
+        """
+
+        let userMessage = """
+        <SELECTED_TEXT>
+        \(selectedText)
+        </SELECTED_TEXT>
+
+        <INSTRUCTION>
+        \(instruction)
+        </INSTRUCTION>
+        """
+
+        await MainActor.run {
+            self.lastSystemMessageSent = systemMessage
+            self.lastUserMessageSent = userMessage
+        }
+
+        let result = try await makeRequestWithRetry(
+            text: "", mode: .transcriptionEnhancement,
+            systemMessageOverride: systemMessage,
+            userMessageOverride: userMessage
+        )
+        return (result, Date().timeIntervalSince(startTime))
     }
 
     func captureScreenContext() async {

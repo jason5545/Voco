@@ -43,6 +43,21 @@ extension WhisperState {
                 await cancelRecording()
             }
         } else {
+            // Detect selected text → decide whether to enter Edit Mode
+            if AXIsProcessTrusted() {
+                let selectedText = await SelectedTextService.fetchSelectedText()
+                if let selectedText, !selectedText.isEmpty {
+                    isEditMode = true
+                    editModeSelectedText = selectedText
+                } else {
+                    isEditMode = false
+                    editModeSelectedText = nil
+                }
+            } else {
+                isEditMode = false
+                editModeSelectedText = nil
+            }
+
             SoundManager.shared.playStartSound()
 
             await MainActor.run {
@@ -84,9 +99,12 @@ extension WhisperState {
         }
         
         await MainActor.run {
+            isEditMode = false
+            editModeSelectedText = nil
+            pendingDictionaryEntry = nil
             isMiniRecorderVisible = false
         }
-        
+
         await cleanupModelResources()
         
         if UserDefaults.standard.bool(forKey: PowerModeDefaults.autoRestoreKey) {
@@ -110,6 +128,9 @@ extension WhisperState {
             isMiniRecorderVisible = false
             shouldCancelRecording = false
             miniRecorderError = nil
+            isEditMode = false
+            editModeSelectedText = nil
+            pendingDictionaryEntry = nil
             recordingState = .idle
         }
         await cleanupModelResources()

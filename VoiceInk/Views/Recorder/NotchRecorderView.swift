@@ -72,7 +72,8 @@ struct NotchRecorderView: View {
         RecorderStatusDisplay(
             currentState: whisperState.recordingState,
             audioMeter: recorder.audioMeter,
-            menuBarHeight: menuBarHeight
+            menuBarHeight: menuBarHeight,
+            isEditMode: whisperState.isEditMode
         )
         .frame(width: 70)
         .padding(.trailing, 8)
@@ -83,22 +84,36 @@ struct NotchRecorderView: View {
         // Same pattern as AudioVisualizer - no forced re-renders
         TimelineView(.animation(minimumInterval: 0.1)) { context in
             let hasText = whisperState.recordingState == .recording && !whisperState.partialTranscript.isEmpty
+            let hasDictEntry = whisperState.pendingDictionaryEntry != nil
 
             VStack(spacing: 0) {
-                Divider()
-                    .background(Color.white.opacity(0.15))
+                if hasDictEntry, let entry = whisperState.pendingDictionaryEntry {
+                    Divider()
+                        .background(Color.white.opacity(0.15))
 
-                Text(whisperState.partialTranscript)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.8))
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal, 20)
+                    DictionaryConfirmationView(
+                        original: entry.original,
+                        replacement: entry.replacement,
+                        onConfirm: { whisperState.confirmDictionaryEntry() },
+                        onDismiss: { whisperState.dismissDictionaryEntry() }
+                    )
                     .padding(.vertical, 5)
+                } else {
+                    Divider()
+                        .background(Color.white.opacity(0.15))
+
+                    Text(whisperState.partialTranscript)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 5)
+                }
             }
-            .opacity(hasText ? 1 : 0)
-            .frame(height: hasText ? nil : 0)
+            .opacity(hasText || hasDictEntry ? 1 : 0)
+            .frame(height: hasText || hasDictEntry ? nil : 0)
             .clipped()
         }
     }

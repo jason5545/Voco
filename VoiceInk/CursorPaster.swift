@@ -87,6 +87,16 @@ class CursorPaster {
         cmdUp?.post(tap: .cghidEventTap)
     }
 
+    // Simulate pressing Delete key (deletes only selected text range)
+    static func deleteSelection() {
+        guard AXIsProcessTrusted() else { return }
+        let source = CGEventSource(stateID: .hidSystemState)
+        let deleteDown = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: true)
+        let deleteUp = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: false)
+        deleteDown?.post(tap: .cghidEventTap)
+        deleteUp?.post(tap: .cghidEventTap)
+    }
+
     // Simulate Cmd+A (select all) followed by Delete
     static func selectAllAndDelete() {
         guard AXIsProcessTrusted() else { return }

@@ -28,6 +28,9 @@ class WhisperState: NSObject, ObservableObject {
     @Published var clipboardMessage = ""
     @Published var miniRecorderError: String?
     @Published var shouldCancelRecording = false
+    @Published var isEditMode = false
+    @Published var pendingDictionaryEntry: WordSubstitution?
+    var editModeSelectedText: String?
     var partialTranscript: String = ""
     var currentSession: TranscriptionSession?
 
@@ -458,7 +461,92 @@ class WhisperState: NSObject, ObservableObject {
             transcription.powerModeEmoji = powerModeEmoji
             finalPastedText = text
 
-            // Voice command detection — intercept before AI enhancement
+            // === Edit Mode Branch ===
+            if isEditMode, let selectedText = editModeSelectedText {
+                // 1. Direct edit commands (no LLM needed)
+                if let editCommand = VoiceCommandService.shared.detectEditModeCommand(in: text) {
+                    logger.notice("🎤 Edit mode command detected: \(editCommand.rawValue, privacy: .public)")
+                    transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
+                    try? modelContext.save()
+                    NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        editCommand.execute()
+                    }
+                    isEditMode = false
+                    editModeSelectedText = nil
+                    await self.dismissMiniRecorder()
+                    shouldCancelRecording = false
+                    return
+                }
+
+                // 2. LLM-based edit instruction
+                guard let enhancementService, enhancementService.isConfigured else {
+                    logger.warning("⚠️ Edit mode: AI not configured, cannot process LLM instruction")
+                    transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
+                    transcription.text = text
+                    try? modelContext.save()
+                    isEditMode = false
+                    editModeSelectedText = nil
+                    await self.dismissMiniRecorder()
+                    shouldCancelRecording = false
+                    return
+                }
+
+                if await checkCancellationAndCleanup() {
+                    isEditMode = false; editModeSelectedText = nil; return
+                }
+
+                await MainActor.run { self.recordingState = .enhancing }
+
+                do {
+                    let (editedText, editDuration) = try await enhancementService.enhanceForEditMode(
+                        instruction: text, selectedText: selectedText
+                    )
+                    logger.notice("📝 Edit mode result: \(editedText, privacy: .public)")
+                    transcription.enhancedText = editedText
+                    transcription.enhancementDuration = editDuration
+                    transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
+                    transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
+                    transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
+                    transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
+                    try? modelContext.save()
+                    NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+
+                    if await checkCancellationAndCleanup() {
+                        isEditMode = false; editModeSelectedText = nil; return
+                    }
+
+                    // Paste to replace selected text (no trailing space)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        CursorPaster.pasteAtCursor(editedText)
+                    }
+
+                    // Check if it's a simple word substitution → show dictionary confirmation
+                    if let sub = EditModeDiffService.extractSubstitution(original: selectedText, edited: editedText) {
+                        await MainActor.run {
+                            self.pendingDictionaryEntry = sub
+                            self.recordingState = .idle
+                        }
+                        startDictionaryDismissTimer()
+                        isEditMode = false
+                        editModeSelectedText = nil
+                        shouldCancelRecording = false
+                        return
+                    }
+                } catch {
+                    logger.error("❌ Edit mode enhancement failed: \(error.localizedDescription)")
+                    transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
+                    try? modelContext.save()
+                }
+
+                isEditMode = false
+                editModeSelectedText = nil
+                await self.dismissMiniRecorder()
+                shouldCancelRecording = false
+                return
+            }
+
+            // Voice command detection — intercept before AI enhancement (normal mode only)
             if let command = VoiceCommandService.shared.detectCommand(in: text) {
                 logger.notice("🎤 Voice command detected: \(command.rawValue, privacy: .public)")
                 transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
@@ -616,6 +704,50 @@ class WhisperState: NSObject, ObservableObject {
         await self.dismissMiniRecorder()
 
         shouldCancelRecording = false
+    }
+
+    // MARK: - Edit Mode Dictionary Confirmation
+
+    private var dictionaryDismissTimer: DispatchWorkItem?
+
+    func confirmDictionaryEntry() {
+        guard let entry = pendingDictionaryEntry else { return }
+        dictionaryDismissTimer?.cancel()
+        dictionaryDismissTimer = nil
+
+        let replacement = WordReplacement(
+            originalText: entry.original,
+            replacementText: entry.replacement
+        )
+        modelContext.insert(replacement)
+        try? modelContext.save()
+
+        NotificationManager.shared.showNotification(
+            title: "\(entry.original) → \(entry.replacement)",
+            type: .success,
+            duration: 2.0
+        )
+        pendingDictionaryEntry = nil
+        Task { await dismissMiniRecorder() }
+    }
+
+    func dismissDictionaryEntry() {
+        dictionaryDismissTimer?.cancel()
+        dictionaryDismissTimer = nil
+        pendingDictionaryEntry = nil
+        Task { await dismissMiniRecorder() }
+    }
+
+    func startDictionaryDismissTimer() {
+        dictionaryDismissTimer?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                self?.pendingDictionaryEntry = nil
+                await self?.dismissMiniRecorder()
+            }
+        }
+        dictionaryDismissTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
     }
 
     func getEnhancementService() -> AIEnhancementService? {
