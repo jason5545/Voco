@@ -163,41 +163,75 @@ class ChinesePostProcessingService: ObservableObject {
 
     /// Determine if LLM enhancement should be skipped based on confidence metrics
     func shouldSkipLLMEnhancement(text: String, repetitionInfo: RepetitionDetector.RepetitionInfo? = nil) -> Bool {
-        guard isConfidenceRoutingEnabled else { return false }
+        guard isConfidenceRoutingEnabled else {
+            Self.debugLog("ROUTING: disabled → use LLM | text(\(text.count)): \(text)")
+            return false
+        }
 
         // Pure English/numbers → skip LLM
         if isMainlyEnglish(text) {
-            logger.debug("Skipping LLM: mainly English text")
+            Self.debugLog("SKIP: mainly English | text(\(text.count)): \(text)")
             return true
         }
 
         // Simple short responses → skip LLM
         if isSimpleText(text) {
-            logger.debug("Skipping LLM: simple text")
+            Self.debugLog("SKIP: simple text | text(\(text.count)): \(text)")
             return true
         }
 
         // Long sentence without punctuation → force LLM
-        if needsPunctuation(text) {
-            logger.debug("Force LLM: long sentence needs punctuation")
+        let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
+        let foundPunct = text.filter { cjkPunct.contains($0) }
+        let punctNeeded = needsPunctuation(text)
+        if punctNeeded {
+            Self.debugLog("FORCE LLM: needs punctuation (len=\(text.count), foundCJKPunct=\"\(foundPunct)\") | text: \(text)")
             return false
         }
 
         // High confidence → skip LLM
         if lastAvgLogProb > logProbThreshold {
-            logger.debug("Skipping LLM: high confidence (avgLogProb=\(String(format: "%.3f", self.lastAvgLogProb)))")
+            Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
             return true
         }
 
         // Has ambiguous punctuation or repetition → need LLM
         if punctuationConverter.hasAmbiguousPunctuation(text) {
+            Self.debugLog("FORCE LLM: ambiguous punctuation | text(\(text.count)): \(text)")
             return false
         }
         if let info = repetitionInfo, info.hasRepetition {
+            Self.debugLog("FORCE LLM: repetition | text(\(text.count)): \(text)")
             return false
         }
 
+        Self.debugLog("DEFAULT: use LLM | text(\(text.count)): \(text)")
         return false
+    }
+
+    // MARK: - Debug File Logging
+
+    private static let debugLogURL: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Voco", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("confidence-routing.log")
+    }()
+
+    static func debugLog(_ message: String) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let entry = "[\(timestamp)] \(message)\n"
+        if let data = entry.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: debugLogURL.path) {
+                if let handle = try? FileHandle(forWritingTo: debugLogURL) {
+                    handle.seekToEndOfFile()
+                    handle.write(data)
+                    handle.closeFile()
+                }
+            } else {
+                try? data.write(to: debugLogURL)
+            }
+        }
     }
 
     // MARK: - Private Helpers
@@ -224,11 +258,14 @@ class ChinesePostProcessingService: ObservableObject {
         return simpleResponses.contains(text)
     }
 
-    /// Check if a long sentence needs punctuation added by LLM
+    /// Check if text needs punctuation added by LLM (density-based)
     private func needsPunctuation(_ text: String, minLength: Int = 10) -> Bool {
         guard text.count >= minLength else { return false }
         let punctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
-        let hasPunctuation = text.contains { punctuationMarks.contains($0) }
-        return !hasPunctuation
+        let punctCount = text.filter { punctuationMarks.contains($0) }.count
+        if punctCount == 0 { return true }
+        // Density check: expect at least 1 punctuation per 20 characters
+        let expectedPunct = text.count / 20
+        return punctCount < max(expectedPunct, 1)
     }
 }

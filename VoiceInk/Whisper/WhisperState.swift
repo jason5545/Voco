@@ -431,6 +431,7 @@ class WhisperState: NSObject, ObservableObject {
 
             // Determine if AI Enhancement should be skipped (confidence routing)
             let shouldSkipEnhancement = postProcessor.isEnabled && !ppNeedsLLM
+            ChinesePostProcessingService.debugLog("WHISPER_STATE: shouldSkip=\(shouldSkipEnhancement), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
 
             if !shouldSkipEnhancement,
                let enhancementService = enhancementService,
@@ -447,7 +448,9 @@ class WhisperState: NSObject, ObservableObject {
 
                     // LLM response validation
                     if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
-                        if !postProcessor.llmResponseValidator.isValid(response: enhancedText, original: textForAI) {
+                        let isValid = postProcessor.llmResponseValidator.isValid(response: enhancedText, original: textForAI)
+                        ChinesePostProcessingService.debugLog("LLM_VALIDATION: isValid=\(isValid) | original(\(textForAI.count)): \(textForAI) | enhanced(\(enhancedText.count)): \(enhancedText)")
+                        if !isValid {
                             logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
                             // Keep text as-is (pre-LLM), don't use enhancedText
                         } else {
@@ -471,12 +474,16 @@ class WhisperState: NSObject, ObservableObject {
                 }
             } else if shouldSkipEnhancement {
                 logger.notice("📝 Skipping AI enhancement (confidence routing)")
+                ChinesePostProcessingService.debugLog("SKIPPED_LLM: confidence routing skipped | finalPastedText(\(finalPastedText?.count ?? 0)): \(finalPastedText ?? "nil")")
 
-                // Safety net: if skipped text is long and has no CJK punctuation, force LLM
+                // Safety net: if skipped text has insufficient punctuation density, force LLM
                 let cjkPunctuation: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
                 let pastedText = finalPastedText ?? ""
-                let hasCJKPunctuation = pastedText.contains { cjkPunctuation.contains($0) }
-                if pastedText.count >= 10 && !hasCJKPunctuation,
+                let punctCount = pastedText.filter { cjkPunctuation.contains($0) }.count
+                let expectedPunct = pastedText.count / 20
+                let insufficientPunct = pastedText.count >= 10 && punctCount < max(expectedPunct, 1)
+                ChinesePostProcessingService.debugLog("SAFETY_NET_CHECK: len=\(pastedText.count), punctCount=\(punctCount), expected=\(max(expectedPunct, 1)), willTrigger=\(insufficientPunct)")
+                if insufficientPunct,
                    let enhancementService = enhancementService,
                    enhancementService.isEnhancementEnabled,
                    enhancementService.isConfigured {
