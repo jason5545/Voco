@@ -73,7 +73,7 @@ struct AudioTranscribeView: View {
                                 Toggle("AI Enhancement", isOn: $isEnhancementEnabled)
                                     .toggleStyle(.switch)
                                     .onChange(of: isEnhancementEnabled) { oldValue, newValue in
-                                        enhancementService.isEnhancementEnabled = newValue
+                                        UserDefaults.standard.set(newValue, forKey: "audioTranscribe_isEnhancementEnabled")
                                     }
                                 
                                 if isEnhancementEnabled {
@@ -97,7 +97,7 @@ struct AudioTranscribeView: View {
                                                 },
                                                 set: { newValue in
                                                     selectedPromptId = newValue
-                                                    enhancementService.selectedPromptId = newValue
+                                                    UserDefaults.standard.set(newValue.uuidString, forKey: "audioTranscribe_selectedPromptId")
                                                 }
                                             )
                                             
@@ -118,9 +118,19 @@ struct AudioTranscribeView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .onAppear {
-                            // Initialize local state from enhancement service
-                            isEnhancementEnabled = enhancementService.isEnhancementEnabled
-                            selectedPromptId = enhancementService.selectedPromptId
+                            // Initialize local state from independent UserDefaults keys
+                            // Falls back to enhancement service's current values on first use
+                            if UserDefaults.standard.object(forKey: "audioTranscribe_isEnhancementEnabled") != nil {
+                                isEnhancementEnabled = UserDefaults.standard.bool(forKey: "audioTranscribe_isEnhancementEnabled")
+                            } else {
+                                isEnhancementEnabled = enhancementService.isEnhancementEnabled
+                            }
+                            if let savedPromptIdString = UserDefaults.standard.string(forKey: "audioTranscribe_selectedPromptId"),
+                               let savedPromptId = UUID(uuidString: savedPromptIdString) {
+                                selectedPromptId = savedPromptId
+                            } else {
+                                selectedPromptId = enhancementService.selectedPromptId
+                            }
                         }
                     }
                     
@@ -131,7 +141,9 @@ struct AudioTranscribeView: View {
                                 transcriptionManager.startProcessing(
                                     url: url,
                                     modelContext: modelContext,
-                                    whisperState: whisperState
+                                    whisperState: whisperState,
+                                    enhancementEnabled: isEnhancementEnabled,
+                                    promptId: selectedPromptId
                                 )
                             }
                         }

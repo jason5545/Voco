@@ -45,14 +45,14 @@ class AudioTranscriptionManager: ObservableObject {
     
     private init() {}
     
-    func startProcessing(url: URL, modelContext: ModelContext, whisperState: WhisperState) {
+    func startProcessing(url: URL, modelContext: ModelContext, whisperState: WhisperState, enhancementEnabled: Bool? = nil, promptId: UUID? = nil) {
         // Cancel any existing processing
         cancelProcessing()
-        
+
         isProcessing = true
         processingPhase = .loading
         errorMessage = nil
-        
+
         currentTask = Task {
             do {
                 guard let currentModel = whisperState.currentTranscriptionModel else {
@@ -97,15 +97,34 @@ class AudioTranscriptionManager: ObservableObject {
                 }
 
                 text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
-                
+
+                // Determine whether enhancement should run:
+                // Use the explicitly passed parameter if provided, otherwise fall back to the service's own state
+                let shouldEnhance = enhancementEnabled ?? whisperState.enhancementService?.isEnhancementEnabled ?? false
+
                 // Handle enhancement if enabled
                 if let enhancementService = whisperState.enhancementService,
-                   enhancementService.isEnhancementEnabled,
+                   shouldEnhance,
                    enhancementService.isConfigured {
+
+                    // Save original enhancement service state so voice input settings are not affected
+                    let originalIsEnabled = enhancementService.isEnhancementEnabled
+                    let originalPromptId = enhancementService.selectedPromptId
+
+                    // Temporarily apply the audio transcribe settings
+                    enhancementService.isEnhancementEnabled = true
+                    if let promptId = promptId {
+                        enhancementService.selectedPromptId = promptId
+                    }
+
                     processingPhase = .enhancing
                     do {
-                        // inside the enhancement success path where transcription is created
                         let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(text)
+
+                        // Restore original settings before creating transcription
+                        enhancementService.isEnhancementEnabled = originalIsEnabled
+                        enhancementService.selectedPromptId = originalPromptId
+
                         let transcription = Transcription(
                             text: text,
                             duration: duration,
@@ -127,6 +146,10 @@ class AudioTranscriptionManager: ObservableObject {
                         NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                         currentTranscription = transcription
                     } catch {
+                        // Restore original settings on error path too
+                        enhancementService.isEnhancementEnabled = originalIsEnabled
+                        enhancementService.selectedPromptId = originalPromptId
+
                         logger.error("Enhancement failed: \(error.localizedDescription)")
                         let transcription = Transcription(
                             text: text,
@@ -161,11 +184,11 @@ class AudioTranscriptionManager: ObservableObject {
                     NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                     currentTranscription = transcription
                 }
-                
+
                 processingPhase = .completed
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 await finishProcessing()
-                
+
             } catch {
                 await handleError(error)
             }
