@@ -173,6 +173,9 @@
 				E11BBA4D2E5DC555000AB839 /* FluidAudio */,
 				E1342C1E2EB4844800CED8A2 /* Atomics */,
 				E1F1037A2EF85FC700A4FF94 /* SelectedTextKit */,
+				E1Q3A0022F0000000000A002 /* MLX */,
+				E1Q3A0032F0000000000A003 /* MLXNN */,
+				E1Q3A0042F0000000000A004 /* MLXFast */,
 			);
 			productName = VoiceInk;
 			productReference = E11473B02CBE0F0A00318EE4 /* VoiceInk.app */;
@@ -266,6 +269,7 @@
 				E11BBA4C2E5DC555000AB839 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 				E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */,
 				E1F103792EF85FC700A4FF94 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
+				E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E11473B12CBE0F0A00318EE4 /* Products */;
@@ -702,6 +706,14 @@
 				minimumVersion = 2.6.2;
 			};
 		};
+		E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -744,6 +756,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E1F103792EF85FC700A4FF94 /* XCRemoteSwiftPackageReference "SelectedTextKit" */;
 			productName = SelectedTextKit;
+		};
+		E1Q3A0022F0000000000A002 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+		E1Q3A0032F0000000000A003 /* MLXNN */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXNN;
+		};
+		E1Q3A0042F0000000000A004 /* MLXFast */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXFast;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -56,6 +56,13 @@ struct ModelCardRowView: View {
                         setDefaultAction: setDefaultAction
                     )
                 }
+            case .qwen3:
+                if let qwen3Model = model as? Qwen3Model {
+                    Qwen3ModelCardRowView(
+                        model: qwen3Model,
+                        whisperState: whisperState
+                    )
+                }
             case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox:
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(

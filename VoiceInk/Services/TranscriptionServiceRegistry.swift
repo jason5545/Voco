@@ -15,6 +15,7 @@ class TranscriptionServiceRegistry {
     private(set) lazy var cloudTranscriptionService = CloudTranscriptionService(modelContext: whisperState.modelContext)
     private(set) lazy var nativeAppleTranscriptionService = NativeAppleTranscriptionService()
     private(set) lazy var parakeetTranscriptionService = ParakeetTranscriptionService()
+    private(set) lazy var qwen3TranscriptionService = Qwen3TranscriptionService()
     init(whisperState: WhisperState, modelsDirectory: URL) {
         self.whisperState = whisperState
         self.modelsDirectory = modelsDirectory
@@ -26,6 +27,8 @@ class TranscriptionServiceRegistry {
             return localTranscriptionService
         case .parakeet:
             return parakeetTranscriptionService
+        case .qwen3:
+            return qwen3TranscriptionService
         case .nativeApple:
             return nativeAppleTranscriptionService
         default:
@@ -74,5 +77,6 @@ class TranscriptionServiceRegistry {
 
     func cleanup() {
         parakeetTranscriptionService.cleanup()
+        qwen3TranscriptionService.cleanup()
     }
 }

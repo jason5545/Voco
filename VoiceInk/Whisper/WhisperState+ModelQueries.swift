@@ -8,6 +8,11 @@ extension WhisperState {
                 return availableModels.contains { $0.name == model.name }
             case .parakeet:
                 return isParakeetModelDownloaded(named: model.name)
+            case .qwen3:
+                if let qwen3Model = model as? Qwen3Model {
+                    return isQwen3ModelDownloaded(qwen3Model)
+                }
+                return false
             case .nativeApple:
                 if #available(macOS 26, *) {
                     return true

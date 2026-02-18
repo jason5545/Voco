@@ -10,6 +10,10 @@ import Foundation
                 let appleSupportedCodes = ["ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "yue", "zh"]
                 return allLanguages.filter { appleSupportedCodes.contains($0.key) }
             }
+            // Qwen3-ASR supports all languages (30+ languages + auto-detect)
+            if provider == .qwen3 {
+                return allLanguages
+            }
             // For Soniox, return only the 60 languages supported by stt-async-v4
             if provider == .soniox {
                 let sonioxSupportedCodes = [
@@ -122,7 +126,33 @@ import Foundation
             ramUsage: 0.8,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .parakeet)
         ),
-        
+
+        // Qwen3-ASR Models
+        Qwen3Model(
+            name: "qwen3-asr-0.6b-4bit",
+            displayName: "Qwen3-ASR 0.6B",
+            description: "Alibaba's Qwen3-ASR model with excellent Chinese/English accuracy, 30+ languages and 22 Chinese dialects",
+            size: "~400 MB",
+            speed: 0.80,
+            accuracy: 0.97,
+            ramUsage: 1.2,
+            modelId: "mlx-community/Qwen3-ASR-0.6B-4bit",
+            modelSize: .small,
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3)
+        ),
+        Qwen3Model(
+            name: "qwen3-asr-1.7b-8bit",
+            displayName: "Qwen3-ASR 1.7B",
+            description: "Larger Qwen3-ASR model with state-of-the-art accuracy across Chinese (WER 2.71%) and English (WER 2.29%)",
+            size: "~1.8 GB",
+            speed: 0.60,
+            accuracy: 0.99,
+            ramUsage: 2.5,
+            modelId: "mlx-community/Qwen3-ASR-1.7B-8bit",
+            modelSize: .large,
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3)
+        ),
+
          // Local Models
          LocalModel(
              name: "ggml-tiny",

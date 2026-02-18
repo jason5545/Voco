@@ -12,6 +12,7 @@ enum ModelProvider: String, Codable, Hashable, CaseIterable {
     case soniox = "Soniox"
     case custom = "Custom"
     case nativeApple = "Native Apple"
+    case qwen3 = "Qwen3"
     // Future providers can be added here
 }
 
@@ -180,7 +181,26 @@ struct LocalModel: TranscriptionModel {
     }
 } 
 
-// User-imported local models 
+// Qwen3-ASR models
+struct Qwen3Model: TranscriptionModel {
+    let id = UUID()
+    let name: String
+    let displayName: String
+    let description: String
+    let provider: ModelProvider = .qwen3
+    let size: String
+    let speed: Double
+    let accuracy: Double
+    let ramUsage: Double
+    let modelId: String  // HuggingFace model ID
+    let modelSize: Qwen3ASRModelSize
+    var isMultilingualModel: Bool {
+        supportedLanguages.count > 1
+    }
+    let supportedLanguages: [String: String]
+}
+
+// User-imported local models
 struct ImportedLocalModel: TranscriptionModel {
     let id = UUID()
     let name: String
