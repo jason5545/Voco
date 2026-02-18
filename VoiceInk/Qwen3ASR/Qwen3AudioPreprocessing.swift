@@ -28,7 +28,7 @@ class Qwen3FeatureExtractor {
     let nFFT: Int = 400
     let hopLength: Int = 160
     let nMels: Int = 128
-    let chunkLength: Int = 30
+    let chunkLength: Int = 1200  // Qwen3-ASR supports up to 20 minutes (1200s) per inference
 
     private var melFilterbank: [Float]?
     private var hannWindow: [Float]

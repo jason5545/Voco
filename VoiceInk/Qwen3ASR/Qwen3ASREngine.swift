@@ -33,6 +33,14 @@ actor Qwen3ASREngine {
         Self.logger.info("Qwen3-ASR model loaded successfully")
     }
 
+    private static let sampleRate = 16000
+    /// Maximum samples per chunk: 20 minutes at 16kHz
+    private static let maxSamplesPerChunk = 20 * 60 * sampleRate  // 19,200,000
+    /// Search window for silence detection: ±30 seconds around the target cut point
+    private static let silenceSearchWindow = 30 * sampleRate  // 480,000
+    /// RMS analysis window: 0.5 seconds
+    private static let rmsWindowSize = sampleRate / 2  // 0.5s at 16kHz
+
     func transcribe(samples: [Float], language: String?, prompt: String? = nil) throws -> String {
         guard let model = model else {
             throw Qwen3ASRModelError.textDecoderNotLoaded
@@ -46,7 +54,63 @@ actor Qwen3ASREngine {
             lang = nil
         }
 
-        return try model.transcribe(audio: samples, sampleRate: 16000, language: lang, prompt: prompt)
+        // Audio within 20 minutes: single pass
+        if samples.count <= Self.maxSamplesPerChunk {
+            return try model.transcribe(audio: samples, sampleRate: 16000, language: lang, prompt: prompt)
+        }
+
+        // Audio over 20 minutes: segment at silence points
+        let sr = Self.sampleRate
+        Self.logger.info("Audio exceeds 20 minutes (\(samples.count / sr)s), segmenting at silence points...")
+        var results: [String] = []
+        var offset = 0
+        while offset < samples.count {
+            let remaining = samples.count - offset
+            if remaining <= Self.maxSamplesPerChunk {
+                // Last chunk: take everything
+                let chunk = Array(samples[offset...])
+                let text = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+                if !text.isEmpty { results.append(text) }
+                break
+            }
+
+            // Find the best silence point near the 20-minute mark
+            let cutPoint = Self.findSilenceCutPoint(in: samples, targetCut: offset + Self.maxSamplesPerChunk)
+            let chunk = Array(samples[offset..<cutPoint])
+            Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")
+            let text = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+            if !text.isEmpty { results.append(text) }
+            offset = cutPoint
+        }
+        return results.joined(separator: " ")
+    }
+
+    /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
+    private static func findSilenceCutPoint(in samples: [Float], targetCut: Int) -> Int {
+        let searchStart = max(0, targetCut - silenceSearchWindow)
+        let searchEnd = min(samples.count, targetCut + silenceSearchWindow)
+
+        // Slide a 0.5s RMS window and find the position with minimum energy
+        var minRMS: Float = .infinity
+        var bestPos = targetCut
+
+        var pos = searchStart
+        while pos + rmsWindowSize <= searchEnd {
+            var sumSquares: Float = 0
+            for i in pos..<(pos + rmsWindowSize) {
+                sumSquares += samples[i] * samples[i]
+            }
+            let rms = sumSquares / Float(rmsWindowSize)
+            if rms < minRMS {
+                minRMS = rms
+                bestPos = pos + rmsWindowSize / 2  // Cut at center of the quiet window
+            }
+            pos += rmsWindowSize / 2  // Step by half window for overlap
+        }
+
+        let sr = sampleRate
+        logger.info("Silence cut: target \(targetCut / sr)s → actual \(bestPos / sr)s (RMS: \(minRMS))")
+        return bestPos
     }
 
     func isModelLoaded(modelId: String) -> Bool {

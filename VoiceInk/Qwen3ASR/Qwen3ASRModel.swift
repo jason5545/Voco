@@ -72,8 +72,12 @@ class Qwen3ASRModel {
         sampleRate: Int = 16000,
         language: String? = nil,
         prompt: String? = nil,
-        maxTokens: Int = 448
+        maxTokens: Int? = nil
     ) throws -> String {
+        // Scale maxTokens proportionally to audio duration (448 tokens per 30s baseline)
+        let durationSeconds = Double(audio.count) / Double(sampleRate)
+        let effectiveMaxTokens = maxTokens ?? min(max(448, Int(durationSeconds / 30.0 * 448.0)), 32768)
+
         let melFeatures = try featureExtractor.process(audio, sampleRate: sampleRate)
         let batchedFeatures = melFeatures.expandedDimensions(axis: 0)
 
@@ -89,7 +93,7 @@ class Qwen3ASRModel {
             textDecoder: textDecoder,
             language: language,
             prompt: prompt,
-            maxTokens: maxTokens
+            maxTokens: effectiveMaxTokens
         )
     }
 
