@@ -35,7 +35,7 @@ struct ChinesePostProcessingSettingsView: View {
                     Toggle(isOn: $service.isConfidenceRoutingEnabled) {
                         HStack(spacing: 4) {
                             Text("Confidence Routing")
-                            InfoTip("Skip AI Enhancement for high-confidence transcriptions. Only works with local Whisper models.")
+                            InfoTip("Skip AI Enhancement for high-confidence transcriptions. Uses log-prob for Whisper and text heuristics for Qwen3.")
                         }
                     }
 
@@ -45,6 +45,19 @@ struct ChinesePostProcessingSettingsView: View {
                                 Slider(value: $service.logProbThreshold, in: -1.0...0.0, step: 0.05)
                                     .frame(width: 120)
                                 Text(String(format: "%.2f", service.logProbThreshold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 40)
+                            }
+                        }
+
+                        LabeledContent("Qwen3 Skip Threshold") {
+                            HStack {
+                                Slider(value: Binding(
+                                    get: { Double(service.qwen3SkipThreshold) },
+                                    set: { service.qwen3SkipThreshold = Int($0) }
+                                ), in: 10...80, step: 5)
+                                    .frame(width: 120)
+                                Text("\(service.qwen3SkipThreshold)")
                                     .foregroundColor(.secondary)
                                     .frame(width: 40)
                             }

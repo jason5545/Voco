@@ -29,9 +29,11 @@ class ChinesePostProcessingService: ObservableObject {
     let contextMemory = TranscriptionContextMemory()
     let llmResponseValidator = LLMResponseValidator.shared
 
-    // MARK: - Confidence data (set by LocalTranscriptionService)
+    // MARK: - Confidence data (set by transcription services)
 
     var lastAvgLogProb: Double = 0.0
+    var lastModelProvider: ModelProvider?
+    var lastAudioDuration: Double = 0.0
 
     // MARK: - Settings (UserDefaults backed)
 
@@ -75,6 +77,10 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(logProbThreshold, forKey: "ChinesePostProcessingLogProbThreshold") }
     }
 
+    @Published var qwen3SkipThreshold: Int {
+        didSet { UserDefaults.standard.set(qwen3SkipThreshold, forKey: "ChinesePostProcessingQwen3SkipThreshold") }
+    }
+
     // MARK: - Init
 
     private init() {
@@ -88,6 +94,7 @@ class ChinesePostProcessingService: ObservableObject {
         self.isContextMemoryEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingContextMemory") as? Bool ?? true
         self.isLLMValidationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingLLMValidation") as? Bool ?? true
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
+        self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
     }
 
     // MARK: - Main Processing Pipeline
@@ -189,10 +196,22 @@ class ChinesePostProcessingService: ObservableObject {
             return false
         }
 
-        // High confidence → skip LLM
-        if lastAvgLogProb > logProbThreshold {
-            Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
-            return true
+        // Provider-specific confidence check
+        switch lastModelProvider {
+        case .local:
+            // Whisper: use avgLogProb (unchanged)
+            if lastAvgLogProb > logProbThreshold {
+                Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
+                return true
+            }
+        case .qwen3:
+            // Qwen3: text heuristic — short clean text can skip
+            if qwen3TextQualityCheck(text) {
+                Self.debugLog("SKIP: Qwen3 text quality OK (cjk≤\(qwen3SkipThreshold) or rate normal) | text(\(text.count)): \(text)")
+                return true
+            }
+        default:
+            break // other providers: fall through to default (use LLM)
         }
 
         // Has ambiguous punctuation or repetition → need LLM
@@ -256,6 +275,85 @@ class ChinesePostProcessingService: ObservableObject {
             "謝謝", "感謝", "抱歉", "不好意思",
         ]
         return simpleResponses.contains(text)
+    }
+
+    /// Check if Qwen3 transcription text quality is good enough to skip LLM
+    private func qwen3TextQualityCheck(_ text: String) -> Bool {
+        let cjkCount = text.unicodeScalars.filter {
+            (0x4E00...0x9FFF).contains($0.value) ||
+            (0x3400...0x4DBF).contains($0.value)
+        }.count
+
+        // Excessive filler words → force LLM (redundant/repeated particles)
+        if hasExcessiveFillers(text) {
+            Self.debugLog("Qwen3: excessive filler words detected | text(\(text.count)): \(text)")
+            return false
+        }
+
+        // List-like content → force LLM (prompt supports bullet formatting)
+        if hasListContent(text) {
+            Self.debugLog("Qwen3: list content detected → force LLM for formatting | text(\(text.count)): \(text)")
+            return false
+        }
+
+        // Short text → likely clean
+        if cjkCount <= qwen3SkipThreshold {
+            return true
+        }
+
+        // Speech rate check: abnormal rate → force LLM
+        if lastAudioDuration > 0 {
+            let rate = Double(cjkCount) / lastAudioDuration
+            if rate < 1.5 || rate > 8.0 {
+                Self.debugLog("Qwen3: abnormal speech rate \(String(format: "%.1f", rate)) chars/sec (cjk=\(cjkCount), dur=\(String(format: "%.1f", lastAudioDuration))s)")
+                return false
+            }
+        }
+
+        return false // long text → use LLM
+    }
+
+    /// Check if text contains list-like / enumeration content that benefits from LLM formatting
+    private func hasListContent(_ text: String) -> Bool {
+        // 第一、第二… / 第一個、第二個…
+        let ordinalPattern = /第[一二三四五六七八九十百]\S{0,1}/
+        let ordinalMatches = text.matches(of: ordinalPattern).count
+        if ordinalMatches >= 2 { return true }
+
+        // 首先…然後/接著/再來/最後
+        let sequenceWords: [String] = ["首先", "然後", "接著", "再來", "最後", "其次", "另外", "還有"]
+        let seqCount = sequenceWords.reduce(0) { count, word in
+            count + text.components(separatedBy: word).count - 1
+        }
+        if seqCount >= 2 { return true }
+
+        // 1. 2. 3. or (1) (2) or ① ②
+        let numberListPattern = /(?:\d+[.、]|[（(]\d+[)）]|[①②③④⑤⑥⑦⑧⑨⑩])/
+        let numMatches = text.matches(of: numberListPattern).count
+        if numMatches >= 2 { return true }
+
+        return false
+    }
+
+    /// Check if text has excessive or repeated filler words (語助詞)
+    private func hasExcessiveFillers(_ text: String) -> Bool {
+        let fillers: Set<Character> = ["啊", "嗯", "呢", "吧", "啦", "喔", "欸", "齁", "嘛", "呀", "哦", "噢", "唉", "哎", "嘿", "蛤"]
+        let chars = Array(text)
+        var fillerCount = 0
+
+        for (i, ch) in chars.enumerated() {
+            guard fillers.contains(ch) else { continue }
+            fillerCount += 1
+            // Consecutive repeated filler (e.g. 啊啊啊) → definitely excessive
+            if i + 1 < chars.count && chars[i + 1] == ch {
+                return true
+            }
+        }
+
+        // Filler density: >15% of text characters are fillers → excessive
+        guard text.count > 0 else { return false }
+        let ratio = Double(fillerCount) / Double(text.count)
+        return ratio > 0.15
     }
 
     /// Check if text needs punctuation added by LLM (density-based)

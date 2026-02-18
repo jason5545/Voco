@@ -14,6 +14,9 @@ class Qwen3TranscriptionService: TranscriptionService {
     private let engine = Qwen3ASREngine()
     private let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3TranscriptionService")
 
+    /// Temporary language override for retry (e.g. "Japanese"). Takes priority over UserDefaults.
+    var languageOverride: String?
+
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         guard let qwen3Model = model as? Qwen3Model else {
             throw Qwen3ServiceError.invalidModel
@@ -26,8 +29,8 @@ class Qwen3TranscriptionService: TranscriptionService {
         // Read audio samples from WAV file
         let audioSamples = try readAudioSamples(from: audioURL)
 
-        // Get language and prompt from UserDefaults
-        let selectedLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage")
+        // Language: override takes priority, then UserDefaults
+        let selectedLanguage = languageOverride ?? UserDefaults.standard.string(forKey: "SelectedLanguage")
         let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt")
 
         logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")

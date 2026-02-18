@@ -382,6 +382,14 @@ class WhisperState: NSObject, ObservableObject {
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             logger.notice("📝 WordReplacement: \(text, privacy: .public)")
 
+            // Set model provider for confidence routing
+            postProcessor.lastModelProvider = model.provider
+
+            // Pre-compute audio duration for Qwen3 speech rate check
+            let preAudioAsset = AVURLAsset(url: url)
+            let preAudioDuration = (try? CMTimeGetSeconds(await preAudioAsset.load(.duration))) ?? 0.0
+            postProcessor.lastAudioDuration = preAudioDuration
+
             // === Chinese Post-Processing Pipeline ===
             var ppNeedsLLM = true
             if postProcessor.isEnabled {
@@ -402,9 +410,46 @@ class WhisperState: NSObject, ObservableObject {
                 }
             }
 
-            let audioAsset = AVURLAsset(url: url)
-            let actualDuration = (try? CMTimeGetSeconds(await audioAsset.load(.duration))) ?? 0.0
-            
+            // Unexpected script retry: if output contains non-CJK/non-English/non-Japanese text,
+            // it's a Qwen3 language misdetection — retry as Japanese
+            if model.provider == .qwen3,
+               text.unicodeScalars.contains(where: { scalar in
+                   let v = scalar.value
+                   // Allow: ASCII (Latin/English + punctuation + digits)
+                   if v <= 0x007F { return false }
+                   // Allow: CJK Unified Ideographs (Chinese/Japanese kanji)
+                   if (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v) { return false }
+                   // Allow: Hiragana, Katakana
+                   if (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v) { return false }
+                   // Allow: CJK punctuation, fullwidth forms, halfwidth katakana
+                   if (0x3000...0x303F).contains(v) || (0xFF00...0xFFEF).contains(v) { return false }
+                   // Allow: CJK Extension B+
+                   if (0x20000...0x2A6DF).contains(v) { return false }
+                   // Allow: Katakana Phonetic Extensions
+                   if (0x31F0...0x31FF).contains(v) { return false }
+                   // Anything else (Hangul, Devanagari, Arabic, Cyrillic, etc.) is unexpected
+                   return true
+               }) {
+                let originalText = text
+                let qwen3Service = serviceRegistry.qwen3TranscriptionService
+                qwen3Service.languageOverride = "Japanese"
+                defer { qwen3Service.languageOverride = nil }
+
+                if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
+                    text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ChinesePostProcessingService.debugLog("[SCRIPT_RETRY] \(originalText) → \(text)")
+                    logger.notice("🔄 Unexpected script retry: \(originalText, privacy: .public) → \(text, privacy: .public)")
+
+                    if postProcessor.isEnabled {
+                        let retryPPResult = postProcessor.process(text)
+                        text = retryPPResult.processedText
+                        ppNeedsLLM = retryPPResult.needsLLMCorrection
+                    }
+                }
+            }
+
+            let actualDuration = preAudioDuration
+
             transcription.text = text
             transcription.duration = actualDuration
             transcription.transcriptionModelName = model.displayName
