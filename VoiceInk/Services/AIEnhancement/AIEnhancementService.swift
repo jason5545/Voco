@@ -471,20 +471,21 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
-    func enhanceForEditMode(instruction: String, selectedText: String) async throws -> (String, TimeInterval) {
+    func enhanceForEditMode(instruction: String, selectedText: String) async throws -> (String, TimeInterval, WordSubstitution?) {
         let startTime = Date()
         guard isConfigured else { throw EnhancementError.notConfigured }
-        guard !instruction.isEmpty else { return (selectedText, 0) }
+        guard !instruction.isEmpty else { return (selectedText, 0, nil) }
 
         let systemMessage = """
         You are a precise text editor. The user has selected text and given you a spoken instruction to modify it.
 
         Rules:
         - Apply the instruction to the selected text
-        - Return ONLY the modified result text
-        - Do NOT add explanations, commentary, or metadata
-        - Do NOT wrap the result in quotes or tags
+        - Return a JSON object (no markdown fences): {"result": "modified text", "substitution": {"from": "original word", "to": "new word"}}
+        - "substitution" should contain the single word/phrase pair that was replaced. Set it to null if the edit is not a simple word substitution (e.g. rewriting, reformatting, multi-word changes).
+        - Each side of the substitution must be ≤ 20 characters
         - Preserve the original formatting style and language
+        - Do NOT add explanations or commentary
         """
 
         let userMessage = """
@@ -502,12 +503,38 @@ class AIEnhancementService: ObservableObject {
             self.lastUserMessageSent = userMessage
         }
 
-        let result = try await makeRequestWithRetry(
+        let raw = try await makeRequestWithRetry(
             text: "", mode: .transcriptionEnhancement,
             systemMessageOverride: systemMessage,
             userMessageOverride: userMessage
         )
-        return (result, Date().timeIntervalSince(startTime))
+        let duration = Date().timeIntervalSince(startTime)
+
+        // Try to parse JSON response (handle optional markdown code fences)
+        var jsonString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if jsonString.hasPrefix("```") {
+            // Strip ```json ... ``` wrapper
+            let lines = jsonString.components(separatedBy: "\n")
+            let stripped = lines.dropFirst().drop(while: { _ in false })
+                .prefix(while: { !$0.hasPrefix("```") })
+            jsonString = stripped.joined(separator: "\n")
+        }
+
+        if let data = jsonString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let result = json["result"] as? String {
+            var substitution: WordSubstitution? = nil
+            if let sub = json["substitution"] as? [String: String],
+               let from = sub["from"], let to = sub["to"],
+               !from.isEmpty, !to.isEmpty,
+               from.count <= 20, to.count <= 20 {
+                substitution = WordSubstitution(original: from, replacement: to)
+            }
+            return (result, duration, substitution)
+        }
+
+        // Fallback: treat entire response as plain text result, no substitution
+        return (raw, duration, nil)
     }
 
     func captureScreenContext() async {

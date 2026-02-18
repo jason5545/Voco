@@ -6,6 +6,12 @@ import AppKit
 import KeyboardShortcuts
 import os
 
+// MARK: - Word Substitution (Edit Mode dictionary suggestion)
+struct WordSubstitution {
+    let original: String
+    let replacement: String
+}
+
 // MARK: - Recording State Machine
 enum RecordingState: Equatable {
     case idle
@@ -524,7 +530,7 @@ class WhisperState: NSObject, ObservableObject {
                 await MainActor.run { self.recordingState = .enhancing }
 
                 do {
-                    let (editedText, editDuration) = try await enhancementService.enhanceForEditMode(
+                    let (editedText, editDuration, substitution) = try await enhancementService.enhanceForEditMode(
                         instruction: text, selectedText: selectedText
                     )
                     logger.notice("📝 Edit mode result: \(editedText, privacy: .private)")
@@ -546,8 +552,8 @@ class WhisperState: NSObject, ObservableObject {
                         CursorPaster.pasteAtCursor(editedText)
                     }
 
-                    // Check if it's a simple word substitution → show dictionary confirmation
-                    if let sub = EditModeDiffService.extractSubstitution(original: selectedText, edited: editedText) {
+                    // If LLM identified a simple word substitution → show dictionary confirmation
+                    if let sub = substitution {
                         await MainActor.run {
                             self.pendingDictionaryEntry = sub
                             self.recordingState = .idle
