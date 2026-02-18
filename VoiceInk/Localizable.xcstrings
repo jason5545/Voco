@@ -5873,6 +5873,56 @@
           }
         }
       }
+    },
+    "Auto-learn from corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動從修正中學習"
+          }
+        }
+      }
+    },
+    "Automatically add words to the dictionary when you correct the same transcription error multiple times": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當您多次修正相同的轉錄錯誤時，自動將詞彙加入字典"
+          }
+        }
+      }
+    },
+    "Auto-learned": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已自動學習"
+          }
+        }
+      }
+    },
+    "Undo": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤銷"
+          }
+        }
+      }
+    },
+    "Undone": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已撤銷"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

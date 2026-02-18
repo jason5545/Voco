@@ -47,6 +47,9 @@ enum AppDefaults {
             // Model
             "PrewarmModelOnWake": true,
 
+            // Auto Dictionary
+            "AutoDictionaryEnabled": true,
+
             // Chinese Post-Processing
             "ChinesePostProcessingEnabled": false,
             "ChinesePostProcessingOpenCC": true,
