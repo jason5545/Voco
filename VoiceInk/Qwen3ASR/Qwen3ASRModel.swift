@@ -174,14 +174,41 @@ class Qwen3ASRModel {
             generatedTokens.append(nextToken)
         }
 
-        if let tokenizer = tokenizer {
+        guard let tokenizer = tokenizer else {
+            return generatedTokens.map { String($0) }.joined(separator: " ")
+        }
+
+        // Find <asr_text> marker by token ID (more reliable than string matching)
+        let asrTokenId = Int32(tokens.asrTextId)
+        let textTokens: [Int32]
+        if let asrIndex = generatedTokens.firstIndex(of: asrTokenId) {
+            // Extract only tokens after <asr_text>
+            textTokens = Array(generatedTokens[(asrIndex + 1)...])
+        } else if language == nil {
+            // Auto mode: model may have generated "language XXX" prefix without <asr_text>
+            // Fall back to string-based extraction
             let rawText = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
             if let range = rawText.range(of: "<asr_text>") {
                 return String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces)
             }
+            // Strip "language XXX" prefix if present
+            if rawText.hasPrefix("language ") {
+                // Find end of language name (it's a single word like "Japanese", "English")
+                let afterLang = rawText.dropFirst("language ".count)
+                if let spaceIdx = afterLang.firstIndex(of: " ") {
+                    return String(afterLang[afterLang.index(after: spaceIdx)...])
+                        .trimmingCharacters(in: .whitespaces)
+                }
+            }
             return rawText
         } else {
-            return generatedTokens.map { String($0) }.joined(separator: " ")
+            // Manual language mode: no prefix, all tokens are transcription
+            textTokens = generatedTokens
         }
+
+        // Filter out EOS token before decoding
+        let filtered = textTokens.filter { $0 != Int32(tokens.eosTokenId) }
+        return tokenizer.decode(tokens: filtered.map { Int($0) })
+            .trimmingCharacters(in: .whitespaces)
     }
 }
