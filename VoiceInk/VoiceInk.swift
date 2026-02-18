@@ -45,7 +45,6 @@ struct VoiceInkApp: App {
             Transcription.self,
             VocabularyWord.self,
             WordReplacement.self,
-            CorrectionCandidate.self
         ])
         var initializationFailed = false
         
@@ -147,7 +146,7 @@ struct VoiceInkApp: App {
             )
 
             // Dictionary configuration
-            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self, CorrectionCandidate.self])
+            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
             #if LOCAL_BUILD
             let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .none
             #else
@@ -182,7 +181,7 @@ struct VoiceInkApp: App {
             )
 
             // Dictionary configuration
-            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self, CorrectionCandidate.self])
+            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
             let dictionaryConfig = ModelConfiguration(
                 "dictionary",
                 schema: dictionarySchema,

@@ -515,7 +515,7 @@ class AIEnhancementService: ObservableObject {
         if jsonString.hasPrefix("```") {
             // Strip ```json ... ``` wrapper
             let lines = jsonString.components(separatedBy: "\n")
-            let stripped = lines.dropFirst().drop(while: { _ in false })
+            let stripped = lines.dropFirst()
                 .prefix(while: { !$0.hasPrefix("```") })
             jsonString = stripped.joined(separator: "\n")
         }

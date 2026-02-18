@@ -4,7 +4,6 @@ import SwiftData
 struct DictionarySettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: DictionarySection = .replacements
-    @AppStorage("AutoDictionaryEnabled") private var autoDictionaryEnabled = true
     let whisperPrompt: WhisperPrompt
     
     enum DictionarySection: String, CaseIterable {
@@ -52,8 +51,6 @@ struct DictionarySettingsView: View {
     
     private var mainContent: some View {
         VStack(spacing: 40) {
-            autoLearnToggle
-
             sectionSelector
 
             selectedSectionContent
@@ -62,24 +59,6 @@ struct DictionarySettingsView: View {
         .padding(.vertical, 40)
     }
 
-    private var autoLearnToggle: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Auto-learn from corrections")
-                    .font(.headline)
-                Text("Automatically add words to the dictionary when you correct the same transcription error multiple times")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Toggle("", isOn: $autoDictionaryEnabled)
-                .toggleStyle(.switch)
-                .labelsHidden()
-        }
-        .padding()
-        .background(CardBackground(isSelected: false))
-    }
-    
     private var sectionSelector: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {

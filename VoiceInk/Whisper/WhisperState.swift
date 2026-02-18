@@ -219,9 +219,6 @@ class WhisperState: NSObject, ObservableObject {
                                 pendingChunks.withLock { $0.append(data) }
                             }
 
-                            // Check for user corrections from previous paste
-                            AutoDictionaryService.shared.checkForUserCorrections(modelContext: self.modelContext)
-
                             // Start recording immediately — no waiting for network
                             try await self.recorder.startRecording(toOutputFile: permanentURL)
 
@@ -704,9 +701,6 @@ class WhisperState: NSObject, ObservableObject {
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                // Snapshot text field state before pasting for auto-dictionary learning
-                AutoDictionaryService.shared.capturePrePasteSnapshot(insertedText: textToPaste)
-
                 CursorPaster.pasteAtCursor(textToPaste + " ")
 
                 let powerMode = PowerModeManager.shared
