@@ -95,25 +95,43 @@ class Qwen3Tokenizer {
     }
 
     func decode(tokens: [Int]) -> String {
+        var allBytes: [UInt8] = []
         var result = ""
 
         for tokenId in tokens {
             if let token = idToToken[tokenId] {
+                // Skip special tokens like <|im_start|>, <|im_end|>
                 if token.hasPrefix("<|") && token.hasSuffix("|>") {
                     continue
                 }
+
+                // Keep markers like <asr_text> — flush accumulated bytes first
                 if token.hasPrefix("<") && token.hasSuffix(">") && !token.contains("|") {
+                    if !allBytes.isEmpty {
+                        if let decoded = String(bytes: allBytes, encoding: .utf8) {
+                            result += decoded
+                        }
+                        allBytes.removeAll()
+                    }
                     result += token
                     continue
                 }
 
-                var decodedToken = token
-                if decodedToken.hasPrefix("Ġ") {
-                    decodedToken = " " + String(decodedToken.dropFirst())
+                // Accumulate bytes via byte-level BPE reverse mapping
+                for char in token {
+                    if let byte = Self.unicodeToByte[char] {
+                        allBytes.append(byte)
+                    } else {
+                        allBytes.append(contentsOf: String(char).utf8)
+                    }
                 }
+            }
+        }
 
-                decodedToken = decodeByteLevelToken(decodedToken)
-                result += decodedToken
+        // Flush remaining bytes
+        if !allBytes.isEmpty {
+            if let decoded = String(bytes: allBytes, encoding: .utf8) {
+                result += decoded
             }
         }
 
