@@ -33,7 +33,7 @@ class WordReplacementService {
 
                 if usesBoundaries {
                     // Word-boundary regex for full original string
-                    let pattern = "\\b\(NSRegularExpression.escapedPattern(for: original))\\b"
+                    let pattern = smartBoundaryPattern(for: original)
                     if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
                         let range = NSRange(modifiedText.startIndex..., in: modifiedText)
                         modifiedText = regex.stringByReplacingMatches(
@@ -70,7 +70,7 @@ class WordReplacementService {
             let usesBoundaries = usesWordBoundaries(for: vocab)
 
             if usesBoundaries {
-                let pattern = "\\b\(NSRegularExpression.escapedPattern(for: vocab))\\b"
+                let pattern = smartBoundaryPattern(for: vocab)
                 guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
                 // Iterate matches in reverse to preserve indices during replacement
                 let nsString = modifiedText as NSString
@@ -98,6 +98,12 @@ class WordReplacementService {
         }
 
         return modifiedText
+    }
+
+    private func smartBoundaryPattern(for word: String) -> String {
+        let escaped = NSRegularExpression.escapedPattern(for: word)
+        let cjk = "[\\p{Han}\\p{Hiragana}\\p{Katakana}\\p{Hangul}\\p{Thai}]"
+        return "(?:\\b|(?<=\(cjk)))\(escaped)(?:\\b|(?=\(cjk)))"
     }
 
     private func usesWordBoundaries(for text: String) -> Bool {
