@@ -49,7 +49,7 @@ class HotkeyManager: ObservableObject {
     
     // MARK: - Helper Properties
     private var canProcessHotkeyAction: Bool {
-        whisperState.recordingState != .transcribing && whisperState.recordingState != .enhancing && whisperState.recordingState != .busy
+        whisperState.recordingState != .busy
     }
     
     // NSEvent monitoring for modifier keys
