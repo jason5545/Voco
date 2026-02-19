@@ -395,12 +395,17 @@ class WhisperState: NSObject, ObservableObject {
             postProcessor.lastAudioDuration = preAudioDuration
 
             // === Language-aware Chinese Post-Processing Pipeline ===
-            // Trust Qwen3's language tag: only run Chinese post-processing for Chinese or unknown
+            // Qwen3's language tag is unreliable for mixed Chinese-English content
+            // (e.g. 中文夾 dictionary 會被標成 English)，所以改用漢字存在性判斷
             let detectedLanguage: String? = (model.provider == .qwen3)
                 ? serviceRegistry.qwen3TranscriptionService.lastDetectedLanguage
                 : nil
+            let containsHan = text.unicodeScalars.contains {
+                (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                    || (0x20000...0x2A6DF).contains($0.value)
+            }
             let shouldRunChinesePostProcessing = postProcessor.isEnabled
-                && (detectedLanguage == nil || detectedLanguage == "Chinese")
+                && (detectedLanguage == nil || detectedLanguage == "Chinese" || containsHan)
 
             if let lang = detectedLanguage {
                 ChinesePostProcessingService.debugLog("LANGUAGE_TAG: \(lang) | shouldRunChinePP=\(shouldRunChinesePostProcessing) | text(\(text.count)): \(text)")
