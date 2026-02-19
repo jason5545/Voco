@@ -19,7 +19,7 @@ enum Qwen3TokenizerError: Error, LocalizedError {
 
 /// BPE tokenizer for Qwen3, loads from vocab.json
 class Qwen3Tokenizer {
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3Tokenizer")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3Tokenizer")
 
     private var idToToken: [Int: String] = [:]
     private var tokenToId: [String: Int] = [:]

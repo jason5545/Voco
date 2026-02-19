@@ -107,7 +107,7 @@ class WhisperState: NSObject, ObservableObject {
     let modelsDirectory: URL
     let recordingsDirectory: URL
     let enhancementService: AIEnhancementService?
-    let logger = Logger(subsystem: "com.jasonchien.voco", category: "WhisperState")
+    let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "WhisperState")
     var notchWindowManager: NotchWindowManager?
     var miniWindowManager: MiniWindowManager?
     
@@ -119,7 +119,7 @@ class WhisperState: NSObject, ObservableObject {
     init(modelContext: ModelContext, enhancementService: AIEnhancementService? = nil) {
         self.modelContext = modelContext
         let appSupportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.jasonchien.Voco")
+            .appendingPathComponent(AppIdentifiers.bundleID)
         
         self.modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
         self.recordingsDirectory = appSupportDirectory.appendingPathComponent("Recordings")

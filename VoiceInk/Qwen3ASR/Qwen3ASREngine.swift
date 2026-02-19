@@ -6,7 +6,7 @@ import Foundation
 import os
 
 actor Qwen3ASREngine {
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3ASREngine")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASREngine")
 
     private var model: Qwen3ASRModel?
     private var loadedModelId: String?

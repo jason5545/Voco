@@ -6,7 +6,7 @@ import Security
 class VoiceInkMigrationService {
     static let shared = VoiceInkMigrationService()
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "VoiceInkMigration")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "VoiceInkMigration")
 
     private let migrationCompletedKey = "VocoMigrationFromVoiceInkCompleted"
     private let xvoiceMigrationCompletedKey = "VocoMigrationFromXVoiceCompleted"

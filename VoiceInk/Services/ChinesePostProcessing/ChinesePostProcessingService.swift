@@ -18,7 +18,7 @@ struct PostProcessingResult {
 class ChinesePostProcessingService: ObservableObject {
     static let shared = ChinesePostProcessingService()
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "ChinesePostProcessing")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ChinesePostProcessing")
 
     // MARK: - Sub-services
 

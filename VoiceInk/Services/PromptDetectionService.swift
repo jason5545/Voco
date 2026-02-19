@@ -3,7 +3,7 @@ import os
 
 class PromptDetectionService {
     private let logger = Logger(
-        subsystem: "com.jasonchien.voco",
+        subsystem: AppIdentifiers.subsystem,
         category: "promptdetection"
     )
     

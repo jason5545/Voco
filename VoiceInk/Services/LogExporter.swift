@@ -4,8 +4,8 @@ import OSLog
 final class LogExporter {
     static let shared = LogExporter()
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "LogExporter")
-    private let subsystem = "com.jasonchien.voco"
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "LogExporter")
+    private let subsystem = AppIdentifiers.subsystem
     private let maxSessionsToKeep = 3
     private let sessionsKey = "logExporter.sessionStartDates.v1"
 

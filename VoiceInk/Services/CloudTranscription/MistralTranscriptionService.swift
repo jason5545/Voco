@@ -2,7 +2,7 @@ import Foundation
 import os
 
 class MistralTranscriptionService {
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "MistralTranscriptionService")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "MistralTranscriptionService")
     
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         logger.notice("Sending transcription request to Mistral for model: \(model.name)")

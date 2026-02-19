@@ -5,7 +5,7 @@ import os
 final class APIKeyManager {
     static let shared = APIKeyManager()
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "APIKeyManager")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "APIKeyManager")
     private let keychain = KeychainService.shared
     private let userDefaults = UserDefaults.standard
 

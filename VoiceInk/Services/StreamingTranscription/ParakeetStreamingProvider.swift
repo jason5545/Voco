@@ -7,7 +7,7 @@ import os
 /// with Parakeet TDT models (v2/v3).
 final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "ParakeetStreaming")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ParakeetStreaming")
     private let parakeetService: ParakeetTranscriptionService
     private var streamingManager: StreamingAsrManager?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?

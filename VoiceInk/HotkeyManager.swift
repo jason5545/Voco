@@ -42,7 +42,7 @@ class HotkeyManager: ObservableObject {
         }
     }
     
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "HotkeyManager")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "HotkeyManager")
     private var whisperState: WhisperState
     private var miniRecorderShortcutManager: MiniRecorderShortcutManager
     private var powerModeShortcutManager: PowerModeShortcutManager

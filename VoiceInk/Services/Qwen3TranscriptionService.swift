@@ -12,7 +12,7 @@ enum Qwen3ServiceError: Error {
 
 class Qwen3TranscriptionService: TranscriptionService {
     private let engine = Qwen3ASREngine()
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3TranscriptionService")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3TranscriptionService")
 
     /// Temporary language override for retry (e.g. "Japanese"). Takes priority over UserDefaults.
     var languageOverride: String?

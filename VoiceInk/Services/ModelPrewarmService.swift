@@ -7,7 +7,7 @@ import AppKit
 final class ModelPrewarmService: ObservableObject {
     private let whisperState: WhisperState
     private let modelContext: ModelContext
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "ModelPrewarm")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ModelPrewarm")
     private lazy var serviceRegistry = TranscriptionServiceRegistry(
         whisperState: whisperState,
         modelsDirectory: whisperState.modelsDirectory

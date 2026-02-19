@@ -1,114 +1,135 @@
 <div align="center">
   <img src="VoiceInk/Assets.xcassets/AppIcon.appiconset/256-mac.png" width="180" height="180" />
   <h1>Voco</h1>
-  <p>macOS 離線語音轉文字，針對臺灣正體中文深度優化</p>
+  <p>Offline speech-to-text for macOS, with deep optimization for Traditional Chinese</p>
 
   [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   ![Platform](https://img.shields.io/badge/platform-macOS%2014.4%2B-brightgreen)
   [![Based on VoiceInk](https://img.shields.io/badge/based%20on-VoiceInk-orange)](https://github.com/Beingpax/VoiceInk)
+
+  **[正體中文說明](README.zh-Hant.md)**
 </div>
 
 ---
 
-Voco 是 [VoiceInk](https://github.com/Beingpax/VoiceInk) 的 fork，專為**臺灣正體中文使用者**打造。語音轉錄完全在本機執行（whisper.cpp），只有 AI 潤稿階段會透過你自己的 API key 與 LLM 溝通。
+Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **Traditional Chinese (Taiwan)** users. Speech recognition runs entirely on-device via whisper.cpp — only the optional AI refinement step talks to an LLM through your own API key.
 
-## 與上游 VoiceInk 的差異
+## What's different from VoiceInk?
 
-| 功能 | VoiceInk | Voco |
-|------|----------|------|
-| 正體中文介面 | 英文 | 完整繁體中文本地化 |
-| 中文後處理管線 | 無 | OpenCC 簡轉繁、拼音同音字修正、口語標點轉換、重複偵測 |
-| 臺灣中文 AI 提示詞 | 無 | 內建臺灣用語提示詞（贅字過濾、自動條列化、同音字修正） |
-| App Context 注入 | 無 | 自動偵測前景 App + 視窗標題，LLM 依情境調整語氣 |
-| 語音指令 | 無 | 支援語音指令（如「全部刪除」） |
-| 信心度路由安全網 | 無 | 長段落無標點時強制走 LLM，防止漏標點 |
-| 授權模式 | 付費授權 | 所有功能解鎖 |
+| Feature | VoiceInk | Voco |
+|---------|----------|------|
+| Traditional Chinese UI | English only | Full zh-Hant localization |
+| Chinese post-processing | None | OpenCC simplified-to-traditional, homophone correction, colloquial punctuation, repetition detection |
+| Taiwanese Chinese AI prompts | None | Built-in prompts for filler removal, auto-listing, homophone fixing |
+| Qwen3-ASR engine | None | On-device Qwen3 speech recognition via MLX Swift |
+| App context injection | None | Detects foreground app + window title, lets the LLM adapt tone |
+| Edit Mode | None | Voice-driven editing of selected text |
+| Voice commands | None | Voice commands (e.g. "select all + delete") |
+| Confidence routing | None | Forces LLM pass when punctuation is missing in long segments |
+| Licensing | Paid | All features unlocked |
 
-## 功能
+## Features
 
-- **離線轉錄** — whisper.cpp 本機 AI 模型，語音資料不離開你的電腦
-- **AI 潤稿** — 透過你自己的 API key（OpenAI / Anthropic / Ollama）進行後處理
-- **臺灣中文優化** — 同音字修正、簡轉繁、口語標點、贅字過濾
-- **App 情境感知** — 自動偵測目前使用的應用程式，調整輸出風格
-- **語音指令** — 語音控制操作（如「全部刪除」）
-- **全域快捷鍵** — 可自訂的鍵盤快捷鍵，支援按住錄音
-- **個人詞典** — 自訂專有名詞、技術術語的辨識
-- **Power Mode** — 根據不同 App 自動切換預設設定
+- **Offline transcription** — whisper.cpp runs locally; audio never leaves your machine
+- **Qwen3-ASR** — alternative on-device engine via MLX, optimized for Chinese
+- **AI refinement** — post-process text through your own API key (OpenAI / Anthropic / Ollama / 11 providers)
+- **Chinese optimization** — homophone correction, simplified-to-traditional conversion, colloquial punctuation, filler removal
+- **Edit Mode** — select text, speak corrections, and Voco rewrites it in place
+- **App-aware context** — automatically detects the active app to adjust output style
+- **Voice commands** — hands-free control (e.g. "delete all")
+- **Global hotkey** — customizable keyboard shortcut, supports hold-to-record
+- **Personal dictionary** — custom vocabulary for names, jargon, technical terms
+- **Power Mode** — per-app configuration presets
 
-## 建置
+## Build
 
-### 需求
+### Requirements
 
 - macOS 14.4+
-- Xcode（建議最新版）
+- Xcode (latest recommended)
 - Git
 
-### 快速開始
+### Quick start
 
 ```bash
 git clone https://github.com/jason5545/Voco.git
 cd Voco
 
-# 完整建置（首次推薦）
+# Full build (recommended for first time)
 make all
 
-# 無 Apple Developer 憑證的本機建置
+# Build without Apple Developer certificate
 make local
 
-# 開發用（建置 + 執行）
+# Build + run
 make dev
 ```
 
-### Makefile 指令
+### Makefile targets
 
-| 指令 | 說明 |
-|------|------|
-| `make check` | 檢查建置環境 |
-| `make whisper` | 建置 whisper.cpp XCFramework |
-| `make build` | 標準建置 |
-| `make local` | 無需憑證的本機建置 |
-| `make dev` | 建置 + 啟動 |
-| `make clean` | 清理建置產物 |
+| Target | Description |
+|--------|-------------|
+| `make check` | Verify build prerequisites |
+| `make whisper` | Build whisper.cpp XCFramework |
+| `make build` | Standard build (requires Apple Developer account) |
+| `make local` | Local build with ad-hoc signing (no certificate needed) |
+| `make dev` | Build + launch |
+| `make clean` | Remove build artifacts |
 
-詳細建置說明請參考 [BUILDING.md](BUILDING.md)。
+See [BUILDING.md](BUILDING.md) for detailed instructions.
 
-## 架構
+### Local build limitations
+
+Builds made with `make local` work fully except:
+- No iCloud dictionary sync (requires CloudKit entitlement)
+- No automatic updates (pull and rebuild to update)
+
+## Forking
+
+Voco uses `Bundle.main.bundleIdentifier` for all runtime identifiers (logging, data directories, Keychain, window IDs). To create your own fork:
+
+1. Change `PRODUCT_BUNDLE_IDENTIFIER` in Xcode project settings (one place for each target)
+2. Update the CloudKit container in `VoiceInk.entitlements` if you use iCloud sync
+3. That's it — all Swift code adapts automatically
+
+## Architecture
 
 ```
 VoiceInk/
-├── Views/              # SwiftUI 介面
-├── Models/             # 資料模型（SwiftData）
-├── Services/           # 服務層
-│   ├── AIEnhancement/  #   AI 潤稿（多 provider 支援）
-│   └── ChinesePostProcessing/  #   中文後處理管線
-├── Whisper/            # whisper.cpp 整合
-├── PowerMode/          # App 偵測與自動切換
-└── Resources/          # 模型、音效
+├── Views/              # SwiftUI views
+├── Models/             # Data models (SwiftData)
+├── Services/           # Business logic
+│   ├── AIEnhancement/  #   AI refinement (multi-provider)
+│   └── ChinesePostProcessing/  #   Chinese text pipeline
+├── Whisper/            # whisper.cpp integration
+├── Qwen3ASR/           # Qwen3 speech recognition (MLX)
+├── PowerMode/          # App detection & auto-switching
+└── Resources/          # Models, sounds
 ```
 
-- **UI**：SwiftUI + AppKit
-- **資料**：SwiftData
-- **轉錄**：whisper.cpp（完全離線）
-- **AI 潤稿**：OpenAI / Anthropic / Ollama（使用者自己的 API key）
+- **UI**: SwiftUI + AppKit
+- **Data**: SwiftData
+- **Transcription**: whisper.cpp (offline) + Qwen3-ASR (offline, MLX)
+- **AI refinement**: OpenAI / Anthropic / Ollama / and 8 more providers (user's own API key)
 
-## 隱私
+## Privacy
 
-- 語音轉錄 100% 離線執行
-- AI 潤稿僅傳送**文字**（非音檔）到你選擇的 LLM provider
-- API key 儲存在本機，不經過任何第三方伺服器
-- App Context 只傳送應用程式名稱和視窗標題，不擷取畫面內容
+- Speech recognition is 100% offline
+- AI refinement sends **text only** (not audio) to the LLM provider you choose
+- API keys are stored locally in Keychain, never routed through third-party servers
+- App context sends only the application name and window title — no screen capture
 
-## 致謝
+## Credits
 
-Voco 建立在以下專案之上：
+Voco is built on top of:
 
-- [VoiceInk](https://github.com/Beingpax/VoiceInk) — 上游專案，由 Pax 開發
-- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — 高效能語音辨識引擎
-- [OpenCC](https://github.com/BYVoid/OpenCC) — 中文簡繁轉換（概念參考）
-- [Sparkle](https://github.com/sparkle-project/Sparkle) — 自動更新
-- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — 全域快捷鍵
-- [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — 選取文字擷取
+- [VoiceInk](https://github.com/Beingpax/VoiceInk) — upstream project by Pax
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — high-performance speech recognition
+- [OpenCC](https://github.com/BYVoid/OpenCC) — Chinese simplified/traditional conversion (concept reference)
+- [Sparkle](https://github.com/sparkle-project/Sparkle) — auto-updates
+- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — global hotkeys
+- [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — selected text extraction
 
-## 授權
+## License
 
-本專案採用 [GNU General Public License v3.0](LICENSE) 授權，與上游 VoiceInk 一致。
+Licensed under the [GNU General Public License v3.0](LICENSE), consistent with upstream VoiceInk.

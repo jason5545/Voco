@@ -33,7 +33,7 @@ class Qwen3ASRModel {
         let detectedLanguage: String?  // auto 模式偵測到的語言（如 "Japanese"），手動指定時為 nil
     }
 
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3ASRModel")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
 
     let audioEncoder: Qwen3AudioEncoder
     let featureExtractor: Qwen3FeatureExtractor

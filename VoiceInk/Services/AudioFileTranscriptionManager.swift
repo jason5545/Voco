@@ -15,7 +15,7 @@ class AudioTranscriptionManager: ObservableObject {
     
     private var currentTask: Task<Void, Error>?
     private let audioProcessor = AudioProcessor()
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "AudioTranscriptionManager")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AudioTranscriptionManager")
     
     enum ProcessingPhase {
         case idle
@@ -73,7 +73,7 @@ class AudioTranscriptionManager: ObservableObject {
                 let duration = CMTimeGetSeconds(try await audioAsset.load(.duration))
 
                 let recordingsDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("com.jasonchien.Voco")
+                    .appendingPathComponent(AppIdentifiers.bundleID)
                     .appendingPathComponent("Recordings")
 
                 let fileName = "transcribed_\(UUID().uuidString).wav"

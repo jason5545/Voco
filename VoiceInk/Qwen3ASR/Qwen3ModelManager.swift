@@ -6,14 +6,14 @@ import Foundation
 import os
 
 enum Qwen3ModelManager {
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3ModelManager")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ModelManager")
 
     /// Base directory for all Qwen3 models
     static var baseDirectory: URL {
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport
-            .appendingPathComponent("com.jasonchien.Voco", isDirectory: true)
+            .appendingPathComponent(AppIdentifiers.bundleID, isDirectory: true)
             .appendingPathComponent("Qwen3Models", isDirectory: true)
     }
 

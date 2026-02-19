@@ -5,7 +5,7 @@ import os
 /// Deepgram Nova-3 streaming provider using WebSocket
 final class DeepgramStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "DeepgramStreaming")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "DeepgramStreaming")
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?

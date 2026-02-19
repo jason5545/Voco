@@ -4,8 +4,8 @@ import AppKit
 class WindowManager: NSObject {
     static let shared = WindowManager()
     
-    private static let mainWindowIdentifier = NSUserInterfaceItemIdentifier("com.jasonchien.voco.mainWindow")
-    private static let onboardingWindowIdentifier = NSUserInterfaceItemIdentifier("com.jasonchien.voco.onboardingWindow")
+    private static let mainWindowIdentifier = NSUserInterfaceItemIdentifier("\(AppIdentifiers.subsystem).mainWindow")
+    private static let onboardingWindowIdentifier = NSUserInterfaceItemIdentifier("\(AppIdentifiers.subsystem).onboardingWindow")
     private static let mainWindowAutosaveName = NSWindow.FrameAutosaveName("VoiceInkMainWindowFrame")
     
     private weak var mainWindow: NSWindow?

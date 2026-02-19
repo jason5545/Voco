@@ -87,7 +87,7 @@ class BrowserURLService {
     static let shared = BrowserURLService()
     
     private let logger = Logger(
-        subsystem: "com.jasonchien.voco",
+        subsystem: AppIdentifiers.subsystem,
         category: "browser.applescript"
     )
     

@@ -10,7 +10,7 @@ enum EnhancementPrompt {
 
 @MainActor
 class AIEnhancementService: ObservableObject {
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "AIEnhancementService")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AIEnhancementService")
 
     @Published var isEnhancementEnabled: Bool {
         didSet {

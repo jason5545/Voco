@@ -28,7 +28,7 @@ enum Qwen3WeightLoadingError: Error, LocalizedError {
 
 /// Weight loading utilities for Qwen3-ASR
 enum Qwen3WeightLoader {
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3WeightLoader")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3WeightLoader")
 
     // MARK: - Safetensors Loading
 

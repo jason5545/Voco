@@ -1,6 +1,6 @@
 // Qwen3HuggingFaceDownloader.swift
 // Adapted from qwen3-asr-swift HuggingFaceDownloader.swift
-// Changed: cache dir → ~/Library/Application Support/com.jasonchien.Voco/Qwen3Models/
+// Changed: cache dir → ~/Library/Application Support/<BundleID>/Qwen3Models/
 // Removed: environment variable overrides
 // Fixed: print() → os.Logger
 // [AI-Claude: 2025-02-18]
@@ -24,7 +24,7 @@ enum Qwen3DownloadError: Error, LocalizedError {
 
 /// HuggingFace model downloader for Qwen3-ASR
 enum Qwen3HuggingFaceDownloader {
-    private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3Downloader")
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3Downloader")
     private static let maxRetries = 3
 
     /// Get cache directory for a model under Application Support
@@ -34,7 +34,7 @@ enum Qwen3HuggingFaceDownloader {
 
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let baseDir = appSupport
-            .appendingPathComponent("com.jasonchien.Voco", isDirectory: true)
+            .appendingPathComponent(AppIdentifiers.bundleID, isDirectory: true)
             .appendingPathComponent("Qwen3Models", isDirectory: true)
             .appendingPathComponent(cacheKey, isDirectory: true)
 

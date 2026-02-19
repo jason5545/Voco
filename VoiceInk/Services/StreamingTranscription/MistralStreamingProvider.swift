@@ -4,7 +4,7 @@ import os
 /// Mistral Voxtral Realtime streaming provider using WebSocket.
 final class MistralStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.jasonchien.voco", category: "MistralStreaming")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "MistralStreaming")
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?
