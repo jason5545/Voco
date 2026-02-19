@@ -17,8 +17,11 @@ class Qwen3TranscriptionService: TranscriptionService {
     /// Temporary language override for retry (e.g. "Japanese"). Takes priority over UserDefaults.
     var languageOverride: String?
 
-    /// Average log-probability from the last transcription (for confidence routing / low-confidence retry)
+    /// Average log-probability from the last transcription (for confidence routing)
     var lastAvgLogProb: Double = 0.0
+
+    /// Detected language from the last auto-mode transcription (e.g. "Japanese", "Chinese")
+    var lastDetectedLanguage: String?
 
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         guard let qwen3Model = model as? Qwen3Model else {
@@ -40,6 +43,7 @@ class Qwen3TranscriptionService: TranscriptionService {
 
         let result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
         self.lastAvgLogProb = result.avgLogProb
+        self.lastDetectedLanguage = result.detectedLanguage
         await MainActor.run {
             ChinesePostProcessingService.shared.lastAvgLogProb = result.avgLogProb
         }

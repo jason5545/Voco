@@ -30,6 +30,7 @@ class Qwen3ASRModel {
         let text: String
         let avgLogProb: Double
         let tokenCount: Int
+        let detectedLanguage: String?  // auto 模式偵測到的語言（如 "Japanese"），手動指定時為 nil
     }
 
     private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3ASRModel")
@@ -213,44 +214,68 @@ class Qwen3ASRModel {
             return TranscriptionResult(
                 text: generatedTokens.map { String($0) }.joined(separator: " "),
                 avgLogProb: avgLogProb,
-                tokenCount: logProbTokenCount
+                tokenCount: logProbTokenCount,
+                detectedLanguage: nil
             )
+        }
+
+        // Helper: extract language name from "language XXX" prefix
+        func extractLanguageName(from rawText: String) -> String? {
+            guard rawText.hasPrefix("language ") else { return nil }
+            let afterLang = rawText.dropFirst("language ".count)
+            // Language name is a single word (e.g. "Japanese", "Chinese", "English")
+            if let spaceIdx = afterLang.firstIndex(of: " ") {
+                return String(afterLang[afterLang.startIndex..<spaceIdx])
+            }
+            // If no space found, the entire remainder is the language name (edge case)
+            return afterLang.isEmpty ? nil : String(afterLang)
         }
 
         // Find <asr_text> marker by token ID (more reliable than string matching)
         let asrTokenId = Int32(tokens.asrTextId)
         let textTokens: [Int32]
+        var detectedLang: String? = nil
+
         if let asrIndex = generatedTokens.firstIndex(of: asrTokenId) {
             // Extract only tokens after <asr_text>
             textTokens = Array(generatedTokens[(asrIndex + 1)...])
+            // In auto mode, tokens before <asr_text> contain "language XXX"
+            if language == nil {
+                let prefixTokens = Array(generatedTokens[0..<asrIndex])
+                let prefixText = tokenizer.decode(tokens: prefixTokens.map { Int($0) })
+                detectedLang = extractLanguageName(from: prefixText)
+            }
         } else if language == nil {
             // Auto mode: model may have generated "language XXX" prefix without <asr_text>
             // Fall back to string-based extraction
             let rawText = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
+            detectedLang = extractLanguageName(from: rawText)
             if let range = rawText.range(of: "<asr_text>") {
                 return TranscriptionResult(
                     text: String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces),
                     avgLogProb: avgLogProb,
-                    tokenCount: logProbTokenCount
+                    tokenCount: logProbTokenCount,
+                    detectedLanguage: detectedLang
                 )
             }
             // Strip "language XXX" prefix if present
             if rawText.hasPrefix("language ") {
-                // Find end of language name (it's a single word like "Japanese", "English")
                 let afterLang = rawText.dropFirst("language ".count)
                 if let spaceIdx = afterLang.firstIndex(of: " ") {
                     return TranscriptionResult(
                         text: String(afterLang[afterLang.index(after: spaceIdx)...])
                             .trimmingCharacters(in: .whitespaces),
                         avgLogProb: avgLogProb,
-                        tokenCount: logProbTokenCount
+                        tokenCount: logProbTokenCount,
+                        detectedLanguage: detectedLang
                     )
                 }
             }
             return TranscriptionResult(
                 text: rawText,
                 avgLogProb: avgLogProb,
-                tokenCount: logProbTokenCount
+                tokenCount: logProbTokenCount,
+                detectedLanguage: detectedLang
             )
         } else {
             // Manual language mode: no prefix, all tokens are transcription
@@ -263,7 +288,8 @@ class Qwen3ASRModel {
             text: tokenizer.decode(tokens: filtered.map { Int($0) })
                 .trimmingCharacters(in: .whitespaces),
             avgLogProb: avgLogProb,
-            tokenCount: logProbTokenCount
+            tokenCount: logProbTokenCount,
+            detectedLanguage: detectedLang
         )
     }
 }

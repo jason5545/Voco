@@ -394,9 +394,21 @@ class WhisperState: NSObject, ObservableObject {
             let preAudioDuration = (try? CMTimeGetSeconds(await preAudioAsset.load(.duration))) ?? 0.0
             postProcessor.lastAudioDuration = preAudioDuration
 
-            // === Chinese Post-Processing Pipeline ===
+            // === Language-aware Chinese Post-Processing Pipeline ===
+            // Trust Qwen3's language tag: only run Chinese post-processing for Chinese or unknown
+            let detectedLanguage: String? = (model.provider == .qwen3)
+                ? serviceRegistry.qwen3TranscriptionService.lastDetectedLanguage
+                : nil
+            let shouldRunChinesePostProcessing = postProcessor.isEnabled
+                && (detectedLanguage == nil || detectedLanguage == "Chinese")
+
+            if let lang = detectedLanguage {
+                ChinesePostProcessingService.debugLog("LANGUAGE_TAG: \(lang) | shouldRunChinePP=\(shouldRunChinesePostProcessing) | text(\(text.count)): \(text)")
+                logger.notice("🏷️ Detected language: \(lang, privacy: .public)")
+            }
+
             var ppNeedsLLM = true
-            if postProcessor.isEnabled {
+            if shouldRunChinesePostProcessing {
                 let ppResult = postProcessor.process(text)
                 text = ppResult.processedText
                 ppNeedsLLM = ppResult.needsLLMCorrection
@@ -412,104 +424,10 @@ class WhisperState: NSObject, ObservableObject {
                     shouldCancelRecording = false
                     return
                 }
-            }
-
-            // Unexpected script retry: if output contains non-CJK/non-English/non-Japanese text,
-            // it's a Qwen3 language misdetection — retry as Japanese
-            var didScriptRetry = false
-            if model.provider == .qwen3,
-               text.unicodeScalars.contains(where: { scalar in
-                   let v = scalar.value
-                   // Allow: ASCII (Latin/English + punctuation + digits)
-                   if v <= 0x007F { return false }
-                   // Allow: CJK Unified Ideographs (Chinese/Japanese kanji)
-                   if (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v) { return false }
-                   // Allow: Hiragana, Katakana
-                   if (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v) { return false }
-                   // Allow: CJK punctuation, fullwidth forms, halfwidth katakana
-                   if (0x3000...0x303F).contains(v) || (0xFF00...0xFFEF).contains(v) { return false }
-                   // Allow: CJK Extension B+
-                   if (0x20000...0x2A6DF).contains(v) { return false }
-                   // Allow: Katakana Phonetic Extensions
-                   if (0x31F0...0x31FF).contains(v) { return false }
-                   // Anything else (Hangul, Devanagari, Arabic, Cyrillic, etc.) is unexpected
-                   return true
-               }) {
-                let originalText = text
-                let qwen3Service = serviceRegistry.qwen3TranscriptionService
-                qwen3Service.languageOverride = "Japanese"
-                defer { qwen3Service.languageOverride = nil }
-
-                if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
-                    text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    didScriptRetry = true
-                    ChinesePostProcessingService.debugLog("[SCRIPT_RETRY] \(originalText) → \(text)")
-                    logger.notice("🔄 Unexpected script retry: \(originalText, privacy: .private) → \(text, privacy: .private)")
-
-                    if postProcessor.isEnabled {
-                        let retryPPResult = postProcessor.process(text)
-                        text = retryPPResult.processedText
-                        ppNeedsLLM = retryPPResult.needsLLMCorrection
-                    }
-                }
-            }
-
-            // Japanese sentence drift retry: Qwen3 auto-detect may misidentify Chinese as Japanese,
-            // producing full Japanese sentences the user couldn't have spoken.
-            // Only trigger when: Qwen3 + auto-detect mode + no prior script retry + drift detected
-            if model.provider == .qwen3,
-               !didScriptRetry,
-               UserDefaults.standard.string(forKey: "SelectedLanguage") == "auto",
-               ChinesePostProcessingService.detectsJapaneseSentenceDrift(text) {
-                let originalText = text
-                let qwen3Service = serviceRegistry.qwen3TranscriptionService
-                qwen3Service.languageOverride = "Chinese"
-                defer { qwen3Service.languageOverride = nil }
-
-                if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
-                    text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    ChinesePostProcessingService.debugLog("[JP_DRIFT_RETRY] \(originalText) → \(text)")
-                    logger.notice("🔄 Japanese drift retry: \(originalText, privacy: .private) → \(text, privacy: .private)")
-
-                    if postProcessor.isEnabled {
-                        let retryPPResult = postProcessor.process(text)
-                        text = retryPPResult.processedText
-                        ppNeedsLLM = retryPPResult.needsLLMCorrection
-                    }
-                }
-            }
-
-            // Low-confidence retry: Qwen3 auto-detect + avgLogProb below threshold + no prior retry triggered
-            // Catches cases where Japanese audio is incorrectly mapped to meaningless Chinese characters
-            if model.provider == .qwen3,
-               !didScriptRetry,
-               UserDefaults.standard.string(forKey: "SelectedLanguage") == "auto",
-               !ChinesePostProcessingService.detectsJapaneseSentenceDrift(text) {
-                let qwen3Service = serviceRegistry.qwen3TranscriptionService
-                let originalLogProb = qwen3Service.lastAvgLogProb
-                let lowConfThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3LogProbThreshold") as? Double ?? -0.5
-                if originalLogProb < lowConfThreshold {
-                    qwen3Service.languageOverride = "Japanese"
-                    defer { qwen3Service.languageOverride = nil }
-
-                    if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
-                        let retryLogProb = qwen3Service.lastAvgLogProb
-                        // Only adopt retry result if its confidence is higher
-                        if retryLogProb > originalLogProb {
-                            text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            ChinesePostProcessingService.debugLog("[LOW_CONF_RETRY] avgLogProb \(String(format: "%.3f", originalLogProb)) < \(String(format: "%.3f", lowConfThreshold)), retry logProb \(String(format: "%.3f", retryLogProb)) | \(text)")
-                            logger.notice("🔄 Low-confidence retry: logProb \(String(format: "%.3f", originalLogProb)) → \(String(format: "%.3f", retryLogProb)) | \(text, privacy: .private)")
-
-                            if postProcessor.isEnabled {
-                                let retryPPResult = postProcessor.process(text)
-                                text = retryPPResult.processedText
-                                ppNeedsLLM = retryPPResult.needsLLMCorrection
-                            }
-                        } else {
-                            ChinesePostProcessingService.debugLog("[LOW_CONF_RETRY] skipped: retry logProb \(String(format: "%.3f", retryLogProb)) <= original \(String(format: "%.3f", originalLogProb))")
-                        }
-                    }
-                }
+            } else if postProcessor.isEnabled {
+                // Non-Chinese language detected: skip Chinese post-processing, skip LLM enhancement
+                ppNeedsLLM = false
+                logger.notice("📝 Skipping Chinese post-processing (detected language: \(detectedLanguage ?? "unknown", privacy: .public))")
             }
 
             let actualDuration = preAudioDuration

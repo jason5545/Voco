@@ -110,9 +110,9 @@ class ChinesePostProcessingService: ObservableObject {
         var steps: [String] = []
         var repetitionInfo: RepetitionDetector.RepetitionInfo?
 
-        // Step 1: OpenCC s2twp conversion
+        // Step 1: OpenCC s2twp conversion (segment-aware: skips Japanese parts)
         if isOpenCCEnabled {
-            let converted = openCCConverter.convert(result)
+            let converted = openCCConvertSkippingJapanese(result)
             if converted != result {
                 steps.append("OpenCC")
                 logger.debug("OpenCC: \(result) → \(converted)")
@@ -265,72 +265,63 @@ class ChinesePostProcessingService: ObservableObject {
         }
     }
 
-    // MARK: - Japanese Sentence Drift Detection
+    // MARK: - Private Helpers
 
-    /// Detect if text looks like a complete Japanese sentence (indicates Qwen3 misdetected Chinese as Japanese)
-    /// Users only produce single Japanese words or song titles — never full sentences.
-    static func detectsJapaneseSentenceDrift(_ text: String) -> Bool {
-        // Must contain at least one hiragana/katakana to be considered Japanese
-        let hasKana = text.unicodeScalars.contains { scalar in
-            let v = scalar.value
-            return (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v)
-        }
-        guard hasKana else { return false }
+    /// OpenCC 轉換，自動跳過含假名的日文段落
+    /// 將文字分為 CJK 段（漢字+假名）和非 CJK 段（標點、空格、ASCII），
+    /// 只對不含假名的 CJK 段執行 OpenCC。
+    private func openCCConvertSkippingJapanese(_ text: String) -> String {
+        var segments: [(text: String, isCJKRun: Bool, hasKana: Bool)] = []
+        var currentRun = ""
+        var inCJKRun = false
+        var runHasKana = false
 
-        let particles = countJapaneseParticles(in: text)
+        for char in text {
+            let v = char.unicodeScalars.first!.value
+            let isKana = (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v)
+            let isCJK = (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
+                || (0x20000...0x2A6DF).contains(v)
 
-        // Path A: Polite ending + >= 2 particles
-        let politeEndings = ["です", "ます", "ました", "ません", "ました", "でした", "ましょう", "ください"]
-        let hasPoliteEnding = politeEndings.contains { text.hasSuffix($0) }
-        if hasPoliteEnding && particles >= 2 {
-            debugLog("[JP_DRIFT] Path A: polite ending + \(particles) particles | text: \(text)")
-            return true
-        }
-
-        // Path B: >= 3 particles + text length >= 10
-        if particles >= 3 && text.count >= 10 {
-            debugLog("[JP_DRIFT] Path B: \(particles) particles + len \(text.count) | text: \(text)")
-            return true
-        }
-
-        // Path C: >= 2 multi-char grammatical particles
-        let multiCharParticles = ["から", "まで", "より", "けど", "ので", "のに", "だけ", "ばかり", "ながら", "たり"]
-        let multiCount = multiCharParticles.reduce(0) { count, particle in
-            count + text.components(separatedBy: particle).count - 1
-        }
-        if multiCount >= 2 {
-            debugLog("[JP_DRIFT] Path C: \(multiCount) multi-char particles | text: \(text)")
-            return true
-        }
-
-        return false
-    }
-
-    /// Count single-char Japanese grammatical particles that follow CJK/kana characters.
-    /// Excludes の (commonly used in song titles like 空の椅子).
-    /// Only counts when preceded by kanji/hiragana/katakana to avoid false positives
-    /// (e.g. こんにちは — the は is word-final, not a particle).
-    private static func countJapaneseParticles(in text: String) -> Int {
-        let particles: Set<Character> = ["は", "が", "を", "に", "で", "と", "も", "へ"]
-        let chars = Array(text)
-        var count = 0
-
-        for i in 1..<chars.count {
-            guard particles.contains(chars[i]) else { continue }
-            // Check if previous character is CJK/hiragana/katakana
-            let prev = chars[i - 1].unicodeScalars.first?.value ?? 0
-            let isCJK = (0x4E00...0x9FFF).contains(prev) || (0x3400...0x4DBF).contains(prev)
-            let isHiragana = (0x3040...0x309F).contains(prev)
-            let isKatakana = (0x30A0...0x30FF).contains(prev)
-            if isCJK || isHiragana || isKatakana {
-                count += 1
+            if isKana || isCJK {
+                if !inCJKRun && !currentRun.isEmpty {
+                    segments.append((currentRun, false, false))
+                    currentRun = ""
+                }
+                inCJKRun = true
+                if isKana { runHasKana = true }
+                currentRun.append(char)
+            } else {
+                if inCJKRun && !currentRun.isEmpty {
+                    segments.append((currentRun, true, runHasKana))
+                    currentRun = ""
+                    runHasKana = false
+                }
+                inCJKRun = false
+                currentRun.append(char)
             }
         }
+        if !currentRun.isEmpty {
+            segments.append((currentRun, inCJKRun, runHasKana))
+        }
 
-        return count
+        // 無假名 → 整段 OpenCC（最常見路徑，避免不必要的分段開銷）
+        if !segments.contains(where: { $0.hasKana }) {
+            return openCCConverter.convert(text)
+        }
+
+        return segments.map { seg in
+            if seg.isCJKRun && !seg.hasKana {
+                return openCCConverter.convert(seg.text)
+            }
+            return seg.text
+        }.joined()
     }
 
-    // MARK: - Private Helpers
+    private func containsKana(_ text: String) -> Bool {
+        text.unicodeScalars.contains { v in
+            (0x3040...0x309F).contains(v.value) || (0x30A0...0x30FF).contains(v.value)
+        }
+    }
 
     /// Check if text is mainly English/numbers (no CJK characters)
     private func isMainlyEnglish(_ text: String) -> Bool {

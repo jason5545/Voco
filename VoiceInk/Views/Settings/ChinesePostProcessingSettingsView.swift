@@ -63,15 +63,6 @@ struct ChinesePostProcessingSettingsView: View {
                             }
                         }
 
-                        LabeledContent("Qwen3 Log-Prob Threshold") {
-                            HStack {
-                                Slider(value: $service.qwen3LogProbThreshold, in: -1.5...0.0, step: 0.05)
-                                    .frame(width: 120)
-                                Text(String(format: "%.2f", service.qwen3LogProbThreshold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 40)
-                            }
-                        }
                     }
 
                     Toggle("Context Memory", isOn: $service.isContextMemoryEnabled)
