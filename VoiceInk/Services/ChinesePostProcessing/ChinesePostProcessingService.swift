@@ -430,8 +430,23 @@ class ChinesePostProcessingService: ObservableObject {
         let punctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
         let punctCount = text.filter { punctuationMarks.contains($0) }.count
         if punctCount == 0 { return true }
-        // Density check: expect at least 1 punctuation per 20 characters
+
+        // Overall density check: expect at least 1 punctuation per 20 characters
         let expectedPunct = text.count / 20
-        return punctCount < max(expectedPunct, 1)
+        if punctCount < max(expectedPunct, 1) { return true }
+
+        // Long span check: any segment between punctuation with >20 CJK chars → needs LLM
+        let maxCJKSpan = 20
+        var cjkCount = 0
+        for char in text {
+            if punctuationMarks.contains(char) {
+                cjkCount = 0
+            } else if char.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) == true {
+                cjkCount += 1
+                if cjkCount > maxCJKSpan { return true }
+            }
+        }
+
+        return false
     }
 }
