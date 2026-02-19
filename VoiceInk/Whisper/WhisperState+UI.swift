@@ -43,7 +43,15 @@ extension WhisperState {
                 await cancelRecording()
             }
         } else {
+            SoundManager.shared.playStartSound()
+
+            // Show the recorder window immediately — before any async work
+            await MainActor.run {
+                isMiniRecorderVisible = true // This will call showRecorderPanel() via didSet
+            }
+
             // Detect selected text → decide whether to enter Edit Mode
+            // (runs after window is visible; accessibility API can be slow)
             if AXIsProcessTrusted() {
                 let selectedText = await SelectedTextService.fetchSelectedText()
                 if let selectedText, !selectedText.isEmpty {
@@ -56,12 +64,6 @@ extension WhisperState {
             } else {
                 isEditMode = false
                 editModeSelectedText = nil
-            }
-
-            SoundManager.shared.playStartSound()
-
-            await MainActor.run {
-                isMiniRecorderVisible = true // This will call showRecorderPanel() via didSet
             }
 
             await toggleRecord(powerModeId: powerModeId)
