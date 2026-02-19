@@ -99,7 +99,12 @@ class ChinesePostProcessingService: ObservableObject {
         self.isLLMValidationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingLLMValidation") as? Bool ?? true
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
         self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
-        self.qwen3LogProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3LogProbThreshold") as? Double ?? -0.5
+        self.qwen3LogProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3LogProbThreshold") as? Double ?? -0.2
+
+        // Migrate: old default was -0.5, too lenient for Qwen3
+        if self.qwen3LogProbThreshold == -0.5 {
+            self.qwen3LogProbThreshold = -0.2
+        }
     }
 
     // MARK: - Main Processing Pipeline
@@ -198,6 +203,13 @@ class ChinesePostProcessingService: ObservableObject {
         let punctNeeded = needsPunctuation(text)
         if punctNeeded {
             Self.debugLog("FORCE LLM: needs punctuation (len=\(text.count), foundCJKPunct=\"\(foundPunct)\") | text: \(text)")
+            return false
+        }
+
+        // CJK repeated character detection (e.g. 偶偶然, 狀狀況, 沒沒有)
+        // Must run BEFORE confidence check — overrides high confidence
+        if hasRepeatedCJKCharacters(text) {
+            Self.debugLog("FORCE LLM: repeated CJK characters | text(\(text.count)): \(text)")
             return false
         }
 
@@ -324,6 +336,43 @@ class ChinesePostProcessingService: ObservableObject {
     }
 
     /// Check if text is mainly English/numbers (no CJK characters)
+    /// Detect repeated CJK characters like 偶偶然, 狀狀況, 沒沒有
+    /// Returns true if any non-legitimate CJK character doubling is found
+    private func hasRepeatedCJKCharacters(_ text: String) -> Bool {
+        // Common legitimate reduplicated words (疊字)
+        let legitimateDoubles: Set<Character> = [
+            // Family
+            "媽", "爸", "哥", "姐", "弟", "妹", "奶", "爺", "叔", "伯", "婆", "娃", "寶",
+            // Adverbs/adjectives
+            "慢", "常", "漸", "剛", "偷", "悄", "靜", "默", "輕", "淡", "深", "久", "僅",
+            "大", "多", "好", "天", "人", "處", "時", "事", "往", "稍", "略", "微", "早",
+            "乖", "快", "高", "長", "滿", "緊",
+            // Onomatopoeia / other
+            "哈", "嘻", "呵",
+            // Common words
+            "謝", "星",
+        ]
+
+        let chars = Array(text)
+        var i = 0
+        while i < chars.count - 1 {
+            let c = chars[i]
+            if c == chars[i + 1] {
+                let v = c.unicodeScalars.first!.value
+                let isCJK = (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
+                    || (0x20000...0x2A6DF).contains(v)
+                let isKana = (0x3040...0x309F).contains(v) || (0x30A0...0x30FF).contains(v)
+                if (isCJK || isKana) && !legitimateDoubles.contains(c) {
+                    return true
+                }
+                i += 2 // skip the pair
+            } else {
+                i += 1
+            }
+        }
+        return false
+    }
+
     private func isMainlyEnglish(_ text: String) -> Bool {
         guard !text.isEmpty else { return false }
         let nonASCII = text.unicodeScalars.filter { $0.value > 127 }.count
