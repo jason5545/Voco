@@ -23,8 +23,8 @@ class PowerModeSessionManager {
     private let sessionKey = "powerModeActiveSession.v1"
     private var isApplyingPowerModeConfig = false
 
-    private var whisperState: WhisperState?
-    private var enhancementService: AIEnhancementService?
+    private weak var whisperState: WhisperState?
+    private weak var enhancementService: AIEnhancementService?
 
     private init() {
         recoverSession()

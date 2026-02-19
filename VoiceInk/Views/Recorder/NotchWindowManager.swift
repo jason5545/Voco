@@ -6,8 +6,8 @@ class NotchWindowManager: ObservableObject {
     @Published var isVisible = false
     private var windowController: NSWindowController?
      var notchPanel: NotchRecorderPanel?
-    private let whisperState: WhisperState
-    private let recorder: Recorder
+    private weak var whisperState: WhisperState?
+    private weak var recorder: Recorder?
 
     init(whisperState: WhisperState, recorder: Recorder) {
         self.whisperState = whisperState
@@ -23,6 +23,8 @@ class NotchWindowManager: ObservableObject {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+        notchPanel?.orderOut(nil)
+        windowController?.close()
     }
     
     @objc private func handleHideNotification() {
@@ -52,20 +54,22 @@ class NotchWindowManager: ObservableObject {
     
     private func initializeWindow(screen: NSScreen) {
         deinitializeWindow()
-        
+
+        guard let whisperState = whisperState, let recorder = recorder else { return }
+
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
         let panel = NotchRecorderPanel(contentRect: metrics.frame)
-        
+
         let notchRecorderView = NotchRecorderView(whisperState: whisperState, recorder: recorder)
             .environmentObject(self)
             .environmentObject(whisperState.enhancementService!)
-        
+
         let hostingController = NotchRecorderHostingController(rootView: notchRecorderView)
         panel.contentView = hostingController.view
-        
+
         self.notchPanel = panel
         self.windowController = NSWindowController(window: panel)
-        
+
         panel.orderFrontRegardless()
     }
     

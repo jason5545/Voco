@@ -5,8 +5,8 @@ class MiniWindowManager: ObservableObject {
     @Published var isVisible = false
     private var windowController: NSWindowController?
     private var miniPanel: MiniRecorderPanel?
-    private let whisperState: WhisperState
-    private let recorder: Recorder
+    private weak var whisperState: WhisperState?
+    private weak var recorder: Recorder?
     
     init(whisperState: WhisperState, recorder: Recorder) {
         self.whisperState = whisperState
@@ -16,6 +16,8 @@ class MiniWindowManager: ObservableObject {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+        miniPanel?.orderOut(nil)
+        windowController?.close()
     }
     
     private func setupNotifications() {
@@ -52,20 +54,22 @@ class MiniWindowManager: ObservableObject {
     
     private func initializeWindow(screen: NSScreen) {
         deinitializeWindow()
-        
+
+        guard let whisperState = whisperState, let recorder = recorder else { return }
+
         let metrics = MiniRecorderPanel.calculateWindowMetrics()
         let panel = MiniRecorderPanel(contentRect: metrics)
-        
+
         let miniRecorderView = MiniRecorderView(whisperState: whisperState, recorder: recorder)
             .environmentObject(self)
             .environmentObject(whisperState.enhancementService!)
-        
+
         let hostingController = NSHostingController(rootView: miniRecorderView)
         panel.contentView = hostingController.view
-        
+
         self.miniPanel = panel
         self.windowController = NSWindowController(window: panel)
-        
+
         panel.orderFrontRegardless()
     }
     

@@ -25,8 +25,10 @@ extension WhisperState {
     func hideRecorderPanel() {
         if recorderType == "notch" {
             notchWindowManager?.hide()
+            notchWindowManager = nil
         } else {
             miniWindowManager?.hide()
+            miniWindowManager = nil
         }
     }
     
