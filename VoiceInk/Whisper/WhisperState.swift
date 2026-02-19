@@ -479,6 +479,39 @@ class WhisperState: NSObject, ObservableObject {
                 }
             }
 
+            // Low-confidence retry: Qwen3 auto-detect + avgLogProb below threshold + no prior retry triggered
+            // Catches cases where Japanese audio is incorrectly mapped to meaningless Chinese characters
+            if model.provider == .qwen3,
+               !didScriptRetry,
+               UserDefaults.standard.string(forKey: "SelectedLanguage") == "auto",
+               !ChinesePostProcessingService.detectsJapaneseSentenceDrift(text) {
+                let qwen3Service = serviceRegistry.qwen3TranscriptionService
+                let originalLogProb = qwen3Service.lastAvgLogProb
+                let lowConfThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3LogProbThreshold") as? Double ?? -0.5
+                if originalLogProb < lowConfThreshold {
+                    qwen3Service.languageOverride = "Japanese"
+                    defer { qwen3Service.languageOverride = nil }
+
+                    if let retryText = try? await serviceRegistry.transcribe(audioURL: url, model: model) {
+                        let retryLogProb = qwen3Service.lastAvgLogProb
+                        // Only adopt retry result if its confidence is higher
+                        if retryLogProb > originalLogProb {
+                            text = retryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            ChinesePostProcessingService.debugLog("[LOW_CONF_RETRY] avgLogProb \(String(format: "%.3f", originalLogProb)) < \(String(format: "%.3f", lowConfThreshold)), retry logProb \(String(format: "%.3f", retryLogProb)) | \(text)")
+                            logger.notice("🔄 Low-confidence retry: logProb \(String(format: "%.3f", originalLogProb)) → \(String(format: "%.3f", retryLogProb)) | \(text, privacy: .private)")
+
+                            if postProcessor.isEnabled {
+                                let retryPPResult = postProcessor.process(text)
+                                text = retryPPResult.processedText
+                                ppNeedsLLM = retryPPResult.needsLLMCorrection
+                            }
+                        } else {
+                            ChinesePostProcessingService.debugLog("[LOW_CONF_RETRY] skipped: retry logProb \(String(format: "%.3f", retryLogProb)) <= original \(String(format: "%.3f", originalLogProb))")
+                        }
+                    }
+                }
+            }
+
             let actualDuration = preAudioDuration
 
             transcription.text = text

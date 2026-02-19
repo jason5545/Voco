@@ -26,6 +26,12 @@ enum Qwen3ASRModelError: Error, LocalizedError {
 
 /// Main Qwen3-ASR model for speech recognition
 class Qwen3ASRModel {
+    struct TranscriptionResult {
+        let text: String
+        let avgLogProb: Double
+        let tokenCount: Int
+    }
+
     private static let logger = Logger(subsystem: "com.jasonchien.voco", category: "Qwen3ASRModel")
 
     let audioEncoder: Qwen3AudioEncoder
@@ -73,7 +79,7 @@ class Qwen3ASRModel {
         language: String? = nil,
         prompt: String? = nil,
         maxTokens: Int? = nil
-    ) throws -> String {
+    ) throws -> TranscriptionResult {
         // Scale maxTokens proportionally to audio duration (448 tokens per 30s baseline)
         let durationSeconds = Double(audio.count) / Double(sampleRate)
         let effectiveMaxTokens = maxTokens ?? min(max(448, Int(durationSeconds / 30.0 * 448.0)), 32768)
@@ -103,7 +109,7 @@ class Qwen3ASRModel {
         language: String?,
         prompt: String? = nil,
         maxTokens: Int
-    ) throws -> String {
+    ) throws -> TranscriptionResult {
         let tokens = Qwen3ASRTokens.self
         let numAudioTokens = audioEmbeds.dim(1)
 
@@ -154,6 +160,13 @@ class Qwen3ASRModel {
         var cache: [(MLXArray, MLXArray)]? = nil
         var generatedTokens: [Int32] = []
 
+        // Per-token logprob tracking
+        var totalLogProb: Double = 0.0
+        var logProbTokenCount: Int = 0
+        // When language is specified, <asr_text> was appended to inputIds;
+        // all generated tokens are text tokens → start counting immediately
+        var isCountingLogProb = (language != nil)
+
         var (hiddenStates, newCache) = try textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
 
@@ -161,6 +174,14 @@ class Qwen3ASRModel {
         let lastHidden = hiddenStates[0..., (seqLen-1)..<seqLen, 0...]
         var logits = textDecoder.embedTokens.asLinear(lastHidden)
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
+
+        if nextToken == Int32(tokens.asrTextId) {
+            isCountingLogProb = true
+        } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
+            let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
+            totalLogProb += log(Double(max(tokenProb, 1e-30)))
+            logProbTokenCount += 1
+        }
         generatedTokens.append(nextToken)
 
         for _ in 1..<maxTokens {
@@ -175,11 +196,25 @@ class Qwen3ASRModel {
             let lastHiddenNext = hiddenStates[0..., (-1)..., .ellipsis]
             logits = textDecoder.embedTokens.asLinear(lastHiddenNext)
             nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
+
+            if nextToken == Int32(tokens.asrTextId) {
+                isCountingLogProb = true
+            } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
+                let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
+                totalLogProb += log(Double(max(tokenProb, 1e-30)))
+                logProbTokenCount += 1
+            }
             generatedTokens.append(nextToken)
         }
 
+        let avgLogProb = logProbTokenCount > 0 ? totalLogProb / Double(logProbTokenCount) : 0.0
+
         guard let tokenizer = tokenizer else {
-            return generatedTokens.map { String($0) }.joined(separator: " ")
+            return TranscriptionResult(
+                text: generatedTokens.map { String($0) }.joined(separator: " "),
+                avgLogProb: avgLogProb,
+                tokenCount: logProbTokenCount
+            )
         }
 
         // Find <asr_text> marker by token ID (more reliable than string matching)
@@ -193,18 +228,30 @@ class Qwen3ASRModel {
             // Fall back to string-based extraction
             let rawText = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
             if let range = rawText.range(of: "<asr_text>") {
-                return String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+                return TranscriptionResult(
+                    text: String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces),
+                    avgLogProb: avgLogProb,
+                    tokenCount: logProbTokenCount
+                )
             }
             // Strip "language XXX" prefix if present
             if rawText.hasPrefix("language ") {
                 // Find end of language name (it's a single word like "Japanese", "English")
                 let afterLang = rawText.dropFirst("language ".count)
                 if let spaceIdx = afterLang.firstIndex(of: " ") {
-                    return String(afterLang[afterLang.index(after: spaceIdx)...])
-                        .trimmingCharacters(in: .whitespaces)
+                    return TranscriptionResult(
+                        text: String(afterLang[afterLang.index(after: spaceIdx)...])
+                            .trimmingCharacters(in: .whitespaces),
+                        avgLogProb: avgLogProb,
+                        tokenCount: logProbTokenCount
+                    )
                 }
             }
-            return rawText
+            return TranscriptionResult(
+                text: rawText,
+                avgLogProb: avgLogProb,
+                tokenCount: logProbTokenCount
+            )
         } else {
             // Manual language mode: no prefix, all tokens are transcription
             textTokens = generatedTokens
@@ -212,7 +259,11 @@ class Qwen3ASRModel {
 
         // Filter out EOS token before decoding
         let filtered = textTokens.filter { $0 != Int32(tokens.eosTokenId) }
-        return tokenizer.decode(tokens: filtered.map { Int($0) })
-            .trimmingCharacters(in: .whitespaces)
+        return TranscriptionResult(
+            text: tokenizer.decode(tokens: filtered.map { Int($0) })
+                .trimmingCharacters(in: .whitespaces),
+            avgLogProb: avgLogProb,
+            tokenCount: logProbTokenCount
+        )
     }
 }

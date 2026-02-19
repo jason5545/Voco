@@ -41,7 +41,7 @@ actor Qwen3ASREngine {
     /// RMS analysis window: 0.5 seconds
     private static let rmsWindowSize = sampleRate / 2  // 0.5s at 16kHz
 
-    func transcribe(samples: [Float], language: String?, prompt: String? = nil) throws -> String {
+    func transcribe(samples: [Float], language: String?, prompt: String? = nil) throws -> Qwen3ASRModel.TranscriptionResult {
         guard let model = model else {
             throw Qwen3ASRModelError.textDecoderNotLoaded
         }
@@ -62,15 +62,15 @@ actor Qwen3ASREngine {
         // Audio over 20 minutes: segment at silence points
         let sr = Self.sampleRate
         Self.logger.info("Audio exceeds 20 minutes (\(samples.count / sr)s), segmenting at silence points...")
-        var results: [String] = []
+        var chunkResults: [Qwen3ASRModel.TranscriptionResult] = []
         var offset = 0
         while offset < samples.count {
             let remaining = samples.count - offset
             if remaining <= Self.maxSamplesPerChunk {
                 // Last chunk: take everything
                 let chunk = Array(samples[offset...])
-                let text = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
-                if !text.isEmpty { results.append(text) }
+                let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+                if !result.text.isEmpty { chunkResults.append(result) }
                 break
             }
 
@@ -78,11 +78,18 @@ actor Qwen3ASREngine {
             let cutPoint = Self.findSilenceCutPoint(in: samples, targetCut: offset + Self.maxSamplesPerChunk)
             let chunk = Array(samples[offset..<cutPoint])
             Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")
-            let text = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
-            if !text.isEmpty { results.append(text) }
+            let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+            if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
         }
-        return results.joined(separator: " ")
+
+        // Merge: concatenate text, weighted average logprob by token count
+        let mergedText = chunkResults.map { $0.text }.joined(separator: " ")
+        let totalTokens = chunkResults.reduce(0) { $0 + $1.tokenCount }
+        let weightedLogProb = totalTokens > 0
+            ? chunkResults.reduce(0.0) { $0 + $1.avgLogProb * Double($1.tokenCount) } / Double(totalTokens)
+            : 0.0
+        return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens)
     }
 
     /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
