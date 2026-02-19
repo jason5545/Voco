@@ -8,10 +8,11 @@ final class ModelPrewarmService: ObservableObject {
     private let whisperState: WhisperState
     private let modelContext: ModelContext
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ModelPrewarm")
-    private lazy var serviceRegistry = TranscriptionServiceRegistry(
-        whisperState: whisperState,
-        modelsDirectory: whisperState.modelsDirectory
-    )
+    /// Reuse WhisperState's registry so Qwen3 prewarm hits the same engine
+    /// that handles real transcriptions (each registry creates its own Qwen3ASREngine).
+    private var serviceRegistry: TranscriptionServiceRegistry {
+        whisperState.serviceRegistry
+    }
     private let prewarmAudioURL = Bundle.main.url(forResource: "esc", withExtension: "wav")
     private let prewarmEnabledKey = "PrewarmModelOnWake"
 

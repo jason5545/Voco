@@ -36,8 +36,13 @@ actor Qwen3ASREngine {
         // Without this the very first real transcription may hallucinate in a wrong language.
         Self.logger.info("Running Qwen3 warmup inference…")
         let warmupSamples = [Float](repeating: 0, count: 16000) // 1 s of silence
-        let _ = try? newModel.transcribe(audio: warmupSamples, sampleRate: 16000, language: "en")
-        Self.logger.info("Qwen3 warmup complete")
+        do {
+            // Use language: nil (auto) to match the most common real-world path
+            let _ = try newModel.transcribe(audio: warmupSamples, sampleRate: 16000, language: nil)
+            Self.logger.info("Qwen3 warmup complete")
+        } catch {
+            Self.logger.error("⚠️ Qwen3 warmup failed: \(error) — first transcription may hallucinate")
+        }
     }
 
     private static let sampleRate = 16000
