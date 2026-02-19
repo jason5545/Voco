@@ -31,6 +31,13 @@ actor Qwen3ASREngine {
         self.model = newModel
         self.loadedModelId = modelId
         Self.logger.info("Qwen3-ASR model loaded successfully")
+
+        // Warmup: first MLX inference compiles Metal shaders and stabilises GPU state.
+        // Without this the very first real transcription may hallucinate in a wrong language.
+        Self.logger.info("Running Qwen3 warmup inference…")
+        let warmupSamples = [Float](repeating: 0, count: 16000) // 1 s of silence
+        let _ = try? newModel.transcribe(audio: warmupSamples, sampleRate: 16000, language: "en")
+        Self.logger.info("Qwen3 warmup complete")
     }
 
     private static let sampleRate = 16000

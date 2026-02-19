@@ -103,7 +103,7 @@ final class ModelPrewarmService: ObservableObject {
         }
 
         switch model.provider {
-        case .local, .parakeet:
+        case .local, .parakeet, .qwen3:
             return true
         default:
             logger.notice("🌅 Skipping prewarm - cloud models don't need it")
