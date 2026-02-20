@@ -40,7 +40,7 @@ enum PredefinedPrompts {
                 id: taiwaneseChinesePromptId,
                 title: "臺灣中文",
                 promptText: AIPrompts.taiwaneseChineseMode,
-                icon: "character.textbox",
+                icon: "globe.asia.australia.fill",
                 description: "Taiwanese Mandarin speech correction with homophone fixes and punctuation",
                 isPredefined: true,
                 useSystemInstructions: false

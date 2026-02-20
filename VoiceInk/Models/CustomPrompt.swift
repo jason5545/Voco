@@ -10,6 +10,9 @@ extension PromptIcon {
         "textbox",
         "checkmark.seal.fill",
         
+        // Language & Region
+        "globe.asia.australia.fill",
+
         // Communication
         "bubble.left.and.bubble.right.fill",
         "message.fill",
