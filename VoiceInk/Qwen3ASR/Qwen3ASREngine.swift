@@ -5,16 +5,32 @@
 import Foundation
 import os
 
+enum Qwen3ASREngineError: LocalizedError {
+    case warmupFailed(modelId: String, underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .warmupFailed(let modelId, let underlying):
+            return "Qwen3 warmup failed for \(modelId): \(underlying.localizedDescription)"
+        }
+    }
+}
+
 actor Qwen3ASREngine {
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASREngine")
 
     private var model: Qwen3ASRModel?
     private var loadedModelId: String?
+    private var hasCompletedWarmup = false
 
     func loadModel(from directory: URL, modelSize: Qwen3ASRModelSize) throws {
         let modelId = modelSize.defaultModelId
 
         if loadedModelId == modelId {
+            if let model = model, !hasCompletedWarmup {
+                Self.logger.warning("Model \(modelId) loaded but warmup not completed, retrying warmup")
+                try ensureWarmup(using: model, modelId: modelId, reason: "loadModel(reuse)")
+            }
             Self.logger.info("Model \(modelId) already loaded, skipping")
             return
         }
@@ -30,19 +46,10 @@ actor Qwen3ASREngine {
 
         self.model = newModel
         self.loadedModelId = modelId
+        self.hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model loaded successfully")
 
-        // Warmup: first MLX inference compiles Metal shaders and stabilises GPU state.
-        // Without this the very first real transcription may hallucinate in a wrong language.
-        Self.logger.info("Running Qwen3 warmup inference…")
-        let warmupSamples = [Float](repeating: 0, count: 16000) // 1 s of silence
-        do {
-            // Use language: nil (auto) to match the most common real-world path
-            let _ = try newModel.transcribe(audio: warmupSamples, sampleRate: 16000, language: nil)
-            Self.logger.info("Qwen3 warmup complete")
-        } catch {
-            Self.logger.error("⚠️ Qwen3 warmup failed: \(error) — first transcription may hallucinate")
-        }
+        try ensureWarmup(using: newModel, modelId: modelId, reason: "loadModel(new)")
     }
 
     private static let sampleRate = 16000
@@ -56,6 +63,15 @@ actor Qwen3ASREngine {
     func transcribe(samples: [Float], language: String?, prompt: String? = nil) throws -> Qwen3ASRModel.TranscriptionResult {
         guard let model = model else {
             throw Qwen3ASRModelError.textDecoderNotLoaded
+        }
+        guard let loadedModelId = loadedModelId else {
+            throw Qwen3ASRModelError.textDecoderNotLoaded
+        }
+
+        // Hard gate: the first real transcription must not run before warmup succeeds.
+        if !hasCompletedWarmup {
+            Self.logger.warning("Warmup not completed before transcription, retrying now")
+            try ensureWarmup(using: model, modelId: loadedModelId, reason: "transcribe")
         }
 
         // Map "auto" or empty language to nil (let model auto-detect)
@@ -139,6 +155,35 @@ actor Qwen3ASREngine {
     func unloadModel() {
         model = nil
         loadedModelId = nil
+        hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model unloaded")
+    }
+
+    private func ensureWarmup(using model: Qwen3ASRModel, modelId: String, reason: String) throws {
+        guard !hasCompletedWarmup else { return }
+
+        // Warmup compiles Metal kernels and stabilizes first-pass MLX execution.
+        // Require success before allowing user-facing transcription.
+        let warmupSamples = [Float](repeating: 0, count: 16000) // 1 s of silence
+        var lastError: Error?
+        let maxAttempts = 3
+
+        for attempt in 1...maxAttempts {
+            do {
+                Self.logger.info("Running Qwen3 warmup inference (\(reason), attempt \(attempt)/\(maxAttempts))…")
+                let _ = try model.transcribe(audio: warmupSamples, sampleRate: 16000, language: nil)
+                hasCompletedWarmup = true
+                Self.logger.info("Qwen3 warmup complete (\(reason), attempt \(attempt))")
+                return
+            } catch {
+                lastError = error
+                Self.logger.error("⚠️ Qwen3 warmup attempt \(attempt) failed (\(reason)): \(error)")
+            }
+        }
+
+        throw Qwen3ASREngineError.warmupFailed(
+            modelId: modelId,
+            underlying: lastError ?? Qwen3ASRModelError.loadFailed("unknown warmup error")
+        )
     }
 }
