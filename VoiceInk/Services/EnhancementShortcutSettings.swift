@@ -6,6 +6,7 @@ class EnhancementShortcutSettings: ObservableObject {
 
     @Published var isToggleEnhancementShortcutEnabled: Bool {
         didSet {
+            guard isToggleEnhancementShortcutEnabled != oldValue else { return }
             UserDefaults.standard.set(isToggleEnhancementShortcutEnabled, forKey: "isToggleEnhancementShortcutEnabled")
             NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
         }

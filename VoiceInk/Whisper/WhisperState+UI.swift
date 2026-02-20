@@ -102,6 +102,8 @@ extension WhisperState {
             return
         }
 
+        cancelStartupPreparationTask()
+
         let wasRecording = recordingState == .recording
 
         await MainActor.run {
@@ -149,6 +151,7 @@ extension WhisperState {
 
     func resetOnLaunch() async {
         logger.notice("🔄 Resetting recording state on launch")
+        cancelStartupPreparationTask()
         await recorder.stopRecording()
         hideRecorderPanel()
         await MainActor.run {

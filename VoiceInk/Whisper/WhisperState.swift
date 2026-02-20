@@ -89,6 +89,8 @@ class WhisperState: NSObject, ObservableObject {
     var editModeSelectedText: String?
     var partialTranscript: String = ""
     var currentSession: TranscriptionSession?
+    private var startupPreparationTask: Task<Void, Never>?
+    private var startupPreparationTaskID: UUID?
 
 
     @Published var recorderType: String = UserDefaults.standard.string(forKey: "RecorderType") ?? "mini" {
@@ -202,10 +204,17 @@ class WhisperState: NSObject, ObservableObject {
             logger.error("Error creating recordings directory: \(error.localizedDescription)")
         }
     }
+
+    func cancelStartupPreparationTask() {
+        startupPreparationTask?.cancel()
+        startupPreparationTask = nil
+        startupPreparationTaskID = nil
+    }
     
     func toggleRecord(powerModeId: UUID? = nil) async {
         logger.notice("toggleRecord called – state=\(String(describing: self.recordingState))")
         if recordingState == .recording {
+            cancelStartupPreparationTask()
             partialTranscript = ""
             recordingState = .transcribing
             await recorder.stopRecording()
@@ -253,6 +262,7 @@ class WhisperState: NSObject, ObservableObject {
                 }
                 return
             }
+            cancelStartupPreparationTask()
             shouldCancelRecording = false
             partialTranscript = ""
             requestRecordPermission { [self] granted in
@@ -307,8 +317,21 @@ class WhisperState: NSObject, ObservableObject {
                             }
 
                             // Load model and capture context in background without blocking
-                            Task.detached { [weak self] in
+                            let startupTaskID = UUID()
+                            self.startupPreparationTaskID = startupTaskID
+                            self.startupPreparationTask = Task.detached { [weak self] in
                                 guard let self = self else { return }
+                                defer {
+                                    Task { @MainActor [weak self] in
+                                        guard let self = self else { return }
+                                        if self.startupPreparationTaskID == startupTaskID {
+                                            self.startupPreparationTask = nil
+                                            self.startupPreparationTaskID = nil
+                                        }
+                                    }
+                                }
+
+                                guard !Task.isCancelled else { return }
 
                                 // Only load model if it's a local model and not already loaded
                                 if let model = await self.currentTranscriptionModel, model.provider == .local {
@@ -324,15 +347,31 @@ class WhisperState: NSObject, ObservableObject {
                                     try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
                                 }
 
+                                guard !Task.isCancelled else { return }
+
                                 if let enhancementService = await self.enhancementService {
-                                    await MainActor.run {
-                                        enhancementService.captureClipboardContext()
+                                    let shouldCaptureClipboard = await MainActor.run {
+                                        enhancementService.useClipboardContext
                                     }
-                                    await enhancementService.captureScreenContext()
+                                    if shouldCaptureClipboard {
+                                        await MainActor.run {
+                                            enhancementService.captureClipboardContext()
+                                        }
+                                    }
+
+                                    guard !Task.isCancelled else { return }
+
+                                    let shouldCaptureScreen = await MainActor.run {
+                                        enhancementService.useScreenCaptureContext
+                                    }
+                                    if shouldCaptureScreen {
+                                        await enhancementService.captureScreenContext()
+                                    }
                                 }
                             }
 
                         } catch {
+                            self.cancelStartupPreparationTask()
                             self.logger.error("❌ Failed to start recording: \(error.localizedDescription)")
                             await NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
                             self.logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")

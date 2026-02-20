@@ -14,6 +14,7 @@ class AIEnhancementService: ObservableObject {
 
     @Published var isEnhancementEnabled: Bool {
         didSet {
+            guard isEnhancementEnabled != oldValue else { return }
             UserDefaults.standard.set(isEnhancementEnabled, forKey: "isAIEnhancementEnabled")
             if isEnhancementEnabled && selectedPromptId == nil {
                 selectedPromptId = customPrompts.first?.id
@@ -25,12 +26,14 @@ class AIEnhancementService: ObservableObject {
 
     @Published var useClipboardContext: Bool {
         didSet {
+            guard useClipboardContext != oldValue else { return }
             UserDefaults.standard.set(useClipboardContext, forKey: "useClipboardContext")
         }
     }
 
     @Published var useScreenCaptureContext: Bool {
         didSet {
+            guard useScreenCaptureContext != oldValue else { return }
             UserDefaults.standard.set(useScreenCaptureContext, forKey: "useScreenCaptureContext")
             NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
         }
@@ -38,6 +41,7 @@ class AIEnhancementService: ObservableObject {
 
     @Published var useAppContext: Bool {
         didSet {
+            guard useAppContext != oldValue else { return }
             UserDefaults.standard.set(useAppContext, forKey: "useAppContext")
         }
     }
@@ -52,6 +56,7 @@ class AIEnhancementService: ObservableObject {
 
     @Published var selectedPromptId: UUID? {
         didSet {
+            guard selectedPromptId != oldValue else { return }
             UserDefaults.standard.set(selectedPromptId?.uuidString, forKey: "selectedPromptId")
             NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
             NotificationCenter.default.post(name: .promptSelectionChanged, object: nil)
@@ -538,11 +543,15 @@ class AIEnhancementService: ObservableObject {
     }
 
     func captureScreenContext() async {
+        guard useScreenCaptureContext else {
+            return
+        }
+
         guard CGPreflightScreenCaptureAccess() else {
             return
         }
 
-        if let capturedText = await screenCaptureService.captureAndExtractText() {
+        if await screenCaptureService.captureAndExtractText() != nil {
             await MainActor.run {
                 self.objectWillChange.send()
             }

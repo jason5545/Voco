@@ -78,6 +78,7 @@ enum BrowserType {
 enum BrowserURLError: Error {
     case scriptNotFound
     case executionFailed
+    case executionTimedOut
     case browserNotRunning
     case noActiveWindow
     case noActiveTab
@@ -106,39 +107,27 @@ class BrowserURLService {
             logger.error("❌ Browser not running: \(browser.displayName)")
             throw BrowserURLError.browserNotRunning
         }
-        
-        let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = [scriptURL.path]
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-        
+
         do {
             logger.debug("▶️ Executing AppleScript for \(browser.displayName)")
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                if output.isEmpty {
-                    logger.error("❌ Empty output from AppleScript for \(browser.displayName)")
-                    throw BrowserURLError.noActiveTab
-                }
-                
-                // Check if output contains error messages
-                if output.lowercased().contains("error") {
-                    logger.error("❌ AppleScript error for \(browser.displayName): \(output)")
-                    throw BrowserURLError.executionFailed
-                }
-                
-                logger.debug("✅ Successfully retrieved URL from \(browser.displayName): \(output)")
-                return output
-            } else {
-                logger.error("❌ Failed to decode output from AppleScript for \(browser.displayName)")
+            let output = try await executeAppleScript(scriptPath: scriptURL.path, timeout: 1.2)
+
+            if output.isEmpty {
+                logger.error("❌ Empty output from AppleScript for \(browser.displayName)")
+                throw BrowserURLError.noActiveTab
+            }
+
+            // Check if output contains error messages
+            if output.lowercased().contains("error") {
+                logger.error("❌ AppleScript error for \(browser.displayName): \(output)")
                 throw BrowserURLError.executionFailed
             }
+
+            logger.debug("✅ Successfully retrieved URL from \(browser.displayName): \(output)")
+            return output
+        } catch let error as BrowserURLError {
+            logger.error("❌ AppleScript failed for \(browser.displayName): \(String(describing: error))")
+            throw error
         } catch {
             logger.error("❌ AppleScript execution failed for \(browser.displayName): \(error.localizedDescription)")
             throw BrowserURLError.executionFailed
@@ -152,4 +141,49 @@ class BrowserURLService {
         logger.debug("\(browser.displayName) running status: \(isRunning)")
         return isRunning
     }
-} 
+
+    private func executeAppleScript(scriptPath: String, timeout: TimeInterval) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                task.arguments = [scriptPath]
+
+                let pipe = Pipe()
+                task.standardOutput = pipe
+                task.standardError = pipe
+
+                let exitSemaphore = DispatchSemaphore(value: 0)
+                task.terminationHandler = { _ in
+                    exitSemaphore.signal()
+                }
+
+                do {
+                    try task.run()
+                } catch {
+                    continuation.resume(throwing: BrowserURLError.executionFailed)
+                    return
+                }
+
+                let timedOut = exitSemaphore.wait(timeout: .now() + timeout) == .timedOut
+                if timedOut {
+                    if task.isRunning {
+                        task.terminate()
+                    }
+                    _ = exitSemaphore.wait(timeout: .now() + 0.2)
+                    continuation.resume(throwing: BrowserURLError.executionTimedOut)
+                    return
+                }
+
+                let outputData = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let output = String(data: outputData, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) else {
+                    continuation.resume(throwing: BrowserURLError.executionFailed)
+                    return
+                }
+
+                continuation.resume(returning: output)
+            }
+        }
+    }
+}
