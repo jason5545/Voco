@@ -25,10 +25,12 @@ struct MetricsContent: View {
                         VStack(spacing: 24) {
                             heroSection
                             metricsSection
-                            HStack(alignment: .top, spacing: 18) {
-                                HelpAndResourcesSection()
-                                DashboardPromotionsSection()
-                            }
+
+                            // TODO: Replace with Voco-branded help & resources
+                            // HStack(alignment: .top, spacing: 18) {
+                            //     HelpAndResourcesSection()
+                            //     DashboardPromotionsSection()
+                            // }
 
                             Spacer(minLength: 20)
 
