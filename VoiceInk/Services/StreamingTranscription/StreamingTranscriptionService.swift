@@ -4,11 +4,16 @@ import os
 
 /// Sendable source that bridges audio chunks from any thread into an AsyncStream.
 private final class AudioChunkSource: @unchecked Sendable {
+    /// Bound in-memory buffering so slow network/provider paths cannot grow memory unbounded.
+    private static let maxBufferedChunks = 512
     let stream: AsyncStream<Data>
     private let continuation: AsyncStream<Data>.Continuation
 
     init() {
-        let (stream, continuation) = AsyncStream.makeStream(of: Data.self, bufferingPolicy: .unbounded)
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: Data.self,
+            bufferingPolicy: .bufferingNewest(Self.maxBufferedChunks)
+        )
         self.stream = stream
         self.continuation = continuation
     }

@@ -36,6 +36,8 @@ class MiniRecorderShortcutManager: ObservableObject {
     private var visibilityTask: Task<Void, Never>?
     
     private var isCancelHandlerSetup = false
+    private var arePromptHandlersRegistered = false
+    private var arePowerModeHandlersRegistered = false
     
     // Double-tap Escape handling
     private var escFirstPressTime: Date? = nil
@@ -49,6 +51,8 @@ class MiniRecorderShortcutManager: ObservableObject {
         setupEnhancementShortcut()
         setupEscapeHandlerOnce()
         setupCancelHandlerOnce()
+        setupPromptHandlersOnce()
+        setupPowerModeHandlersOnce()
 
         NotificationCenter.default.addObserver(self, selector: #selector(settingsDidChange), name: .AppSettingsDidChange, object: nil)
     }
@@ -185,8 +189,12 @@ class MiniRecorderShortcutManager: ObservableObject {
         KeyboardShortcuts.setShortcut(.init(.eight, modifiers: .option), for: .selectPowerMode8)
         KeyboardShortcuts.setShortcut(.init(.nine, modifiers: .option), for: .selectPowerMode9)
         KeyboardShortcuts.setShortcut(.init(.zero, modifiers: .option), for: .selectPowerMode10)
-        
-        // Setup handlers
+    }
+
+    private func setupPowerModeHandlersOnce() {
+        guard !arePowerModeHandlersRegistered else { return }
+        arePowerModeHandlersRegistered = true
+
         setupPowerModeHandler(for: .selectPowerMode1, index: 0)
         setupPowerModeHandler(for: .selectPowerMode2, index: 1)
         setupPowerModeHandler(for: .selectPowerMode3, index: 2)
@@ -243,8 +251,12 @@ class MiniRecorderShortcutManager: ObservableObject {
         KeyboardShortcuts.setShortcut(.init(.eight, modifiers: .command), for: .selectPrompt8)
         KeyboardShortcuts.setShortcut(.init(.nine, modifiers: .command), for: .selectPrompt9)
         KeyboardShortcuts.setShortcut(.init(.zero, modifiers: .command), for: .selectPrompt10)
-        
-        // Setup handlers
+    }
+
+    private func setupPromptHandlersOnce() {
+        guard !arePromptHandlersRegistered else { return }
+        arePromptHandlersRegistered = true
+
         setupPromptHandler(for: .selectPrompt1, index: 0)
         setupPromptHandler(for: .selectPrompt2, index: 1)
         setupPromptHandler(for: .selectPrompt3, index: 2)

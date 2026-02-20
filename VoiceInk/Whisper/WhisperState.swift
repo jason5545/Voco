@@ -12,6 +12,56 @@ struct WordSubstitution {
     let replacement: String
 }
 
+// Fixed-size ring buffer to keep pre-session streaming chunks bounded.
+private struct PendingAudioChunkBuffer {
+    private var storage: [Data?]
+    private var head: Int = 0
+    private var count: Int = 0
+
+    init(capacity: Int) {
+        storage = Array(repeating: nil, count: max(1, capacity))
+    }
+
+    mutating func append(_ chunk: Data) {
+        let capacity = storage.count
+        let tail = (head + count) % capacity
+        if count < capacity {
+            storage[tail] = chunk
+            count += 1
+        } else {
+            // Buffer full: overwrite the oldest chunk to keep recent audio.
+            storage[head] = chunk
+            head = (head + 1) % capacity
+        }
+    }
+
+    mutating func drain() -> [Data] {
+        guard count > 0 else { return [] }
+        let capacity = storage.count
+        var result: [Data] = []
+        result.reserveCapacity(count)
+
+        for offset in 0..<count {
+            let index = (head + offset) % capacity
+            if let chunk = storage[index] {
+                result.append(chunk)
+            }
+            storage[index] = nil
+        }
+
+        head = 0
+        count = 0
+        return result
+    }
+
+    mutating func clear() {
+        let capacity = storage.count
+        storage = Array(repeating: nil, count: capacity)
+        head = 0
+        count = 0
+    }
+}
+
 // MARK: - Recording State Machine
 enum RecordingState: Equatable {
     case idle
@@ -214,8 +264,11 @@ class WhisperState: NSObject, ObservableObject {
                             let permanentURL = self.recordingsDirectory.appendingPathComponent(fileName)
                             self.recordedFile = permanentURL
 
-                            // Buffer chunks from the start; session created after Power Mode resolves
-                            let pendingChunks = OSAllocatedUnfairLock(initialState: [Data]())
+                            // Buffer chunks from the start; session created after Power Mode resolves.
+                            // Keep this bounded to avoid memory growth when provider setup is delayed.
+                            let pendingChunks = OSAllocatedUnfairLock(
+                                initialState: PendingAudioChunkBuffer(capacity: 240)
+                            )
                             self.recorder.onAudioChunk = { data in
                                 pendingChunks.withLock { $0.append(data) }
                             }
@@ -245,15 +298,11 @@ class WhisperState: NSObject, ObservableObject {
                                     // Swap callback first so new chunks go straight to the session
                                     self.recorder.onAudioChunk = realCallback
                                     // Then flush anything that was buffered before the swap
-                                    let buffered = pendingChunks.withLock { chunks -> [Data] in
-                                        let result = chunks
-                                        chunks.removeAll()
-                                        return result
-                                    }
+                                    let buffered = pendingChunks.withLock { $0.drain() }
                                     for chunk in buffered { realCallback(chunk) }
                                 } else {
                                     self.recorder.onAudioChunk = nil
-                                    pendingChunks.withLock { $0.removeAll() }
+                                    pendingChunks.withLock { $0.clear() }
                                 }
                             }
 
