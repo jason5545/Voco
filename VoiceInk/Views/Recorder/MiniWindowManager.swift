@@ -1,10 +1,12 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 class MiniWindowManager: ObservableObject {
     @Published var isVisible = false
     private var windowController: NSWindowController?
     private var miniPanel: MiniRecorderPanel?
+    private var hostingController: NSViewController?
     private weak var whisperState: WhisperState?
     private weak var recorder: Recorder?
     
@@ -16,7 +18,12 @@ class MiniWindowManager: ObservableObject {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
-        miniPanel?.orderOut(nil)
+        if let panel = miniPanel {
+            panel.contentViewController = nil
+            panel.contentView = nil
+            panel.orderOut(nil)
+        }
+        hostingController = nil
         windowController?.close()
     }
     
@@ -65,16 +72,22 @@ class MiniWindowManager: ObservableObject {
             .environmentObject(whisperState.enhancementService!)
 
         let hostingController = NSHostingController(rootView: miniRecorderView)
-        panel.contentView = hostingController.view
+        panel.contentViewController = hostingController
 
         self.miniPanel = panel
         self.windowController = NSWindowController(window: panel)
+        self.hostingController = hostingController
 
         panel.orderFrontRegardless()
     }
     
     private func deinitializeWindow() {
-        miniPanel?.orderOut(nil)
+        if let panel = miniPanel {
+            panel.contentViewController = nil
+            panel.contentView = nil
+            panel.orderOut(nil)
+        }
+        hostingController = nil
         windowController?.close()
         windowController = nil
         miniPanel = nil

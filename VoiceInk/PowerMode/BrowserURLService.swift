@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import os
+import Darwin
 
 enum BrowserType {
     case safari
@@ -169,8 +170,12 @@ class BrowserURLService {
                 if timedOut {
                     if task.isRunning {
                         task.terminate()
+                        _ = exitSemaphore.wait(timeout: .now() + 0.15)
+                        if task.isRunning {
+                            kill(task.processIdentifier, SIGKILL)
+                            _ = exitSemaphore.wait(timeout: .now() + 0.15)
+                        }
                     }
-                    _ = exitSemaphore.wait(timeout: .now() + 0.2)
                     continuation.resume(throwing: BrowserURLError.executionTimedOut)
                     return
                 }

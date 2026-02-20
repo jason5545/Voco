@@ -51,7 +51,9 @@ class ActiveWindowService: ObservableObject {
 
         var configToApply: PowerModeConfig?
 
-        if let browserType = BrowserType.allCases.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
+        let shouldResolveBrowserURL = PowerModeManager.shared.hasEnabledURLConfigurations
+        if shouldResolveBrowserURL,
+           let browserType = BrowserType.allCases.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
             let browserLookupStart = Date()
             do {
                 let currentURL = try await browserURLService.getCurrentURL(from: browserType)

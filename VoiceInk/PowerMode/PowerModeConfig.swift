@@ -260,6 +260,13 @@ class PowerModeManager: ObservableObject {
         return configurations.filter { $0.isEnabled }
     }
 
+    var hasEnabledURLConfigurations: Bool {
+        enabledConfigurations.contains { config in
+            guard let urlConfigs = config.urlConfigs else { return false }
+            return urlConfigs.contains { !cleanURL($0.url).isEmpty }
+        }
+    }
+
     func addAppConfig(_ appConfig: AppConfig, to config: PowerModeConfig) {
         if var updatedConfig = configurations.first(where: { $0.id == config.id }) {
             var configs = updatedConfig.appConfigs ?? []
