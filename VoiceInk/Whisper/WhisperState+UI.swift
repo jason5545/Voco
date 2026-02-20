@@ -4,7 +4,21 @@ import os
 
 // MARK: - UI Management Extension
 extension WhisperState {
-    
+
+    /// Terminal app bundle IDs where Edit Mode should be skipped
+    /// (selecting text + voice instruction → LLM edit → paste back is unreliable and risky in terminals)
+    private static let terminalBundleIDs: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "net.kovidgoyal.kitty",
+        "com.mitchellh.ghostty",
+        "io.alacritty",
+        "dev.warp.Warp-Stable",
+        "com.github.wez.wezterm",
+        "co.zeit.hyper",
+        "org.tabby",
+    ]
+
     // MARK: - Recorder Panel Management
     
     func showRecorderPanel() {
@@ -54,7 +68,11 @@ extension WhisperState {
 
             // Detect selected text → decide whether to enter Edit Mode
             // (runs after window is visible; accessibility API can be slow)
-            if AXIsProcessTrusted() {
+            // Skip Edit Mode entirely for terminal apps — paste-back is unreliable and risky.
+            let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            let isTerminal = frontBundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
+
+            if AXIsProcessTrusted() && !isTerminal {
                 let selectedText = await SelectedTextService.fetchSelectedText()
                 if let selectedText, !selectedText.isEmpty {
                     isEditMode = true
