@@ -222,9 +222,26 @@ extension WhisperState {
     
     private func unzipAndSetupCoreMLModel(for model: WhisperModel, zipPath: URL, progressKey: String) async throws -> WhisperModel {
         let coreMLDestination = modelsDirectory.appendingPathComponent("\(model.name)-encoder.mlmodelc")
-        
+
         try? FileManager.default.removeItem(at: coreMLDestination)
         try await unzipCoreMLFile(zipPath, to: modelsDirectory)
+
+        // Clean up __MACOSX artifact directory left by macOS zip
+        let macosxDir = modelsDirectory.appendingPathComponent("__MACOSX")
+        try? FileManager.default.removeItem(at: macosxDir)
+
+        // HuggingFace CoreML zips may contain a differently-named .mlmodelc directory
+        // (e.g. ggml-large-encoder.mlmodelc instead of ggml-large-v2-encoder.mlmodelc).
+        // If the expected directory doesn't exist, find and rename the extracted one.
+        if !FileManager.default.fileExists(atPath: coreMLDestination.path) {
+            let contents = try? FileManager.default.contentsOfDirectory(at: modelsDirectory, includingPropertiesForKeys: nil)
+            if let mlmodelcDir = contents?.first(where: {
+                $0.pathExtension == "mlmodelc" && $0.lastPathComponent.contains("encoder")
+            }) {
+                try FileManager.default.moveItem(at: mlmodelcDir, to: coreMLDestination)
+            }
+        }
+
         return try verifyAndCleanupCoreMLFiles(model, coreMLDestination, zipPath, progressKey)
     }
     
