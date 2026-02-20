@@ -91,6 +91,7 @@ class WhisperState: NSObject, ObservableObject {
     var currentSession: TranscriptionSession?
     private var startupPreparationTask: Task<Void, Never>?
     private var startupPreparationTaskID: UUID?
+    var editModeDetectionTask: Task<Void, Never>?
 
 
     @Published var recorderType: String = UserDefaults.standard.string(forKey: "RecorderType") ?? "mini" {
@@ -210,6 +211,11 @@ class WhisperState: NSObject, ObservableObject {
         startupPreparationTask = nil
         startupPreparationTaskID = nil
     }
+
+    func cancelEditModeDetectionTask() {
+        editModeDetectionTask?.cancel()
+        editModeDetectionTask = nil
+    }
     
     func toggleRecord(powerModeId: UUID? = nil) async {
         logger.notice("toggleRecord called – state=\(String(describing: self.recordingState))")
@@ -317,6 +323,11 @@ class WhisperState: NSObject, ObservableObject {
                             }
 
                             // Load model and capture context in background without blocking
+                            // Capture frontmost app info NOW (before detached task, where frontmost = Voco)
+                            let capturedFrontApp = NSWorkspace.shared.frontmostApplication
+                            let capturedAppName = capturedFrontApp?.localizedName
+                            let capturedFrontPid = capturedFrontApp?.processIdentifier
+
                             let startupTaskID = UUID()
                             self.startupPreparationTaskID = startupTaskID
                             self.startupPreparationTask = Task.detached { [weak self] in
@@ -350,6 +361,36 @@ class WhisperState: NSObject, ObservableObject {
                                 guard !Task.isCancelled else { return }
 
                                 if let enhancementService = await self.enhancementService {
+                                    // Cache app context (app name + AX window title + selected text)
+                                    // so getSystemMessage() doesn't need live AX queries later.
+                                    await MainActor.run {
+                                        enhancementService.cachedAppName = capturedAppName
+                                    }
+
+                                    // AX queries for window title and selected text (potentially slow on Chrome/Electron)
+                                    if let pid = capturedFrontPid, AXIsProcessTrusted() {
+                                        let axApp = AXUIElementCreateApplication(pid)
+                                        var focusedWindow: AnyObject?
+                                        if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
+                                            var titleValue: AnyObject?
+                                            if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
+                                                let title = titleValue as? String
+                                                await MainActor.run {
+                                                    enhancementService.cachedWindowTitle = title
+                                                }
+                                            }
+                                        }
+
+                                        guard !Task.isCancelled else { return }
+
+                                        let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
+                                        await MainActor.run {
+                                            enhancementService.cachedSelectedText = selectedText
+                                        }
+                                    }
+
+                                    guard !Task.isCancelled else { return }
+
                                     let shouldCaptureClipboard = await MainActor.run {
                                         enhancementService.useClipboardContext
                                     }

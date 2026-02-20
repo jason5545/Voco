@@ -84,6 +84,11 @@ class AIEnhancementService: ObservableObject {
     
     @Published var lastCapturedClipboard: String?
 
+    // Cached app context — populated at recording start, consumed by getSystemMessage()
+    var cachedAppName: String?
+    var cachedWindowTitle: String?
+    var cachedSelectedText: String?
+
     init(aiService: AIService = AIService(), modelContext: ModelContext) {
         self.aiService = aiService
         self.modelContext = modelContext
@@ -152,13 +157,10 @@ class AIEnhancementService: ObservableObject {
     }
 
     private func getSystemMessage(for mode: EnhancementPrompt) async -> String {
+        // Use cached selected text (captured at recording start) instead of live AX query
         let selectedTextContext: String
-        if AXIsProcessTrusted() {
-            if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                selectedTextContext = "\n\n<CURRENTLY_SELECTED_TEXT>\n\(selectedText)\n</CURRENTLY_SELECTED_TEXT>"
-            } else {
-                selectedTextContext = ""
-            }
+        if let selectedText = cachedSelectedText, !selectedText.isEmpty {
+            selectedTextContext = "\n\n<CURRENTLY_SELECTED_TEXT>\n\(selectedText)\n</CURRENTLY_SELECTED_TEXT>"
         } else {
             selectedTextContext = ""
         }
@@ -179,21 +181,10 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
+        // Use cached app context (captured at recording start) instead of live AX query
         let appContext: String
-        if useAppContext, let frontApp = NSWorkspace.shared.frontmostApplication {
-            let appName = frontApp.localizedName ?? "Unknown"
-            var windowTitle = ""
-            if AXIsProcessTrusted() {
-                let axApp = AXUIElementCreateApplication(frontApp.processIdentifier)
-                var focusedWindow: AnyObject?
-                if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
-                    var titleValue: AnyObject?
-                    if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
-                        windowTitle = titleValue as? String ?? ""
-                    }
-                }
-            }
-            let titlePart = windowTitle.isEmpty ? "" : " - \(windowTitle)"
+        if useAppContext, let appName = cachedAppName {
+            let titlePart = (cachedWindowTitle?.isEmpty == false) ? " - \(cachedWindowTitle!)" : ""
             appContext = "\n\n<ACTIVE_APPLICATION>\n\(appName)\(titlePart)\n</ACTIVE_APPLICATION>"
         } else {
             appContext = ""
@@ -565,6 +556,9 @@ class AIEnhancementService: ObservableObject {
     func clearCapturedContexts() {
         lastCapturedClipboard = nil
         screenCaptureService.lastCapturedText = nil
+        cachedAppName = nil
+        cachedWindowTitle = nil
+        cachedSelectedText = nil
     }
 
     func addPrompt(title: String, promptText: String, icon: PromptIcon = "doc.text.fill", description: String? = nil, triggerWords: [String] = [], useSystemInstructions: Bool = true) {

@@ -66,32 +66,73 @@ extension WhisperState {
                 isMiniRecorderVisible = true // This will call showRecorderPanel() via didSet
             }
 
-            // Detect selected text → decide whether to enter Edit Mode
-            // (runs after window is visible; accessibility API can be slow)
-            // Skip Edit Mode for terminal apps (hard safety valve — terminal inputs
-            // are AX-editable but pasting back risks executing commands).
+            // Capture frontmost app info synchronously (fast, no AX)
             let frontApp = NSWorkspace.shared.frontmostApplication
             let frontBundleID = frontApp?.bundleIdentifier
             let isTerminal = frontBundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
+            let axTrusted = AXIsProcessTrusted()
+            let frontPid = frontApp?.processIdentifier
 
-            if AXIsProcessTrusted() && !isTerminal,
-               let pid = frontApp?.processIdentifier,
-               SelectedTextService.isEditableTextFocused(for: pid)
-            {
-                let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
-                if let selectedText, !selectedText.isEmpty {
-                    isEditMode = true
-                    editModeSelectedText = selectedText
-                } else {
-                    isEditMode = false
-                    editModeSelectedText = nil
-                }
-            } else {
-                isEditMode = false
-                editModeSelectedText = nil
-            }
-
+            // Start recording IMMEDIATELY — zero delay
             await toggleRecord(powerModeId: powerModeId)
+
+            // Edit Mode detection runs in parallel — does NOT block recording
+            // AX queries on Chrome/Electron can take 100-2000ms each; we cap at 500ms.
+            cancelEditModeDetectionTask()
+            editModeDetectionTask = Task { [weak self] in
+                guard let self = self else { return }
+
+                guard axTrusted, !isTerminal, let pid = frontPid else {
+                    await MainActor.run {
+                        self.isEditMode = false
+                        self.editModeSelectedText = nil
+                    }
+                    return
+                }
+
+                // Race AX detection against a 500ms timeout
+                let result: (isEdit: Bool, selectedText: String?)? = await withTaskGroup(of: (Bool, String?)?.self) { group in
+                    group.addTask {
+                        // AX queries (potentially slow on Chrome/Electron)
+                        guard SelectedTextService.isEditableTextFocused(for: pid) else {
+                            return (false, nil)
+                        }
+                        let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
+                        if let selectedText, !selectedText.isEmpty {
+                            return (true, selectedText)
+                        }
+                        return (false, nil)
+                    }
+                    group.addTask {
+                        // Timeout sentinel
+                        try? await Task.sleep(for: .milliseconds(500))
+                        return nil // nil signals timeout
+                    }
+
+                    // First non-nil result wins; nil = timeout
+                    for await value in group {
+                        if let v = value {
+                            group.cancelAll()
+                            return v
+                        }
+                    }
+                    group.cancelAll()
+                    return nil // timeout
+                }
+
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    guard self.recordingState == .recording else { return }
+                    if let result, result.isEdit {
+                        self.isEditMode = true
+                        self.editModeSelectedText = result.selectedText
+                    } else {
+                        self.isEditMode = false
+                        self.editModeSelectedText = nil
+                    }
+                }
+            }
         }
     }
     
@@ -103,6 +144,7 @@ extension WhisperState {
         }
 
         cancelStartupPreparationTask()
+        cancelEditModeDetectionTask()
 
         let wasRecording = recordingState == .recording
 
@@ -152,6 +194,7 @@ extension WhisperState {
     func resetOnLaunch() async {
         logger.notice("🔄 Resetting recording state on launch")
         cancelStartupPreparationTask()
+        cancelEditModeDetectionTask()
         await recorder.stopRecording()
         hideRecorderPanel()
         await MainActor.run {
