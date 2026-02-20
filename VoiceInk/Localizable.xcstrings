@@ -146,7 +146,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "您已節省 "
+            "value": "Voco 已為您節省 "
           }
         }
       }
@@ -156,7 +156,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已錄製工作階段"
+            "value": "錄音次數"
           }
         }
       }
@@ -5547,7 +5547,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "（透過 Voco）"
+            "value": "的時間"
           }
         }
       }
@@ -5557,7 +5557,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voco 工作階段已完成"
+            "value": "已完成的 Voco 錄音"
           }
         }
       }
