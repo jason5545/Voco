@@ -3,7 +3,6 @@ import SwiftUI
 struct NotchRecorderView: View {
     @ObservedObject var whisperState: WhisperState
     @ObservedObject var recorder: Recorder
-    @EnvironmentObject var windowManager: NotchWindowManager
     @State private var isHovering = false
     @State private var activePopover: ActivePopoverState = .none
     @ObservedObject private var powerModeManager = PowerModeManager.shared
@@ -128,7 +127,7 @@ struct NotchRecorderView: View {
 
     var body: some View {
         Group {
-            if windowManager.isVisible {
+            if whisperState.isMiniRecorderVisible {
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
                         leftSection
@@ -151,7 +150,7 @@ struct NotchRecorderView: View {
                 .onHover { hovering in
                     isHovering = hovering
                 }
-                .opacity(windowManager.isVisible ? 1 : 0)
+                .opacity(whisperState.isMiniRecorderVisible ? 1 : 0)
             }
         }
     }
