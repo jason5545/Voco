@@ -68,11 +68,16 @@ extension WhisperState {
 
             // Detect selected text → decide whether to enter Edit Mode
             // (runs after window is visible; accessibility API can be slow)
-            // Skip Edit Mode entirely for terminal apps — paste-back is unreliable and risky.
-            let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            // Skip Edit Mode for terminal apps (hard safety valve — terminal inputs
+            // are AX-editable but pasting back risks executing commands).
+            let frontApp = NSWorkspace.shared.frontmostApplication
+            let frontBundleID = frontApp?.bundleIdentifier
             let isTerminal = frontBundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
 
-            if AXIsProcessTrusted() && !isTerminal {
+            if AXIsProcessTrusted() && !isTerminal,
+               let pid = frontApp?.processIdentifier,
+               SelectedTextService.isEditableTextFocused(for: pid)
+            {
                 let selectedText = await SelectedTextService.fetchSelectedText()
                 if let selectedText, !selectedText.isEmpty {
                     isEditMode = true
