@@ -76,7 +76,7 @@ enum AIPrompts {
     - 觸控操作：單字→單指（單指捲動、單指點選）
     - 特定組合：那麼神→那麼長、那麼慘→那麼長（當描述長度時）
     - 近音混淆：觀塔→觀察、退掉→推測（「推測意思」語境）、推掉→推測、來自世界的→來試試看
-    - AI 工具：格雷特→Claude、克勞德→Claude、熱蟲宅→熱重載、熱蟲仔→熱重載
+    - AI 工具：格雷特→Claude、克勞德→Claude、cloud→Claude（如 cloud.md→CLAUDE.md）、熱蟲宅→熱重載、熱蟲仔→熱重載
     - 社群媒體：臉色→臉書（在聊天軟體中提到時）
     - 程式術語：AGK→edge case、編輯案例→edge case、編輯效應→edge case、Educate→edge case、Education→edge case（程式開發的邊緣案例）
 
