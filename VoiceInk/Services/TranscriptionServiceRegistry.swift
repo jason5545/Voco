@@ -77,6 +77,13 @@ class TranscriptionServiceRegistry {
 
     func cleanup() {
         parakeetTranscriptionService.cleanup()
-        qwen3TranscriptionService.cleanup()
+        Task {
+            await qwen3TranscriptionService.cleanup()
+        }
+    }
+
+    func cleanupAsync() async {
+        parakeetTranscriptionService.cleanup()
+        await qwen3TranscriptionService.cleanup()
     }
 }

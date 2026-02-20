@@ -3,6 +3,7 @@
 // [AI-Claude: 2025-02-18]
 
 import Foundation
+import MLX
 import os
 
 enum Qwen3ASREngineError: LocalizedError {
@@ -84,7 +85,9 @@ actor Qwen3ASREngine {
 
         // Audio within 20 minutes: single pass
         if samples.count <= Self.maxSamplesPerChunk {
-            return try model.transcribe(audio: samples, sampleRate: 16000, language: lang, prompt: prompt)
+            let result = try model.transcribe(audio: samples, sampleRate: 16000, language: lang, prompt: prompt)
+            Memory.clearCache()
+            return result
         }
 
         // Audio over 20 minutes: segment at silence points
@@ -110,6 +113,9 @@ actor Qwen3ASREngine {
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
         }
+
+        // Release GPU cache after all chunks are processed
+        Memory.clearCache()
 
         // Merge: concatenate text, weighted average logprob by token count, take first chunk's detected language
         let mergedText = chunkResults.map { $0.text }.joined(separator: " ")
@@ -156,7 +162,8 @@ actor Qwen3ASREngine {
         model = nil
         loadedModelId = nil
         hasCompletedWarmup = false
-        Self.logger.info("Qwen3-ASR model unloaded")
+        Memory.clearCache()
+        Self.logger.info("Qwen3-ASR model unloaded, GPU cache cleared")
     }
 
     private func ensureWarmup(using model: Qwen3ASRModel, modelId: String, reason: String) throws {

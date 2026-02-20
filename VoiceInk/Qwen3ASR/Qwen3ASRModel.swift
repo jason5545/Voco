@@ -160,6 +160,7 @@ class Qwen3ASRModel {
 
         var cache: [(MLXArray, MLXArray)]? = nil
         var generatedTokens: [Int32] = []
+        let evalInterval = 50  // Force MLX evaluation every N tokens to prevent computation graph accumulation
 
         // Per-token logprob tracking
         var totalLogProb: Double = 0.0
@@ -206,6 +207,17 @@ class Qwen3ASRModel {
                 logProbTokenCount += 1
             }
             generatedTokens.append(nextToken)
+
+            // Periodically force-evaluate the KV cache to materialize computation graph
+            // and release intermediate MLXArray nodes, preventing GPU memory accumulation
+            if generatedTokens.count % evalInterval == 0, let currentCache = cache {
+                eval(currentCache.map { [$0.0, $0.1] }.flatMap { $0 })
+            }
+        }
+
+        // Final eval to ensure all cache tensors are materialized before they go out of scope
+        if let finalCache = cache {
+            eval(finalCache.map { [$0.0, $0.1] }.flatMap { $0 })
         }
 
         let avgLogProb = logProbTokenCount > 0 ? totalLogProb / Double(logProbTokenCount) : 0.0

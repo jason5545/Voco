@@ -354,7 +354,7 @@ extension WhisperState {
         await whisperContext?.releaseResources()
         whisperContext = nil
         isModelLoaded = false
-        serviceRegistry.cleanup()
+        await serviceRegistry.cleanupAsync()
         logger.notice("cleanupModelResources: completed")
     }
     

@@ -110,7 +110,15 @@ private func createSinusoidalPositionEmbeddings(seqLen: Int, dModel: Int) -> MLX
 class Qwen3AudioEncoder: Module {
     let config: Qwen3AudioEncoderConfig
 
+    private static let maxCachedEmbeddings = 8
     private var cachedPosEmbeddings: [Int: MLXArray] = [:]
+    private var cachedPosOrder: [Int] = []  // LRU tracking
+
+    /// Clear cached position embeddings to free GPU memory
+    func clearPosEmbeddingCache() {
+        cachedPosEmbeddings.removeAll()
+        cachedPosOrder.removeAll()
+    }
 
     @ModuleInfo var conv2d1: Conv2d
     @ModuleInfo var conv2d2: Conv2d
@@ -255,9 +263,20 @@ class Qwen3AudioEncoder: Module {
         let posEmbed: MLXArray
         if let cached = cachedPosEmbeddings[timeAfterConv] {
             posEmbed = cached
+            // Move to end of LRU order
+            if let idx = cachedPosOrder.firstIndex(of: timeAfterConv) {
+                cachedPosOrder.remove(at: idx)
+            }
+            cachedPosOrder.append(timeAfterConv)
         } else {
             let computed = createSinusoidalPositionEmbeddings(seqLen: timeAfterConv, dModel: config.dModel)
             cachedPosEmbeddings[timeAfterConv] = computed
+            cachedPosOrder.append(timeAfterConv)
+            // Evict oldest entry if cache is full
+            if cachedPosOrder.count > Self.maxCachedEmbeddings {
+                let evictKey = cachedPosOrder.removeFirst()
+                cachedPosEmbeddings.removeValue(forKey: evictKey)
+            }
             posEmbed = computed
         }
         x = x + posEmbed

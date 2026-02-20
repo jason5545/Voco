@@ -69,9 +69,7 @@ class Qwen3TranscriptionService: TranscriptionService {
         return floats
     }
 
-    func cleanup() {
-        Task {
-            await engine.unloadModel()
-        }
+    func cleanup() async {
+        await engine.unloadModel()
     }
 }
