@@ -49,6 +49,8 @@ class PinyinCorrector {
         "雲端雲酸": "雲端運算",
         "我哪好": "我很好",
         "哪好": "很好",
+        // From user feedback (2026-02)
+        "轉入": "轉錄",       // zhuǎnrù vs zhuǎnlù
     ]
 
     /// Sorted keys by length (longest first) to avoid substring conflicts
