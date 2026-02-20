@@ -3,8 +3,22 @@ import AppKit
 import SelectedTextKit
 
 class SelectedTextService {
+    /// Full retrieval strategy used when richer context is acceptable.
+    /// Includes menu-action fallback, which may touch/restore clipboard content.
     static func fetchSelectedText() async -> String? {
         let strategies: [TextStrategy] = [.accessibility, .menuAction]
+        return await fetchSelectedText(using: strategies)
+    }
+
+    /// Low-latency retrieval strategy for recorder startup.
+    /// Uses Accessibility only to avoid menu-action clipboard fallback,
+    /// which can introduce a delayed UI hitch in some apps.
+    static func fetchSelectedTextForEditModeDetection() async -> String? {
+        let strategies: [TextStrategy] = [.accessibility]
+        return await fetchSelectedText(using: strategies)
+    }
+
+    private static func fetchSelectedText(using strategies: [TextStrategy]) async -> String? {
         do {
             let selectedText = try await SelectedTextManager.shared.getSelectedText(strategies: strategies)
             return selectedText

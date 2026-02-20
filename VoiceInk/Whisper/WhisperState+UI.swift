@@ -78,7 +78,7 @@ extension WhisperState {
                let pid = frontApp?.processIdentifier,
                SelectedTextService.isEditableTextFocused(for: pid)
             {
-                let selectedText = await SelectedTextService.fetchSelectedText()
+                let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
                 if let selectedText, !selectedText.isEmpty {
                     isEditMode = true
                     editModeSelectedText = selectedText
