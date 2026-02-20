@@ -81,9 +81,6 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(qwen3SkipThreshold, forKey: "ChinesePostProcessingQwen3SkipThreshold") }
     }
 
-    @Published var qwen3LogProbThreshold: Double {
-        didSet { UserDefaults.standard.set(qwen3LogProbThreshold, forKey: "ChinesePostProcessingQwen3LogProbThreshold") }
-    }
 
     // MARK: - Init
 
@@ -99,12 +96,6 @@ class ChinesePostProcessingService: ObservableObject {
         self.isLLMValidationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingLLMValidation") as? Bool ?? true
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
         self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
-        self.qwen3LogProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3LogProbThreshold") as? Double ?? -0.2
-
-        // Migrate: old default was -0.5, too lenient for Qwen3
-        if self.qwen3LogProbThreshold == -0.5 {
-            self.qwen3LogProbThreshold = -0.2
-        }
     }
 
     // MARK: - Main Processing Pipeline
@@ -225,8 +216,8 @@ class ChinesePostProcessingService: ObservableObject {
             // Qwen3: use logprob when available, fallback to text heuristic
             if lastAvgLogProb != 0.0 {
                 // Has logprob data → use it (same logic as Whisper)
-                if lastAvgLogProb > qwen3LogProbThreshold {
-                    Self.debugLog("SKIP: Qwen3 high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", qwen3LogProbThreshold))) | text(\(text.count)): \(text)")
+                if lastAvgLogProb > logProbThreshold {
+                    Self.debugLog("SKIP: Qwen3 high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold))) | text(\(text.count)): \(text)")
                     return true
                 }
             } else if qwen3TextQualityCheck(text) {
