@@ -20,6 +20,9 @@ final class PinyinDatabase: @unchecked Sendable {
     /// word → frequency, e.g. "程式" → 80000
     private(set) var wordFreq: [String: Int] = [:]
 
+    /// bigram → frequency, e.g. "式碼" → 60000
+    private(set) var bigramFreq: [String: Int] = [:]
+
     /// Whether all data has finished loading
     private(set) var isLoaded = false
 
@@ -53,6 +56,11 @@ final class PinyinDatabase: @unchecked Sendable {
         wordFreq[word] ?? 0
     }
 
+    /// Get frequency of a character bigram. Returns 0 if not found.
+    func bigramFrequency(of bigram: String) -> Int {
+        bigramFreq[bigram] ?? 0
+    }
+
     /// Get toneless pinyin(s) for a character.
     func tonelessPinyin(of char: Character) -> [String] {
         guard let readings = charToPinyin[char] else { return [] }
@@ -68,10 +76,11 @@ final class PinyinDatabase: @unchecked Sendable {
             loadCharPinyin()
             loadPinyinChars()
             loadWordFreq()
+            loadBigramFreq()
 
             let elapsed = CFAbsoluteTimeGetCurrent() - start
             isLoaded = true
-            logger.info("PinyinDatabase loaded in \(String(format: "%.2f", elapsed))s — chars: \(self.charToPinyin.count), pinyinGroups: \(self.pinyinToChars.count), words: \(self.wordFreq.count)")
+            logger.info("PinyinDatabase loaded in \(String(format: "%.2f", elapsed))s — chars: \(self.charToPinyin.count), pinyinGroups: \(self.pinyinToChars.count), words: \(self.wordFreq.count), bigrams: \(self.bigramFreq.count)")
         }
     }
 
@@ -133,6 +142,27 @@ final class PinyinDatabase: @unchecked Sendable {
             wordFreq = result
         } catch {
             logger.error("Failed to load word_freq.tsv: \(error)")
+        }
+    }
+
+    private func loadBigramFreq() {
+        guard let url = Bundle.main.url(forResource: "bigram_freq", withExtension: "tsv") else {
+            logger.warning("bigram_freq.tsv not found in bundle — bigram scoring disabled")
+            return
+        }
+        do {
+            let content = try String(contentsOf: url, encoding: .utf8)
+            var result: [String: Int] = [:]
+            result.reserveCapacity(300_000)
+            for line in content.split(separator: "\n") {
+                let parts = line.split(separator: "\t", maxSplits: 1)
+                if parts.count == 2, let freq = Int(parts[1]) {
+                    result[String(parts[0])] = freq
+                }
+            }
+            bigramFreq = result
+        } catch {
+            logger.error("Failed to load bigram_freq.tsv: \(error)")
         }
     }
 

@@ -6,6 +6,7 @@ Outputs (to VoiceInk/Resources/ChineseCorrection/):
   1. char_pinyin.json  — char → [pinyin with tone] mapping
   2. pinyin_chars.json  — toneless pinyin → [chars] mapping
   3. word_freq.tsv      — Traditional Chinese word frequency (tab-separated)
+  4. bigram_freq.tsv    — Character bigram frequency (tab-separated)
 
 Dependencies: pypinyin, opencc-python-reimplemented
 """
@@ -55,7 +56,7 @@ def download_jieba_dict():
 # ---------------------------------------------------------------------------
 def generate_char_pinyin():
     """Use pypinyin to build char→[pinyin] for CJK Unified Ideographs."""
-    print("[1/3] Generating char_pinyin.json ...")
+    print("[1/4] Generating char_pinyin.json ...")
     char_pinyin = {}
 
     # CJK Unified Ideographs: U+4E00 to U+9FFF
@@ -94,7 +95,7 @@ def strip_tone(py: str) -> str:
 
 def generate_pinyin_chars(char_pinyin: dict):
     """Invert char_pinyin to toneless-pinyin → [chars]."""
-    print("[2/3] Generating pinyin_chars.json ...")
+    print("[2/4] Generating pinyin_chars.json ...")
     pinyin_chars = defaultdict(list)
 
     for char, readings in char_pinyin.items():
@@ -182,7 +183,7 @@ def generate_word_freq(char_pinyin: dict):
     Convert jieba dict.txt.big to Traditional Chinese word freq.
     Format: word<TAB>freq
     """
-    print("[3/3] Generating word_freq.tsv ...")
+    print("[3/4] Generating word_freq.tsv ...")
 
     jieba_path = download_jieba_dict()
     converter = opencc.OpenCC("s2twp")
@@ -225,10 +226,108 @@ def generate_word_freq(char_pinyin: dict):
 
 
 # ---------------------------------------------------------------------------
+# Step 4: bigram_freq.tsv — Character bigram frequency from word_freq
+# ---------------------------------------------------------------------------
+
+# Taiwan-specific bigrams to add/boost (from common compound words)
+TAIWAN_EXTRA_BIGRAMS = {
+    "程式": 80000,
+    "式碼": 60000,
+    "辨識": 70000,
+    "識度": 40000,
+    "語音": 50000,
+    "音辨": 30000,
+    "轉錄": 40000,
+    "設定": 60000,
+    "預設": 40000,
+    "偵測": 40000,
+    "存取": 30000,
+    "網路": 60000,
+    "品質": 40000,
+    "伺服": 40000,
+    "服器": 40000,
+    "連線": 40000,
+    "檔案": 60000,
+    "資料": 50000,
+    "料夾": 30000,
+    "應用": 40000,
+    "用程": 30000,
+    "視窗": 40000,
+    "螢幕": 40000,
+    "韌體": 20000,
+    "列印": 30000,
+    "硬碟": 30000,
+    "記憶": 30000,
+    "憶體": 30000,
+    "處理": 40000,
+    "理器": 30000,
+    "點擊": 30000,
+    "機器": 30000,
+    "器學": 20000,
+    "學習": 30000,
+    "深度": 30000,
+    "人工": 30000,
+    "工智": 30000,
+    "智慧": 30000,
+    "演算": 30000,
+    "算法": 30000,
+    "語言": 40000,
+    "言模": 20000,
+    "模型": 30000,
+    "專案": 40000,
+    "雲端": 25000,
+    "端運": 20000,
+    "運算": 40000,
+    "模擬": 20000,
+    "擬飛": 15000,
+    "飛行": 20000,
+    "漸凍": 15000,
+    "凍人": 15000,
+}
+
+
+def generate_bigram_freq(word_freq: dict):
+    """
+    Extract character-level bigrams from word_freq.
+    For each 2+ char word, produce sliding-window bigrams inheriting the word's frequency.
+    Same bigrams from different words are summed.
+    """
+    print("[4/4] Generating bigram_freq.tsv ...")
+
+    bigram_freq = defaultdict(int)
+
+    for word, freq in word_freq.items():
+        if len(word) < 2:
+            continue
+        chars = list(word)
+        for j in range(len(chars) - 1):
+            bigram = chars[j] + chars[j + 1]
+            bigram_freq[bigram] += freq
+
+    # Add Taiwan-specific bigrams (use max to not downgrade existing entries)
+    for bigram, freq in TAIWAN_EXTRA_BIGRAMS.items():
+        bigram_freq[bigram] = max(bigram_freq[bigram], freq)
+
+    # Filter: keep only bigrams with freq > 50
+    filtered = {bg: freq for bg, freq in bigram_freq.items() if freq > 50}
+
+    # Sort by frequency descending
+    sorted_bigrams = sorted(filtered.items(), key=lambda x: -x[1])
+
+    out_path = os.path.join(OUTPUT_DIR, "bigram_freq.tsv")
+    with open(out_path, "w", encoding="utf-8") as f:
+        for bigram, freq in sorted_bigrams:
+            f.write(f"{bigram}\t{freq}\n")
+
+    print(f"  {len(sorted_bigrams)} bigrams → {out_path}")
+    return filtered
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
-def validate(char_pinyin, pinyin_chars, word_freq):
-    """Spot-check known confusion pairs."""
+def validate(char_pinyin, pinyin_chars, word_freq, bigram_freq):
+    """Spot-check known confusion pairs and bigrams."""
     print("\n[Validation]")
     test_cases = [
         ("城市", "程式", "cheng"),
@@ -257,6 +356,16 @@ def validate(char_pinyin, pinyin_chars, word_freq):
             print(f"  WARN: '{correct}' NOT in word_freq!")
             all_ok = False
 
+    # Validate key bigrams exist
+    print("\n  [Bigram checks]")
+    key_bigrams = ["式碼", "識度", "程式", "語音", "辨識"]
+    for bg in key_bigrams:
+        if bg in bigram_freq:
+            print(f"  OK: bigram '{bg}' freq={bigram_freq[bg]}")
+        else:
+            print(f"  WARN: bigram '{bg}' NOT in bigram_freq!")
+            all_ok = False
+
     if all_ok:
         print("  All validation checks passed!")
     else:
@@ -270,12 +379,13 @@ def main():
     char_pinyin = generate_char_pinyin()
     pinyin_chars = generate_pinyin_chars(char_pinyin)
     word_freq = generate_word_freq(char_pinyin)
+    bigram_freq = generate_bigram_freq(word_freq)
 
-    validate(char_pinyin, pinyin_chars, word_freq)
+    validate(char_pinyin, pinyin_chars, word_freq, bigram_freq)
 
     # Print file sizes
     print("\n[Output files]")
-    for fname in ["char_pinyin.json", "pinyin_chars.json", "word_freq.tsv"]:
+    for fname in ["char_pinyin.json", "pinyin_chars.json", "word_freq.tsv", "bigram_freq.tsv"]:
         path = os.path.join(OUTPUT_DIR, fname)
         size = os.path.getsize(path)
         if size > 1024 * 1024:

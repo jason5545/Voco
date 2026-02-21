@@ -15,6 +15,9 @@ final class HomophoneCorrectionEngine {
     /// 2.0 ≈ candidate must be ~7x more frequent than original.
     private let minScoreDelta: Double = 2.0
 
+    /// Weight for bigram context score (conservative to avoid noise).
+    private let bigramWeight: Double = 0.3
+
     /// Words below this frequency threshold are considered suspicious.
     private let lowFreqThreshold: Int = 5
 
@@ -65,10 +68,18 @@ final class HomophoneCorrectionEngine {
         var corrections: [CorrectionResult.Correction] = []
         var result = text
 
+        // Build character array for context lookup
+        let textChars = Array(text)
+
         // Process from end to start so indices remain valid
         for seg in suspicious.reversed() {
-            if let best = findBestCandidate(for: seg.word) {
-                let before = result
+            // Extract left/right context characters from original text
+            let offset = seg.approximateOffset
+            let leftContext: Character? = offset > 0 ? textChars[offset - 1] : nil
+            let rightEnd = offset + seg.word.count
+            let rightContext: Character? = rightEnd < textChars.count ? textChars[rightEnd] : nil
+
+            if let best = findBestCandidate(for: seg.word, leftContext: leftContext, rightContext: rightContext) {
                 // Replace the specific occurrence at the known range
                 if let range = findRange(of: seg.word, in: result, near: seg.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
@@ -200,10 +211,13 @@ final class HomophoneCorrectionEngine {
         let score: Double
     }
 
-    private func findBestCandidate(for word: String) -> ScoredCandidate? {
+    private func findBestCandidate(for word: String, leftContext: Character?, rightContext: Character?) -> ScoredCandidate? {
         let chars = Array(word)
         let originalFreq = db.frequency(of: word)
         var best: ScoredCandidate?
+
+        // Pre-compute original bigram context score
+        let origBigramScore = bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
 
         // Try replacing each single character
         for i in 0..<chars.count {
@@ -216,7 +230,10 @@ final class HomophoneCorrectionEngine {
 
                 guard candidateFreq > 0 else { continue }
 
-                let score = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                let score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+
                 if score > minScoreDelta {
                     if best == nil || score > best!.score {
                         best = ScoredCandidate(candidate: candidateWord, candidateFreq: candidateFreq, score: score)
@@ -237,11 +254,15 @@ final class HomophoneCorrectionEngine {
 
             for c0 in h0 {
                 for c1 in h1 {
-                    let candidateWord = String([c0, c1])
+                    let candidate = [c0, c1]
+                    let candidateWord = String(candidate)
                     let candidateFreq = db.frequency(of: candidateWord)
                     guard candidateFreq > 0 else { continue }
 
-                    let score = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                    let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                    let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                    let score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+
                     if score > minScoreDelta {
                         if best == nil || score > best!.score {
                             best = ScoredCandidate(candidate: candidateWord, candidateFreq: candidateFreq, score: score)
@@ -252,6 +273,21 @@ final class HomophoneCorrectionEngine {
         }
 
         return best
+    }
+
+    /// Compute bigram context score for a word given its surrounding characters.
+    /// Score = log(leftBigram+1) + log(rightBigram+1)
+    private func bigramContextScore(for chars: [Character], leftContext: Character?, rightContext: Character?) -> Double {
+        var score: Double = 0
+        if let left = leftContext {
+            let bigram = String(left) + String(chars.first!)
+            score += log(Double(db.bigramFrequency(of: bigram) + 1))
+        }
+        if let right = rightContext {
+            let bigram = String(chars.last!) + String(right)
+            score += log(Double(db.bigramFrequency(of: bigram) + 1))
+        }
+        return score
     }
 
     // MARK: - Step 5: Apply Corrections
