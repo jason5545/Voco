@@ -36,6 +36,11 @@ final class PinyinDatabase: @unchecked Sendable {
 
     /// Get all homophones of a character (same toneless pinyin).
     /// Returns empty array if char not found or data not loaded.
+    ///
+    /// To avoid false matches from archaic/rare readings in the pinyin database,
+    /// candidates are only accepted if their **primary** (first-listed) reading
+    /// matches the searched pinyin.  This filters out characters like 探 whose
+    /// primary reading is tàn but that carry an obsolete xián reading in the data.
     func homophones(of char: Character) -> [Character] {
         guard isLoaded else { return [] }
         guard let readings = charToPinyin[char] else { return [] }
@@ -44,7 +49,14 @@ final class PinyinDatabase: @unchecked Sendable {
         for reading in readings {
             let toneless = Self.stripTone(reading)
             if let chars = pinyinToChars[toneless] {
-                result.formUnion(chars)
+                for candidate in chars {
+                    // Only accept candidates whose primary reading matches
+                    if let candidateReadings = charToPinyin[candidate],
+                       let primary = candidateReadings.first,
+                       Self.stripTone(primary) == toneless {
+                        result.insert(candidate)
+                    }
+                }
             }
         }
         result.remove(char) // exclude self
