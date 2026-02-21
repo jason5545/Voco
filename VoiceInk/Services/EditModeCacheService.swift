@@ -27,6 +27,7 @@ final class EditModeCacheService: @unchecked Sendable {
     private let lock = NSLock()
 
     private var _cachedIsEditable: Bool = false
+    private var _cachedFocusedElementUnavailable: Bool = false
     private var _cachedSelectedText: String?
     private var _cachedAppName: String?
     private var _cachedBundleID: String?
@@ -34,6 +35,7 @@ final class EditModeCacheService: @unchecked Sendable {
     private var _cachedWindowTitle: String?
 
     var cachedIsEditable: Bool { lock.withLock { _cachedIsEditable } }
+    var cachedFocusedElementUnavailable: Bool { lock.withLock { _cachedFocusedElementUnavailable } }
     var cachedSelectedText: String? { lock.withLock { _cachedSelectedText } }
     var cachedAppName: String? { lock.withLock { _cachedAppName } }
     var cachedBundleID: String? { lock.withLock { _cachedBundleID } }
@@ -87,6 +89,7 @@ final class EditModeCacheService: @unchecked Sendable {
     func invalidate() {
         lock.withLock {
             _cachedIsEditable = false
+            _cachedFocusedElementUnavailable = false
             _cachedSelectedText = nil
             _cachedAppName = nil
             _cachedBundleID = nil
@@ -122,8 +125,31 @@ final class EditModeCacheService: @unchecked Sendable {
         // Step 2: AX queries with 800ms timeout
         let axResult: AXPollResult? = await withTaskGroup(of: AXPollResult?.self) { group in
             group.addTask {
-                // Actual AX work
-                let isEditable = SelectedTextService.isEditableTextFocused(for: pid)
+                // Actual AX work — inline focused element check to distinguish
+                // "element unavailable" (e.g. Claude desktop) from "not editable"
+                let axApp = AXUIElementCreateApplication(pid)
+
+                var isEditable = false
+                var focusedElementUnavailable = false
+
+                var focusedElementObj: AnyObject?
+                let focusedResult = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedElementObj)
+
+                if focusedResult == .success {
+                    let element = focusedElementObj as! AXUIElement
+                    var roleValue: AnyObject?
+                    if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+                       let role = roleValue as? String {
+                        let editableRoles: Set<String> = [
+                            kAXTextFieldRole as String,
+                            kAXTextAreaRole as String,
+                            kAXComboBoxRole as String,
+                        ]
+                        isEditable = editableRoles.contains(role)
+                    }
+                } else {
+                    focusedElementUnavailable = true
+                }
 
                 var selectedText: String?
                 if isEditable {
@@ -135,7 +161,6 @@ final class EditModeCacheService: @unchecked Sendable {
 
                 // Window title via AX
                 var windowTitle: String?
-                let axApp = AXUIElementCreateApplication(pid)
                 var focusedWindow: AnyObject?
                 if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
                     var titleValue: AnyObject?
@@ -146,6 +171,7 @@ final class EditModeCacheService: @unchecked Sendable {
 
                 return AXPollResult(
                     isEditable: isEditable,
+                    focusedElementUnavailable: focusedElementUnavailable,
                     selectedText: selectedText,
                     windowTitle: windowTitle
                 )
@@ -172,11 +198,13 @@ final class EditModeCacheService: @unchecked Sendable {
         lock.withLock {
             if let result = axResult {
                 _cachedIsEditable = result.isEditable
+                _cachedFocusedElementUnavailable = result.focusedElementUnavailable
                 _cachedSelectedText = result.selectedText
                 _cachedWindowTitle = result.windowTitle
             } else {
                 // Timeout — keep basic info, mark not editable (conservative)
                 _cachedIsEditable = false
+                _cachedFocusedElementUnavailable = false
                 _cachedSelectedText = nil
                 _cachedWindowTitle = nil
             }
@@ -190,6 +218,7 @@ final class EditModeCacheService: @unchecked Sendable {
 /// Internal result type for a single AX poll cycle.
 private struct AXPollResult {
     let isEditable: Bool
+    let focusedElementUnavailable: Bool
     let selectedText: String?
     let windowTitle: String?
 }

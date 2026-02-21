@@ -60,6 +60,15 @@ extension WhisperState {
             if cache.cachedIsEditable, let selectedText = cache.cachedSelectedText, !selectedText.isEmpty {
                 self.isEditMode = true
                 self.editModeSelectedText = selectedText
+            } else if cache.cachedFocusedElementUnavailable {
+                // AX focused element unavailable (e.g. Claude desktop Electron) — try menuAction fallback (~50ms)
+                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                    self.isEditMode = true
+                    self.editModeSelectedText = selectedText
+                } else {
+                    self.isEditMode = false
+                    self.editModeSelectedText = nil
+                }
             } else {
                 self.isEditMode = false
                 self.editModeSelectedText = nil
