@@ -3,6 +3,7 @@ import SwiftUI
 struct AudioInputSettingsView: View {
     @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("voiceProcessingEnabled") private var voiceProcessingEnabled = true
     
     var body: some View {
         ScrollView {
@@ -26,9 +27,35 @@ struct AudioInputSettingsView: View {
             case .prioritized:
                 prioritizedDevicesSection
             }
+
+            voiceProcessingSection
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 40)
+    }
+
+    private var voiceProcessingSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Voice Processing")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: $voiceProcessingEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Enable Voice Processing")
+                            .font(.body)
+                        Text("Activates beamforming, noise suppression, echo cancellation, and auto gain control. Recommended for built-in microphones. Takes effect on next recording.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+            }
+            .padding()
+            .background(CardBackground(isSelected: false))
+        }
     }
     
     private var heroSection: some View {

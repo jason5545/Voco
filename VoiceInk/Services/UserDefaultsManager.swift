@@ -6,6 +6,7 @@ extension UserDefaults {
         static let selectedAudioDeviceUID = "selectedAudioDeviceUID"
         static let prioritizedDevices = "prioritizedDevices"
         static let affiliatePromotionDismissed = "VoiceInkAffiliatePromotionDismissed"
+        static let voiceProcessingEnabled = "voiceProcessingEnabled"
     }
 
     // MARK: - Audio Input Mode
@@ -30,5 +31,11 @@ extension UserDefaults {
     var affiliatePromotionDismissed: Bool {
         get { bool(forKey: Keys.affiliatePromotionDismissed) }
         set { setValue(newValue, forKey: Keys.affiliatePromotionDismissed) }
+    }
+
+    // MARK: - Voice Processing
+    var voiceProcessingEnabled: Bool {
+        get { bool(forKey: Keys.voiceProcessingEnabled) }
+        set { setValue(newValue, forKey: Keys.voiceProcessingEnabled) }
     }
 }

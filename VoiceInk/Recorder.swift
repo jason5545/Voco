@@ -5,7 +5,7 @@ import os
 
 @MainActor
 class Recorder: NSObject, ObservableObject {
-    private var recorder: CoreAudioRecorder?
+    private var recorder: (any RecorderEngine)?
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Recorder")
     private let deviceManager = AudioDeviceManager.shared
     private var deviceSwitchObserver: NSObjectProtocol?
@@ -110,12 +110,17 @@ class Recorder: NSObject, ObservableObject {
         let deviceID = deviceManager.getCurrentDevice()
 
         do {
-            let coreAudioRecorder = CoreAudioRecorder()
-            coreAudioRecorder.onAudioChunk = onAudioChunk
-            recorder = coreAudioRecorder
+            let vpEnabled = UserDefaults.standard.voiceProcessingEnabled
+            let newRecorder = AVAudioEngineRecorder(voiceProcessingEnabled: vpEnabled)
+            newRecorder.onAudioChunk = onAudioChunk
+            recorder = newRecorder
 
-            try coreAudioRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
-            logger.notice("startRecording: CoreAudioRecorder started successfully")
+            // Run engine initialization off main thread to avoid blocking UI
+            // (VP setup can take ~700ms)
+            try await Task.detached {
+                try newRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+            }.value
+            logger.notice("startRecording: AVAudioEngineRecorder started successfully (VP=\(vpEnabled))")
 
             audioRestorationTask?.cancel()
             audioRestorationTask = nil
