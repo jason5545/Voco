@@ -24,6 +24,7 @@ class ChinesePostProcessingService: ObservableObject {
 
     let openCCConverter = OpenCCConverter.shared
     let pinyinCorrector = PinyinCorrector.shared
+    let homophoneEngine = HomophoneCorrectionEngine.shared
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
     let contextMemory = TranscriptionContextMemory()
@@ -47,6 +48,10 @@ class ChinesePostProcessingService: ObservableObject {
 
     @Published var isPinyinCorrectionEnabled: Bool {
         didSet { UserDefaults.standard.set(isPinyinCorrectionEnabled, forKey: "ChinesePostProcessingPinyin") }
+    }
+
+    @Published var isDataDrivenCorrectionEnabled: Bool {
+        didSet { UserDefaults.standard.set(isDataDrivenCorrectionEnabled, forKey: "ChinesePostProcessingDataDriven") }
     }
 
     @Published var isSpokenPunctuationEnabled: Bool {
@@ -88,6 +93,7 @@ class ChinesePostProcessingService: ObservableObject {
         self.isEnabled = UserDefaults.standard.bool(forKey: "ChinesePostProcessingEnabled")
         self.isOpenCCEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingOpenCC") as? Bool ?? true
         self.isPinyinCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPinyin") as? Bool ?? true
+        self.isDataDrivenCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingDataDriven") as? Bool ?? true
         self.isSpokenPunctuationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSpokenPunctuation") as? Bool ?? true
         self.isHalfWidthConversionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingHalfWidth") as? Bool ?? true
         self.isRepetitionDetectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingRepetition") as? Bool ?? true
@@ -125,8 +131,9 @@ class ChinesePostProcessingService: ObservableObject {
             }
         }
 
-        // Step 3: Pinyin correction (context-aware)
+        // Step 3: Pinyin correction (rule-based + data-driven)
         if isPinyinCorrectionEnabled {
+            // Layer 1: Rule-based (hand-curated, highest priority)
             let editCache = EditModeCacheService.shared
             let correctionContext = CorrectionContext(
                 recentTranscriptions: contextMemory.getRecent(count: 5),
@@ -141,6 +148,18 @@ class ChinesePostProcessingService: ObservableObject {
                     logger.debug("Pinyin \(tier): \(c.original) → \(c.corrected)")
                 }
                 result = correctionResult.text
+            }
+
+            // Layer 2: Data-driven homophone correction (automatic, catches remaining errors)
+            if isDataDrivenCorrectionEnabled, PinyinDatabase.shared.isLoaded {
+                let engineResult = homophoneEngine.correct(result)
+                if !engineResult.corrections.isEmpty {
+                    steps.append("HomophoneCorrection")
+                    for c in engineResult.corrections {
+                        logger.debug("Pinyin [data]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
+                    }
+                    result = engineResult.text
+                }
             }
         }
 

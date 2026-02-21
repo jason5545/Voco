@@ -21,6 +21,16 @@ struct ChinesePostProcessingSettingsView: View {
 
                 Toggle("Pinyin Correction", isOn: $service.isPinyinCorrectionEnabled)
 
+                if service.isPinyinCorrectionEnabled {
+                    Toggle(isOn: $service.isDataDrivenCorrectionEnabled) {
+                        HStack(spacing: 4) {
+                            Text("Data-Driven Homophone Correction")
+                            InfoTip("Automatically detect and fix same-sound character errors using pinyin lookup and word frequency scoring. Supplements the hand-curated rules.")
+                        }
+                    }
+                    .padding(.leading, 20)
+                }
+
                 Toggle("Spoken Punctuation Conversion", isOn: $service.isSpokenPunctuationEnabled)
 
                 Toggle("Half-Width → Full-Width Punctuation", isOn: $service.isHalfWidthConversionEnabled)
