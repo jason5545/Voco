@@ -3351,6 +3351,26 @@
         }
       }
     },
+    "Data-Driven Homophone Correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料驅動同音字糾錯"
+          }
+        }
+      }
+    },
+    "Automatically detect and fix same-sound character errors using pinyin lookup and word frequency scoring. Supplements the hand-curated rules.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用拼音查表與詞頻評分，自動偵測並修正同音字錯誤。作為手動規則的補充。"
+          }
+        }
+      }
+    },
     "Spoken Punctuation Conversion": {
       "localizations": {
         "zh-Hant": {
