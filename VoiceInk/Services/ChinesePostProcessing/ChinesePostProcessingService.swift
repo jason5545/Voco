@@ -125,15 +125,22 @@ class ChinesePostProcessingService: ObservableObject {
             }
         }
 
-        // Step 3: Pinyin correction
+        // Step 3: Pinyin correction (context-aware)
         if isPinyinCorrectionEnabled {
-            let (corrected, corrections) = pinyinCorrector.correct(result)
-            if !corrections.isEmpty {
+            let editCache = EditModeCacheService.shared
+            let correctionContext = CorrectionContext(
+                recentTranscriptions: contextMemory.getRecent(count: 5),
+                appName: editCache.cachedAppName,
+                windowTitle: editCache.cachedWindowTitle
+            )
+            let correctionResult = pinyinCorrector.correct(result, context: correctionContext)
+            if !correctionResult.corrections.isEmpty {
                 steps.append("PinyinCorrection")
-                for c in corrections {
-                    logger.debug("Pinyin: \(c.original) → \(c.corrected)")
+                for c in correctionResult.corrections {
+                    let tier = c.tier == .contextDependent ? "[ctx]" : "[always]"
+                    logger.debug("Pinyin \(tier): \(c.original) → \(c.corrected)")
                 }
-                result = corrected
+                result = correctionResult.text
             }
         }
 
