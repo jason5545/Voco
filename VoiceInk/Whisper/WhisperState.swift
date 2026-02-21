@@ -196,6 +196,9 @@ class WhisperState: NSObject, ObservableObject {
         loadAvailableModels()
         loadCurrentTranscriptionModel()
         refreshAllAvailableModels()
+
+        // Start background Edit Mode cache polling
+        EditModeCacheService.shared.startPolling()
     }
     
     private func createRecordingsDirectoryIfNeeded() {
@@ -326,7 +329,6 @@ class WhisperState: NSObject, ObservableObject {
                             // Capture frontmost app info NOW (before detached task, where frontmost = Voco)
                             let capturedFrontApp = NSWorkspace.shared.frontmostApplication
                             let capturedAppName = capturedFrontApp?.localizedName
-                            let capturedFrontPid = capturedFrontApp?.processIdentifier
 
                             let startupTaskID = UUID()
                             self.startupPreparationTaskID = startupTaskID
@@ -363,30 +365,12 @@ class WhisperState: NSObject, ObservableObject {
                                 if let enhancementService = await self.enhancementService {
                                     // Cache app context (app name + AX window title + selected text)
                                     // so getSystemMessage() doesn't need live AX queries later.
+                                    // Always read from EditModeCacheService — it's the sole AX query source.
+                                    let editCache = EditModeCacheService.shared
                                     await MainActor.run {
-                                        enhancementService.cachedAppName = capturedAppName
-                                    }
-
-                                    // AX queries for window title and selected text (potentially slow on Chrome/Electron)
-                                    if let pid = capturedFrontPid, AXIsProcessTrusted() {
-                                        let axApp = AXUIElementCreateApplication(pid)
-                                        var focusedWindow: AnyObject?
-                                        if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
-                                            var titleValue: AnyObject?
-                                            if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
-                                                let title = titleValue as? String
-                                                await MainActor.run {
-                                                    enhancementService.cachedWindowTitle = title
-                                                }
-                                            }
-                                        }
-
-                                        guard !Task.isCancelled else { return }
-
-                                        let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
-                                        await MainActor.run {
-                                            enhancementService.cachedSelectedText = selectedText
-                                        }
+                                        enhancementService.cachedAppName = editCache.cachedAppName ?? capturedAppName
+                                        enhancementService.cachedWindowTitle = editCache.cachedWindowTitle
+                                        enhancementService.cachedSelectedText = editCache.cachedSelectedText
                                     }
 
                                     guard !Task.isCancelled else { return }

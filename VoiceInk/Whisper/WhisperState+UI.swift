@@ -5,20 +5,6 @@ import os
 // MARK: - UI Management Extension
 extension WhisperState {
 
-    /// Terminal app bundle IDs where Edit Mode should be skipped
-    /// (selecting text + voice instruction → LLM edit → paste back is unreliable and risky in terminals)
-    private static let terminalBundleIDs: Set<String> = [
-        "com.apple.Terminal",
-        "com.googlecode.iterm2",
-        "net.kovidgoyal.kitty",
-        "com.mitchellh.ghostty",
-        "io.alacritty",
-        "dev.warp.Warp-Stable",
-        "com.github.wez.wezterm",
-        "co.zeit.hyper",
-        "org.tabby",
-    ]
-
     // MARK: - Recorder Panel Management
     
     func showRecorderPanel() {
@@ -61,78 +47,27 @@ extension WhisperState {
         } else {
             SoundManager.shared.playStartSound()
 
+            // Stop background polling — not needed while recording
+            EditModeCacheService.shared.stopPolling()
+
             // Show the recorder window immediately — before any async work
             await MainActor.run {
                 isMiniRecorderVisible = true // This will call showRecorderPanel() via didSet
             }
 
-            // Capture frontmost app info synchronously (fast, no AX)
-            let frontApp = NSWorkspace.shared.frontmostApplication
-            let frontBundleID = frontApp?.bundleIdentifier
-            let isTerminal = frontBundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
-            let axTrusted = AXIsProcessTrusted()
-            let frontPid = frontApp?.processIdentifier
+            // Edit Mode: always read from cache (event-driven invalidation ensures safe defaults)
+            let cache = EditModeCacheService.shared
+            if cache.cachedIsEditable, let selectedText = cache.cachedSelectedText, !selectedText.isEmpty {
+                self.isEditMode = true
+                self.editModeSelectedText = selectedText
+            } else {
+                self.isEditMode = false
+                self.editModeSelectedText = nil
+            }
+            logger.notice("Edit mode from cache: isEdit=\(self.isEditMode), hasText=\(self.editModeSelectedText != nil)")
 
             // Start recording IMMEDIATELY — zero delay
             await toggleRecord(powerModeId: powerModeId)
-
-            // Edit Mode detection runs in parallel — does NOT block recording
-            // AX queries on Chrome/Electron can take 100-2000ms each; we cap at 500ms.
-            cancelEditModeDetectionTask()
-            editModeDetectionTask = Task { [weak self] in
-                guard let self = self else { return }
-
-                guard axTrusted, !isTerminal, let pid = frontPid else {
-                    await MainActor.run {
-                        self.isEditMode = false
-                        self.editModeSelectedText = nil
-                    }
-                    return
-                }
-
-                // Race AX detection against a 500ms timeout
-                let result: (isEdit: Bool, selectedText: String?)? = await withTaskGroup(of: (Bool, String?)?.self) { group in
-                    group.addTask {
-                        // AX queries (potentially slow on Chrome/Electron)
-                        guard SelectedTextService.isEditableTextFocused(for: pid) else {
-                            return (false, nil)
-                        }
-                        let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
-                        if let selectedText, !selectedText.isEmpty {
-                            return (true, selectedText)
-                        }
-                        return (false, nil)
-                    }
-                    group.addTask {
-                        // Timeout sentinel
-                        try? await Task.sleep(for: .milliseconds(500))
-                        return nil // nil signals timeout
-                    }
-
-                    // First non-nil result wins; nil = timeout
-                    for await value in group {
-                        if let v = value {
-                            group.cancelAll()
-                            return v
-                        }
-                    }
-                    group.cancelAll()
-                    return nil // timeout
-                }
-
-                guard !Task.isCancelled else { return }
-
-                await MainActor.run {
-                    guard self.recordingState == .recording else { return }
-                    if let result, result.isEdit {
-                        self.isEditMode = true
-                        self.editModeSelectedText = result.selectedText
-                    } else {
-                        self.isEditMode = false
-                        self.editModeSelectedText = nil
-                    }
-                }
-            }
         }
     }
     
@@ -188,6 +123,10 @@ extension WhisperState {
         await MainActor.run {
             recordingState = .idle
         }
+
+        // Resume background polling after recording ends
+        EditModeCacheService.shared.startPolling()
+
         logger.notice("dismissMiniRecorder completed")
     }
 
@@ -207,8 +146,11 @@ extension WhisperState {
             recordingState = .idle
         }
         await cleanupModelResources()
+
+        // Resume background polling after reset
+        EditModeCacheService.shared.startPolling()
     }
-    
+
     func cancelRecording() async {
         logger.notice("cancelRecording called")
         SoundManager.shared.playEscSound()
