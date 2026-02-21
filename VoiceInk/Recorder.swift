@@ -5,7 +5,7 @@ import os
 
 @MainActor
 class Recorder: NSObject, ObservableObject {
-    private var recorder: (any RecorderEngine)?
+    private var recorder: AVAudioEngineRecorder?
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Recorder")
     private let deviceManager = AudioDeviceManager.shared
     private var deviceSwitchObserver: NSObjectProtocol?
@@ -23,18 +23,64 @@ class Recorder: NSObject, ObservableObject {
     private var smoothedPeak: Float = 0
 
     /// Audio chunk callback for streaming. Can be updated while recording;
-    /// changes are forwarded to the live CoreAudioRecorder.
+    /// changes are forwarded to the live recorder.
     var onAudioChunk: ((_ data: Data) -> Void)? {
         didSet { recorder?.onAudioChunk = onAudioChunk }
     }
-    
+
     enum RecorderError: Error {
         case couldNotStartRecording
     }
-    
+
     override init() {
         super.init()
         setupDeviceSwitchObserver()
+        warmUpEngine()
+    }
+
+    /// Pre-warms the AVAudioEngine + VP on a background thread so the first
+    /// recording starts instantly.
+    private func warmUpEngine() {
+        let vpEnabled = UserDefaults.standard.voiceProcessingEnabled
+        let newRecorder = AVAudioEngineRecorder(voiceProcessingEnabled: vpEnabled)
+        recorder = newRecorder
+
+        let deviceID = deviceManager.getCurrentDevice()
+        if deviceID == 0 {
+            logger.notice("🔥 Warm-up skipped: no device yet, will retry when device becomes available")
+            setupDeviceReadyObserver(for: newRecorder)
+            return
+        }
+
+        logger.notice("🔥 Warm-up starting for device \(deviceID)")
+        Task.detached { [weak self] in
+            do {
+                try newRecorder.prepareEngine(deviceID: deviceID)
+            } catch {
+                let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Recorder")
+                logger.warning("Engine warm-up failed (will retry on record): \(error.localizedDescription)")
+                await MainActor.run { self?.recorder = nil }
+            }
+        }
+    }
+
+    /// Watches for the first time a valid device becomes available and triggers warm-up.
+    private func setupDeviceReadyObserver(for pendingRecorder: AVAudioEngineRecorder) {
+        // Poll briefly — device is usually available within a few hundred ms
+        Task {
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                let deviceID = deviceManager.getCurrentDevice()
+                if deviceID != 0 {
+                    logger.notice("🔥 Device now available (\(deviceID)), starting deferred warm-up")
+                    Task.detached {
+                        try? pendingRecorder.prepareEngine(deviceID: deviceID)
+                    }
+                    return
+                }
+            }
+            logger.notice("🔥 Deferred warm-up gave up after 2s — will prepare on first record")
+        }
     }
 
     private func setupDeviceSwitchObserver() {
@@ -89,10 +135,10 @@ class Recorder: NSObject, ObservableObject {
     func startRecording(toOutputFile url: URL) async throws {
         logger.notice("startRecording called – deviceID=\(self.deviceManager.getCurrentDevice()), file=\(url.lastPathComponent)")
         deviceManager.isRecordingActive = true
-        
+
         let currentDeviceID = deviceManager.getCurrentDevice()
         let lastDeviceID = UserDefaults.standard.string(forKey: "lastUsedMicrophoneDeviceID")
-        
+
         if String(currentDeviceID) != lastDeviceID {
             if let deviceName = deviceManager.availableDevices.first(where: { $0.id == currentDeviceID })?.name {
                 await MainActor.run {
@@ -104,21 +150,30 @@ class Recorder: NSObject, ObservableObject {
             }
         }
         UserDefaults.standard.set(String(currentDeviceID), forKey: "lastUsedMicrophoneDeviceID")
-        
+
         hasDetectedAudioInCurrentSession = false
 
         let deviceID = deviceManager.getCurrentDevice()
 
         do {
             let vpEnabled = UserDefaults.standard.voiceProcessingEnabled
-            let newRecorder = AVAudioEngineRecorder(voiceProcessingEnabled: vpEnabled)
-            newRecorder.onAudioChunk = onAudioChunk
-            recorder = newRecorder
 
-            // Run engine initialization off main thread to avoid blocking UI
-            // (VP setup can take ~700ms)
+            // Reuse existing recorder if VP setting matches, otherwise recreate
+            if let existing = recorder, existing.voiceProcessingEnabled == vpEnabled {
+                existing.onAudioChunk = onAudioChunk
+            } else {
+                recorder?.shutdown()
+                let newRecorder = AVAudioEngineRecorder(voiceProcessingEnabled: vpEnabled)
+                newRecorder.onAudioChunk = onAudioChunk
+                recorder = newRecorder
+            }
+
+            let activeRecorder = recorder!
+
+            // startRecording internally calls prepareEngine if needed (cold start).
+            // If engine is already warm, this is near-instant (just install tap + open file).
             try await Task.detached {
-                try newRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+                try activeRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
             }.value
             logger.notice("startRecording: AVAudioEngineRecorder started successfully (VP=\(vpEnabled))")
 
@@ -170,7 +225,7 @@ class Recorder: NSObject, ObservableObject {
         audioMeterUpdateTimer?.cancel()
         audioMeterUpdateTimer = nil
         recorder?.stopRecording()
-        recorder = nil
+        // Keep recorder alive — engine stays warm for next recording
         onAudioChunk = nil
 
         smoothedValuesLock.lock()
@@ -204,7 +259,7 @@ class Recorder: NSObject, ObservableObject {
 
     private func startAudioMeterTimer() {
         let timer = DispatchSource.makeTimerSource(queue: audioMeterQueue)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(17)) 
+        timer.schedule(deadline: .now(), repeating: .milliseconds(17))
         timer.setEventHandler { [weak self] in
             self?.updateAudioMeter()
         }
@@ -257,13 +312,14 @@ class Recorder: NSObject, ObservableObject {
             self.audioMeter = newAudioMeter
         }
     }
-    
+
     // MARK: - Cleanup
 
     deinit {
         audioLevelCheckTask?.cancel()
         audioMeterUpdateTimer?.cancel()
         audioRestorationTask?.cancel()
+        recorder?.shutdown()
         if let observer = deviceSwitchObserver {
             NotificationCenter.default.removeObserver(observer)
         }

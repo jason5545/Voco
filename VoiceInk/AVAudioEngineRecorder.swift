@@ -20,6 +20,16 @@ final class AVAudioEngineRecorder: RecorderEngine {
     private var currentDeviceID: AudioDeviceID = 0
     private var recordingURL: URL?
 
+    // Engine warm-up state
+    private var enginePrepared = false
+    private var preparedDeviceID: AudioDeviceID = 0
+    private var preparedVP: Bool = false
+    private var vpActuallyEnabled: Bool = false
+
+    // Cached tap format and node (set during prepareEngine, reused in startRecording)
+    private var cachedTapFormat: AVAudioFormat?
+    private var cachedTapNode: AVAudioNode?
+
     // Output format (16kHz mono PCM Int16 for transcription)
     private var outputFormat = AudioStreamBasicDescription(
         mSampleRate: 16000.0,
@@ -58,7 +68,7 @@ final class AVAudioEngineRecorder: RecorderEngine {
     var onAudioChunk: ((_ data: Data) -> Void)?
 
     /// Whether Voice Processing is enabled for this recorder instance.
-    private var voiceProcessingEnabled: Bool
+    private(set) var voiceProcessingEnabled: Bool
 
     // MARK: - Initialization
 
@@ -67,7 +77,7 @@ final class AVAudioEngineRecorder: RecorderEngine {
     }
 
     deinit {
-        stopRecording()
+        shutdown()
     }
 
     // MARK: - Public Interface
@@ -76,9 +86,89 @@ final class AVAudioEngineRecorder: RecorderEngine {
     var currentRecordingURL: URL? { recordingURL }
     var currentDevice: AudioDeviceID { currentDeviceID }
 
+    /// Pre-warms the engine + VP pipeline for the given device.
+    /// After this call, `startRecording` is near-instant.
+    func prepareEngine(deviceID: AudioDeviceID) throws {
+        // Already prepared for same config → skip
+        if enginePrepared, preparedDeviceID == deviceID, preparedVP == voiceProcessingEnabled {
+            logger.notice("🎙️ Engine already warm for device \(deviceID), VP=\(self.voiceProcessingEnabled)")
+            return
+        }
+
+        // Tear down old engine if config changed
+        if engine != nil {
+            teardownEngine()
+        }
+
+        logger.notice("🎙️ Preparing AVAudioEngine for device \(deviceID), VP=\(self.voiceProcessingEnabled)")
+        logDeviceDetails(deviceID: deviceID)
+
+        // Create engine
+        let newEngine = AVAudioEngine()
+        engine = newEngine
+
+        // Set the input device
+        let inputNode = newEngine.inputNode
+        try setDevice(deviceID, on: inputNode)
+
+        // Enable/disable Voice Processing (this is the ~700ms part)
+        vpActuallyEnabled = enableVoiceProcessingIfRequested(on: inputNode)
+
+        // Determine tap format and node
+        let hwFormat = inputNode.outputFormat(forBus: 0)
+        logger.notice("🎙️ InputNode output format: sampleRate=\(hwFormat.sampleRate), channels=\(hwFormat.channelCount)")
+
+        if !vpActuallyEnabled && hwFormat.channelCount > 1 {
+            let mixer = AVAudioMixerNode()
+            newEngine.attach(mixer)
+            newEngine.connect(inputNode, to: mixer, format: hwFormat)
+            mixerNode = mixer
+
+            guard let monoFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: hwFormat.sampleRate,
+                channels: 1,
+                interleaved: false
+            ) else {
+                throw AVAudioEngineRecorderError.failedToInstallTap
+            }
+            newEngine.connect(mixer, to: newEngine.mainMixerNode, format: monoFormat)
+            cachedTapFormat = monoFormat
+            cachedTapNode = mixer
+        } else {
+            cachedTapFormat = hwFormat
+            cachedTapNode = inputNode
+        }
+
+        // Pre-allocate conversion buffer
+        let bufferFrames = 4096
+        if conversionBuffer == nil || conversionBufferSize < bufferFrames {
+            conversionBuffer?.deallocate()
+            conversionBuffer = UnsafeMutablePointer<Int16>.allocate(capacity: bufferFrames)
+            conversionBufferSize = bufferFrames
+        }
+
+        // Start the engine (audio flows but no tap installed yet → data is discarded)
+        newEngine.prepare()
+        do {
+            try newEngine.start()
+        } catch {
+            logger.error("Failed to start AVAudioEngine during prepare: \(error.localizedDescription)")
+            teardownEngine()
+            throw AVAudioEngineRecorderError.failedToStart(underlying: error)
+        }
+
+        preparedDeviceID = deviceID
+        preparedVP = voiceProcessingEnabled
+        enginePrepared = true
+        logger.notice("🎙️ Engine warm and ready")
+    }
+
     func startRecording(toOutputFile url: URL, deviceID: AudioDeviceID) throws {
-        // Stop any existing recording
-        stopRecording()
+        // Stop any existing recording (but keep engine)
+        if isRecording {
+            stopRecording()
+        }
 
         if deviceID == 0 {
             logger.error("Cannot start recording - no valid audio device (deviceID is 0)")
@@ -90,94 +180,40 @@ final class AVAudioEngineRecorder: RecorderEngine {
             throw AVAudioEngineRecorderError.deviceNotAvailable
         }
 
+        // Prepare engine if not already warm for this device+VP config
+        if !enginePrepared || preparedDeviceID != deviceID || preparedVP != voiceProcessingEnabled {
+            try prepareEngine(deviceID: deviceID)
+        }
+
         currentDeviceID = deviceID
         recordingURL = url
 
-        logger.notice("🎙️ Starting AVAudioEngine recording from device \(deviceID), VP=\(self.voiceProcessingEnabled)")
-        logDeviceDetails(deviceID: deviceID)
-
-        // Step 1: Create engine
-        let newEngine = AVAudioEngine()
-        engine = newEngine
-
-        // Step 2: Set the input device on the engine's inputNode via AudioUnit property
-        let inputNode = newEngine.inputNode
-        try setDevice(deviceID, on: inputNode)
-
-        // Step 3: Enable/disable Voice Processing
-        let vpActuallyEnabled = enableVoiceProcessingIfRequested(on: inputNode)
-
-        // Step 4: Determine tap format
-        // IMPORTANT: installTap format MUST match the inputNode's outputFormat.
-        // Requesting a different format (e.g. 16kHz mono) causes AVAudioEngine
-        // initialization to fail with -10875 when VP is enabled.
-        // We handle sample rate conversion and channel mixing in handleTapBuffer().
-        let hwFormat = inputNode.outputFormat(forBus: 0)
-        logger.notice("🎙️ InputNode output format: sampleRate=\(hwFormat.sampleRate), channels=\(hwFormat.channelCount)")
-
-        let tapFormat: AVAudioFormat
-        let nodeToTap: AVAudioNode
-
-        if !vpActuallyEnabled && hwFormat.channelCount > 1 {
-            // Multi-channel without VP → attach a mixer to downmix to mono
-            let mixer = AVAudioMixerNode()
-            newEngine.attach(mixer)
-            newEngine.connect(inputNode, to: mixer, format: hwFormat)
-            mixerNode = mixer
-
-            // Mixer output will be mono at the same sample rate
-            guard let monoFormat = AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: hwFormat.sampleRate,
-                channels: 1,
-                interleaved: false
-            ) else {
-                throw AVAudioEngineRecorderError.failedToInstallTap
-            }
-            newEngine.connect(mixer, to: newEngine.mainMixerNode, format: monoFormat)
-            tapFormat = monoFormat
-            nodeToTap = mixer
-        } else {
-            // VP enabled or single-channel device → tap inputNode with its native format
-            tapFormat = hwFormat
-            nodeToTap = inputNode
+        guard let tapFormat = cachedTapFormat, let nodeToTap = cachedTapNode else {
+            throw AVAudioEngineRecorderError.failedToInstallTap
         }
 
-        // Step 5: Create output file
+        logger.notice("🎙️ Starting recording to file (engine already warm)")
+
+        // Create output file
         try createOutputFile(at: url)
 
-        // Step 6: Pre-allocate conversion buffer
-        let bufferFrames = 4096
-        if conversionBuffer == nil || conversionBufferSize < bufferFrames {
-            conversionBuffer?.deallocate()
-            conversionBuffer = UnsafeMutablePointer<Int16>.allocate(capacity: bufferFrames)
-            conversionBufferSize = bufferFrames
-        }
-
-        // Step 7: Install tap
+        // Install tap
         nodeToTap.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] buffer, _ in
             self?.handleTapBuffer(buffer)
         }
 
-        // Step 8: Start engine
-        newEngine.prepare()
-        do {
-            try newEngine.start()
-        } catch {
-            logger.error("Failed to start AVAudioEngine: \(error.localizedDescription)")
-            cleanupEngine()
-            throw AVAudioEngineRecorderError.failedToStart(underlying: error)
-        }
-
         isRecording = true
-        logger.notice("🎙️ AVAudioEngine recording started successfully")
+        logger.notice("🎙️ Recording started")
     }
 
     func stopRecording() {
-        guard isRecording || engine != nil else { return }
-        logger.notice("stopRecording: stopping AVAudioEngine recorder")
+        guard isRecording else { return }
+        logger.notice("stopRecording: removing tap, closing file (engine stays warm)")
 
-        cleanupEngine()
+        // Remove tap but keep engine running
+        if let nodeToTap = cachedTapNode {
+            nodeToTap.removeTap(onBus: 0)
+        }
 
         // Close audio file
         if let file = audioFile {
@@ -185,15 +221,7 @@ final class AVAudioEngineRecorder: RecorderEngine {
             audioFile = nil
         }
 
-        // Free conversion buffer
-        if let buffer = conversionBuffer {
-            buffer.deallocate()
-            conversionBuffer = nil
-            conversionBufferSize = 0
-        }
-
         isRecording = false
-        currentDeviceID = 0
         recordingURL = nil
 
         // Reset meters
@@ -201,6 +229,22 @@ final class AVAudioEngineRecorder: RecorderEngine {
         _averagePower = -160.0
         _peakPower = -160.0
         meterLock.unlock()
+    }
+
+    /// Full teardown — stops engine, frees all resources.
+    func shutdown() {
+        if isRecording {
+            stopRecording()
+        }
+        teardownEngine()
+
+        if let buffer = conversionBuffer {
+            buffer.deallocate()
+            conversionBuffer = nil
+            conversionBufferSize = 0
+        }
+
+        currentDeviceID = 0
     }
 
     func switchDevice(to newDeviceID: AudioDeviceID) throws {
@@ -215,10 +259,8 @@ final class AVAudioEngineRecorder: RecorderEngine {
 
         // Remove tap and stop engine (keep file open)
         let inputNode = currentEngine.inputNode
-        if let mixer = mixerNode {
-            mixer.removeTap(onBus: 0)
-        } else {
-            inputNode.removeTap(onBus: 0)
+        if let nodeToTap = cachedTapNode {
+            nodeToTap.removeTap(onBus: 0)
         }
 
         currentEngine.stop()
@@ -233,7 +275,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
         do {
             try setDevice(newDeviceID, on: inputNode)
         } catch {
-            // Try to recover with old device
             logger.error("Failed to set new device, attempting recovery with old device...")
             do {
                 try setDevice(oldDeviceID, on: inputNode)
@@ -247,7 +288,7 @@ final class AVAudioEngineRecorder: RecorderEngine {
         currentDeviceID = newDeviceID
 
         // Re-enable VP if needed
-        let vpActuallyEnabled = enableVoiceProcessingIfRequested(on: inputNode)
+        vpActuallyEnabled = enableVoiceProcessingIfRequested(on: inputNode)
 
         // Reinstall tap with appropriate format
         let hwFormat = inputNode.outputFormat(forBus: 0)
@@ -274,10 +315,14 @@ final class AVAudioEngineRecorder: RecorderEngine {
             tapFormat = monoFormat
             nodeToTap = mixer
         } else {
-            // Use native format — conversion done in handleTapBuffer
             tapFormat = hwFormat
             nodeToTap = inputNode
         }
+
+        // Update cached state
+        cachedTapFormat = tapFormat
+        cachedTapNode = nodeToTap
+        preparedDeviceID = newDeviceID
 
         nodeToTap.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] buffer, _ in
             self?.handleTapBuffer(buffer)
@@ -287,7 +332,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
         do {
             try restartEngineWithTap(currentEngine)
         } catch {
-            // Try to recover with old device
             logger.error("Failed to restart with new device, recovering...")
             nodeToTap.removeTap(onBus: 0)
             if let mixer = mixerNode {
@@ -298,9 +342,12 @@ final class AVAudioEngineRecorder: RecorderEngine {
             do {
                 try setDevice(oldDeviceID, on: inputNode)
                 currentDeviceID = oldDeviceID
-                _ = enableVoiceProcessingIfRequested(on: inputNode)
+                preparedDeviceID = oldDeviceID
+                vpActuallyEnabled = enableVoiceProcessingIfRequested(on: inputNode)
 
                 let fallbackFormat = inputNode.outputFormat(forBus: 0)
+                cachedTapFormat = fallbackFormat
+                cachedTapNode = inputNode
                 inputNode.installTap(onBus: 0, bufferSize: 4096, format: fallbackFormat) { [weak self] buffer, _ in
                     self?.handleTapBuffer(buffer)
                 }
@@ -342,7 +389,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
     @discardableResult
     private func enableVoiceProcessingIfRequested(on inputNode: AVAudioInputNode) -> Bool {
         guard voiceProcessingEnabled else {
-            // Explicitly disable VP in case it was previously enabled
             do {
                 try inputNode.setVoiceProcessingEnabled(false)
             } catch {
@@ -357,7 +403,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
             return true
         } catch {
             logger.warning("⚠️ Voice Processing not available for this device, falling back to raw capture: \(error.localizedDescription)")
-            // Fallback: continue without VP
             return false
         }
     }
@@ -384,7 +429,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
 
         audioFile = fileRef
 
-        // Set client format to match what we write (Int16 mono 16kHz)
         let setStatus = ExtAudioFileSetProperty(
             fileRef!,
             kExtAudioFileProperty_ClientDataFormat,
@@ -403,20 +447,23 @@ final class AVAudioEngineRecorder: RecorderEngine {
         try engine.start()
     }
 
-    private func cleanupEngine() {
+    private func teardownEngine() {
         guard let currentEngine = engine else { return }
 
-        let inputNode = currentEngine.inputNode
+        if let nodeToTap = cachedTapNode {
+            nodeToTap.removeTap(onBus: 0)
+        }
+
         if let mixer = mixerNode {
-            mixer.removeTap(onBus: 0)
             currentEngine.detach(mixer)
             mixerNode = nil
-        } else {
-            inputNode.removeTap(onBus: 0)
         }
 
         currentEngine.stop()
         engine = nil
+        enginePrepared = false
+        cachedTapFormat = nil
+        cachedTapNode = nil
     }
 
     // MARK: - Tap Buffer Processing
@@ -430,13 +477,9 @@ final class AVAudioEngineRecorder: RecorderEngine {
         // Calculate meters from Float32 data
         calculateMeters(from: buffer)
 
-        // The tap may deliver audio at the hardware sample rate (when using mixer path)
-        // or at 16kHz (when tapping inputNode directly with VP).
-        // We need to produce 16kHz mono Int16 for the file and streaming callback.
         let tapSampleRate = buffer.format.sampleRate
         let tapChannels = Int(buffer.format.channelCount)
 
-        // Get Float32 samples
         guard let floatData = buffer.floatChannelData else { return }
 
         // Determine output frame count
@@ -464,8 +507,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
         guard let outBuf = conversionBuffer else { return }
 
         if !needsResample {
-            // Direct conversion: Float32 → Int16
-            // Non-interleaved: channel data in floatData[ch]
             if tapChannels == 1 {
                 let samples = floatData[0]
                 for i in 0..<frameCount {
@@ -474,7 +515,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
                     outBuf[i] = Int16(clipped)
                 }
             } else {
-                // Mix channels (shouldn't happen when VP is on, but handle gracefully)
                 for i in 0..<frameCount {
                     var sample: Float32 = 0
                     for ch in 0..<tapChannels {
@@ -487,7 +527,6 @@ final class AVAudioEngineRecorder: RecorderEngine {
                 }
             }
         } else {
-            // Resample using linear interpolation (same approach as CoreAudioRecorder)
             let ratio = 16000.0 / tapSampleRate
             if tapChannels == 1 {
                 let samples = floatData[0]
