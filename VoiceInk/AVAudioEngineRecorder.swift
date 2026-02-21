@@ -86,6 +86,13 @@ final class AVAudioEngineRecorder: RecorderEngine {
     var currentRecordingURL: URL? { recordingURL }
     var currentDevice: AudioDeviceID { currentDeviceID }
 
+    /// Whether the engine is already warm for the given device and current VP config.
+    /// When true, `startRecording` only needs file creation + tap install (~5ms),
+    /// safe to run on MainActor without `Task.detached` overhead.
+    func isEngineWarm(deviceID: AudioDeviceID) -> Bool {
+        return enginePrepared && preparedDeviceID == deviceID && preparedVP == voiceProcessingEnabled
+    }
+
     /// Pre-warms the engine + VP pipeline for the given device.
     /// After this call, `startRecording` is near-instant.
     func prepareEngine(deviceID: AudioDeviceID) throws {
@@ -148,20 +155,17 @@ final class AVAudioEngineRecorder: RecorderEngine {
             conversionBufferSize = bufferFrames
         }
 
-        // Start the engine (audio flows but no tap installed yet → data is discarded)
-        newEngine.prepare()
-        do {
-            try newEngine.start()
-        } catch {
-            logger.error("Failed to start AVAudioEngine during prepare: \(error.localizedDescription)")
-            teardownEngine()
-            throw AVAudioEngineRecorderError.failedToStart(underlying: error)
-        }
+        // Do NOT prepare() or start() the engine during warm-up.
+        // The expensive part (VP enable ~700ms) is already done above.
+        // Starting the engine — even briefly — activates VP's AEC which
+        // registers an audio session with coreaudiod that ducks system audio,
+        // and engine.stop() does not fully release this.
+        // The engine will be prepared+started on-demand in startRecording() (~5-10ms).
 
         preparedDeviceID = deviceID
         preparedVP = voiceProcessingEnabled
         enginePrepared = true
-        logger.notice("🎙️ Engine warm and ready")
+        logger.notice("🎙️ Engine configured (VP warm, engine deferred to recording start)")
     }
 
     func startRecording(toOutputFile url: URL, deviceID: AudioDeviceID) throws {
@@ -194,6 +198,12 @@ final class AVAudioEngineRecorder: RecorderEngine {
 
         logger.notice("🎙️ Starting recording to file (engine already warm)")
 
+        // Restart engine if stopped (it's stopped after warm-up to avoid VP audio ducking)
+        if let currentEngine = engine, !currentEngine.isRunning {
+            currentEngine.prepare()
+            try currentEngine.start()
+        }
+
         // Create output file
         try createOutputFile(at: url)
 
@@ -208,9 +218,9 @@ final class AVAudioEngineRecorder: RecorderEngine {
 
     func stopRecording() {
         guard isRecording else { return }
-        logger.notice("stopRecording: removing tap, closing file (engine stays warm)")
+        logger.notice("stopRecording: removing tap, closing file, cleaning up engine")
 
-        // Remove tap but keep engine running
+        // Remove tap
         if let nodeToTap = cachedTapNode {
             nodeToTap.removeTap(onBus: 0)
         }
@@ -229,6 +239,16 @@ final class AVAudioEngineRecorder: RecorderEngine {
         _averagePower = -160.0
         _peakPower = -160.0
         meterLock.unlock()
+
+        // When VP was active, full teardown is required.
+        // VP's AEC registers with coreaudiod and ducks system audio even after
+        // engine.stop(). Only destroying the engine fully releases the VP IO unit.
+        // When VP is not active, just stop the engine to keep it warm for quick restart.
+        if vpActuallyEnabled {
+            teardownEngine()
+        } else {
+            engine?.stop()
+        }
     }
 
     /// Full teardown — stops engine, frees all resources.

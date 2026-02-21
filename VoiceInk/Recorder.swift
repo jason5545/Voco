@@ -38,12 +38,22 @@ class Recorder: NSObject, ObservableObject {
         warmUpEngine()
     }
 
-    /// Pre-warms the AVAudioEngine + VP on a background thread so the first
+    /// Pre-warms the AVAudioEngine on a background thread so the first
     /// recording starts instantly.
+    ///
+    /// When Voice Processing is enabled, warm-up is skipped because enabling VP
+    /// registers an audio unit with coreaudiod that ducks system audio — even
+    /// without `engine.start()`. The engine will be prepared on-demand at the
+    /// first recording start (~700ms for VP initialisation).
     private func warmUpEngine() {
         let vpEnabled = UserDefaults.standard.voiceProcessingEnabled
         let newRecorder = AVAudioEngineRecorder(voiceProcessingEnabled: vpEnabled)
         recorder = newRecorder
+
+        if vpEnabled {
+            logger.notice("🔥 Warm-up skipped: VP causes audio ducking, will prepare on first record")
+            return
+        }
 
         let deviceID = deviceManager.getCurrentDevice()
         if deviceID == 0 {
@@ -170,11 +180,15 @@ class Recorder: NSObject, ObservableObject {
 
             let activeRecorder = recorder!
 
-            // startRecording internally calls prepareEngine if needed (cold start).
-            // If engine is already warm, this is near-instant (just install tap + open file).
-            try await Task.detached {
+            // Warm engine: run directly on MainActor (~5ms file creation + tap install).
+            // Cold engine: off MainActor via Task.detached (prepareEngine takes ~700ms).
+            if activeRecorder.isEngineWarm(deviceID: deviceID) {
                 try activeRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
-            }.value
+            } else {
+                try await Task.detached {
+                    try activeRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+                }.value
+            }
             logger.notice("startRecording: AVAudioEngineRecorder started successfully (VP=\(vpEnabled))")
 
             audioRestorationTask?.cancel()
