@@ -79,6 +79,7 @@ enum AIPrompts {
     - AI 工具：格雷特→Claude、克勞德→Claude、cloud→Claude（如 cloud.md→CLAUDE.md）、千萬→千問（Qwen 模型名稱）、熱蟲宅→熱重載、熱蟲仔→熱重載
     - 社群媒體：臉色→臉書（在聊天軟體中提到時）
     - 程式術語：AGK→edge case、編輯案例→edge case、編輯效應→edge case、Educate→edge case、Education→edge case（程式開發的邊緣案例）
+    - 日本動漫：人名、作品名、歌手名等常被誤識為無關的中文詞彙，請根據語境還原正確的日文漢字名稱
 
     使用者說話的情境通常是：與 AI 助理討論程式開發、語音辨識系統、技術問題。
     請根據上下文判斷最合理的詞彙。
