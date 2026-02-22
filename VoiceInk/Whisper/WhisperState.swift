@@ -276,6 +276,12 @@ class WhisperState: NSObject, ObservableObject {
             partialTranscript = ""
             requestRecordPermission { [self] granted in
                 if granted {
+                    // Set recording state IMMEDIATELY — before Task scheduling.
+                    // This eliminates the ~500ms visual delay: the window shows
+                    // AudioVisualizer on the very next render cycle (~16ms) instead
+                    // of waiting for Task scheduling + startRecording to complete.
+                    self.recordingState = .recording
+
                     Task {
                         do {
                             // --- Prepare permanent file URL ---
@@ -292,13 +298,9 @@ class WhisperState: NSObject, ObservableObject {
                                 pendingChunks.withLock { $0.append(data) }
                             }
 
-                            // Start recording immediately — no waiting for network
+                            // Start recording — engine is pre-warmed so this is near-instant
                             try await self.recorder.startRecording(toOutputFile: permanentURL)
-
-                            await MainActor.run {
-                                self.recordingState = .recording
-                            }
-                            self.logger.notice("toggleRecord: recording started successfully, state=recording")
+                            self.logger.notice("toggleRecord: recording started successfully")
 
                             // Power Mode resolves while recording runs (~50-200ms)
                             await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId)
