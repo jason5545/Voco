@@ -47,9 +47,6 @@ enum AppDefaults {
             // Model
             "PrewarmModelOnWake": true,
 
-            // Voice Processing
-            "voiceProcessingEnabled": true,
-
             // Chinese Post-Processing
             "ChinesePostProcessingEnabled": false,
             "ChinesePostProcessingOpenCC": true,

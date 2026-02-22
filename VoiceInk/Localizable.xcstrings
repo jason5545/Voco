@@ -81,36 +81,6 @@
         }
       }
     },
-    "Voice Processing": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "語音處理"
-          }
-        }
-      }
-    },
-    "Enable Voice Processing": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "啟用語音處理"
-          }
-        }
-      }
-    },
-    "Activates beamforming, noise suppression, echo cancellation, and auto gain control. Recommended for built-in microphones. Takes effect on next recording.": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "啟用波束成形、降噪、回音消除及自動增益控制。建議內建麥克風使用。下次錄音時生效。"
-          }
-        }
-      }
-    },
     "Dictionary": {
       "localizations": {
         "zh-Hant": {
