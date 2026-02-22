@@ -245,6 +245,11 @@ final class SyllableExpansionEngine {
             // Character offset
             let offset = text.distance(from: text.startIndex, to: range.lowerBound)
 
+            // Skip characters adjacent to non-CJK text (e.g. English words).
+            // Bigram with ASCII is always 0, causing false positives like 抵bug → 點擊bug.
+            if offset > 0 && !self.isCJKChar(textChars[offset - 1]) { return true }
+            if offset + 1 < textChars.count && !self.isCJKChar(textChars[offset + 1]) { return true }
+
             // Check left and right bigram frequencies — both must be low
             let leftFreq: Int
             if offset > 0 {
@@ -408,6 +413,11 @@ final class SyllableExpansionEngine {
     }
 
     // MARK: - Helpers
+
+    private func isCJKChar(_ char: Character) -> Bool {
+        let v = char.unicodeScalars.first!.value
+        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
+    }
 
     /// Find the range of `word` in `text`, preferring occurrence near `approximateOffset`.
     private func findRange(of word: String, in text: String, near offset: Int) -> Range<String.Index>? {
