@@ -41,49 +41,71 @@ struct ChinesePostProcessingSettingsView: View {
                     .padding(.vertical, 4)
 
                 // Advanced section
-                DisclosureGroup("Advanced", isExpanded: $isAdvancedExpanded) {
-                    Toggle(isOn: $service.isConfidenceRoutingEnabled) {
-                        HStack(spacing: 4) {
-                            Text("Confidence Routing")
-                            InfoTip("Skip AI Enhancement for high-confidence transcriptions. Uses log-prob for both Whisper and Qwen3, with text heuristic fallback for Qwen3.")
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("Advanced")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .rotationEffect(.degrees(isAdvancedExpanded ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isAdvancedExpanded.toggle()
                         }
                     }
 
-                    if service.isConfidenceRoutingEnabled {
-                        LabeledContent("Log-Prob Threshold") {
-                            HStack {
-                                Slider(value: $service.logProbThreshold, in: -1.0...0.0, step: 0.05)
-                                    .frame(width: 120)
-                                Text(String(format: "%.2f", service.logProbThreshold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 40)
+                    if isAdvancedExpanded {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle(isOn: $service.isConfidenceRoutingEnabled) {
+                                HStack(spacing: 4) {
+                                    Text("Confidence Routing")
+                                    InfoTip("Skip AI Enhancement for high-confidence transcriptions. Uses log-prob for both Whisper and Qwen3, with text heuristic fallback for Qwen3.")
+                                }
+                            }
+
+                            if service.isConfidenceRoutingEnabled {
+                                LabeledContent("Log-Prob Threshold") {
+                                    HStack {
+                                        Slider(value: $service.logProbThreshold, in: -1.0...0.0, step: 0.05)
+                                            .frame(width: 120)
+                                        Text(String(format: "%.2f", service.logProbThreshold))
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 40)
+                                    }
+                                }
+
+                                LabeledContent("Qwen3 Skip Threshold") {
+                                    HStack {
+                                        Slider(value: Binding(
+                                            get: { Double(service.qwen3SkipThreshold) },
+                                            set: { service.qwen3SkipThreshold = Int($0) }
+                                        ), in: 10...80, step: 5)
+                                            .frame(width: 120)
+                                        Text("\(service.qwen3SkipThreshold)")
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 40)
+                                    }
+                                }
+                            }
+
+                            Toggle("Context Memory", isOn: $service.isContextMemoryEnabled)
+
+                            Toggle(isOn: $service.isLLMValidationEnabled) {
+                                HStack(spacing: 4) {
+                                    Text("LLM Response Validation")
+                                    InfoTip("Reject invalid LLM responses (blacklisted phrases, excessive length) and fall back to pre-LLM text.")
+                                }
                             }
                         }
-
-                        LabeledContent("Qwen3 Skip Threshold") {
-                            HStack {
-                                Slider(value: Binding(
-                                    get: { Double(service.qwen3SkipThreshold) },
-                                    set: { service.qwen3SkipThreshold = Int($0) }
-                                ), in: 10...80, step: 5)
-                                    .frame(width: 120)
-                                Text("\(service.qwen3SkipThreshold)")
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 40)
-                            }
-                        }
-
-                    }
-
-                    Toggle("Context Memory", isOn: $service.isContextMemoryEnabled)
-
-                    Toggle(isOn: $service.isLLMValidationEnabled) {
-                        HStack(spacing: 4) {
-                            Text("LLM Response Validation")
-                            InfoTip("Reject invalid LLM responses (blacklisted phrases, excessive length) and fall back to pre-LLM text.")
-                        }
+                        .padding(.top, 12)
+                        .padding(.leading, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
+                .animation(.easeInOut(duration: 0.2), value: isAdvancedExpanded)
             }
         } header: {
             Text("Chinese Post-Processing")
