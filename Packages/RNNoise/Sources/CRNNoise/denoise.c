@@ -149,7 +149,7 @@ static void compute_band_corr(float *bandE, const kiss_fft_cpx *X, const kiss_ff
 
 static void interp_band_gain(float *g, const float *bandE) {
   int i;
-  memset(g, 0, FREQ_SIZE);
+  memset(g, 0, FREQ_SIZE*sizeof(float));
   for (i=0;i<NB_BANDS-1;i++)
   {
     int j;
