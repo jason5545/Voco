@@ -85,6 +85,7 @@ class PinyinCorrector {
             ("硬轉錄", "語音轉錄"),
             ("硬助手", "語音助手"),
             ("硬信箱", "語音信箱"),
+            ("獨立時候", "的時候"),   // 的(de) → 獨立(dúlì) ASR/pipeline hallucination
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(

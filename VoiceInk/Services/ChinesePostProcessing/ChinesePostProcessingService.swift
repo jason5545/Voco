@@ -182,6 +182,16 @@ class ChinesePostProcessingService: ObservableObject {
                     }
                     result = expandResult.text
                 }
+
+                // Layer 1 re-scan: catch patterns introduced by data-driven layers
+                let reCheckResult = pinyinCorrector.correct(result, context: correctionContext)
+                if !reCheckResult.corrections.isEmpty {
+                    steps.append("PinyinReCheck")
+                    for c in reCheckResult.corrections {
+                        logger.debug("Pinyin [recheck]: \(c.original) → \(c.corrected)")
+                    }
+                    result = reCheckResult.text
+                }
             }
         }
 
