@@ -48,6 +48,11 @@ final class CoreAudioRecorder {
     private var renderBuffer: UnsafeMutablePointer<Float32>?
     private var renderBufferSize: UInt32 = 0
 
+    // RNNoise denoising
+    private let rnnoiseProcessor = RNNoiseProcessor()
+    private var monoBuffer: UnsafeMutablePointer<Float32>?
+    private var monoBufferSize: UInt32 = 0
+
     /// Called on the audio thread with raw PCM data (16-bit, 16kHz, mono) for streaming.
     var onAudioChunk: ((_ data: Data) -> Void)?
 
@@ -119,6 +124,13 @@ final class CoreAudioRecorder {
             audioUnit = nil
         }
 
+        // Flush remaining RNNoise samples before closing the file
+        let (flushPtr, flushCount) = rnnoiseProcessor.flush()
+        if flushCount > 0 {
+            convertAndWriteToFile(monoInput: flushPtr, monoFrameCount: UInt32(flushCount))
+        }
+        rnnoiseProcessor.reset()
+
         // Close audio file
         if let file = audioFile {
             ExtAudioFileDispose(file)
@@ -137,6 +149,13 @@ final class CoreAudioRecorder {
             buffer.deallocate()
             renderBuffer = nil
             renderBufferSize = 0
+        }
+
+        // Free mono buffer
+        if let buffer = monoBuffer {
+            buffer.deallocate()
+            monoBuffer = nil
+            monoBufferSize = 0
         }
 
         isRecording = false
@@ -250,6 +269,13 @@ final class CoreAudioRecorder {
             renderBufferSize = bufferSamples
         }
 
+        // Reallocate mono buffer if needed
+        if maxFrames > monoBufferSize {
+            monoBuffer?.deallocate()
+            monoBuffer = UnsafeMutablePointer<Float32>.allocate(capacity: Int(maxFrames))
+            monoBufferSize = maxFrames
+        }
+
         // Reallocate conversion buffer if new sample rate requires more space
         let maxOutputFrames = UInt32(Double(maxFrames) * (outputFormat.mSampleRate / newDeviceFormat.mSampleRate)) + 1
         if maxOutputFrames > conversionBufferSize {
@@ -257,6 +283,9 @@ final class CoreAudioRecorder {
             conversionBuffer = UnsafeMutablePointer<Int16>.allocate(capacity: Int(maxOutputFrames))
             conversionBufferSize = maxOutputFrames
         }
+
+        // Reset RNNoise state for the new device
+        rnnoiseProcessor.reset()
 
         // Update stored format
         deviceFormat = newDeviceFormat
@@ -435,10 +464,17 @@ final class CoreAudioRecorder {
         renderBuffer = UnsafeMutablePointer<Float32>.allocate(capacity: Int(bufferSamples))
         renderBufferSize = bufferSamples
 
+        // Pre-allocate mono mixing buffer (one sample per frame)
+        monoBuffer = UnsafeMutablePointer<Float32>.allocate(capacity: Int(maxFrames))
+        monoBufferSize = maxFrames
+
         // Pre-allocate conversion buffer (output is always smaller due to downsampling)
         let maxOutputFrames = UInt32(Double(maxFrames) * (outputFormat.mSampleRate / deviceFormat.mSampleRate)) + 1
         conversionBuffer = UnsafeMutablePointer<Int16>.allocate(capacity: Int(maxOutputFrames))
         conversionBufferSize = maxOutputFrames
+
+        // Reset RNNoise state for new recording
+        rnnoiseProcessor.reset()
     }
 
     private func setupInputCallback() throws {
@@ -588,13 +624,44 @@ final class CoreAudioRecorder {
             return status
         }
 
-        // Calculate audio meters from input buffer
+        // Calculate audio meters from raw input buffer (before denoising)
         calculateMeters(from: &bufferList, frameCount: inNumberFrames)
 
-        // Convert and write to file
-        convertAndWriteToFile(inputBuffer: &bufferList, frameCount: inNumberFrames)
+        // Mix multi-channel to mono
+        guard let monoBuf = monoBuffer, inNumberFrames <= monoBufferSize else {
+            return noErr
+        }
+        mixToMono(from: &bufferList, frameCount: inNumberFrames, output: monoBuf)
+
+        // Run RNNoise denoising on mono 48kHz audio
+        let (denoisedPtr, denoisedCount) = rnnoiseProcessor.process(input: monoBuf, frameCount: Int(inNumberFrames))
+
+        // Convert denoised mono audio to 16kHz Int16 and write to file
+        if denoisedCount > 0 {
+            convertAndWriteToFile(monoInput: denoisedPtr, monoFrameCount: UInt32(denoisedCount))
+        }
 
         return noErr
+    }
+
+    private func mixToMono(from bufferList: inout AudioBufferList, frameCount: UInt32, output: UnsafeMutablePointer<Float32>) {
+        guard let inputData = bufferList.mBuffers.mData else { return }
+        let samples = inputData.assumingMemoryBound(to: Float32.self)
+        let channelCount = Int(deviceFormat.mChannelsPerFrame)
+
+        if channelCount == 1 {
+            // Already mono, just copy
+            memcpy(output, samples, Int(frameCount) * MemoryLayout<Float32>.size)
+        } else {
+            let invChannels = 1.0 / Float32(channelCount)
+            for i in 0..<Int(frameCount) {
+                var sum: Float32 = 0
+                for ch in 0..<channelCount {
+                    sum += samples[i * channelCount + ch]
+                }
+                output[i] = sum * invChannels
+            }
+        }
     }
 
     private func calculateMeters(from bufferList: inout AudioBufferList, frameCount: UInt32) {
@@ -628,61 +695,40 @@ final class CoreAudioRecorder {
         meterLock.unlock()
     }
 
-    private func convertAndWriteToFile(inputBuffer: inout AudioBufferList, frameCount: UInt32) {
+    /// Convert mono Float32 input (at device sample rate) to 16kHz Int16 and write to file + streaming callback.
+    private func convertAndWriteToFile(monoInput: UnsafePointer<Float32>, monoFrameCount: UInt32) {
         guard let file = audioFile else { return }
 
-        let inputChannels = deviceFormat.mChannelsPerFrame
         let inputSampleRate = deviceFormat.mSampleRate
         let outputSampleRate = outputFormat.mSampleRate
 
-        // Get input samples
-        guard let inputData = inputBuffer.mBuffers.mData else { return }
-        let inputSamples = inputData.assumingMemoryBound(to: Float32.self)
-
         // Calculate output frame count after sample rate conversion
         let ratio = outputSampleRate / inputSampleRate
-        let outputFrameCount = UInt32(Double(frameCount) * ratio)
+        let outputFrameCount = UInt32(Double(monoFrameCount) * ratio)
 
         guard outputFrameCount > 0,
               let outputBuffer = conversionBuffer,
               outputFrameCount <= conversionBufferSize else { return }
 
-        // Convert Float32 multi-channel → Int16 mono (with sample rate conversion if needed)
+        // Convert mono Float32 → Int16 (with sample rate conversion if needed)
         if inputSampleRate == outputSampleRate {
-            // Direct conversion, just format change and channel mixing
-            for i in 0..<Int(frameCount) {
-                var sample: Float32 = 0
-                // Mix all channels to mono
-                for ch in 0..<Int(inputChannels) {
-                    sample += inputSamples[i * Int(inputChannels) + ch]
-                }
-                sample /= Float32(inputChannels)
-
-                // Convert to Int16 with clipping
-                let scaled = sample * 32767.0
+            for i in 0..<Int(monoFrameCount) {
+                let scaled = monoInput[i] * 32767.0
                 let clipped = max(-32768.0, min(32767.0, scaled))
                 outputBuffer[i] = Int16(clipped)
             }
         } else {
-            // Sample rate conversion needed - use linear interpolation
+            // Sample rate conversion - linear interpolation
             for i in 0..<Int(outputFrameCount) {
                 let inputIndex = Double(i) / ratio
                 let inputIndexInt = Int(inputIndex)
                 let frac = Float32(inputIndex - Double(inputIndexInt))
 
-                var sample: Float32 = 0
-                let idx1 = min(inputIndexInt, Int(frameCount) - 1)
-                let idx2 = min(inputIndexInt + 1, Int(frameCount) - 1)
+                let idx1 = min(inputIndexInt, Int(monoFrameCount) - 1)
+                let idx2 = min(inputIndexInt + 1, Int(monoFrameCount) - 1)
 
-                // Mix channels and interpolate
-                for ch in 0..<Int(inputChannels) {
-                    let s1 = inputSamples[idx1 * Int(inputChannels) + ch]
-                    let s2 = inputSamples[idx2 * Int(inputChannels) + ch]
-                    sample += s1 + frac * (s2 - s1)
-                }
-                sample /= Float32(inputChannels)
+                let sample = monoInput[idx1] + frac * (monoInput[idx2] - monoInput[idx1])
 
-                // Convert to Int16
                 let scaled = sample * 32767.0
                 let clipped = max(-32768.0, min(32767.0, scaled))
                 outputBuffer[i] = Int16(clipped)

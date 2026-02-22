@@ -18,6 +18,7 @@
 		E1F1037B2EF85FC700A4FF94 /* SelectedTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = E1F1037A2EF85FC700A4FF94 /* SelectedTextKit */; };
 		E1F350112F1D10D600790A2C /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1A0BD052EB1E7B800266859 /* whisper.xcframework */; };
 		E1F350122F1D10D600790A2C /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1A0BD052EB1E7B800266859 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */ = {isa = PBXBuildFile; productRef = RN01E5A82F1D200000000002 /* CRNNoise */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,6 +94,7 @@
 				E1ADD45F2CC544F100303ECB /* Sparkle in Frameworks */,
 				E1F1037B2EF85FC700A4FF94 /* SelectedTextKit in Frameworks */,
 				E1A261122CC143AC00B233D1 /* KeyboardShortcuts in Frameworks */,
+				RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -176,6 +178,7 @@
 				E1Q3A0022F0000000000A002 /* MLX */,
 				E1Q3A0032F0000000000A003 /* MLXNN */,
 				E1Q3A0042F0000000000A004 /* MLXFast */,
+				RN01E5A82F1D200000000002 /* CRNNoise */,
 			);
 			productName = VoiceInk;
 			productReference = E11473B02CBE0F0A00318EE4 /* VoiceInk.app */;
@@ -270,6 +273,7 @@
 				E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */,
 				E1F103792EF85FC700A4FF94 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E11473B12CBE0F0A00318EE4 /* Products */;
@@ -641,6 +645,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/RNNoise;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		E11BBA4C2E5DC555000AB839 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -771,6 +782,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */;
 			productName = MLXFast;
+		};
+		RN01E5A82F1D200000000002 /* CRNNoise */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CRNNoise;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
