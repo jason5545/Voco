@@ -25,6 +25,7 @@ class ChinesePostProcessingService: ObservableObject {
     let openCCConverter = OpenCCConverter.shared
     let pinyinCorrector = PinyinCorrector.shared
     let homophoneEngine = HomophoneCorrectionEngine.shared
+    let syllableExpansionEngine = SyllableExpansionEngine.shared
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
     let contextMemory = TranscriptionContextMemory()
@@ -159,6 +160,16 @@ class ChinesePostProcessingService: ObservableObject {
                         logger.debug("Pinyin [data]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
                     }
                     result = engineResult.text
+                }
+
+                // Layer 3: Syllable expansion (1→2 char, compressed syllable recovery)
+                let expandResult = syllableExpansionEngine.correct(result)
+                if !expandResult.corrections.isEmpty {
+                    steps.append("SyllableExpansion")
+                    for c in expandResult.corrections {
+                        logger.debug("Pinyin [expand]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
+                    }
+                    result = expandResult.text
                 }
             }
         }

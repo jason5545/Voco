@@ -79,6 +79,12 @@ class PinyinCorrector {
             ("我哪好", "我很好"),
             ("哪好", "很好"),
             ("城市嘛", "程式碼"),   // chéngshìma vs chéngshìmǎ
+            ("硬輸入", "語音輸入"),   // yìng vs yǔyīn — 兩音節壓縮成一音節
+            ("硬辨識", "語音辨識"),
+            ("硬轉文字", "語音轉文字"),
+            ("硬轉錄", "語音轉錄"),
+            ("硬助手", "語音助手"),
+            ("硬信箱", "語音信箱"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(

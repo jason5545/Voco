@@ -79,6 +79,11 @@ final class PinyinDatabase: @unchecked Sendable {
         return Array(Set(readings.map { Self.stripTone($0) }))
     }
 
+    /// Get all characters that share the given toneless pinyin.
+    func characters(forPinyin pinyin: String) -> [Character] {
+        pinyinToChars[pinyin] ?? []
+    }
+
     // MARK: - Loading
 
     private func loadInBackground() {
