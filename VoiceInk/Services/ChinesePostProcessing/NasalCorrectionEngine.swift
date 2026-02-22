@@ -27,6 +27,10 @@ final class NasalCorrectionEngine {
     /// 3.0 ≈ candidate must be ~20x more frequent than original.
     private let minScoreDelta: Double = 3.0
 
+    /// Minimum absolute frequency for a candidate word.
+    /// Prevents low-freq words from replacing unknown proper nouns (freq=0).
+    private let minCandidateFreq: Int = 100
+
     /// Weight for bigram context score.
     private let bigramWeight: Double = 0.3
 
@@ -175,7 +179,7 @@ final class NasalCorrectionEngine {
                 let candidateWord = String(candidate)
                 let candidateFreq = db.frequency(of: candidateWord)
 
-                guard candidateFreq > 0 else { continue }
+                guard candidateFreq >= minCandidateFreq else { continue }
 
                 let baseScore = log(Double(candidateFreq + 1)) - log(Double(originalFreq + 1))
                 let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
