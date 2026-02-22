@@ -25,6 +25,7 @@ class ChinesePostProcessingService: ObservableObject {
     let openCCConverter = OpenCCConverter.shared
     let pinyinCorrector = PinyinCorrector.shared
     let homophoneEngine = HomophoneCorrectionEngine.shared
+    let nasalCorrectionEngine = NasalCorrectionEngine.shared
     let syllableExpansionEngine = SyllableExpansionEngine.shared
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
@@ -160,6 +161,16 @@ class ChinesePostProcessingService: ObservableObject {
                         logger.debug("Pinyin [data]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
                     }
                     result = engineResult.text
+                }
+
+                // Layer 2.5: Nasal ending correction (-n/-ng swap)
+                let nasalResult = nasalCorrectionEngine.correct(result)
+                if !nasalResult.corrections.isEmpty {
+                    steps.append("NasalCorrection")
+                    for c in nasalResult.corrections {
+                        logger.debug("Pinyin [nasal]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
+                    }
+                    result = nasalResult.text
                 }
 
                 // Layer 3: Syllable expansion (1→2 char, compressed syllable recovery)

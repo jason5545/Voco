@@ -35,6 +35,10 @@ final class SyllableExpansionEngine {
     /// Maximum bigram frequency for a character to be considered "out of context"
     private let suspiciousBigramThreshold: Int = 50
 
+    /// Single-char word frequency threshold: characters with freq above this
+    /// are too common to be syllable compression errors and will be skipped.
+    private let highFreqCharThreshold: Int = 10000
+
     /// Common function words to skip (same set as HomophoneCorrectionEngine)
     private static let skipChars: Set<Character> = [
         "的", "了", "嗎", "呢", "吧", "啊", "哦", "喔", "嗯", "呀",
@@ -246,6 +250,10 @@ final class SyllableExpansionEngine {
 
             // Skip common function words
             guard !Self.skipChars.contains(char) else { return true }
+
+            // Skip high-frequency single characters — too common to be compression errors
+            let charFreq = self.db.frequency(of: String(char))
+            if charFreq > self.highFreqCharThreshold { return true }
 
             // Character offset
             let offset = text.distance(from: text.startIndex, to: range.lowerBound)

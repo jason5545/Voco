@@ -183,6 +183,43 @@ final class PinyinDatabase: @unchecked Sendable {
         }
     }
 
+    // MARK: - Nasal Variants
+
+    /// Swap nasal ending: -n ↔ -ng.
+    /// "yin" → "ying", "ying" → "yin", "ba" → nil
+    static func swapNasal(_ pinyin: String) -> String? {
+        if pinyin.hasSuffix("ng") {
+            return String(pinyin.dropLast()) // "ying" → "yin"
+        } else if pinyin.hasSuffix("n") {
+            return pinyin + "g"              // "yin" → "ying"
+        }
+        return nil
+    }
+
+    /// Get nasal-variant characters (-n/-ng swap) for a given character.
+    /// Similar to `homophones(of:)` but searches the swapped nasal pinyin.
+    func nasalVariants(of char: Character) -> [Character] {
+        guard isLoaded else { return [] }
+        guard let readings = charToPinyin[char] else { return [] }
+
+        var result = Set<Character>()
+        for reading in readings {
+            let toneless = Self.stripTone(reading)
+            guard let swapped = Self.swapNasal(toneless) else { continue }
+            guard let chars = pinyinToChars[swapped] else { continue }
+            for candidate in chars {
+                // Only accept candidates whose primary reading matches the swapped pinyin
+                if let candidateReadings = charToPinyin[candidate],
+                   let primary = candidateReadings.first,
+                   Self.stripTone(primary) == swapped {
+                    result.insert(candidate)
+                }
+            }
+        }
+        result.remove(char)
+        return Array(result)
+    }
+
     // MARK: - Helpers
 
     /// Strip tone number from pinyin: "bian4" → "bian"
