@@ -33,19 +33,6 @@ final class HomophoneCorrectionEngine {
         "與", "及", "或", "而", "但", "因", "為", "所", "以", "如",
     ]
 
-    // MARK: - Result Type
-
-    struct CorrectionResult {
-        let text: String
-        let corrections: [Correction]
-
-        struct Correction {
-            let original: String
-            let corrected: String
-            let score: Double
-        }
-    }
-
     // MARK: - Main Entry Point
 
     /// Correct homophone errors in the given text.
@@ -317,4 +304,11 @@ final class HomophoneCorrectionEngine {
         let v = scalar.value
         return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
     }
+}
+
+// MARK: - CorrectionEngine Conformance
+
+extension HomophoneCorrectionEngine: CorrectionEngine {
+    var name: String { "HomophoneCorrection" }
+    var logPrefix: String { "[data]" }
 }

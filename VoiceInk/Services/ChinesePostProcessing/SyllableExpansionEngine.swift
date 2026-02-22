@@ -65,19 +65,6 @@ final class SyllableExpansionEngine {
         let mergeDist: Int
     }
 
-    // MARK: - Result Type
-
-    struct CorrectionResult {
-        let text: String
-        let corrections: [Correction]
-
-        struct Correction {
-            let original: String
-            let corrected: String
-            let score: Double
-        }
-    }
-
     // MARK: - Pinyin Helpers
 
     /// All Mandarin initials, ordered longest first for greedy matching
@@ -439,4 +426,11 @@ final class SyllableExpansionEngine {
         }
         return bestRange
     }
+}
+
+// MARK: - CorrectionEngine Conformance
+
+extension SyllableExpansionEngine: CorrectionEngine {
+    var name: String { "SyllableExpansion" }
+    var logPrefix: String { "[expand]" }
 }

@@ -24,9 +24,11 @@ class ChinesePostProcessingService: ObservableObject {
 
     let openCCConverter = OpenCCConverter.shared
     let pinyinCorrector = PinyinCorrector.shared
-    let homophoneEngine = HomophoneCorrectionEngine.shared
-    let nasalCorrectionEngine = NasalCorrectionEngine.shared
-    let syllableExpansionEngine = SyllableExpansionEngine.shared
+    let dataDrivenEngines: [CorrectionEngine] = [
+        HomophoneCorrectionEngine.shared,
+        NasalCorrectionEngine.shared,
+        SyllableExpansionEngine.shared,
+    ]
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
     let contextMemory = TranscriptionContextMemory()
@@ -152,35 +154,17 @@ class ChinesePostProcessingService: ObservableObject {
                 result = correctionResult.text
             }
 
-            // Layer 2: Data-driven homophone correction (automatic, catches remaining errors)
+            // Layer 2-3: Data-driven engines
             if isDataDrivenCorrectionEnabled, PinyinDatabase.shared.isLoaded {
-                let engineResult = homophoneEngine.correct(result)
-                if !engineResult.corrections.isEmpty {
-                    steps.append("HomophoneCorrection")
-                    for c in engineResult.corrections {
-                        logger.debug("Pinyin [data]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
+                for engine in dataDrivenEngines {
+                    let engineResult = engine.correct(result)
+                    if !engineResult.corrections.isEmpty {
+                        steps.append(engine.name)
+                        for c in engineResult.corrections {
+                            logger.debug("Pinyin \(engine.logPrefix): \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
+                        }
+                        result = engineResult.text
                     }
-                    result = engineResult.text
-                }
-
-                // Layer 2.5: Nasal ending correction (-n/-ng swap)
-                let nasalResult = nasalCorrectionEngine.correct(result)
-                if !nasalResult.corrections.isEmpty {
-                    steps.append("NasalCorrection")
-                    for c in nasalResult.corrections {
-                        logger.debug("Pinyin [nasal]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
-                    }
-                    result = nasalResult.text
-                }
-
-                // Layer 3: Syllable expansion (1→2 char, compressed syllable recovery)
-                let expandResult = syllableExpansionEngine.correct(result)
-                if !expandResult.corrections.isEmpty {
-                    steps.append("SyllableExpansion")
-                    for c in expandResult.corrections {
-                        logger.debug("Pinyin [expand]: \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
-                    }
-                    result = expandResult.text
                 }
 
                 // Layer 1 re-scan: catch patterns introduced by data-driven layers
