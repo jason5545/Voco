@@ -86,6 +86,8 @@ class PinyinCorrector {
             ("硬助手", "語音助手"),
             ("硬信箱", "語音信箱"),
             ("獨立時候", "的時候"),   // 的(de) → 獨立(dúlì) ASR/pipeline hallucination
+            ("提bug", "debug"),     // de → 提(tí) ASR error; 使用者會說「提出 bug」而非「提bug」
+            ("抵bug", "debug"),     // de → 抵(dǐ) ASR error
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
