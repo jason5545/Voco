@@ -61,13 +61,19 @@ extension WhisperState {
                 self.isEditMode = true
                 self.editModeSelectedText = selectedText
             } else if cache.cachedFocusedElementUnavailable {
-                // AX focused element unavailable (e.g. Claude desktop Electron) — try menuAction fallback (~50ms)
-                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                    self.isEditMode = true
-                    self.editModeSelectedText = selectedText
-                } else {
-                    self.isEditMode = false
-                    self.editModeSelectedText = nil
+                // AX focused element unavailable (e.g. Claude desktop Electron) — non-blocking menuAction fallback
+                self.editModeDetectionTask = Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                        guard !Task.isCancelled else { return }
+                        self.isEditMode = true
+                        self.editModeSelectedText = selectedText
+                        self.logger.notice("Edit mode fallback completed: isEdit=\(self.isEditMode), hasText=\(self.editModeSelectedText != nil)")
+                    } else {
+                        guard !Task.isCancelled else { return }
+                        self.isEditMode = false
+                        self.editModeSelectedText = nil
+                    }
                 }
             } else {
                 self.isEditMode = false
