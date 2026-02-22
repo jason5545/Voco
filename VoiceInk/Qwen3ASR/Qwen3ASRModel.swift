@@ -142,6 +142,17 @@ class Qwen3ASRModel {
         // <|im_start|>assistant\n
         inputIds.append(contentsOf: [tokens.imStartTokenId, tokens.assistantId, tokens.newlineId].map { Int32($0) })
 
+        // Auto-detect mode: pre-fill "language" as prompt prefix so the model
+        // only needs to predict the language NAME (e.g. " Chinese"), not the
+        // entire "language Chinese<asr_text>..." sequence from scratch.
+        // This dramatically stabilizes first-inference language detection.
+        var autoDetectPrefillTokens: [Int32]? = nil
+        if language == nil, let tokenizer = tokenizer {
+            let prefillTokens = tokenizer.encode("language").map { Int32($0) }
+            autoDetectPrefillTokens = prefillTokens
+            inputIds.append(contentsOf: prefillTokens)
+        }
+
         if let lang = language, let tokenizer = tokenizer {
             let langPrefix = "language \(lang)"
             let langTokens = tokenizer.encode(langPrefix)
@@ -160,6 +171,11 @@ class Qwen3ASRModel {
 
         var cache: [(MLXArray, MLXArray)]? = nil
         var generatedTokens: [Int32] = []
+        // Pre-seed "language" tokens into generatedTokens so downstream
+        // parsing (which expects "language XXX" before <asr_text>) works unchanged.
+        if let prefill = autoDetectPrefillTokens {
+            generatedTokens.append(contentsOf: prefill)
+        }
         let evalInterval = 50  // Force MLX evaluation every N tokens to prevent computation graph accumulation
 
         // Per-token logprob tracking
