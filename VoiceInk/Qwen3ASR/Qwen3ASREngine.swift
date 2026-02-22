@@ -179,6 +179,9 @@ actor Qwen3ASREngine {
             do {
                 Self.logger.info("Running Qwen3 warmup inference (\(reason), attempt \(attempt)/\(maxAttempts))…")
                 let _ = try model.transcribe(audio: warmupSamples, sampleRate: 16000, language: nil)
+                // Clear GPU buffer cache left by silence inference so the first real
+                // transcription starts with clean state (prevents garbage output).
+                Memory.clearCache()
                 hasCompletedWarmup = true
                 Self.logger.info("Qwen3 warmup complete (\(reason), attempt \(attempt))")
                 return
