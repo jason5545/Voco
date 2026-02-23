@@ -12,8 +12,8 @@ final class HomophoneCorrectionEngine {
     private let db = PinyinDatabase.shared
 
     /// Minimum log-frequency difference required to accept a correction.
-    /// 2.0 ≈ candidate must be ~7x more frequent than original.
-    private let minScoreDelta: Double = 2.0
+    /// 2.5 ≈ candidate must be ~12x more frequent than original.
+    private let minScoreDelta: Double = 2.5
 
     /// Weight for bigram context score (conservative to avoid noise).
     private let bigramWeight: Double = 0.3
@@ -132,6 +132,9 @@ final class HomophoneCorrectionEngine {
 
             // Skip words that are too long (unlikely speech errors)
             if word.count > maxWordLength { continue }
+
+            // Skip protected words
+            if CorrectionProtectionList.shared.contains(word) { continue }
 
             let freq = db.frequency(of: word)
 

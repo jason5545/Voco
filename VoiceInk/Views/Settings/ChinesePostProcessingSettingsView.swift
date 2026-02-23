@@ -7,6 +7,10 @@ struct ChinesePostProcessingSettingsView: View {
     @State private var isMainExpanded = false
     @State private var isAdvancedExpanded = false
 
+    // Protection list
+    @State private var protectionWords: [String] = CorrectionProtectionList.shared.allWords()
+    @State private var newProtectionWord = ""
+
     var body: some View {
         Section {
             // Main toggle
@@ -29,6 +33,13 @@ struct ChinesePostProcessingSettingsView: View {
                         }
                     }
                     .padding(.leading, 20)
+
+                    if service.isDataDrivenCorrectionEnabled {
+                        Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
+                            .padding(.leading, 40)
+                        Toggle("Syllable Expansion", isOn: $service.isSyllableExpansionEnabled)
+                            .padding(.leading, 40)
+                    }
                 }
 
                 Toggle("Spoken Punctuation Conversion", isOn: $service.isSpokenPunctuationEnabled)
@@ -99,6 +110,49 @@ struct ChinesePostProcessingSettingsView: View {
                                     InfoTip("Reject invalid LLM responses (blacklisted phrases, excessive length) and fall back to pre-LLM text.")
                                 }
                             }
+
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 4) {
+                                    Text("Protected Words")
+                                    InfoTip("Words in this list will never be modified by any correction engine. Use this to protect proper nouns or domain-specific terms.")
+                                }
+
+                                HStack {
+                                    TextField("Add word…", text: $newProtectionWord)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 140)
+                                        .onSubmit { addProtectionWord() }
+                                    Button("Add") { addProtectionWord() }
+                                        .disabled(newProtectionWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                                }
+
+                                if !protectionWords.isEmpty {
+                                    FlowLayout(spacing: 4) {
+                                        ForEach(protectionWords, id: \.self) { word in
+                                            HStack(spacing: 2) {
+                                                Text(word)
+                                                    .font(.system(size: 12))
+                                                Button {
+                                                    CorrectionProtectionList.shared.remove(word)
+                                                    protectionWords = CorrectionProtectionList.shared.allWords()
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .font(.system(size: 10))
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Color.secondary.opacity(0.15))
+                                            .cornerRadius(4)
+                                        }
+                                    }
+                                }
+                            }
                         }
                         .padding(.top, 12)
                         .padding(.leading, 4)
@@ -112,5 +166,13 @@ struct ChinesePostProcessingSettingsView: View {
         } footer: {
             Text("Optimized for Taiwanese Mandarin speech recognition with XVoice-derived corrections.")
         }
+    }
+
+    private func addProtectionWord() {
+        let word = newProtectionWord.trimmingCharacters(in: .whitespaces)
+        guard !word.isEmpty else { return }
+        CorrectionProtectionList.shared.add(word)
+        protectionWords = CorrectionProtectionList.shared.allWords()
+        newProtectionWord = ""
     }
 }

@@ -58,6 +58,14 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(isDataDrivenCorrectionEnabled, forKey: "ChinesePostProcessingDataDriven") }
     }
 
+    @Published var isNasalCorrectionEnabled: Bool {
+        didSet { UserDefaults.standard.set(isNasalCorrectionEnabled, forKey: "ChinesePostProcessingNasal") }
+    }
+
+    @Published var isSyllableExpansionEnabled: Bool {
+        didSet { UserDefaults.standard.set(isSyllableExpansionEnabled, forKey: "ChinesePostProcessingSyllableExpansion") }
+    }
+
     @Published var isSpokenPunctuationEnabled: Bool {
         didSet { UserDefaults.standard.set(isSpokenPunctuationEnabled, forKey: "ChinesePostProcessingSpokenPunctuation") }
     }
@@ -98,6 +106,8 @@ class ChinesePostProcessingService: ObservableObject {
         self.isOpenCCEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingOpenCC") as? Bool ?? true
         self.isPinyinCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPinyin") as? Bool ?? true
         self.isDataDrivenCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingDataDriven") as? Bool ?? true
+        self.isNasalCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingNasal") as? Bool ?? true
+        self.isSyllableExpansionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSyllableExpansion") as? Bool ?? true
         self.isSpokenPunctuationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSpokenPunctuation") as? Bool ?? true
         self.isHalfWidthConversionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingHalfWidth") as? Bool ?? true
         self.isRepetitionDetectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingRepetition") as? Bool ?? true
@@ -154,9 +164,14 @@ class ChinesePostProcessingService: ObservableObject {
                 result = correctionResult.text
             }
 
-            // Layer 2-3: Data-driven engines
+            // Layer 2-3: Data-driven engines (each with independent toggle)
             if isDataDrivenCorrectionEnabled, PinyinDatabase.shared.isLoaded {
-                for engine in dataDrivenEngines {
+                let enabledEngines: [(CorrectionEngine, Bool)] = [
+                    (HomophoneCorrectionEngine.shared, true), // always on when data-driven is on
+                    (NasalCorrectionEngine.shared, isNasalCorrectionEnabled),
+                    (SyllableExpansionEngine.shared, isSyllableExpansionEnabled),
+                ]
+                for (engine, enabled) in enabledEngines where enabled {
                     let engineResult = engine.correct(result)
                     if !engineResult.corrections.isEmpty {
                         steps.append(engine.name)

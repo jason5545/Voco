@@ -43,6 +43,9 @@ class PinyinCorrector {
     /// Sorted rules by wrong-word length (longest first) to avoid substring conflicts
     private let sortedRules: [PinyinCorrectionRule]
 
+    /// Database for boundary word checks
+    private let db = PinyinDatabase.shared
+
     private init() {
         var allRules: [PinyinCorrectionRule] = []
 
@@ -141,12 +144,18 @@ class PinyinCorrector {
         for rule in sortedRules {
             guard result.contains(rule.wrong) else { continue }
 
+            // Skip if the wrong word is in the protection list
+            if CorrectionProtectionList.shared.contains(rule.wrong) { continue }
+
             switch rule.tier {
             case .alwaysApply:
-                corrections.append(.init(
-                    original: rule.wrong, corrected: rule.correct, tier: .alwaysApply
-                ))
-                result = result.replacingOccurrences(of: rule.wrong, with: rule.correct)
+                let replaced = applyRuleWithBoundaryCheck(result, rule: rule)
+                if replaced != result {
+                    corrections.append(.init(
+                        original: rule.wrong, corrected: rule.correct, tier: .alwaysApply
+                    ))
+                    result = replaced
+                }
 
             case .contextDependent:
                 guard matchesContext(
@@ -155,10 +164,13 @@ class PinyinCorrector {
                     contextString: contextString
                 ) else { continue }
 
-                corrections.append(.init(
-                    original: rule.wrong, corrected: rule.correct, tier: .contextDependent
-                ))
-                result = result.replacingOccurrences(of: rule.wrong, with: rule.correct)
+                let replaced = applyRuleWithBoundaryCheck(result, rule: rule)
+                if replaced != result {
+                    corrections.append(.init(
+                        original: rule.wrong, corrected: rule.correct, tier: .contextDependent
+                    ))
+                    result = replaced
+                }
             }
         }
 
@@ -166,6 +178,72 @@ class PinyinCorrector {
     }
 
     // MARK: - Private
+
+    /// Apply a rule with CJK boundary protection for short rules (≤ 2 chars).
+    ///
+    /// For rules where `wrong` is 1-2 CJK characters, checks whether the match
+    /// crosses into an adjacent known word. If the last char of `wrong` + the
+    /// next char forms a known word (freq > 0), or the previous char + the first
+    /// char of `wrong` forms a known word, the match is skipped.
+    private func applyRuleWithBoundaryCheck(_ text: String, rule: PinyinCorrectionRule) -> String {
+        let wrongChars = Array(rule.wrong)
+        let needsBoundaryCheck = wrongChars.count <= 2
+            && db.isLoaded
+            && wrongChars.allSatisfy { isCJK($0) }
+
+        guard needsBoundaryCheck else {
+            return text.replacingOccurrences(of: rule.wrong, with: rule.correct)
+        }
+
+        var result = text
+        let textChars = Array(result)
+
+        // Process matches from end to start to keep indices valid
+        var searchEnd = result.endIndex
+        var ranges: [Range<String.Index>] = []
+        while let range = result.range(of: rule.wrong, range: result.startIndex..<searchEnd) {
+            ranges.append(range)
+            searchEnd = range.lowerBound
+        }
+
+        for range in ranges {
+            let matchStart = result.distance(from: result.startIndex, to: range.lowerBound)
+            let matchEnd = matchStart + wrongChars.count
+            let currentChars = Array(result)
+
+            // Check right boundary: last char of wrong + next char
+            if matchEnd < currentChars.count {
+                let nextChar = currentChars[matchEnd]
+                if isCJK(nextChar) {
+                    let rightPair = String(wrongChars.last!) + String(nextChar)
+                    if db.frequency(of: rightPair) > 0 {
+                        continue // skip this match
+                    }
+                }
+            }
+
+            // Check left boundary: previous char + first char of wrong
+            if matchStart > 0 {
+                let prevChar = currentChars[matchStart - 1]
+                if isCJK(prevChar) {
+                    let leftPair = String(prevChar) + String(wrongChars.first!)
+                    if db.frequency(of: leftPair) > 0 {
+                        continue // skip this match
+                    }
+                }
+            }
+
+            result = result.replacingCharacters(in: range, with: rule.correct)
+        }
+
+        return result
+    }
+
+    private func isCJK(_ char: Character) -> Bool {
+        guard let scalar = char.unicodeScalars.first else { return false }
+        let v = scalar.value
+        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
+    }
 
     /// Check if any keyword matches in the current text or combined context (OR logic)
     private func matchesContext(keywords: [String], currentText: String, contextString: String?) -> Bool {

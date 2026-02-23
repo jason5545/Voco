@@ -31,6 +31,10 @@ final class NasalCorrectionEngine {
     /// Prevents low-freq words from replacing unknown proper nouns (freq=0).
     private let minCandidateFreq: Int = 100
 
+    /// Maximum frequency for the original word to be eligible for correction.
+    /// Words above this threshold are considered well-known and should not be replaced.
+    private let maxOriginalFreq: Int = 500
+
     /// Weight for bigram context score.
     private let bigramWeight: Double = 0.3
 
@@ -152,6 +156,13 @@ final class NasalCorrectionEngine {
     private func findBestNasalCandidate(for word: String, leftContext: Character?, rightContext: Character?) -> ScoredCandidate? {
         let chars = Array(word)
         let originalFreq = db.frequency(of: word)
+
+        // Skip protected words
+        guard !CorrectionProtectionList.shared.contains(word) else { return nil }
+
+        // Skip well-known words — high-freq originals should not be replaced
+        guard originalFreq <= maxOriginalFreq else { return nil }
+
         var best: ScoredCandidate?
 
         // Pre-compute original bigram context score

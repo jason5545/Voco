@@ -27,3 +27,57 @@ struct CorrectionResult {
         let score: Double
     }
 }
+
+// MARK: - Protection List
+
+/// Thread-safe set of words that should never be modified by correction engines.
+/// Persisted via UserDefaults.
+final class CorrectionProtectionList {
+    static let shared = CorrectionProtectionList()
+
+    private let key = "CorrectionProtectionWords"
+    private let queue = DispatchQueue(label: "com.jasonchien.Voco.protectionList", attributes: .concurrent)
+    private var words: Set<String>
+
+    private init() {
+        let stored = UserDefaults.standard.stringArray(forKey: key) ?? []
+        self.words = Set(stored)
+    }
+
+    /// Check if a word (or any substring of it) is protected.
+    func contains(_ word: String) -> Bool {
+        queue.sync { words.contains(word) }
+    }
+
+    /// Check if any protected word appears as a substring in the given text.
+    func containsSubstring(in text: String) -> Bool {
+        queue.sync {
+            for w in words {
+                if text.contains(w) { return true }
+            }
+            return false
+        }
+    }
+
+    func add(_ word: String) {
+        queue.async(flags: .barrier) {
+            self.words.insert(word)
+            self.save()
+        }
+    }
+
+    func remove(_ word: String) {
+        queue.async(flags: .barrier) {
+            self.words.remove(word)
+            self.save()
+        }
+    }
+
+    func allWords() -> [String] {
+        queue.sync { Array(words).sorted() }
+    }
+
+    private func save() {
+        UserDefaults.standard.set(Array(words), forKey: key)
+    }
+}

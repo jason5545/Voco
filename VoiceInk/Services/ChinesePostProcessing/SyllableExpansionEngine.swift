@@ -188,6 +188,9 @@ final class SyllableExpansionEngine {
             let leftContext: Character? = suspect.offset > 0 ? textChars[suspect.offset - 1] : nil
             let rightContext: Character? = suspect.offset + 1 < textChars.count ? textChars[suspect.offset + 1] : nil
 
+            // Skip protected words
+            if CorrectionProtectionList.shared.contains(String(suspect.char)) { continue }
+
             if let best = findBestExpansion(
                 for: suspect.char,
                 leftContext: leftContext,
