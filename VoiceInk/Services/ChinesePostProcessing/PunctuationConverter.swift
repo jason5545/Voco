@@ -126,16 +126,50 @@ class PunctuationConverter {
     }
 
     /// Convert spoken punctuation names to actual symbols
-    /// Uses case-insensitive matching, processes longest keys first
+    /// Uses case-insensitive matching, processes longest keys first.
+    /// Keys containing non-CJK characters require a CJK boundary check
+    /// to avoid false positives on normal English text (e.g. "how", "know-how").
     func convertSpokenPunctuation(_ text: String) -> String {
         var result = text
         for (key, value) in spokenPunctuationMap {
-            // Case-insensitive replacement
-            if let range = result.range(of: key, options: .caseInsensitive) {
+            let needsBoundaryCheck = key.unicodeScalars.contains { s in
+                let v = s.value
+                // Not CJK ideograph and not CJK punctuation → needs boundary check
+                return !((0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v))
+                    && !(0x3000...0x303F).contains(v)
+            }
+
+            if needsBoundaryCheck {
+                // Scan for each occurrence and only replace when adjacent to CJK or at string boundary
+                var searchStart = result.startIndex
+                while searchStart < result.endIndex,
+                      let range = result.range(of: key, options: .caseInsensitive, range: searchStart..<result.endIndex) {
+                    let leftOK = range.lowerBound == result.startIndex
+                        || isCJKChar(result[result.index(before: range.lowerBound)])
+                    let rightOK = range.upperBound == result.endIndex
+                        || isCJKChar(result[range.upperBound])
+                    if leftOK || rightOK {
+                        result.replaceSubrange(range, with: value)
+                        // Continue searching after the replacement
+                        searchStart = result.index(range.lowerBound, offsetBy: value.count)
+                    } else {
+                        // Skip past this occurrence
+                        searchStart = range.upperBound
+                    }
+                }
+            } else {
+                // Pure CJK key → safe to replace directly
                 result = result.replacingOccurrences(of: key, with: value, options: .caseInsensitive)
             }
         }
         return result
+    }
+
+    // MARK: - Helpers
+
+    private func isCJKChar(_ char: Character) -> Bool {
+        let v = char.unicodeScalars.first!.value
+        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
     }
 
     /// Check if text contains ambiguous punctuation words
