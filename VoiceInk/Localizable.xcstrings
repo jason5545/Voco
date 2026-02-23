@@ -1241,16 +1241,6 @@
         }
       }
     },
-    "Delete Model": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除模型"
-          }
-        }
-      }
-    },
     "Show in Finder": {
       "localizations": {
         "zh-Hant": {
@@ -3427,6 +3417,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "上下文記憶"
+          }
+        }
+      }
+    },
+    "Semantic Scoring (BERT)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語意評分（BERT）"
+          }
+        }
+      }
+    },
+    "Use a BERT language model to score homophone/nasal corrections based on context instead of word frequency.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 BERT 語言模型根據上下文評分同音字／鼻音校正，取代詞頻評分。"
           }
         }
       }

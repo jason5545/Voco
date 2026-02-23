@@ -98,6 +98,16 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(qwen3SkipThreshold, forKey: "ChinesePostProcessingQwen3SkipThreshold") }
     }
 
+    @Published var isBERTScoringEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isBERTScoringEnabled, forKey: "ChinesePostProcessingBERTScoring")
+            if isBERTScoringEnabled {
+                Task { await BERTScorer.shared.loadModel() }
+            } else {
+                BERTScorer.shared.unloadModel()
+            }
+        }
+    }
 
     // MARK: - Init
 
@@ -116,6 +126,12 @@ class ChinesePostProcessingService: ObservableObject {
         self.isLLMValidationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingLLMValidation") as? Bool ?? true
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
         self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
+        self.isBERTScoringEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingBERTScoring") as? Bool ?? false
+
+        // Auto-load BERT model if enabled
+        if isBERTScoringEnabled {
+            Task { await BERTScorer.shared.loadModel() }
+        }
     }
 
     // MARK: - Main Processing Pipeline

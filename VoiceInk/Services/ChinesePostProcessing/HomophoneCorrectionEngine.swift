@@ -11,9 +11,13 @@ final class HomophoneCorrectionEngine {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "HomophoneEngine")
     private let db = PinyinDatabase.shared
 
-    /// Minimum log-frequency difference required to accept a correction.
+    /// Minimum log-frequency difference required to accept a correction (frequency fallback).
     /// 2.5 ≈ candidate must be ~12x more frequent than original.
     private let minScoreDelta: Double = 2.5
+
+    /// Minimum BERT logit difference required to accept a correction.
+    /// 2.0 ≈ candidate ~7x more probable in context.
+    private let bertMinScoreDelta: Double = 2.0
 
     /// Weight for bigram context score (conservative to avoid noise).
     private let bigramWeight: Double = 0.3
@@ -66,7 +70,7 @@ final class HomophoneCorrectionEngine {
             let rightEnd = offset + seg.word.count
             let rightContext: Character? = rightEnd < textChars.count ? textChars[rightEnd] : nil
 
-            if let best = findBestCandidate(for: seg.word, leftContext: leftContext, rightContext: rightContext) {
+            if let best = findBestCandidate(for: seg.word, at: offset, in: text, leftContext: leftContext, rightContext: rightContext) {
                 // Replace the specific occurrence at the known range
                 if let range = findRange(of: seg.word, in: result, near: seg.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
@@ -201,13 +205,23 @@ final class HomophoneCorrectionEngine {
         let score: Double
     }
 
-    private func findBestCandidate(for word: String, leftContext: Character?, rightContext: Character?) -> ScoredCandidate? {
+    private func findBestCandidate(
+        for word: String,
+        at wordOffset: Int,
+        in fullText: String,
+        leftContext: Character?,
+        rightContext: Character?
+    ) -> ScoredCandidate? {
         let chars = Array(word)
         let originalFreq = db.frequency(of: word)
         var best: ScoredCandidate?
 
-        // Pre-compute original bigram context score
-        let origBigramScore = bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
+        let useBERT = BERTScorer.shared.isLoaded
+
+        // Pre-compute original bigram context score (only needed for frequency fallback)
+        let origBigramScore = useBERT ? 0 : bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
+
+        let threshold = useBERT ? bertMinScoreDelta : minScoreDelta
 
         // Try replacing each single character
         for i in 0..<chars.count {
@@ -220,11 +234,19 @@ final class HomophoneCorrectionEngine {
 
                 guard candidateFreq > 0 else { continue }
 
-                let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
-                let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
-                let score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                let score: Double
+                if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(
+                    text: fullText, wordOffset: wordOffset,
+                    originalWord: word, candidateWord: candidateWord
+                ) {
+                    score = bertScore
+                } else {
+                    let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                    let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                    score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                }
 
-                if score > minScoreDelta {
+                if score > threshold {
                     if best == nil || score > best!.score {
                         best = ScoredCandidate(candidate: candidateWord, candidateFreq: candidateFreq, score: score)
                     }
@@ -249,11 +271,19 @@ final class HomophoneCorrectionEngine {
                     let candidateFreq = db.frequency(of: candidateWord)
                     guard candidateFreq > 0 else { continue }
 
-                    let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
-                    let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
-                    let score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                    let score: Double
+                    if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(
+                        text: fullText, wordOffset: wordOffset,
+                        originalWord: word, candidateWord: candidateWord
+                    ) {
+                        score = bertScore
+                    } else {
+                        let baseScore = log(Double(candidateFreq)) - log(Double(originalFreq + 1))
+                        let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                        score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                    }
 
-                    if score > minScoreDelta {
+                    if score > threshold {
                         if best == nil || score > best!.score {
                             best = ScoredCandidate(candidate: candidateWord, candidateFreq: candidateFreq, score: score)
                         }

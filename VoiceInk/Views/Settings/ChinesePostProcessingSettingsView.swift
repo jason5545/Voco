@@ -114,6 +114,17 @@ struct ChinesePostProcessingSettingsView: View {
                             Divider()
                                 .padding(.vertical, 4)
 
+                            // BERT Semantic Scoring
+                            Toggle(isOn: $service.isBERTScoringEnabled) {
+                                HStack(spacing: 4) {
+                                    Text("Semantic Scoring (BERT)")
+                                    InfoTip("Use a BERT language model to score homophone/nasal corrections based on context instead of word frequency.")
+                                }
+                            }
+
+                            Divider()
+                                .padding(.vertical, 4)
+
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(spacing: 4) {
                                     Text("Protected Words")

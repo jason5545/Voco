@@ -23,9 +23,13 @@ final class NasalCorrectionEngine {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "NasalCorrection")
     private let db = PinyinDatabase.shared
 
-    /// Minimum log-frequency difference required to accept a correction.
+    /// Minimum log-frequency difference required to accept a correction (frequency fallback).
     /// 3.0 ≈ candidate must be ~20x more frequent than original.
     private let minScoreDelta: Double = 3.0
+
+    /// Minimum BERT logit difference required to accept a nasal correction.
+    /// Higher than Homophone (2.5 vs 2.0) because nasal false positives are riskier.
+    private let bertMinScoreDelta: Double = 2.5
 
     /// Minimum absolute frequency for a candidate word.
     /// Prevents low-freq words from replacing unknown proper nouns (freq=0).
@@ -99,7 +103,7 @@ final class NasalCorrectionEngine {
             let rightEnd = offset + candidate.word.count
             let rightContext: Character? = rightEnd < textChars.count ? textChars[rightEnd] : nil
 
-            if let best = findBestNasalCandidate(for: candidate.word, leftContext: leftContext, rightContext: rightContext) {
+            if let best = findBestNasalCandidate(for: candidate.word, at: candidate.approximateOffset, in: text, leftContext: leftContext, rightContext: rightContext) {
                 if let range = findRange(of: candidate.word, in: result, near: candidate.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
                     corrections.append(.init(
@@ -153,7 +157,13 @@ final class NasalCorrectionEngine {
 
     // MARK: - Candidate Generation + Scoring
 
-    private func findBestNasalCandidate(for word: String, leftContext: Character?, rightContext: Character?) -> ScoredCandidate? {
+    private func findBestNasalCandidate(
+        for word: String,
+        at wordOffset: Int,
+        in fullText: String,
+        leftContext: Character?,
+        rightContext: Character?
+    ) -> ScoredCandidate? {
         let chars = Array(word)
         let originalFreq = db.frequency(of: word)
 
@@ -165,8 +175,12 @@ final class NasalCorrectionEngine {
 
         var best: ScoredCandidate?
 
-        // Pre-compute original bigram context score
-        let origBigramScore = bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
+        let useBERT = BERTScorer.shared.isLoaded
+
+        // Pre-compute original bigram context score (only needed for frequency fallback)
+        let origBigramScore = useBERT ? 0 : bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
+
+        let threshold = useBERT ? bertMinScoreDelta : minScoreDelta
 
         // Try replacing each single character with its nasal variant
         for i in 0..<chars.count {
@@ -179,11 +193,19 @@ final class NasalCorrectionEngine {
 
                 guard candidateFreq >= minCandidateFreq else { continue }
 
-                let baseScore = log(Double(candidateFreq + 1)) - log(Double(originalFreq + 1))
-                let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
-                let score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                let score: Double
+                if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(
+                    text: fullText, wordOffset: wordOffset,
+                    originalWord: word, candidateWord: candidateWord
+                ) {
+                    score = bertScore
+                } else {
+                    let baseScore = log(Double(candidateFreq + 1)) - log(Double(originalFreq + 1))
+                    let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                    score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                }
 
-                if score > minScoreDelta {
+                if score > threshold {
                     if best == nil || score > best!.score {
                         best = ScoredCandidate(candidate: candidateWord, originalFreq: originalFreq, candidateFreq: candidateFreq, score: score)
                     }
