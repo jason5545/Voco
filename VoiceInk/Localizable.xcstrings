@@ -4778,6 +4778,17 @@
         }
       }
     },
+    "Editing": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯中"
+          }
+        }
+      }
+    },
     "Enhancing": {
       "extractionState": "manual",
       "localizations": {
