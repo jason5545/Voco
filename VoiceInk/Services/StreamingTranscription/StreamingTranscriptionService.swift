@@ -53,12 +53,10 @@ class StreamingTranscriptionService {
     private let chunkSource = AudioChunkSource()
     private var state: StreamingState = .idle
     private var committedSegments: [String] = []
-    private let parakeetService: ParakeetTranscriptionService
     private let modelContext: ModelContext
     private var onPartialTranscript: ((String) -> Void)?
 
-    init(parakeetService: ParakeetTranscriptionService, modelContext: ModelContext, onPartialTranscript: ((String) -> Void)? = nil) {
-        self.parakeetService = parakeetService
+    init(modelContext: ModelContext, onPartialTranscript: ((String) -> Void)? = nil) {
         self.modelContext = modelContext
         self.onPartialTranscript = onPartialTranscript
     }
@@ -177,8 +175,6 @@ class StreamingTranscriptionService {
             return ElevenLabsStreamingProvider()
         case .deepgram:
             return DeepgramStreamingProvider(modelContext: modelContext)
-        case .parakeet:
-            return ParakeetStreamingProvider(parakeetService: parakeetService)
         case .mistral:
             return MistralStreamingProvider()
         case .soniox:

@@ -187,15 +187,6 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Toggle(isOn: Binding(
-                    get: { UserDefaults.standard.bool(forKey: "UseAppleScriptPaste") },
-                    set: { UserDefaults.standard.set($0, forKey: "UseAppleScriptPaste") }
-                )) {
-                    HStack(spacing: 4) {
-                        Text("AppleScript Paste")
-                        InfoTip("Paste via System Events instead of direct keystrokes. Try this if paste isn't working in some apps.")
-                    }
-                }
             }
 
             // MARK: - Chinese Post-Processing

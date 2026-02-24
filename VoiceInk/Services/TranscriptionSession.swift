@@ -50,13 +50,16 @@ final class FileTranscriptionSession: TranscriptionSession {
 final class StreamingTranscriptionSession: TranscriptionSession {
     private let streamingService: StreamingTranscriptionService
     private let fallbackService: TranscriptionService
+    // Batch-compatible override for streaming-only models rejected by the provider's REST API.
+    private let fallbackModel: (any TranscriptionModel)?
     private var model: (any TranscriptionModel)?
     private var streamingFailed = false
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "StreamingTranscriptionSession")
 
-    init(streamingService: StreamingTranscriptionService, fallbackService: TranscriptionService) {
+    init(streamingService: StreamingTranscriptionService, fallbackService: TranscriptionService, fallbackModel: (any TranscriptionModel)? = nil) {
         self.streamingService = streamingService
         self.fallbackService = fallbackService
+        self.fallbackModel = fallbackModel
     }
 
     func prepare(model: any TranscriptionModel) async throws -> ((Data) -> Void)? {
@@ -105,9 +108,10 @@ final class StreamingTranscriptionSession: TranscriptionSession {
             streamingService.cancel()
         }
 
-        // Fallback to file-based transcription
-        logger.notice("Using batch fallback for \(model.displayName)")
-        return try await fallbackService.transcribe(audioURL: audioURL, model: model)
+        // Use fallbackModel if set — streaming-only models are rejected by the batch REST API.
+        let modelForFallback = fallbackModel ?? model
+        logger.notice("Using batch fallback for \(model.displayName) with model \(modelForFallback.displayName)")
+        return try await fallbackService.transcribe(audioURL: audioURL, model: modelForFallback)
     }
 
     func cancel() {

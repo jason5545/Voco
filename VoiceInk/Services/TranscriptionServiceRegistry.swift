@@ -37,23 +37,36 @@ class TranscriptionServiceRegistry {
     }
 
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
-        let service = service(for: model.provider)
-        logger.debug("Transcribing with \(model.displayName) using \(String(describing: type(of: service)))")
-        return try await service.transcribe(audioURL: audioURL, model: model)
+        let effectiveModel = batchFallbackModel(for: model) ?? model
+        let service = service(for: effectiveModel.provider)
+        logger.debug("Transcribing with \(effectiveModel.displayName) using \(String(describing: type(of: service)))")
+        return try await service.transcribe(audioURL: audioURL, model: effectiveModel)
     }
 
     /// Creates a streaming or file-based session depending on the model's capabilities.
     func createSession(for model: any TranscriptionModel, onPartialTranscript: ((String) -> Void)? = nil) -> TranscriptionSession {
         if supportsStreaming(model: model) {
             let streamingService = StreamingTranscriptionService(
-                parakeetService: parakeetTranscriptionService,
                 modelContext: whisperState.modelContext,
                 onPartialTranscript: onPartialTranscript
             )
             let fallback = service(for: model.provider)
-            return StreamingTranscriptionSession(streamingService: streamingService, fallbackService: fallback)
+            let fallbackModel = batchFallbackModel(for: model)
+            return StreamingTranscriptionSession(streamingService: streamingService, fallbackService: fallback, fallbackModel: fallbackModel)
         } else {
             return FileTranscriptionSession(service: service(for: model.provider))
+        }
+    }
+
+    // Maps streaming-only models to a batch-compatible equivalent for fallback.
+    private func batchFallbackModel(for model: any TranscriptionModel) -> (any TranscriptionModel)? {
+        switch (model.provider, model.name) {
+        case (.mistral, "voxtral-mini-transcribe-realtime-2602"):
+            return PredefinedModels.models.first { $0.name == "voxtral-mini-latest" }
+        case (.soniox, "stt-rt-v4"):
+            return PredefinedModels.models.first { $0.name == "stt-async-v4" }
+        default:
+            return nil
         }
     }
 
@@ -64,8 +77,6 @@ class TranscriptionServiceRegistry {
             return model.name == "scribe_v2"
         case .deepgram:
             return model.name == "nova-3" || model.name == "nova-3-medical"
-        case .parakeet:
-            return true
         case .mistral:
             return model.name == "voxtral-mini-transcribe-realtime-2602"
         case .soniox:

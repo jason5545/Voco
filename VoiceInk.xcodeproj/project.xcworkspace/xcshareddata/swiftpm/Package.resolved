@@ -1,5 +1,5 @@
 {
-  "originHash" : "3db4855db9df004a384392d32dd245b3ed299c437e3d3364b17f7ea5160a8e18",
+  "originHash" : "28852cee5e4183e1b418bd9dad35774163897010ecbcbd5413d67f0f6913b7c4",
   "pins" : [
     {
       "identity" : "axswift",
@@ -47,21 +47,21 @@
       }
     },
     {
+      "identity" : "llmkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Beingpax/LLMkit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "5b67cd28862692c05210aeaf130cbe4775c5b381"
+      }
+    },
+    {
       "identity" : "mediaremote-adapter",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ejbills/mediaremote-adapter",
       "state" : {
         "branch" : "master",
         "revision" : "3529aa25023082a2ceadebcd2c9c4a9430ee96b9"
-      }
-    },
-    {
-      "identity" : "mlx-swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ml-explore/mlx-swift",
-      "state" : {
-        "revision" : "6ba4827fb82c97d012eec9ab4b2de21f85c3b33d",
-        "version" : "0.30.6"
       }
     },
     {
@@ -107,15 +107,6 @@
       "state" : {
         "revision" : "d81197f35f41445bc10e94600795e68c6f5e94b0",
         "version" : "2.3.1"
-      }
-    },
-    {
-      "identity" : "swift-numerics",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-numerics",
-      "state" : {
-        "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
-        "version" : "1.1.1"
       }
     },
     {

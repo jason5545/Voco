@@ -111,6 +111,13 @@ class ParakeetTranscriptionService: TranscriptionService {
             }
         }
 
+        // Pad with 1s of silence to capture final punctuation at sequence boundary
+        let trailingSilenceSamples = 16_000
+        let maxSingleChunkSamples = 240_000
+        if speechAudio.count + trailingSilenceSamples <= maxSingleChunkSamples {
+            speechAudio += [Float](repeating: 0, count: trailingSilenceSamples)
+        }
+
         let result = try await asrManager.transcribe(speechAudio)
 
         return result.text

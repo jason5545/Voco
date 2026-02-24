@@ -35,8 +35,6 @@ enum AppDefaults {
             // UI & Behavior
             "IsMenuBarOnly": false,
             "powerModeAutoRestoreEnabled": false,
-            "UseAppleScriptPaste": false,
-
             // Hotkey
             "isMiddleClickToggleEnabled": false,
             "middleClickActivationDelay": 200,
