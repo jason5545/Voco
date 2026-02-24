@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "App Context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "應用程式脈絡"
+          }
+        }
+      }
+    },
     "Dashboard": {
       "localizations": {
         "zh-Hant": {
@@ -631,12 +641,82 @@
         }
       }
     },
+    "File transcription requires a Whisper model for best accuracy. No Whisper model is currently installed.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案轉錄需要 Whisper 模型以獲得最佳準確度。目前未安裝任何 Whisper 模型。"
+          }
+        }
+      }
+    },
+    "Preparing download...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "準備下載中..."
+          }
+        }
+      }
+    },
+    "Protected Words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保護詞語"
+          }
+        }
+      }
+    },
+    "Qwen3 Skip Threshold": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3 跳過門檻"
+          }
+        }
+      }
+    },
+    "Words in this list will never be modified by any correction engine. Use this to protect proper nouns or domain-specific terms.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此清單中的詞語不會被任何校正引擎修改。用於保護專有名詞或領域專用術語。"
+          }
+        }
+      }
+    },
+    "Add word…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增詞語…"
+          }
+        }
+      }
+    },
     "Recording Cancelled": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "錄音已取消"
+          }
+        }
+      }
+    },
+    "Recording failed to start": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音啟動失敗"
           }
         }
       }
@@ -1387,6 +1467,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除"
+          }
+        }
+      }
+    },
+    "Delete Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除模型"
           }
         }
       }
@@ -3391,6 +3481,26 @@
         }
       }
     },
+    "Nasal Ending Correction (-n/-ng)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼻音韻尾校正（ㄣ/ㄥ）"
+          }
+        }
+      }
+    },
+    "Syllable Expansion": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音節擴展"
+          }
+        }
+      }
+    },
     "Spoken Punctuation Conversion": {
       "localizations": {
         "zh-Hant": {
@@ -3427,6 +3537,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "信心度路由"
+          }
+        }
+      }
+    },
+    "Skip AI Enhancement for high-confidence transcriptions. Uses log-prob for both Whisper and Qwen3, with text heuristic fallback for Qwen3.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳過高信心度轉錄的 AI 增強。Whisper 和 Qwen3 皆使用對數機率，Qwen3 另有文字啟發式回退。"
           }
         }
       }
@@ -4646,6 +4766,16 @@
         }
       }
     },
+    "Download Large v2 (2.9 GB)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載 Large v2（2.9 GB）"
+          }
+        }
+      }
+    },
     "Downloading...": {
       "extractionState": "manual",
       "localizations": {
@@ -5324,6 +5454,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳過高信心度轉錄的 AI 增強。僅適用於本機 Whisper 模型。"
+          }
+        }
+      }
+    },
+    "Whisper Model Required": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 Whisper 模型"
           }
         }
       }
