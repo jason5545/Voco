@@ -142,19 +142,19 @@ final class HomophoneCorrectionEngine {
 
             let freq = db.frequency(of: word)
 
-            // Suspicious if: not in dictionary, very low freq, or single-char (tokenizer failed to form a word)
+            // Suspicious if: not in dictionary, or single-char with low freq.
+            // Multi-char tokens with freq > 0 are trusted: NLTokenizer formed the word
+            // AND word_freq.tsv confirms it exists — two independent sources agree.
             let isSuspicious: Bool
             if freq == 0 {
                 // Unknown word — suspicious
                 isSuspicious = true
-            } else if freq <= lowFreqThreshold {
-                // Very low frequency — suspicious
-                isSuspicious = true
-            } else if word.count == 1 {
-                // Single character from tokenizer could mean it failed to form a word.
-                // Only suspicious if there are adjacent single chars (broken segmentation).
-                // We'll handle this via sliding window below, skip here.
+            } else if word.count > 1 {
+                // Multi-char token recognized by NLTokenizer AND present in word_freq → trust it
                 isSuspicious = false
+            } else if freq <= lowFreqThreshold {
+                // Single-char with very low frequency — suspicious
+                isSuspicious = true
             } else {
                 isSuspicious = false
             }
