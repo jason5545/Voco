@@ -95,7 +95,7 @@ struct SettingsView: View {
                 ExpandableSettingsRow(
                     isExpanded: $isCustomCancelExpanded,
                     isEnabled: $isCustomCancelEnabled,
-                    label: "Custom Cancel Shortcut"
+                    label: "Cancel Shortcut (one-press)"
                 ) {
                     LabeledContent("Shortcut") {
                         KeyboardShortcuts.Recorder(for: .cancelRecorder)

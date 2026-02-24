@@ -571,6 +571,16 @@
         }
       }
     },
+    "Cancel Shortcut (one-press)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消快捷鍵（單按）"
+          }
+        }
+      }
+    },
     "Custom Cancel Shortcut": {
       "localizations": {
         "zh-Hant": {
