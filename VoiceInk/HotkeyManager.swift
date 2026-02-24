@@ -346,11 +346,9 @@ class HotkeyManager: ObservableObject {
                 return
             }
 
-            if !whisperState.isMiniRecorderVisible {
-                guard canProcessHotkeyAction else { return }
-                logger.notice("processKeyPress: toggling mini recorder (key down while not visible)")
-                await whisperState.handleToggleMiniRecorder()
-            }
+            guard canProcessHotkeyAction else { return }
+            logger.notice("processKeyPress: toggling mini recorder (key down, visible=\(self.whisperState.isMiniRecorderVisible))")
+            await whisperState.handleToggleMiniRecorder()
         } else {
             if let startTime = keyPressEventTime {
                 let pressDuration = eventTime - startTime
@@ -370,7 +368,8 @@ class HotkeyManager: ObservableObject {
     
     private func handleCustomShortcutKeyDown(eventTime: TimeInterval) async {
         if let lastTrigger = lastShortcutTriggerTime,
-           Date().timeIntervalSince(lastTrigger) < shortcutCooldownInterval {
+           Date().timeIntervalSince(lastTrigger) < shortcutCooldownInterval,
+           !whisperState.isMiniRecorderVisible {
             return
         }
 
@@ -387,11 +386,9 @@ class HotkeyManager: ObservableObject {
             return
         }
 
-        if !whisperState.isMiniRecorderVisible {
-            guard canProcessHotkeyAction else { return }
-            logger.notice("handleCustomShortcutKeyDown: toggling mini recorder (key down while not visible)")
-            await whisperState.handleToggleMiniRecorder()
-        }
+        guard canProcessHotkeyAction else { return }
+        logger.notice("handleCustomShortcutKeyDown: toggling mini recorder (key down, visible=\(self.whisperState.isMiniRecorderVisible))")
+        await whisperState.handleToggleMiniRecorder()
     }
 
     private func handleCustomShortcutKeyUp(eventTime: TimeInterval) async {

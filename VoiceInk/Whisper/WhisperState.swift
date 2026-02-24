@@ -88,6 +88,9 @@ class WhisperState: NSObject, ObservableObject {
     @Published var pendingDictionaryEntry: WordSubstitution?
     var editModeSelectedText: String?
     var partialTranscript: String = ""
+    var lastRecordingStopTime: Date?
+    let doublePressCancelThreshold: TimeInterval = 0.4
+    var doublePressStopTask: Task<Void, Never>?
     var currentSession: TranscriptionSession?
     private var startupPreparationTask: Task<Void, Never>?
     private var startupPreparationTaskID: UUID?

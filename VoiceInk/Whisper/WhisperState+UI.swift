@@ -38,13 +38,32 @@ extension WhisperState {
         logger.notice("toggleMiniRecorder called – visible=\(self.isMiniRecorderVisible), state=\(String(describing: self.recordingState))")
         if isMiniRecorderVisible {
             if recordingState == .recording {
-                logger.notice("toggleMiniRecorder: stopping recording (was recording)")
-                await toggleRecord(powerModeId: powerModeId)
+                if lastRecordingStopTime != nil {
+                    // Second press while still recording — cancel, skip transcribing
+                    logger.notice("toggleMiniRecorder: double-press cancel")
+                    lastRecordingStopTime = nil
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = nil
+                    await cancelRecording()
+                } else {
+                    // First press — wait briefly for possible second press
+                    logger.notice("toggleMiniRecorder: first press, waiting for double-press")
+                    lastRecordingStopTime = Date()
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        guard let self, !Task.isCancelled else { return }
+                        self.lastRecordingStopTime = nil
+                        self.doublePressStopTask = nil
+                        self.logger.notice("toggleMiniRecorder: no double-press, stopping normally")
+                        await self.toggleRecord(powerModeId: powerModeId)
+                    }
+                }
             } else {
-                logger.notice("toggleMiniRecorder: cancelling (was not recording)")
-                await cancelRecording()
+                lastRecordingStopTime = nil
             }
         } else {
+            lastRecordingStopTime = nil
             SoundManager.shared.playStartSound()
 
             // Stop background polling — not needed while recording
@@ -112,6 +131,8 @@ extension WhisperState {
         
         hideRecorderPanel()
         
+        lastRecordingStopTime = nil
+
         // Clear captured context when the recorder is dismissed
         if let enhancementService = enhancementService {
             await MainActor.run {
@@ -154,6 +175,9 @@ extension WhisperState {
         await MainActor.run {
             isMiniRecorderVisible = false
             shouldCancelRecording = false
+            lastRecordingStopTime = nil
+            doublePressStopTask?.cancel()
+            doublePressStopTask = nil
             miniRecorderError = nil
             isEditMode = false
             editModeSelectedText = nil
@@ -168,9 +192,17 @@ extension WhisperState {
 
     func cancelRecording() async {
         logger.notice("cancelRecording called")
+        lastRecordingStopTime = nil
+        doublePressStopTask?.cancel()
+        doublePressStopTask = nil
         SoundManager.shared.playEscSound()
         shouldCancelRecording = true
         await dismissMiniRecorder()
+        NotificationManager.shared.showNotification(
+            title: String(localized: "Recording Cancelled"),
+            type: .info,
+            duration: 1.5
+        )
     }
     
     // MARK: - Notification Handling

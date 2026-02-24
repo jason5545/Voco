@@ -126,9 +126,7 @@ class MiniRecorderShortcutManager: ObservableObject {
     }
     
     private func activateEscapeShortcut() {
-        // Don't activate if custom shortcut is configured
-        guard KeyboardShortcuts.getShortcut(for: .cancelRecorder) == nil else { return }
-        KeyboardShortcuts.setShortcut(.init(.escape), for: .escapeRecorder)
+        // Disabled — double-press hotkey handles cancellation now
     }
     
     // Setup cancel handler once

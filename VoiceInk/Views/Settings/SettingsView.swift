@@ -71,7 +71,7 @@ struct SettingsView: View {
             } header: {
                 Text("Shortcuts")
             } footer: {
-                Text("Quick tap for hands-free recording, hold for push-to-talk.")
+                Text("Quick tap for hands-free recording, hold for push-to-talk. Double-tap to cancel.")
             }
 
             // MARK: - Additional Shortcuts

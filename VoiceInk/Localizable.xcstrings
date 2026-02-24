@@ -491,6 +491,16 @@
         }
       }
     },
+    "Quick tap for hands-free recording, hold for push-to-talk. Double-tap to cancel.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕按進行免持錄音，長按進行按住說話。連按兩下取消。"
+          }
+        }
+      }
+    },
     "Additional Shortcuts": {
       "localizations": {
         "zh-Hant": {
@@ -607,6 +617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "毫秒"
+          }
+        }
+      }
+    },
+    "Recording Cancelled": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音已取消"
           }
         }
       }
