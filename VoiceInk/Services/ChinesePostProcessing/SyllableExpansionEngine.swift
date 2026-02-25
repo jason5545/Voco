@@ -37,7 +37,17 @@ final class SyllableExpansionEngine {
 
     /// Single-char word frequency threshold: characters with freq above this
     /// are too common to be syllable compression errors and will be skipped.
-    private let highFreqCharThreshold: Int = 10000
+    private let highFreqCharThreshold: Int = 5000
+
+    /// Maximum allowed edit distance between merge form and target pinyin.
+    /// 0 = exact match only (safest), 1 = allow 1 edit (more aggressive).
+    /// Set to 0 to avoid false positives like 版(ban)→比亞(ba, dist=1).
+    private let maxMergeEditDistance: Int = 0
+
+    /// Minimum frequency ratio: candidate word freq must be this many times
+    /// the original char freq to be considered. Prevents replacing common
+    /// single chars (e.g. 改=9286) with similarly-frequent words (e.g. 過來=20536).
+    private let minFreqRatio: Double = 5.0
 
     /// Common function words to skip (same set as HomophoneCorrectionEngine)
     private static let skipChars: Set<Character> = [
@@ -330,10 +340,10 @@ final class SyllableExpansionEngine {
         let index = getMergeIndex()
         var candidates: [ExpansionCandidate] = []
 
-        // Check all merge forms within edit distance ≤ 1 of targetPinyin
+        // Check all merge forms within edit distance ≤ maxMergeEditDistance of targetPinyin
         for (mergePinyin, words) in index {
             let dist = Self.editDistance(mergePinyin, targetPinyin)
-            guard dist <= 1 else { continue }
+            guard dist <= maxMergeEditDistance else { continue }
 
             for entry in words {
                 candidates.append(ExpansionCandidate(
@@ -362,6 +372,13 @@ final class SyllableExpansionEngine {
     ) -> Double? {
         let candidateChars = Array(candidate.word)
         guard candidateChars.count == 2 else { return nil }
+
+        // Frequency ratio guard: don't replace reasonably common characters
+        // unless the candidate word is overwhelmingly more frequent
+        let origCharFreq = db.frequency(of: String(originalChar))
+        if origCharFreq > 0 && Double(candidate.freq) / Double(origCharFreq) < minFreqRatio {
+            return nil
+        }
 
         // Original bigram context
         let origLeftBigram: Double
