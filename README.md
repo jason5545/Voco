@@ -26,17 +26,19 @@ Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **
 | Edit Mode | None | Voice-driven editing of selected text |
 | Voice commands | None | Voice commands (e.g. "select all + delete") |
 | Confidence routing | None | Forces LLM pass when punctuation is missing in long segments |
+| RNNoise noise suppression | None | Real-time noise suppression for cleaner input |
 | Licensing | Paid | All features unlocked |
 
 ## Features
 
 - **Offline transcription** — whisper.cpp runs locally; audio never leaves your machine
 - **Qwen3-ASR** — alternative on-device engine via MLX, optimized for Chinese
-- **AI refinement** — post-process text through your own API key (OpenAI / Anthropic / Ollama / 11 providers)
+- **AI refinement** — post-process text through your own API key (12 providers: OpenAI, Anthropic, Ollama, Groq, Gemini, and more)
 - **Chinese optimization** — homophone correction, simplified-to-traditional conversion, colloquial punctuation, filler removal
 - **Edit Mode** — select text, speak corrections, and Voco rewrites it in place
 - **App-aware context** — automatically detects the active app to adjust output style
 - **Voice commands** — hands-free control (e.g. "delete all")
+- **RNNoise** — real-time noise suppression for cleaner audio input
 - **Global hotkey** — customizable keyboard shortcut, supports hold-to-record
 - **Personal dictionary** — custom vocabulary for names, jargon, technical terms
 - **Power Mode** — per-app configuration presets
@@ -110,7 +112,7 @@ VoiceInk/
 - **UI**: SwiftUI + AppKit
 - **Data**: SwiftData
 - **Transcription**: whisper.cpp (offline) + Qwen3-ASR (offline, MLX)
-- **AI refinement**: OpenAI / Anthropic / Ollama / and 8 more providers (user's own API key)
+- **AI refinement**: 12 providers including OpenAI, Anthropic, Ollama, Groq, Gemini (user's own API key)
 
 ## Privacy
 
@@ -125,7 +127,7 @@ Voco is built on top of:
 
 - [VoiceInk](https://github.com/Beingpax/VoiceInk) — upstream project by Pax
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — high-performance speech recognition
-- [OpenCC](https://github.com/BYVoid/OpenCC) — Chinese simplified/traditional conversion (concept reference)
+- [SwiftyOpenCC](https://github.com/exgphe/SwiftyOpenCC) — simplified-to-traditional Chinese conversion (s2twp)
 - [Sparkle](https://github.com/sparkle-project/Sparkle) — auto-updates
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — global hotkeys
 - [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — selected text extraction
