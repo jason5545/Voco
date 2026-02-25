@@ -21,6 +21,7 @@
 		E1F350112F1D10D600790A2C /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1A0BD052EB1E7B800266859 /* whisper.xcframework */; };
 		E1F350122F1D10D600790A2C /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1A0BD052EB1E7B800266859 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */ = {isa = PBXBuildFile; productRef = RN01E5A82F1D200000000002 /* CRNNoise */; };
+		OC01CC012F4E000000000001 /* OpenCC in Frameworks */ = {isa = PBXBuildFile; productRef = OC01CC022F4E000000000002 /* OpenCC */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +101,7 @@
 				E1F1037B2EF85FC700A4FF94 /* SelectedTextKit in Frameworks */,
 				E1A261122CC143AC00B233D1 /* KeyboardShortcuts in Frameworks */,
 				RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */,
+				OC01CC012F4E000000000001 /* OpenCC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -186,6 +188,7 @@
 				E1Q3A0042F0000000000A004 /* MLXFast */,
 				RN01E5A82F1D200000000002 /* CRNNoise */,
 				E1438ED12F3F3D5E00DBE2A1 /* LLMkit */,
+				OC01CC022F4E000000000002 /* OpenCC */,
 			);
 			productName = VoiceInk;
 			productReference = E11473B02CBE0F0A00318EE4 /* VoiceInk.app */;
@@ -282,6 +285,7 @@
 				E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */,
 				RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */,
 				E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */,
+				OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E11473B12CBE0F0A00318EE4 /* Products */;
@@ -741,6 +745,14 @@
 				minimumVersion = 0.21.0;
 			};
 		};
+		OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/exgphe/SwiftyOpenCC";
+			requirement = {
+				kind = branch;
+				branch = master;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -807,6 +819,11 @@
 		RN01E5A82F1D200000000002 /* CRNNoise */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CRNNoise;
+		};
+		OC01CC022F4E000000000002 /* OpenCC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */;
+			productName = OpenCC;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
