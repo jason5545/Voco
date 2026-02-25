@@ -8,13 +8,10 @@ import Accelerate
 import MLX
 
 enum Qwen3PreprocessingError: Error, LocalizedError {
-    case fftSetupFailed
     case melFilterbankNotInitialized
 
     var errorDescription: String? {
         switch self {
-        case .fftSetupFailed:
-            return "Failed to create vDSP FFT setup for audio preprocessing"
         case .melFilterbankNotInitialized:
             return "Mel filterbank not initialized"
         }
@@ -32,26 +29,35 @@ class Qwen3FeatureExtractor {
 
     private var melFilterbank: [Float]?
     private var hannWindow: [Float]
-    private let paddedFFT: Int = 512
-    private let log2PaddedFFT: vDSP_Length = 9
-    private var fftSetup: FFTSetup
+    // Precomputed DFT basis matrices [nBins x nFFT] (row-major)
+    // Used for direct 400-point DFT via matrix-vector multiply,
+    // since vDSP_DFT_zrop only supports lengths of the form f*2^n (f in {1,3,5,15}).
+    private var cosBasis: [Float]
+    private var sinBasis: [Float]
 
     init() throws {
-        hannWindow = [Float](repeating: 0, count: 400)
-        for i in 0..<400 {
-            hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(400)))
+        let nBins = nFFT / 2 + 1  // 201
+
+        hannWindow = [Float](repeating: 0, count: nFFT)
+        for i in 0..<nFFT {
+            hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(nFFT)))
         }
 
-        guard let setup = vDSP_create_fftsetup(9, FFTRadix(kFFTRadix2)) else {
-            throw Qwen3PreprocessingError.fftSetupFailed
+        // Precompute DFT twiddle factors for bins 0..nFFT/2
+        // X[k] = Σ x[n] * exp(-j * 2π * k * n / N)
+        //      = Σ x[n] * cos(2πkn/N) - j * Σ x[n] * sin(2πkn/N)
+        cosBasis = [Float](repeating: 0, count: nBins * nFFT)
+        sinBasis = [Float](repeating: 0, count: nBins * nFFT)
+        let twoPiOverN = 2.0 * Float.pi / Float(nFFT)
+        for k in 0..<nBins {
+            for n in 0..<nFFT {
+                let angle = twoPiOverN * Float(k) * Float(n)
+                cosBasis[k * nFFT + n] = cos(angle)
+                sinBasis[k * nFFT + n] = sin(angle)
+            }
         }
-        fftSetup = setup
 
         setupMelFilterbank()
-    }
-
-    deinit {
-        vDSP_destroy_fftsetup(fftSetup)
     }
 
     private func setupMelFilterbank() {
@@ -78,11 +84,11 @@ class Qwen3FeatureExtractor {
             }
         }
 
-        let nBins = paddedFFT / 2 + 1
+        let nBins = nFFT / 2 + 1
 
         var fftFreqs = [Float](repeating: 0, count: nBins)
         for i in 0..<nBins {
-            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(paddedFFT)
+            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(nFFT)
         }
 
         let melMin = hzToMel(fMin)
@@ -130,8 +136,7 @@ class Qwen3FeatureExtractor {
     }
 
     func extractFeatures(_ audio: [Float]) throws -> MLXArray {
-        let nBins = paddedFFT / 2 + 1
-        let halfPadded = paddedFFT / 2
+        let nBins = nFFT / 2 + 1  // 201
 
         let padLength = nFFT / 2
         var paddedAudio = [Float](repeating: 0, count: padLength + audio.count + padLength)
@@ -150,40 +155,31 @@ class Qwen3FeatureExtractor {
 
         let nFrames = (paddedAudio.count - nFFT) / hopLength + 1
 
-        var splitReal = [Float](repeating: 0, count: halfPadded)
-        var splitImag = [Float](repeating: 0, count: halfPadded)
-        var paddedFrame = [Float](repeating: 0, count: paddedFFT)
+        var windowedFrame = [Float](repeating: 0, count: nFFT)
+        var realPart = [Float](repeating: 0, count: nBins)
+        var imagPart = [Float](repeating: 0, count: nBins)
         var magnitude = [Float](repeating: 0, count: nFrames * nBins)
 
         for frame in 0..<nFrames {
             let start = frame * hopLength
 
+            // Apply Hann window
             paddedAudio.withUnsafeBufferPointer { buf in
-                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &paddedFrame, 1, vDSP_Length(nFFT))
-            }
-            for i in nFFT..<paddedFFT {
-                paddedFrame[i] = 0
+                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &windowedFrame, 1, vDSP_Length(nFFT))
             }
 
-            for i in 0..<halfPadded {
-                splitReal[i] = paddedFrame[2 * i]
-                splitImag[i] = paddedFrame[2 * i + 1]
-            }
+            // 400-point DFT via matrix-vector multiply
+            // realPart[k] = Σ_n windowedFrame[n] * cos(2πkn/N)
+            // imagPart[k] = Σ_n windowedFrame[n] * sin(2πkn/N)
+            vDSP_mmul(cosBasis, 1, windowedFrame, 1, &realPart, 1,
+                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
+            vDSP_mmul(sinBasis, 1, windowedFrame, 1, &imagPart, 1,
+                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
 
-            splitReal.withUnsafeMutableBufferPointer { realBuf in
-                splitImag.withUnsafeMutableBufferPointer { imagBuf in
-                    var splitComplex = DSPSplitComplex(
-                        realp: realBuf.baseAddress!,
-                        imagp: imagBuf.baseAddress!)
-                    vDSP_fft_zrip(fftSetup, &splitComplex, 1, log2PaddedFFT, FFTDirection(kFFTDirection_Forward))
-                }
-            }
-
+            // Power spectrum: |X[k]|^2 = real^2 + imag^2
             let baseIdx = frame * nBins
-            magnitude[baseIdx] = splitReal[0] * splitReal[0]
-            magnitude[baseIdx + halfPadded] = splitImag[0] * splitImag[0]
-            for k in 1..<halfPadded {
-                magnitude[baseIdx + k] = splitReal[k] * splitReal[k] + splitImag[k] * splitImag[k]
+            for k in 0..<nBins {
+                magnitude[baseIdx + k] = realPart[k] * realPart[k] + imagPart[k] * imagPart[k]
             }
         }
 

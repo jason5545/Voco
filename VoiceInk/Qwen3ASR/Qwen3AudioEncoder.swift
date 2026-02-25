@@ -34,7 +34,7 @@ class Qwen3AudioSelfAttention: Module {
     func callAsFunction(_ x: MLXArray, attentionMask: MLXArray? = nil) -> MLXArray {
         let (batch, seqLen, _) = (x.dim(0), x.dim(1), x.dim(2))
 
-        var q = qProj(x)
+        var q = qProj(x) * scale
         var k = kProj(x)
         var v = vProj(x)
 
@@ -44,7 +44,7 @@ class Qwen3AudioSelfAttention: Module {
 
         let attnOutput = MLXFast.scaledDotProductAttention(
             queries: q, keys: k, values: v,
-            scale: scale, mask: attentionMask)
+            scale: 1.0, mask: attentionMask)
 
         let out = attnOutput.transposed(0, 2, 1, 3).reshaped(batch, seqLen, numHeads * headDim)
         return outProj(out)
