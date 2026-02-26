@@ -15,7 +15,7 @@
             <sparkle:version>171</sparkle:version>
             <sparkle:shortVersionString>1.71</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.71/Voco-1.71.dmg" length="219381035" type="application/octet-stream" sparkle:edSignature="0ccZIn7Dm6gDXtfqtpM7W3WdLMzYNdpj2QlPvglomPfho/UwWicu2oZYSdcZSa+t2HbCZ8vqOlsOz5F7maxsDw=="/>
+            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.71.1/Voco-1.71.1.dmg" length="218509044" type="application/octet-stream" sparkle:edSignature="qovVCWrlhGAztdac1KpqmyssYMW2QjKYOynZ3WAenxGOIyt76Dd/hRynaKP6m0CC5pgoe7Q5baSMxh0DP1WbBg=="/>
         </item>
     </channel>
 </rss>
