@@ -37,7 +37,7 @@ class Qwen3ASRModel {
 
     /// Language tags that cause English transliteration; remap to preserve code-switching
     private static let codeSwitchLanguageRemap: [String: String] = [
-        "Chinese": "zh",
+        "Chinese": "English",
     ]
 
     let audioEncoder: Qwen3AudioEncoder
