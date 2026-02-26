@@ -100,13 +100,38 @@ class Qwen3ASRModel {
             throw Qwen3ASRModelError.textDecoderNotLoaded
         }
 
-        return try generateText(
+        let result = try generateText(
             audioEmbeds: audioEmbeds,
             textDecoder: textDecoder,
             language: language,
             prompt: prompt,
             maxTokens: effectiveMaxTokens
         )
+
+        // Code-switch remap: if auto-detect found a language that transliterates
+        // English (e.g. "Chinese"), re-run with a remapped tag to preserve
+        // code-switching.  Done here (not inside the generation loop) so the
+        // first pass completes fully and its GPU resources are properly released.
+        if language == nil,
+           let detectedLang = result.detectedLanguage,
+           let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
+            Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
+            let remapped = try generateText(
+                audioEmbeds: audioEmbeds,
+                textDecoder: textDecoder,
+                language: remappedLang,
+                prompt: prompt,
+                maxTokens: effectiveMaxTokens
+            )
+            return TranscriptionResult(
+                text: remapped.text,
+                avgLogProb: remapped.avgLogProb,
+                tokenCount: remapped.tokenCount,
+                detectedLanguage: detectedLang
+            )
+        }
+
+        return result
     }
 
     private func generateText(
@@ -211,29 +236,6 @@ class Qwen3ASRModel {
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
         if nextToken == Int32(tokens.asrTextId) {
-            // Code-switch remap: if auto-detect found a language that transliterates English,
-            // re-run with the remapped tag to preserve code-switching
-            if language == nil, let tok = tokenizer {
-                let prefixText = tok.decode(tokens: generatedTokens.map { Int($0) })
-                if let langName = extractLanguageName(from: prefixText),
-                   let remappedLang = Self.codeSwitchLanguageRemap[langName] {
-                    Self.logger.info("Code-switch remap: \(langName) → \(remappedLang)")
-                    cache = nil
-                    let result = try generateText(
-                        audioEmbeds: audioEmbeds,
-                        textDecoder: textDecoder,
-                        language: remappedLang,
-                        prompt: prompt,
-                        maxTokens: maxTokens
-                    )
-                    return TranscriptionResult(
-                        text: result.text,
-                        avgLogProb: result.avgLogProb,
-                        tokenCount: result.tokenCount,
-                        detectedLanguage: langName
-                    )
-                }
-            }
             isCountingLogProb = true
         } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
             let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
@@ -256,28 +258,6 @@ class Qwen3ASRModel {
             nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
             if nextToken == Int32(tokens.asrTextId) {
-                // Code-switch remap (same check as first-token path)
-                if language == nil, let tok = tokenizer {
-                    let prefixText = tok.decode(tokens: generatedTokens.map { Int($0) })
-                    if let langName = extractLanguageName(from: prefixText),
-                       let remappedLang = Self.codeSwitchLanguageRemap[langName] {
-                        Self.logger.info("Code-switch remap: \(langName) → \(remappedLang)")
-                        cache = nil
-                        let result = try generateText(
-                            audioEmbeds: audioEmbeds,
-                            textDecoder: textDecoder,
-                            language: remappedLang,
-                            prompt: prompt,
-                            maxTokens: maxTokens
-                        )
-                        return TranscriptionResult(
-                            text: result.text,
-                            avgLogProb: result.avgLogProb,
-                            tokenCount: result.tokenCount,
-                            detectedLanguage: langName
-                        )
-                    }
-                }
                 isCountingLogProb = true
             } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
                 let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
