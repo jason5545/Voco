@@ -1361,6 +1361,26 @@
         }
       }
     },
+    "Import": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入"
+          }
+        }
+      }
+    },
+    "Import Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入設定"
+          }
+        }
+      }
+    },
     "Imported": {
       "localizations": {
         "zh-Hant": {
@@ -2891,6 +2911,16 @@
         }
       }
     },
+    "Backup": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備份"
+          }
+        }
+      }
+    },
     "Before Copy": {
       "localizations": {
         "zh-Hant": {
@@ -3637,6 +3667,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "匯出"
+          }
+        }
+      }
+    },
+    "Export or import all your settings, prompts, power modes, dictionary, and custom models.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出或匯入所有設定、提示詞、Power Mode、字典和自訂模型。"
+          }
+        }
+      }
+    },
+    "Export Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出設定"
           }
         }
       }
