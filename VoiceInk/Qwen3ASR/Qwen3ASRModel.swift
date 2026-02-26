@@ -35,6 +35,11 @@ class Qwen3ASRModel {
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
 
+    /// Language tags that cause English transliteration; remap to preserve code-switching
+    private static let codeSwitchLanguageRemap: [String: String] = [
+        "Chinese": "zh",
+    ]
+
     let audioEncoder: Qwen3AudioEncoder
     let featureExtractor: Qwen3FeatureExtractor
     var textDecoder: Qwen3QuantizedTextModel?
@@ -185,6 +190,18 @@ class Qwen3ASRModel {
         // all generated tokens are text tokens → start counting immediately
         var isCountingLogProb = (language != nil)
 
+        // Helper: extract language name from "language XXX" prefix
+        func extractLanguageName(from rawText: String) -> String? {
+            guard rawText.hasPrefix("language ") else { return nil }
+            let afterLang = rawText.dropFirst("language ".count)
+            // Language name is a single word (e.g. "Japanese", "Chinese", "English")
+            if let spaceIdx = afterLang.firstIndex(of: " ") {
+                return String(afterLang[afterLang.startIndex..<spaceIdx])
+            }
+            // If no space found, the entire remainder is the language name (edge case)
+            return afterLang.isEmpty ? nil : String(afterLang)
+        }
+
         var (hiddenStates, newCache) = try textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
 
@@ -194,6 +211,29 @@ class Qwen3ASRModel {
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
         if nextToken == Int32(tokens.asrTextId) {
+            // Code-switch remap: if auto-detect found a language that transliterates English,
+            // re-run with the remapped tag to preserve code-switching
+            if language == nil, let tok = tokenizer {
+                let prefixText = tok.decode(tokens: generatedTokens.map { Int($0) })
+                if let langName = extractLanguageName(from: prefixText),
+                   let remappedLang = Self.codeSwitchLanguageRemap[langName] {
+                    Self.logger.info("Code-switch remap: \(langName) → \(remappedLang)")
+                    cache = nil
+                    let result = try generateText(
+                        audioEmbeds: audioEmbeds,
+                        textDecoder: textDecoder,
+                        language: remappedLang,
+                        prompt: prompt,
+                        maxTokens: maxTokens
+                    )
+                    return TranscriptionResult(
+                        text: result.text,
+                        avgLogProb: result.avgLogProb,
+                        tokenCount: result.tokenCount,
+                        detectedLanguage: langName
+                    )
+                }
+            }
             isCountingLogProb = true
         } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
             let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
@@ -216,6 +256,28 @@ class Qwen3ASRModel {
             nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
             if nextToken == Int32(tokens.asrTextId) {
+                // Code-switch remap (same check as first-token path)
+                if language == nil, let tok = tokenizer {
+                    let prefixText = tok.decode(tokens: generatedTokens.map { Int($0) })
+                    if let langName = extractLanguageName(from: prefixText),
+                       let remappedLang = Self.codeSwitchLanguageRemap[langName] {
+                        Self.logger.info("Code-switch remap: \(langName) → \(remappedLang)")
+                        cache = nil
+                        let result = try generateText(
+                            audioEmbeds: audioEmbeds,
+                            textDecoder: textDecoder,
+                            language: remappedLang,
+                            prompt: prompt,
+                            maxTokens: maxTokens
+                        )
+                        return TranscriptionResult(
+                            text: result.text,
+                            avgLogProb: result.avgLogProb,
+                            tokenCount: result.tokenCount,
+                            detectedLanguage: langName
+                        )
+                    }
+                }
                 isCountingLogProb = true
             } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
                 let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
@@ -245,18 +307,6 @@ class Qwen3ASRModel {
                 tokenCount: logProbTokenCount,
                 detectedLanguage: nil
             )
-        }
-
-        // Helper: extract language name from "language XXX" prefix
-        func extractLanguageName(from rawText: String) -> String? {
-            guard rawText.hasPrefix("language ") else { return nil }
-            let afterLang = rawText.dropFirst("language ".count)
-            // Language name is a single word (e.g. "Japanese", "Chinese", "English")
-            if let spaceIdx = afterLang.firstIndex(of: " ") {
-                return String(afterLang[afterLang.startIndex..<spaceIdx])
-            }
-            // If no space found, the entire remainder is the language name (edge case)
-            return afterLang.isEmpty ? nil : String(afterLang)
         }
 
         // Find <asr_text> marker by token ID (more reliable than string matching)
