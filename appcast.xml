@@ -1,22 +1,21 @@
 <?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
-        <title>VoiceInk</title>
+        <title>Voco</title>
         <item>
             <title>1.71</title>
             <description><![CDATA[
-                <h3>What's New in V 1.71</h3>
+                <h3>What's New in v1.71</h3>
                 <ul>
-                    <li>🦜 Fix Parakeet model issue</li>
-                    <li>🔄 Fix Dictionary sync issue</li>
-                    <li>🐛 Minor bug fixes and improvements</li>
+                    <li>Sync with upstream v1.71</li>
+                    <li>Switch update checker to fork's own appcast</li>
                 </ul>
             ]]></description>
-            <pubDate>Wed, 25 Feb 2026 18:12:40 +0545</pubDate>
+            <pubDate>Wed, 26 Feb 2026 09:25:00 +0800</pubDate>
             <sparkle:version>171</sparkle:version>
             <sparkle:shortVersionString>1.71</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Beingpax/VoiceInk/releases/download/v1.71/VoiceInk.dmg" length="12654280" type="application/octet-stream" sparkle:edSignature="KpwVj6LM5w8TsphMG4ouQrYJJ3ii279W2H8gAOPuxXZsKAxpHzVS2mhlpUwjOifcjOikMYi26coy0DZTUd6gAw=="/>
+            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.71/Voco-1.71.dmg" length="219381035" type="application/octet-stream" sparkle:edSignature="0ccZIn7Dm6gDXtfqtpM7W3WdLMzYNdpj2QlPvglomPfho/UwWicu2oZYSdcZSa+t2HbCZ8vqOlsOz5F7maxsDw=="/>
         </item>
     </channel>
 </rss>
