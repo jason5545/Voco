@@ -14,6 +14,7 @@ class OpenCCConverter {
     private static let supplementaryMappings: [(String, String)] = [
         ("優盤", "隨身碟"),  // TWPhrases only has U盤→隨身碟, not 優盤
         ("拍制", "拍製"),    // STPhrases doesn't have this compound
+        ("賬", "帳"),        // TWVariants missing: 賬→帳 (Taiwan standard for 帳號/帳戶/帳目 etc.)
     ]
 
     private init() {
