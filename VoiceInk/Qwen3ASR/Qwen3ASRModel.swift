@@ -24,6 +24,12 @@ enum Qwen3ASRModelError: Error, LocalizedError {
     }
 }
 
+/// A word (or merged subtoken group) with low ASR confidence
+struct UncertainWord {
+    let text: String       // 解碼後的文字（已合併 subtoken）
+    let logProb: Double    // 該詞彙的平均 logProb
+}
+
 /// Main Qwen3-ASR model for speech recognition
 class Qwen3ASRModel {
     struct TranscriptionResult {
@@ -31,6 +37,7 @@ class Qwen3ASRModel {
         let avgLogProb: Double
         let tokenCount: Int
         let detectedLanguage: String?  // auto 模式偵測到的語言（如 "Japanese"），手動指定時為 nil
+        let uncertainWords: [UncertainWord]
     }
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
@@ -129,7 +136,8 @@ class Qwen3ASRModel {
                 text: remapped.text,
                 avgLogProb: remapped.avgLogProb,
                 tokenCount: remapped.tokenCount,
-                detectedLanguage: detectedLang
+                detectedLanguage: detectedLang,
+                uncertainWords: remapped.uncertainWords
             )
         }
 
@@ -217,6 +225,10 @@ class Qwen3ASRModel {
         // all generated tokens are text tokens → start counting immediately
         var isCountingLogProb = (language != nil)
 
+        // Low-confidence token tracking (Feature 1)
+        let uncertaintyThreshold: Double = -1.0
+        var tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
+
         // Helper: extract language name from "language XXX" prefix
         func extractLanguageName(from rawText: String) -> String? {
             guard rawText.hasPrefix("language ") else { return nil }
@@ -241,8 +253,12 @@ class Qwen3ASRModel {
             isCountingLogProb = true
         } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
             let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
-            totalLogProb += log(Double(max(tokenProb, 1e-30)))
+            let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
+            totalLogProb += tokenLogProb
             logProbTokenCount += 1
+            if tokenLogProb < uncertaintyThreshold {
+                tokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
+            }
         }
         generatedTokens.append(nextToken)
 
@@ -263,8 +279,12 @@ class Qwen3ASRModel {
                 isCountingLogProb = true
             } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
                 let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
-                totalLogProb += log(Double(max(tokenProb, 1e-30)))
+                let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
+                totalLogProb += tokenLogProb
                 logProbTokenCount += 1
+                if tokenLogProb < uncertaintyThreshold {
+                    tokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
+                }
             }
             generatedTokens.append(nextToken)
 
@@ -287,7 +307,8 @@ class Qwen3ASRModel {
                 text: generatedTokens.map { String($0) }.joined(separator: " "),
                 avgLogProb: avgLogProb,
                 tokenCount: logProbTokenCount,
-                detectedLanguage: nil
+                detectedLanguage: nil,
+                uncertainWords: []
             )
         }
 
@@ -315,7 +336,8 @@ class Qwen3ASRModel {
                     text: String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces),
                     avgLogProb: avgLogProb,
                     tokenCount: logProbTokenCount,
-                    detectedLanguage: detectedLang
+                    detectedLanguage: detectedLang,
+                    uncertainWords: []  // Fallback path: no token-level data available
                 )
             }
             // Strip "language XXX" prefix if present
@@ -327,7 +349,8 @@ class Qwen3ASRModel {
                             .trimmingCharacters(in: .whitespaces),
                         avgLogProb: avgLogProb,
                         tokenCount: logProbTokenCount,
-                        detectedLanguage: detectedLang
+                        detectedLanguage: detectedLang,
+                        uncertainWords: []  // Fallback path
                     )
                 }
             }
@@ -335,7 +358,8 @@ class Qwen3ASRModel {
                 text: rawText,
                 avgLogProb: avgLogProb,
                 tokenCount: logProbTokenCount,
-                detectedLanguage: detectedLang
+                detectedLanguage: detectedLang,
+                uncertainWords: []  // Fallback path
             )
         } else {
             // Manual language mode: no prefix, all tokens are transcription
@@ -344,12 +368,84 @@ class Qwen3ASRModel {
 
         // Filter out EOS token before decoding
         let filtered = textTokens.filter { $0 != Int32(tokens.eosTokenId) }
+        let uncertainWords = buildUncertainWords(
+            tokenLogProbs: tokenLogProbs,
+            textTokens: filtered,
+            tokenizer: tokenizer
+        )
         return TranscriptionResult(
             text: tokenizer.decode(tokens: filtered.map { Int($0) })
                 .trimmingCharacters(in: .whitespaces),
             avgLogProb: avgLogProb,
             tokenCount: logProbTokenCount,
-            detectedLanguage: detectedLang
+            detectedLanguage: detectedLang,
+            uncertainWords: uncertainWords
         )
+    }
+
+    // MARK: - Uncertain Word Grouping
+
+    /// Build UncertainWord list by grouping adjacent low-confidence tokens
+    private func buildUncertainWords(
+        tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)],
+        textTokens: [Int32],
+        tokenizer: Qwen3Tokenizer
+    ) -> [UncertainWord] {
+        guard !tokenLogProbs.isEmpty, !textTokens.isEmpty else { return [] }
+
+        // Build decoded text for each text token
+        let tokenTexts: [(index: Int, text: String, logProb: Double?)] = textTokens.enumerated().map { (i, tokenId) in
+            let decoded = tokenizer.decode(tokens: [Int(tokenId)])
+            let lp = tokenLogProbs.first(where: { $0.index == i })?.logProb
+            return (i, decoded, lp)
+        }
+
+        // Collect only low-confidence tokens
+        let lowConfTokens = tokenTexts.compactMap { entry -> (index: Int, text: String, logProb: Double)? in
+            guard let lp = entry.logProb else { return nil }
+            return (entry.index, entry.text, lp)
+        }
+
+        guard !lowConfTokens.isEmpty else { return [] }
+
+        // Group adjacent low-confidence tokens
+        var groups: [[(index: Int, text: String, logProb: Double)]] = []
+        var currentGroup: [(index: Int, text: String, logProb: Double)] = []
+
+        for token in lowConfTokens {
+            if let last = currentGroup.last {
+                if token.index == last.index + 1 {
+                    currentGroup.append(token)
+                } else {
+                    groups.append(currentGroup)
+                    currentGroup = [token]
+                }
+            } else {
+                currentGroup = [token]
+            }
+        }
+        if !currentGroup.isEmpty {
+            groups.append(currentGroup)
+        }
+
+        // Convert groups to UncertainWord, applying CJK/Latin merge limits
+        var words: [UncertainWord] = []
+        for group in groups {
+            let mergedText = group.map { $0.text }.joined()
+            let trimmed = mergedText.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+
+            // CJK: max 4 chars per group
+            let cjkCount = trimmed.unicodeScalars.filter {
+                (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+            }.count
+            if cjkCount > 4 { continue }  // Skip overly long groups
+
+            let avgLogProb = group.map { $0.logProb }.reduce(0, +) / Double(group.count)
+            words.append(UncertainWord(text: trimmed, logProb: avgLogProb))
+        }
+
+        // Sort by logProb (lowest first) and take top 8
+        return Array(words.sorted { $0.logProb < $1.logProb }.prefix(8))
     }
 }

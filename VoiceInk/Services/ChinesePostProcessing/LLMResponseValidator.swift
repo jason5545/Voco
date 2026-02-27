@@ -3,6 +3,17 @@ import Foundation
 struct LLMValidationResult {
     let isValid: Bool
     let reasons: [String]
+
+    /// Failures worth retrying with a conservative prompt.
+    /// Blacklist/empty are fundamental failures; content-drift, short-edit-budget,
+    /// and dropped-term may succeed with a more conservative approach.
+    var isRetryable: Bool {
+        guard !isValid else { return false }
+        let retryablePrefixes = ["content-drift", "short-edit-budget", "dropped-term"]
+        return reasons.allSatisfy { reason in
+            retryablePrefixes.contains { reason.hasPrefix($0) }
+        }
+    }
 }
 
 /// Validates LLM responses to reject aggressive rewrites that are more likely
@@ -120,7 +131,15 @@ class LLMResponseValidator {
         }
 
         for char in text {
-            if char.isLetter || char.isNumber || " -_./+".contains(char) {
+            let isCJK = char.unicodeScalars.contains {
+                (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                    || (0x20000...0x2A6DF).contains($0.value)
+                    || (0x3040...0x309F).contains($0.value) || (0x30A0...0x30FF).contains($0.value)
+            }
+            if isCJK {
+                // CJK characters are term boundaries — flush any Latin term in progress
+                if !buffer.isEmpty { flushBuffer() }
+            } else if char.isLetter || char.isNumber || " -_./+".contains(char) {
                 buffer.append(char)
                 if char.unicodeScalars.contains(where: { $0.isASCII && CharacterSet.letters.contains($0) }) {
                     hasLatin = true

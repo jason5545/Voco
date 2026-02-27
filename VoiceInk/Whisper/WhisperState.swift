@@ -699,8 +699,37 @@ class WhisperState: NSObject, ObservableObject {
                             "LLM_VALIDATION: isValid=\(validation.isValid), reasons=\(validation.reasons.joined(separator: ",")) | original(\(textForAI.count)): \(textForAI) | enhanced(\(enhancedText.count)): \(enhancedText)"
                         )
                         if !validation.isValid {
-                            logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
-                            // Keep text as-is (pre-LLM), don't use enhancedText
+                            var retrySucceeded = false
+
+                            if validation.isRetryable {
+                                logger.notice("🔄 LLM validation failed (\(validation.reasons.joined(separator: ","))), attempting conservative retry")
+                                do {
+                                    let uncertainWords = postProcessor.lastUncertainWords
+                                    let (retryResult, retryDuration) = try await enhancementService.enhanceConservative(
+                                        textForAI, uncertainWords: uncertainWords
+                                    )
+                                    let retryValidation = postProcessor.llmResponseValidator.validate(
+                                        response: retryResult,
+                                        original: textForAI,
+                                        protectedTerms: protectedTerms
+                                    )
+                                    ChinesePostProcessingService.debugLog(
+                                        "CONSERVATIVE_RETRY: isValid=\(retryValidation.isValid), reasons=\(retryValidation.reasons.joined(separator: ",")) | result(\(retryResult.count)): \(retryResult)"
+                                    )
+                                    if retryValidation.isValid {
+                                        transcription.enhancedText = retryResult
+                                        finalPastedText = retryResult
+                                        transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + retryDuration
+                                        retrySucceeded = true
+                                    }
+                                } catch {
+                                    logger.warning("⚠️ Conservative retry error: \(error.localizedDescription)")
+                                }
+                            }
+
+                            if !retrySucceeded {
+                                logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
+                            }
                         } else {
                             transcription.enhancedText = enhancedText
                             finalPastedText = enhancedText

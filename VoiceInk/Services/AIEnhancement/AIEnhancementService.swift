@@ -229,7 +229,40 @@ class AIEnhancementService: ObservableObject {
             recentTranscriptionsSection = ""
         }
 
-        let finalContextSection = allContextSections + customVocabularySection + recentTranscriptionsSection
+        // Known ASR errors from WordReplacement dictionary (Feature 2)
+        let knownASRErrorsSection: String
+        let descriptor = FetchDescriptor<WordReplacement>(
+            predicate: #Predicate { $0.isEnabled },
+            sortBy: [SortDescriptor(\WordReplacement.dateAdded, order: .reverse)]
+        )
+        let replacements = (try? modelContext.fetch(descriptor)) ?? []
+        if !replacements.isEmpty {
+            let entries = replacements.prefix(30).compactMap { r -> String? in
+                let orig = r.originalText.split(separator: ",").first?
+                    .trimmingCharacters(in: .whitespaces) ?? ""
+                guard !orig.isEmpty, !r.replacementText.isEmpty else { return nil }
+                return "「\(orig)」→「\(r.replacementText)」"
+            }
+            if !entries.isEmpty {
+                knownASRErrorsSection = "\n\n<KNOWN_ASR_ERRORS>\n以下是已知的語音辨識錯誤對照，如果轉錄中出現類似模式請參考修正：\n\(entries.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
+            } else {
+                knownASRErrorsSection = ""
+            }
+        } else {
+            knownASRErrorsSection = ""
+        }
+
+        // Uncertain words from ASR logprob (Feature 1)
+        let uncertainWordsSection: String
+        let uncertainWords = ChinesePostProcessingService.shared.lastUncertainWords
+        if !uncertainWords.isEmpty {
+            let wordList = uncertainWords.map { "「\($0.text)」" }.joined(separator: "、")
+            uncertainWordsSection = "\n\n<UNCERTAIN_WORDS>\n以下詞彙的語音辨識信心度較低，可能是辨識錯誤，請特別注意：\n\(wordList)\n</UNCERTAIN_WORDS>"
+        } else {
+            uncertainWordsSection = ""
+        }
+
+        let finalContextSection = allContextSections + customVocabularySection + recentTranscriptionsSection + uncertainWordsSection + knownASRErrorsSection
 
         if let activePrompt = activePrompt {
             if activePrompt.id == PredefinedPrompts.assistantPromptId {
@@ -401,6 +434,19 @@ class AIEnhancementService: ObservableObject {
         } catch {
             throw error
         }
+    }
+
+    func enhanceConservative(_ text: String, uncertainWords: [UncertainWord]) async throws -> (String, TimeInterval) {
+        let startTime = Date()
+        let systemMessage = AIPrompts.conservativeRetryPrompt(
+            uncertainWords: uncertainWords.map { $0.text }
+        )
+        let result = try await makeRequest(
+            text: text,
+            mode: .transcriptionEnhancement,
+            systemMessageOverride: systemMessage
+        )
+        return (result, Date().timeIntervalSince(startTime))
     }
 
     func enhanceForEditMode(instruction: String, selectedText: String) async throws -> (String, TimeInterval, WordSubstitution?) {

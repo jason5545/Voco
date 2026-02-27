@@ -136,5 +136,27 @@ enum AIPrompts {
     如果有提供 <CURRENT_WINDOW_CONTEXT>，請用於判斷應用程式情境。
     如果有提供 <CUSTOM_VOCABULARY>，請優先使用其中的拼寫。
     如果有提供 <RECENT_TRANSCRIPTIONS>，請用於同音字消歧義參考（但不可改變原意）。
+    如果有提供 <UNCERTAIN_WORDS>，這些詞彙的辨識信心度低，優先檢查是否為同音字錯誤。
+    如果有提供 <KNOWN_ASR_ERRORS>，這些是使用者回報的常見辨識錯誤對照表，遇到類似模式請參考修正。
     """
+
+    // MARK: - Conservative Retry Prompt (Feature 4)
+
+    static func conservativeRetryPrompt(uncertainWords: [String]) -> String {
+        let wordList = uncertainWords.isEmpty
+            ? "請保守修正，只處理明顯的同音字錯誤"
+            : "只檢查以下可疑詞彙是否為同音字錯誤：" + uncertainWords.map { "「\($0)」" }.joined(separator: "、")
+
+        return """
+        你是語音辨識的最小修正器。
+
+        規則：
+        - \(wordList)
+        - 其餘文字必須完全保持原樣
+        - 不要加標點、不要刪贅字、不要改語序、不要改近義詞
+        - 不確定就保留原詞
+        - 只輸出修正後的文字
+        - 使用臺灣正體中文
+        """
+    }
 }

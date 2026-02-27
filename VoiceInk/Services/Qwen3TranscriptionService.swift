@@ -72,6 +72,9 @@ class Qwen3TranscriptionService: TranscriptionService {
     /// Detected language from the last auto-mode transcription (e.g. "Japanese", "Chinese")
     var lastDetectedLanguage: String?
 
+    /// Low-confidence words from the last transcription (for LLM prompt injection)
+    var lastUncertainWords: [UncertainWord] = []
+
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         guard let qwen3Model = model as? Qwen3Model else {
             throw Qwen3ServiceError.invalidModel
@@ -93,8 +96,10 @@ class Qwen3TranscriptionService: TranscriptionService {
         let result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
         self.lastAvgLogProb = result.avgLogProb
         self.lastDetectedLanguage = result.detectedLanguage
+        self.lastUncertainWords = result.uncertainWords
         await MainActor.run {
             ChinesePostProcessingService.shared.lastAvgLogProb = result.avgLogProb
+            ChinesePostProcessingService.shared.lastUncertainWords = result.uncertainWords
         }
 
         logger.info("Qwen3-ASR transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")

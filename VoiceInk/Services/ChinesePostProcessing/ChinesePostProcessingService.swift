@@ -39,6 +39,7 @@ class ChinesePostProcessingService: ObservableObject {
     var lastAvgLogProb: Double = 0.0
     var lastModelProvider: ModelProvider?
     var lastAudioDuration: Double = 0.0
+    var lastUncertainWords: [UncertainWord] = []
 
     // MARK: - Settings (UserDefaults backed)
 

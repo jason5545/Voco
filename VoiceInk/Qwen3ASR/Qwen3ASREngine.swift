@@ -125,7 +125,10 @@ actor Qwen3ASREngine {
         let weightedLogProb = totalTokens > 0
             ? chunkResults.reduce(0.0) { $0 + $1.avgLogProb * Double($1.tokenCount) } / Double(totalTokens)
             : 0.0
-        return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens, detectedLanguage: chunkResults.first?.detectedLanguage)
+        // Merge uncertain words from all chunks, keep top 8 by lowest logProb
+        let allUncertainWords = chunkResults.flatMap { $0.uncertainWords }
+        let mergedUncertainWords = Array(allUncertainWords.sorted { $0.logProb < $1.logProb }.prefix(8))
+        return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens, detectedLanguage: chunkResults.first?.detectedLanguage, uncertainWords: mergedUncertainWords)
     }
 
     /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
