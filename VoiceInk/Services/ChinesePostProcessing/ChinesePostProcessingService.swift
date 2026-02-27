@@ -285,8 +285,8 @@ class ChinesePostProcessingService: ObservableObject {
 
         // Provider-specific confidence check
         switch lastModelProvider {
-        case .local:
-            // Whisper: use avgLogProb (unchanged)
+        case .local, .whisperKit:
+            // Whisper (cpp or WhisperKit CoreML): use avgLogProb
             if lastAvgLogProb > logProbThreshold {
                 Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
                 return true

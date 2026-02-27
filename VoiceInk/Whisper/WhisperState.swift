@@ -172,6 +172,7 @@ class WhisperState: NSObject, ObservableObject {
     @Published var downloadProgress: [String: Double] = [:]
     @Published var parakeetDownloadStates: [String: Bool] = [:]
     @Published var qwen3DownloadStates: [String: Bool] = [:]
+    @Published var whisperKitDownloadStates: [String: Bool] = [:]
     
     init(modelContext: ModelContext, enhancementService: AIEnhancementService? = nil) {
         self.modelContext = modelContext

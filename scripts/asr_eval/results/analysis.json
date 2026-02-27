@@ -1,0 +1,38 @@
+{
+  "firered-v1": {
+    "avg_cer": 0.5825,
+    "english_term_rate": 0.339,
+    "avg_rtf": 0.3397,
+    "simplified_chinese_rate": 0.7
+  },
+  "firered2-aed": {
+    "avg_cer": 0.5043,
+    "english_term_rate": 0.5593,
+    "avg_rtf": 0.9854,
+    "simplified_chinese_rate": 0.68
+  },
+  "qwen3-0.6b": {
+    "avg_cer": 7.4628,
+    "english_term_rate": 0.4407,
+    "avg_rtf": 0.2083,
+    "simplified_chinese_rate": 0.64
+  },
+  "qwen3-1.7b": {
+    "avg_cer": 0.6101,
+    "english_term_rate": 0.8136,
+    "avg_rtf": 0.1534,
+    "simplified_chinese_rate": 0.64
+  },
+  "sensevoice": {
+    "avg_cer": 0.6241,
+    "english_term_rate": 0.3898,
+    "avg_rtf": 0.0195,
+    "simplified_chinese_rate": 0.66
+  },
+  "whisper-v3-turbo-mlx": {
+    "avg_cer": 0.5043,
+    "english_term_rate": 0.4915,
+    "avg_rtf": 0.2279,
+    "simplified_chinese_rate": 0.68
+  }
+}

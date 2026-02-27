@@ -1,0 +1,614 @@
+[
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "duration": 5.85,
+    "asr_text": "測試執行穩定，你們應該要寫在哪邊吧？",
+    "enhanced_text": "測試執行穩定，你們應該要寫在哪裡吧？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "duration": 7.37,
+    "asr_text": "你就覺得怎麼開始最好吧？ 你直接開始就好了。",
+    "enhanced_text": "你覺得怎麼開始最好，直接開始就好了。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "duration": 16.42,
+    "asr_text": "現在已經好幾天後了。 我現在終於可以抓了。 我先把原始黨從我的那那時抓下來，等我一下。",
+    "enhanced_text": "現在已經好幾天後了。我現在終於可以抓了。我先把音訊檔從我的那那時抓下來，等我一下。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "duration": 9.45,
+    "asr_text": "然後你把我們遇到的問題也放進去，這樣新的對話才知道要從哪變去下手。",
+    "enhanced_text": "然後你把我們遇到的問題也放進去，這樣新的對話才知道要從哪裡下手。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "duration": 5.81,
+    "asr_text": "這是我的下一步，所以你要建立一個新的檔案。",
+    "enhanced_text": "這是我的下一步，所以你要建立一個新檔案。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "duration": 22.5,
+    "asr_text": "建立一個新檔案。 下一步，我覺得我們要用我原始的音訊囊測各種不同的模型。 測如果是在原原始模型的情形下，然後用MLX來加速，哪個模型對我的原始音訊囊效果是最好的？",
+    "enhanced_text": "建立一個新檔案。 下一步，我覺得我們要用我原始的音訊檔測試各種不同的模型。 測試如果在原始模型的情形下，然後用MLX來加速，哪個模型對我的原始音訊檔效果是最好的？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "long",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "duration": 3.39,
+    "asr_text": "正常了，推送。",
+    "enhanced_text": "正常了，部署。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "duration": 5.78,
+    "asr_text": "我在 ChatGPT 不服了很多 repo。",
+    "enhanced_text": "我在 ChatGPT 部署了很多 repo。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "duration": 5.91,
+    "asr_text": "你看這裡又是OK的，你比較一下差異在哪裡？",
+    "enhanced_text": "你看這裡又是 OK 的，你比較一下差異在哪裡？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "duration": 5.65,
+    "asr_text": "然後再重新部署。 我對比一下。",
+    "enhanced_text": "再重新部署。我對比一下。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "duration": 4.39,
+    "asr_text": "把吉他變變成吉他了。",
+    "enhanced_text": "把吉他變成吉他了。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "duration": 5.58,
+    "asr_text": "你先把舊的清掉。 如果還沒有清的話。",
+    "enhanced_text": "你先把舊的清掉，如果還沒有清的話。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "duration": 4.4,
+    "asr_text": "Claude code stuck at thinking.",
+    "enhanced_text": "Claude Code stuck at thinking.",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "duration": 12.99,
+    "asr_text": "但是，可不可以加一條？ 如果有對我有不知道不認識的，先去撈記憶的系統。",
+    "enhanced_text": "但是，可不可以加一條？如果有對我不知道不認識的，先去撈記憶的系統。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "duration": 4.01,
+    "asr_text": "可以。 然後我們再看一下怎麼調。",
+    "enhanced_text": "可以，然後我們再看一下怎麼調。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "duration": 21.73,
+    "asr_text": "目前我們自己做的記憶工具的話，你應該會有可以得到對我更多對我的認識了吧？ 你覺得在這個狀況下，我在你這邊的 user preference 應該要怎麼改？ 因為我已經很久沒有動它了。",
+    "enhanced_text": "目前我們自己做的記憶工具的話，你應該會有可以得到對我更多對我的認識了吧？你覺得在這個狀況下，我在你這邊的 user preference 應該要怎麼改？因為我已經很久沒有動它了。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "duration": 5.73,
+    "asr_text": "你覺得這個想想法怎麼樣？",
+    "enhanced_text": "你覺得這個想法怎麼樣？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "duration": 9.13,
+    "asr_text": "能不能在 out 的情況下，就算是 out，然後在用泰格是英文的跑第二次。",
+    "enhanced_text": "能不能在 out 的情況下，就算是 out，然後在用 tag 是英文的跑第二次。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "duration": 12.39,
+    "asr_text": "其實我有一個想法，因為我們現在的語言切換的tag是auto。",
+    "enhanced_text": "其實我有一個想法，因為我們現在的語言切換的 tag 是 auto。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "duration": 3.35,
+    "asr_text": "Just once.",
+    "enhanced_text": "只一次。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "duration": 28.69,
+    "asr_text": "已經過了。 然後你之前幫我整理這個我這個問題的檔案，在DOC的資料夾下面。 你幫我更新一下它的調整，怎麼樣？ 你順便跟我說它的它的改動，你覺得做個評分怎麼樣？ 我現在已經在跑了，所以你不用再重新標著了。",
+    "enhanced_text": "已經過了。然後你之前幫我整理的，我這個問題的檔案，在DOC的資料夾下面。你幫我更新一下它的調整，怎麼樣？你順便跟我說它的改動，你覺得做個評分怎麼樣？我現在已經在跑了，所以你不用再重新標註了。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "duration": 11.07,
+    "asr_text": "應該就是最新的那個 commit，因為他他已經推送了，所以你看，當然看不到差異了。",
+    "enhanced_text": "應該就是最新的那個 commit，因為他已經推送了，所以你看，當然看不到差異了。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "duration": 15.45,
+    "asr_text": "因為你剛才陷入了思維鏈的迴圈，所以我剛才有請 ChatGPT 幫我去改東西，然後也推送了。 你看一下他改了什麼，驗證一下。",
+    "enhanced_text": "因為你剛才陷入了思維鏈的迴圈，所以我剛才有請 ChatGPT 幫我去改東西，然後也推送了。你看看他改了什麼，驗證一下。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "long",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "duration": 6.2,
+    "asr_text": "我大概會感覺到什麼差異？ 你先跟我說一些。",
+    "enhanced_text": "我大概會感覺到什麼差異？你先跟我說一些。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "duration": 4.21,
+    "asr_text": "然後你直接部署，然後開啟吧。",
+    "enhanced_text": "部署，然後開啟吧。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "duration": 10.05,
+    "asr_text": "你參考一下 Cloud. md，然後進行編譯，然後我再試一下。 你要編譯的是 Release 版本。",
+    "enhanced_text": "你參考一下 Claude Code.md，然後進行編譯，然後我再試一下。 你要編譯的是 Release 版本。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "duration": 3.43,
+    "asr_text": "Seven Eleven Bi Ding Recycling.",
+    "enhanced_text": "Seven Eleven 7-11 資源回收。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "duration": 5.1,
+    "asr_text": "Seven Eleven， used recycling.",
+    "enhanced_text": "seveneleven.com",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "duration": 26.58,
+    "asr_text": "你把之前我們遇到的面試的問題全部整理成一份檔案，包括我們最後的解決思路，以及還有什麼問題沒有解決的，然後整個系統架構也寫進去。 我給TBD看一下，多一個意見總是比較好的。",
+    "enhanced_text": "你把之前我們遇到的面試的問題全部整理成一份檔案，包括我們最後的解決思路，以及還有什麼問題沒有解決的，然後整個系統架構也寫進去。我給 TBD 看一下，多一個意見總是比較好的。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "long",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "duration": 2.8,
+    "asr_text": "十鍋拌飯。",
+    "enhanced_text": "石鍋拌飯。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "duration": 3.35,
+    "asr_text": "不要用到“可及”這個字。",
+    "enhanced_text": "不要用到「可及」這個字。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "short",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "duration": 3.19,
+    "asr_text": "Google the Gemini.",
+    "enhanced_text": "Google Gemini",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "duration": 2.98,
+    "asr_text": "Google， Jimmy， now.",
+    "enhanced_text": "Google, Jimmy, now.",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "moderate_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "duration": 4.81,
+    "asr_text": "I suggest Git Hub the repo.",
+    "enhanced_text": "我建議 Git Hub 這個 repo。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "duration": 2.67,
+    "asr_text": "In Shun Tang.",
+    "enhanced_text": "信義房屋",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "duration": 5.23,
+    "asr_text": "你用原始的 Python 去跑一下 Python 的模型。",
+    "enhanced_text": "你用開放原始碼的 Python 去跑一下 Python 的模型。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "duration": 2.43,
+    "asr_text": "Just look.",
+    "enhanced_text": "就看看。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "duration": 4.68,
+    "asr_text": "，？ Please use agent.",
+    "enhanced_text": "，？請使用代理。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "duration": 31.94,
+    "asr_text": "Be careful， like figure that boy.",
+    "enhanced_text": "Be careful, like figure that boy.",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "very_long",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "duration": 6.19,
+    "asr_text": "你不處的是最歷史版本嗎？",
+    "enhanced_text": "你不服的是最歷史版本嗎？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "pure_chinese",
+      "medium",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "duration": 5.64,
+    "asr_text": "你不服的是 release release 版本嗎？",
+    "enhanced_text": "你不服的是 release 版本嗎？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "duration": 9.98,
+    "asr_text": "在多試幾次。 我的 repo 裡面很多個 GitHub 的 connector 方案。",
+    "enhanced_text": "再試幾次。我的儲存庫裡有很多 GitHub 的 connector 方案。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "duration": 4.52,
+    "asr_text": "吉他 API。",
+    "enhanced_text": "GitHub API。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "short",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "duration": 5.73,
+    "asr_text": "把那個 release 刪掉，我們再從跑一個新的 release。",
+    "enhanced_text": "把那個 release 刪掉，我們再重新跑一個新的 release。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "medium",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "duration": 15.15,
+    "asr_text": "你直接呼叫就可以了，因為是接在 Cloud 點點 AI 那個後臺上面，所以你本機看不到。 不過你是可以呼叫的。",
+    "enhanced_text": "你直接呼叫就可以了，因為是接在 Claude AI 那個後臺上面，所以你本機看不到。 不過你是可以呼叫的。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "duration": 22.95,
+    "asr_text": "說真的，如果今天大家都用這家，那我也損失很多。 但是你不得不承認一個事實是，普通人大部分都只會用 ChatGPT，他們對 AI 的認識也是 ChatGPT 出來的。",
+    "enhanced_text": "說真的，如果今天大家都用這家，那我也損失很多。但是你不得不承認一個事實是，普通人大部分都只會用 ChatGPT，他們對 AI 的認識也是 ChatGPT 出來的。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "duration": 28.95,
+    "asr_text": "現在有一個問題，就是我們如果要找到它真實的 endpoint 要怎麼做？ 要不然我實際去拿一個它的 API 來試試看這樣子嗎？ 但是也很奇怪吧，因為我不會實際去用它的 API 去跑啊，我們只是要 API 這個 endpoint 而已啊。",
+    "enhanced_text": "現在有一個問題，就是我們如果要找到它真實的 endpoint 要怎麼做？要不然我實際去拿一個它的 API 來試試看這樣子嗎？但是也很奇怪吧，因為我不會實際去用它的 API 去跑啊，我們只是要 API 這個 endpoint 而已啊。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "duration": 17.59,
+    "asr_text": "你直接幫我用指令驗證一下 Open AI 的 API 位置，我們不用嗯實際去打 token，只要去驗證這個 endpoint 存不存在而已。",
+    "enhanced_text": "你直接幫我用指令驗證一下 OpenAI 的 API 位置，我們不用實際去打 token，只要去驗證這個 endpoint 存不存在而已。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "duration": 32.28,
+    "asr_text": "第一個消一下，然後第第三個也消一下，第四個也消一下，然後第五個也消一下。 但是第五個具體要怎麼消，我有點不太知道哎，因為我們要暴露給錯誤，暴露錯誤給 client 啊，這樣 client 才知道有什麼錯誤吧？\n\n還是你有什麼想法？",
+    "enhanced_text": "1. 刪除，3. 刪除，4. 刪除，5. 刪除。但第五個具體要怎麼刪除，我不太確定，因為我們要暴露錯誤給 client，這樣 client 才知道有什麼錯誤吧？你有什麼想法？",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "code_switching",
+      "tech_term_heavy",
+      "very_long",
+      "heavy_correction"
+    ]
+  },
+  {
+    "audio_path": "/Users/jianruicheng/Library/Application Support/com.jasonchien.Voco/Recordings/A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "duration": 3.4,
+    "asr_text": "Built and released to applications.",
+    "enhanced_text": "Build 並 release 到應用程式。",
+    "original_model": "Qwen3-ASR 1.7B",
+    "tags": [
+      "english_dominant",
+      "short",
+      "heavy_correction"
+    ]
+  }
+]

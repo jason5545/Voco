@@ -1,0 +1,2102 @@
+[
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "sensevoice",
+    "transcription": "测试音讯文件里面应该要写在哪边吧？",
+    "elapsed_s": 0.441,
+    "rtf": 0.0754
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "sensevoice",
+    "transcription": "你就觉得怎么开始最好吧，你直接开始就好了。",
+    "elapsed_s": 0.121,
+    "rtf": 0.0164
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "sensevoice",
+    "transcription": "现在已经好几天后了，我现在终于可以抓了，我先把原始党从我的抓下来等我一下。",
+    "elapsed_s": 0.278,
+    "rtf": 0.0169
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "sensevoice",
+    "transcription": "然后你把我们遇到的问题也放进去，这样新的对话才知道要从哪边去下手。",
+    "elapsed_s": 0.147,
+    "rtf": 0.0156
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "sensevoice",
+    "transcription": "这是我的下一部分，你要建立一个新的档案。",
+    "elapsed_s": 0.105,
+    "rtf": 0.018
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "sensevoice",
+    "transcription": "建立一个新文件。下一步，我觉得我们要用我原始的音频档测各种不同的模型测。如果是在原始模型的情形下，然后用MLX来加速哪个模型对我的原始音讯的效果是最好的。",
+    "elapsed_s": 0.409,
+    "rtf": 0.0182
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "sensevoice",
+    "transcription": "正常的推送。",
+    "elapsed_s": 0.063,
+    "rtf": 0.0186
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "sensevoice",
+    "transcription": "我在GBT部署了很多 report。",
+    "elapsed_s": 0.098,
+    "rtf": 0.0169
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "sensevoice",
+    "transcription": "你看这里又是O的，你比较一下艺在哪里。",
+    "elapsed_s": 0.109,
+    "rtf": 0.0184
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "sensevoice",
+    "transcription": "然后再重新部署，我对比一下。",
+    "elapsed_s": 0.106,
+    "rtf": 0.0187
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "sensevoice",
+    "transcription": "把 Gi变成吉他.",
+    "elapsed_s": 0.083,
+    "rtf": 0.0188
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "sensevoice",
+    "transcription": "你先把旧的清掉，如果还没有清的话。",
+    "elapsed_s": 0.105,
+    "rtf": 0.0188
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "sensevoice",
+    "transcription": "Cloud code start at thinking.",
+    "elapsed_s": 0.084,
+    "rtf": 0.0192
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "sensevoice",
+    "transcription": "但是可不可以加一条，如果有对我有不知道不认识的，先去捞记忆的系统。",
+    "elapsed_s": 0.219,
+    "rtf": 0.0169
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "sensevoice",
+    "transcription": "可以，然后我们再看一下鲁博条。",
+    "elapsed_s": 0.086,
+    "rtf": 0.0214
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "sensevoice",
+    "transcription": "目前我们自己做的记忆工具的话，你应该会有可以得到对我更多对我的认识了吧。你觉得在这个状况下，我在你这边的user preferencefer应该要怎么改。因为我已经很久没有动它了。",
+    "elapsed_s": 0.357,
+    "rtf": 0.0165
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "sensevoice",
+    "transcription": "你觉得这个想想法怎么样？",
+    "elapsed_s": 0.103,
+    "rtf": 0.0179
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "sensevoice",
+    "transcription": "能不能在outto的情况下，就算是outto，然后再用格是英文的跑第二次。",
+    "elapsed_s": 0.161,
+    "rtf": 0.0176
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "sensevoice",
+    "transcription": "其实我有一个想法，因为我们现在的语言切的t是 autoto。",
+    "elapsed_s": 0.206,
+    "rtf": 0.0166
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "sensevoice",
+    "transcription": "Gim.",
+    "elapsed_s": 0.065,
+    "rtf": 0.0195
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "sensevoice",
+    "transcription": "已经过了，然后你之前帮我整理这个文这个问题的文件在DOC的资料单下面，你帮我更新一下他的调整是怎么样。你顺便跟我说他的他的改动，你觉得做个评分怎么样，我现在已经在跑了，所以你不用再重新标的了。",
+    "elapsed_s": 0.521,
+    "rtf": 0.0181
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "sensevoice",
+    "transcription": "应该最新那个commit，因为他他已经了，所以你看当然不到异。",
+    "elapsed_s": 0.179,
+    "rtf": 0.0162
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "sensevoice",
+    "transcription": "因为你刚才陷入了思维链的回圈，所以我刚才有请GGPT帮我去改东西，然后也推送了，你看一下他改了什么验证一下。",
+    "elapsed_s": 0.285,
+    "rtf": 0.0184
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "sensevoice",
+    "transcription": "我大概会感觉到什么差异，你先跟我说一下。",
+    "elapsed_s": 0.123,
+    "rtf": 0.0198
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "sensevoice",
+    "transcription": "然后你直接不署，然后打开吧。",
+    "elapsed_s": 0.086,
+    "rtf": 0.0204
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "sensevoice",
+    "transcription": "你参考一下clo点ND，然后进行编译，然后我再试一下，你要编译的是rele版本。",
+    "elapsed_s": 0.177,
+    "rtf": 0.0176
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "sensevoice",
+    "transcription": "seven eleven必回收.",
+    "elapsed_s": 0.072,
+    "rtf": 0.021
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "sensevoice",
+    "transcription": "seven eleven咨询回所。",
+    "elapsed_s": 0.097,
+    "rtf": 0.0191
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "sensevoice",
+    "transcription": "你把之前我们遇到的面试的问题全部整理成一份文件，包括我们最后的解决思路，以及还有什么问题没有解决的，然后整个系统架构也写进去，我给XGPD看一下，多一个意见总是比较好的。。",
+    "elapsed_s": 0.511,
+    "rtf": 0.0192
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "sensevoice",
+    "transcription": "すご板ば。",
+    "elapsed_s": 0.055,
+    "rtf": 0.0196
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "sensevoice",
+    "transcription": "我要用考前这个字。",
+    "elapsed_s": 0.063,
+    "rtf": 0.0187
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "sensevoice",
+    "transcription": "G called Germany.",
+    "elapsed_s": 0.05,
+    "rtf": 0.0158
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "sensevoice",
+    "transcription": "Google dream now.",
+    "elapsed_s": 0.05,
+    "rtf": 0.0167
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "sensevoice",
+    "transcription": "Let's second Gi up the rip.",
+    "elapsed_s": 0.087,
+    "rtf": 0.018
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "sensevoice",
+    "transcription": "In Xinang.",
+    "elapsed_s": 0.056,
+    "rtf": 0.0209
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "sensevoice",
+    "transcription": "你用原始的应当去跑一下pyython的母亲。",
+    "elapsed_s": 0.088,
+    "rtf": 0.0168
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "sensevoice",
+    "transcription": "Second.",
+    "elapsed_s": 0.056,
+    "rtf": 0.0231
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "sensevoice",
+    "transcription": "How X S agent.",
+    "elapsed_s": 0.08,
+    "rtf": 0.0171
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "sensevoice",
+    "transcription": "去.",
+    "elapsed_s": 0.64,
+    "rtf": 0.02
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "sensevoice",
+    "transcription": "你不属的是release版本吗？",
+    "elapsed_s": 0.104,
+    "rtf": 0.0168
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "sensevoice",
+    "transcription": "你部署的是release版本吗？",
+    "elapsed_s": 0.098,
+    "rtf": 0.0174
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "sensevoice",
+    "transcription": "来多试几次我的port里面很多个ge connector的方案。",
+    "elapsed_s": 0.176,
+    "rtf": 0.0176
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "sensevoice",
+    "transcription": "Get upub API.",
+    "elapsed_s": 0.079,
+    "rtf": 0.0174
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "sensevoice",
+    "transcription": "把那个release删掉，我们再重跑一个新的release。",
+    "elapsed_s": 0.114,
+    "rtf": 0.0199
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "sensevoice",
+    "transcription": "你直接调用就可以了，因为是接在cloud点店AI那个后台上面，所以你本机看不到，不过你是可以调用的。",
+    "elapsed_s": 0.3,
+    "rtf": 0.0198
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "sensevoice",
+    "transcription": "说真的，如果今天大家都拥这样，那我也思很多。但是你不得不承认一个事实是普通人大部分都只会用T他们对爱的认也是BT出来的。。",
+    "elapsed_s": 0.419,
+    "rtf": 0.0183
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "sensevoice",
+    "transcription": "现在有一个问题就是我们如果要找到他真实的point要怎么做？要不然我实际去拿一个他的AP来试试看这样子吗？但是也很奇怪吧，因为我不会实际去用他的API去，我们只是要API这个point而已啊，。",
+    "elapsed_s": 0.586,
+    "rtf": 0.0203
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "sensevoice",
+    "transcription": "你直接帮我用指令验证一下op本I的位置，我们不用去打taken，只要去验证这个 mpoint存不存在而已。",
+    "elapsed_s": 0.293,
+    "rtf": 0.0167
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "sensevoice",
+    "transcription": "第一个修一下，然后第第三个也修一下，第四个也修一下，然后第五个也修一下，但是第五个具体要怎么修，我有点不太知道。哎，因为我们要露给错误，路错误给client啊，这样client才知道有什么错误吧，还是你有什么想法，。",
+    "elapsed_s": 0.637,
+    "rtf": 0.0197
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "sensevoice",
+    "transcription": "Good and release to applications.",
+    "elapsed_s": 0.06,
+    "rtf": 0.0176
+  },
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "firered-v1",
+    "transcription": "测试音讯文件里面应该要写在哪边吧",
+    "elapsed_s": 2.249,
+    "rtf": 0.3844
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "firered-v1",
+    "transcription": "你就觉得怎么开始最好吧你直接开始就好了",
+    "elapsed_s": 2.573,
+    "rtf": 0.3492
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "firered-v1",
+    "transcription": "现在已经好几天后了我现在终于可以抓了我先把原始党从我的 NAIVE那时抓下来等我一下",
+    "elapsed_s": 5.29,
+    "rtf": 0.3222
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "firered-v1",
+    "transcription": "然后你把我们遇到的问题也放进去这样新的对话才知道要从哪边去下手",
+    "elapsed_s": 3.869,
+    "rtf": 0.4094
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "firered-v1",
+    "transcription": "这是我的下一部分你要建立一个新的档案",
+    "elapsed_s": 2.198,
+    "rtf": 0.3783
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "firered-v1",
+    "transcription": "建立一个新文件下一步我觉得我们要用我原始的音频档测各种不同的模型测如果是在原原始模型的情形下然后用 M L X来加速哪个模型对我的原始音频档效果是最好的",
+    "elapsed_s": 9.592,
+    "rtf": 0.4263
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "firered-v1",
+    "transcription": "正常了推送",
+    "elapsed_s": 0.854,
+    "rtf": 0.2518
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "firered-v1",
+    "transcription": "我在差距毕竟部署了很多 REPO",
+    "elapsed_s": 1.728,
+    "rtf": 0.299
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "firered-v1",
+    "transcription": "你看这里又是 OK的你比较一下差异在哪里",
+    "elapsed_s": 2.481,
+    "rtf": 0.4198
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "firered-v1",
+    "transcription": "然后再重新部署我对比一下",
+    "elapsed_s": 1.615,
+    "rtf": 0.2859
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "firered-v1",
+    "transcription": "把 D塔都变成吉他了",
+    "elapsed_s": 1.306,
+    "rtf": 0.2974
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "firered-v1",
+    "transcription": "你先把旧的清掉如果还没有清的话",
+    "elapsed_s": 1.958,
+    "rtf": 0.3509
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "firered-v1",
+    "transcription": "CLOUD COLD START AT SINKING",
+    "elapsed_s": 1.466,
+    "rtf": 0.3331
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "firered-v1",
+    "transcription": "但是可不可以加一条如果有对我有不知道不认识的先去捞记忆的系统",
+    "elapsed_s": 4.04,
+    "rtf": 0.311
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "firered-v1",
+    "transcription": "可以然后我们再看一下怎么调",
+    "elapsed_s": 1.752,
+    "rtf": 0.4368
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "firered-v1",
+    "transcription": "目前我们自己做的记忆工具的话你应该会有可以得到对我更多对我的认识了吧你觉得在这个状况下我在你这边的 USER PREFERENCE应该要怎么改因为我已经很久没有动它了",
+    "elapsed_s": 9.223,
+    "rtf": 0.4245
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "firered-v1",
+    "transcription": "你觉得这个想想法怎么样",
+    "elapsed_s": 1.617,
+    "rtf": 0.2823
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "firered-v1",
+    "transcription": "能不能在 AUTO的情况下就算是 AUTO啊然后再用泰格是英文的跑第二次",
+    "elapsed_s": 4.75,
+    "rtf": 0.5203
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "firered-v1",
+    "transcription": "其实我有一个想法因为我们现在的语言切换呢泰格斯奥头",
+    "elapsed_s": 4.136,
+    "rtf": 0.3339
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "firered-v1",
+    "transcription": "坚持一次了",
+    "elapsed_s": 0.966,
+    "rtf": 0.2882
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "firered-v1",
+    "transcription": "已经过了然后你之前帮我整理这个文这个问题的文件在 DOC的资料在下面你帮我更新一下它的调整怎么样你顺便跟我说它的它的改动你觉得做个评分怎么样我现在已经在跑了所以你不用再重新标的了",
+    "elapsed_s": 12.708,
+    "rtf": 0.4429
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "firered-v1",
+    "transcription": "应该就是最新的那个卡米特因为它它已经推送了所以你看当然看不到差异咯",
+    "elapsed_s": 4.663,
+    "rtf": 0.4212
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "firered-v1",
+    "transcription": "因为你刚才陷入了思维链的回春所以我刚才有请 CHATGPT帮我去改东西然后也推送了你看一下他改了什么验证一下",
+    "elapsed_s": 6.67,
+    "rtf": 0.4317
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "firered-v1",
+    "transcription": "我大概会感觉到什么差异你先跟我说一下",
+    "elapsed_s": 2.202,
+    "rtf": 0.3551
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "firered-v1",
+    "transcription": "然后你直接不服然后打开吧",
+    "elapsed_s": 1.598,
+    "rtf": 0.3795
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "firered-v1",
+    "transcription": "你参考一下 CLOUD点的 M D然后进行编译然后我再试一下你要编译的是 RELEASE的版本",
+    "elapsed_s": 4.262,
+    "rtf": 0.4241
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "firered-v1",
+    "transcription": "C本与 LIVE比定回收",
+    "elapsed_s": 1.291,
+    "rtf": 0.3763
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "firered-v1",
+    "transcription": "塞班已内部自愿回收",
+    "elapsed_s": 1.315,
+    "rtf": 0.2579
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "firered-v1",
+    "transcription": "你把之前我们遇到的面试的问题全部整理成一份文件包括我们最后的解决思路以及还有什么问题没有解决的然后整个系统架构也写进去我给超级 VV看一下多一个意见总是比较好的",
+    "elapsed_s": 10.33,
+    "rtf": 0.3886
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "firered-v1",
+    "transcription": "石锅拌饭",
+    "elapsed_s": 0.739,
+    "rtf": 0.2639
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "firered-v1",
+    "transcription": "不要用到口级这个字",
+    "elapsed_s": 1.19,
+    "rtf": 0.3553
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "firered-v1",
+    "transcription": "吴国的居民你",
+    "elapsed_s": 0.88,
+    "rtf": 0.2759
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "firered-v1",
+    "transcription": "哥哥救命呐摇",
+    "elapsed_s": 0.911,
+    "rtf": 0.3056
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "firered-v1",
+    "transcription": "来思思跟 GET UP THE REPO",
+    "elapsed_s": 1.266,
+    "rtf": 0.2631
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "firered-v1",
+    "transcription": "英雄堂",
+    "elapsed_s": 0.59,
+    "rtf": 0.2208
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "firered-v1",
+    "transcription": "你用原始的音档去跑一下拍摄的模型",
+    "elapsed_s": 2.013,
+    "rtf": 0.3849
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "firered-v1",
+    "transcription": "是肯",
+    "elapsed_s": 0.467,
+    "rtf": 0.192
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "firered-v1",
+    "transcription": "嗷情圣用 AGENT",
+    "elapsed_s": 1.031,
+    "rtf": 0.2204
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "firered-v1",
+    "transcription": "去看我们的小姨",
+    "elapsed_s": 3.655,
+    "rtf": 0.1144
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "firered-v1",
+    "transcription": "你不数的是属于历史版本吗",
+    "elapsed_s": 1.635,
+    "rtf": 0.2642
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "firered-v1",
+    "transcription": "你不辅的是瑞丽史版本吗",
+    "elapsed_s": 1.564,
+    "rtf": 0.2773
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "firered-v1",
+    "transcription": "来多试几次我的 REPLY里面有很多个吉他的 CONNECTOR的方案",
+    "elapsed_s": 3.275,
+    "rtf": 0.3281
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "firered-v1",
+    "transcription": "吉他白皮诶",
+    "elapsed_s": 0.938,
+    "rtf": 0.2076
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "firered-v1",
+    "transcription": "把那个 RELEASE删掉我们再重跑一个新的 RELEASE",
+    "elapsed_s": 2.434,
+    "rtf": 0.4248
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "firered-v1",
+    "transcription": "你直接调用就可以了因为是接在 CLOUD电能电 AI那个后台上面所以你本机看不到不过你是可以调用的",
+    "elapsed_s": 5.783,
+    "rtf": 0.3817
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "firered-v1",
+    "transcription": "说真的如果今天大家都用这一天那我也尝试很多但是你不得不承认一个事实是普通人大部分都只会用 CHATGPT他们对爱的认识也是 CHATGPT出来的",
+    "elapsed_s": 8.285,
+    "rtf": 0.361
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "firered-v1",
+    "transcription": "现在有一个问题就是我们如果要找到它真实的 ENDPOINT要怎么做要不然我实际去拿一个它的 API来试试看这样子吗但是也很奇怪吧因为我不会实际去用它的 API去跑啊我们只是要 API这个 ENDPOINT而已啊",
+    "elapsed_s": 11.82,
+    "rtf": 0.4083
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "firered-v1",
+    "transcription": "你直接帮我用指令验证一下 OPEN AI的 API位置我们不用嗯实际去打 TOKEN只要去验证这个 M POINT的真实存在而已",
+    "elapsed_s": 6.205,
+    "rtf": 0.3528
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "firered-v1",
+    "transcription": "第一个说一下然后第四第三个也说一下第四个也说一下然后第五个也说一下但是第五个具体要怎么说我有点不太知道诶因为我没有铺路给错误铺路错误给 CLIENT啊这样 CLIENT才知道有什么错误吧还是你有什么想法",
+    "elapsed_s": 12.415,
+    "rtf": 0.3846
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "firered-v1",
+    "transcription": "BUILD AND RELEASE TO APPLICATIONS",
+    "elapsed_s": 1.415,
+    "rtf": 0.4163
+  },
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "测试运行稳定，你们应该要写在哪边吧？",
+    "elapsed_s": 3.859,
+    "rtf": 0.6596
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你就觉得怎么开始最好吧？你直接开始就好了。",
+    "elapsed_s": 0.951,
+    "rtf": 0.1291
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "现在已经好几天后了。我现在终于可以抓了。我先把原始党从我的那那时抓下来，等我一下。",
+    "elapsed_s": 1.232,
+    "rtf": 0.0751
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "然后你把我们遇到的问题也放进去，这样新的对话才知道要从哪边去下手。",
+    "elapsed_s": 1.06,
+    "rtf": 0.1121
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "这是我的下一步，所以你要建立一个新的档案。",
+    "elapsed_s": 0.857,
+    "rtf": 0.1476
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "建立一个新文件。下一步，我觉得我们要用我原始的音频档测各种不同的模型。测如果是在原原始模型的情形下，然后用 M L X 来加速，哪个模型对我的原始音频档效果是最好的？",
+    "elapsed_s": 1.689,
+    "rtf": 0.0751
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "正常了，推送。",
+    "elapsed_s": 0.687,
+    "rtf": 0.2025
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "我在 ChatGPT 不服了很多 repo。",
+    "elapsed_s": 0.789,
+    "rtf": 0.1364
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你看这里又是OK的，你比较一下差异在哪里？",
+    "elapsed_s": 0.872,
+    "rtf": 0.1476
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "然后再重新部署。我对比一下。",
+    "elapsed_s": 0.765,
+    "rtf": 0.1355
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "把吉他变变成吉他了。",
+    "elapsed_s": 0.745,
+    "rtf": 0.1697
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你先把旧的清掉。如果还没有清的话。",
+    "elapsed_s": 0.859,
+    "rtf": 0.1539
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Claude code stuck at thinking.",
+    "elapsed_s": 0.745,
+    "rtf": 0.1694
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "但是，可不可以加一条？如果有对我有不知道不认识的，先去捞记忆的系统。",
+    "elapsed_s": 1.065,
+    "rtf": 0.082
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "可以。然后我们再看一下怎么调。",
+    "elapsed_s": 0.793,
+    "rtf": 0.1979
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "目前我们自己做的记忆工具的话，你应该会有可以得到对我更多对我的认识了吧？你觉得在这个状况下，我在你这边的 user preference 应该要怎么改？因为我已经很久没有动它了。",
+    "elapsed_s": 1.613,
+    "rtf": 0.0742
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你觉得这个想想法怎么样？",
+    "elapsed_s": 0.754,
+    "rtf": 0.1316
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "能不能在 out 的情况下，就算是 out，然后在用泰格是英文的跑第二次。",
+    "elapsed_s": 1.121,
+    "rtf": 0.1228
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "其实我有一个想法，因为我们现在的语言切换的tag是auto。",
+    "elapsed_s": 0.945,
+    "rtf": 0.0763
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Just once.",
+    "elapsed_s": 0.726,
+    "rtf": 0.2168
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "已经过了。然后你之前帮我整理这个我这个问题的文件，在DOC的资料夹下面。你帮我更新一下它的调整，怎么样？你顺便跟我说它的它的改动，你觉得做个评分怎么样？我现在已经在跑了，所以你不用再重新标着了。",
+    "elapsed_s": 1.873,
+    "rtf": 0.0653
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "应该就是最新的那个 commit，因为他他已经推送了，所以你看，当然看不到差异了。",
+    "elapsed_s": 1.046,
+    "rtf": 0.0945
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "因为你刚才陷入了思维链的回圈，所以我刚才有请 ChatGPT 帮我去改东西，然后也推送了。你看一下他改了什么，验证一下。",
+    "elapsed_s": 1.443,
+    "rtf": 0.0934
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "我大概会感觉到什么差异？你先跟我说一下。",
+    "elapsed_s": 0.857,
+    "rtf": 0.1382
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "然后你直接部署，然后打开吧。",
+    "elapsed_s": 0.833,
+    "rtf": 0.1978
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你参考一下 Cloud. md，然后进行编译，然后我再试一下。你要编译的是 Release 版本。",
+    "elapsed_s": 1.187,
+    "rtf": 0.1181
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Seven Eleven Bi Ding Recycling.",
+    "elapsed_s": 0.713,
+    "rtf": 0.2079
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Seven Eleven, used recycling.",
+    "elapsed_s": 0.755,
+    "rtf": 0.148
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你把之前我们遇到的面试的问题全部整理成一份文件，包括我们最后的解决思路，以及还有什么问题没有解决的，然后整个系统架构也写进去。我给TBD看一下，多一个意见总是比较好的。",
+    "elapsed_s": 1.725,
+    "rtf": 0.0649
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "石锅拌饭。",
+    "elapsed_s": 0.699,
+    "rtf": 0.2496
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "不要用到“可及”这个字。",
+    "elapsed_s": 0.778,
+    "rtf": 0.2322
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Google the Gemini.",
+    "elapsed_s": 0.662,
+    "rtf": 0.2074
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Google, Jimmy, now.",
+    "elapsed_s": 0.72,
+    "rtf": 0.2418
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "I suggest Git Hub the repo.",
+    "elapsed_s": 0.76,
+    "rtf": 0.158
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "In Shun Tang.",
+    "elapsed_s": 0.678,
+    "rtf": 0.2537
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你用原始的 Python 去跑一下 Python 的模型。",
+    "elapsed_s": 0.945,
+    "rtf": 0.1807
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Just look.",
+    "elapsed_s": 0.83,
+    "rtf": 0.3416
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "How? Please use agent.",
+    "elapsed_s": 0.757,
+    "rtf": 0.1618
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Be careful, lah! Like piggy, the boy.",
+    "elapsed_s": 1.029,
+    "rtf": 0.0322
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你不处的是最历史版本吗？",
+    "elapsed_s": 0.755,
+    "rtf": 0.122
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你不服的是 release release 版本吗？",
+    "elapsed_s": 0.837,
+    "rtf": 0.1485
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "在多试几次。我的 repo 里面很多个 GitHub 的 connector 的方案。",
+    "elapsed_s": 0.999,
+    "rtf": 0.1001
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Guitar API.",
+    "elapsed_s": 0.682,
+    "rtf": 0.1509
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "把那个 release 删掉，我们再从跑一个新的 release。",
+    "elapsed_s": 0.904,
+    "rtf": 0.1577
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你直接调用就可以了，因为是接在 Cloud 点点 AI 那个后台上面，所以你本机看不到。不过你是可以调用的。",
+    "elapsed_s": 1.365,
+    "rtf": 0.0901
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "说真的，如果今天大家都用这家，那我也损失很多。但是你不得不承认一个事实是，普通人大部分都只会用 ChatGPT，他们对 AI 的认识也是 ChatGPT 出来的。",
+    "elapsed_s": 1.668,
+    "rtf": 0.0727
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "现在有一个问题，就是我们如果要找到它真实的 endpoint，要怎么做？要不然，我实际去拿一个它的 API 来试试看，这样子吗？但是也很奇怪吧，因为我不会实际去用它的 API 去跑啊。我们只是要 API 这个 endpoint 而已啊。",
+    "elapsed_s": 2.089,
+    "rtf": 0.0722
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "你直接帮我用指令验证一下 Open AI 的 API 位置。我们不用，嗯，实际去打 token，只要去验证这个 endpoint 存不存在而已。",
+    "elapsed_s": 1.38,
+    "rtf": 0.0784
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "第一个修一下，然后第第三个也修一下，第四个也修一下，然后第五个也修一下。但是第五个具体要怎么修，我有点不太知道诶，因为我们要暴露给错误，暴露错误给 client，这样 client 才知道有什么错误吧？还是你有什么想法？",
+    "elapsed_s": 2.073,
+    "rtf": 0.0642
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "qwen3-1.7b",
+    "transcription": "Built and released to applications.",
+    "elapsed_s": 0.722,
+    "rtf": 0.2123
+  },
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "firered2-aed",
+    "transcription": "测试运行文件里面应该要写在哪边吧",
+    "elapsed_s": 7.049,
+    "rtf": 1.205
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "firered2-aed",
+    "transcription": "你就觉得怎么开始最好吧你直接开始就好了",
+    "elapsed_s": 12.626,
+    "rtf": 1.7132
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "firered2-aed",
+    "transcription": "现在已经好几天后了我现在终于可以抓了我先把原始党从我的那那时抓下来等我一下",
+    "elapsed_s": 26.353,
+    "rtf": 1.6049
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "firered2-aed",
+    "transcription": "然后你把我们遇到的问题也放进去这样新的对话才知道要从哪边去下手",
+    "elapsed_s": 15.78,
+    "rtf": 1.6698
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "firered2-aed",
+    "transcription": "这是我的下一部分你要建立一个新的档案",
+    "elapsed_s": 8.651,
+    "rtf": 1.4889
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "firered2-aed",
+    "transcription": "建立一个新文件下一步我觉得我们要用我原始的音讯档测各种不同的模型测如果是在原原始模型的情形下然后用 mlx来加速哪个模型对我的原始音讯档效果是最好的",
+    "elapsed_s": 58.261,
+    "rtf": 2.5894
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "firered2-aed",
+    "transcription": "正常了推送",
+    "elapsed_s": 3.596,
+    "rtf": 1.0606
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "firered2-aed",
+    "transcription": "我在 chatgpt部署了很多 repo",
+    "elapsed_s": 7.897,
+    "rtf": 1.3663
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "firered2-aed",
+    "transcription": "你看这里又是 ok的你比较一下差异在哪里",
+    "elapsed_s": 6.921,
+    "rtf": 1.171
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "firered2-aed",
+    "transcription": "然后再重新部署我对比一下",
+    "elapsed_s": 5.164,
+    "rtf": 0.9139
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "firered2-aed",
+    "transcription": "把吉他都变成吉他了",
+    "elapsed_s": 3.967,
+    "rtf": 0.9037
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "firered2-aed",
+    "transcription": "你先把旧的清掉如果还没有清的话",
+    "elapsed_s": 6.635,
+    "rtf": 1.1891
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "firered2-aed",
+    "transcription": "cloud codes stuck at sinking",
+    "elapsed_s": 4.705,
+    "rtf": 1.0694
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "firered2-aed",
+    "transcription": "但是可不可以加一条如果有对我有不知道不认识的先去捞记忆的系统",
+    "elapsed_s": 13.82,
+    "rtf": 1.0639
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "firered2-aed",
+    "transcription": "可以然后我们再看一下怎么调",
+    "elapsed_s": 4.807,
+    "rtf": 1.1988
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "firered2-aed",
+    "transcription": "目前我们自己做的记忆工具的话你应该会有可以得到对我更多对我的认识了吧你觉得在这个状况下我在你这边的 user preference应该要怎么改因为我已经很久没有动它了",
+    "elapsed_s": 44.802,
+    "rtf": 2.0618
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "firered2-aed",
+    "transcription": "你觉得这个想想法怎么样",
+    "elapsed_s": 6.561,
+    "rtf": 1.1449
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "firered2-aed",
+    "transcription": "能不能在 out的情况下就算是 out了然后再用泰格是英文的跑第二次",
+    "elapsed_s": 14.159,
+    "rtf": 1.5508
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "firered2-aed",
+    "transcription": "其实我有一个想法因为我们现在的语言切换的泰戈斯奥特",
+    "elapsed_s": 14.454,
+    "rtf": 1.1666
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "firered2-aed",
+    "transcription": "煎制一次了",
+    "elapsed_s": 2.251,
+    "rtf": 0.6719
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "firered2-aed",
+    "transcription": "已经过了然后你之前帮我整理这个我这个问题的文件在 doc的资料夹下面你帮我更新一下它的调整怎么样你顺便跟我说他的他的改动你觉得做个评分怎么样我现在已经在跑了所以你不用再重新标的了",
+    "elapsed_s": 42.029,
+    "rtf": 1.4649
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "firered2-aed",
+    "transcription": "应该就是最新的那个卡密特因为他他已经推送了所以你看当然看不到差异喽",
+    "elapsed_s": 6.976,
+    "rtf": 0.6301
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "firered2-aed",
+    "transcription": "因为你刚才陷入了思维链的回圈所以我刚才有请 chat gpt帮我去改东西然后也推送了你看一下他改了什么验证一下",
+    "elapsed_s": 11.858,
+    "rtf": 0.7675
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "firered2-aed",
+    "transcription": "我大概会感觉到什么差异你先跟我说一下",
+    "elapsed_s": 3.704,
+    "rtf": 0.5975
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "firered2-aed",
+    "transcription": "然后你直接不服然后打开吧",
+    "elapsed_s": 3.379,
+    "rtf": 0.8026
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "firered2-aed",
+    "transcription": "你参考一下 cloud点 md然后进行编译然后我再试一下你要编译的是 release的版本",
+    "elapsed_s": 10.276,
+    "rtf": 1.0225
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "firered2-aed",
+    "transcription": "seven eleven必定回收",
+    "elapsed_s": 2.674,
+    "rtf": 0.7796
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "firered2-aed",
+    "transcription": "seven eleven自愿回收",
+    "elapsed_s": 3.07,
+    "rtf": 0.602
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "firered2-aed",
+    "transcription": "你把之前我们遇到的面试的问题全部整理成一份文件包括我们最后的解决思路以及还有什么问题没有解决的然后整个系统架构也写进去我给 chatgpt看一下多一个意见总是比较好的",
+    "elapsed_s": 28.526,
+    "rtf": 1.0732
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "firered2-aed",
+    "transcription": "石锅拌饭",
+    "elapsed_s": 1.253,
+    "rtf": 0.4474
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "firered2-aed",
+    "transcription": "不要用到可及这个字",
+    "elapsed_s": 2.412,
+    "rtf": 0.72
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "firered2-aed",
+    "transcription": "google的 dreaming",
+    "elapsed_s": 1.879,
+    "rtf": 0.589
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "firered2-aed",
+    "transcription": "google聚美奶油",
+    "elapsed_s": 1.735,
+    "rtf": 0.5821
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "firered2-aed",
+    "transcription": "let's see you can get up the ripple",
+    "elapsed_s": 2.456,
+    "rtf": 0.5105
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "firered2-aed",
+    "transcription": "烟熏烫",
+    "elapsed_s": 1.069,
+    "rtf": 0.4003
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "firered2-aed",
+    "transcription": "你用原始的应当去跑一下 python的模型",
+    "elapsed_s": 3.193,
+    "rtf": 0.6106
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "firered2-aed",
+    "transcription": "试试看",
+    "elapsed_s": 1.092,
+    "rtf": 0.4493
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "firered2-aed",
+    "transcription": "好停车用 agent",
+    "elapsed_s": 1.638,
+    "rtf": 0.3501
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "firered2-aed",
+    "transcription": "去看我们的小 ebeagerforlonglikethingyoudayboy",
+    "elapsed_s": 10.973,
+    "rtf": 0.3435
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "firered2-aed",
+    "transcription": "你不处的是属于历史版本吗",
+    "elapsed_s": 2.816,
+    "rtf": 0.4549
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "firered2-aed",
+    "transcription": "你不服的是 re release版本吗",
+    "elapsed_s": 2.578,
+    "rtf": 0.4572
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "firered2-aed",
+    "transcription": "来多试几次我的 repo里面有很多个 github的 connector的方案",
+    "elapsed_s": 5.385,
+    "rtf": 0.5395
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "firered2-aed",
+    "transcription": "踢踏北屁爱",
+    "elapsed_s": 1.639,
+    "rtf": 0.3626
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "firered2-aed",
+    "transcription": "把那个 release删掉我们再重跑一个新的 release",
+    "elapsed_s": 3.73,
+    "rtf": 0.6509
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "firered2-aed",
+    "transcription": "你直接调用就可以了因为是接在 cloud点能点 ai那个后台上面所以你本机看不到不过你是可以调用的",
+    "elapsed_s": 10.981,
+    "rtf": 0.7248
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "firered2-aed",
+    "transcription": "说真的如果今天大家都只用这一家那我也省事很多但是你不得不承认一个事实是普通人大部分都只会用 chatgpt他们对 ai的认识也是 chatgpt出来的",
+    "elapsed_s": 29.16,
+    "rtf": 1.2706
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "firered2-aed",
+    "transcription": "现在有一个问题就是我们如果要找到他真实的 m point要怎么做要不然我实际去拿一个他的 api来试试看这样子吗但是也很奇怪吧因为我不会实际去用他的 api去跑啊我们只是要 api这个 m point而已啊",
+    "elapsed_s": 43.187,
+    "rtf": 1.4918
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "firered2-aed",
+    "transcription": "你直接帮我用指令验证一下 openai的 api位置我们不用嗯实际去打 token只要去验证这个 m point存不存在而已",
+    "elapsed_s": 18.831,
+    "rtf": 1.0706
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "firered2-aed",
+    "transcription": "第一个修一下然后第第三个也修一下第四个也修一下然后第五个也修一下但是第五个具体要怎么修我有点不太知道哎因为我们要铺路给错误铺路错误给 client啊这样 client才知道有什么错误吧还是你有什么想法",
+    "elapsed_s": 51.352,
+    "rtf": 1.5908
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "firered2-aed",
+    "transcription": "build and release to applications",
+    "elapsed_s": 3.769,
+    "rtf": 1.1084
+  },
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "測試音訊文件你們應該要寫在哪邊吧",
+    "elapsed_s": 1.176,
+    "rtf": 0.201
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你就觉得怎么开始就好吧你自己也开始就好了",
+    "elapsed_s": 0.454,
+    "rtf": 0.0616
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "现在已经好几天后了我现在终于可以抓了我先把原石当中我的NAS抓下来等我一下",
+    "elapsed_s": 0.58,
+    "rtf": 0.0353
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "然後你把我們遇到的問題也放進去這樣新的對話才知道要從哪邊去下手",
+    "elapsed_s": 0.532,
+    "rtf": 0.0563
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "这是我的下一步,所以你要建立一个新的档案",
+    "elapsed_s": 0.46,
+    "rtf": 0.0792
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "建立一个新文件下一步我觉得我们要用我原始的音讯档测各种不同的模型测如果是在原始模型的情形下然后用MLX来加速哪个模型对我的原始音讯档效果是最好的",
+    "elapsed_s": 0.746,
+    "rtf": 0.0331
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "正常的推送",
+    "elapsed_s": 0.412,
+    "rtf": 0.1215
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "我在XGPT部署了很多repo",
+    "elapsed_s": 0.457,
+    "rtf": 0.0791
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你看這裡又是ok的你比較一下差異在哪裡",
+    "elapsed_s": 0.489,
+    "rtf": 0.0828
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "然后再重新录属我对比一下",
+    "elapsed_s": 0.454,
+    "rtf": 0.0804
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "把吉他变成吉他了",
+    "elapsed_s": 0.434,
+    "rtf": 0.0989
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你先把舊的清掉如果还没有清的话",
+    "elapsed_s": 0.464,
+    "rtf": 0.0831
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "靠近的靠近的靠近",
+    "elapsed_s": 0.445,
+    "rtf": 0.101
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "但是,可不可以加一條如果對我有不知道不認識的先去撈記憶的系統",
+    "elapsed_s": 0.512,
+    "rtf": 0.0394
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "可以,然后我们再看一下怎么调",
+    "elapsed_s": 0.442,
+    "rtf": 0.1102
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "目前我们自己做的记忆工具的话你应该会有可以得到更多对我的认识了吧你觉得在这个状况下我在你这边的user preference应该要怎么改因为我已经很久没有动它了",
+    "elapsed_s": 0.725,
+    "rtf": 0.0334
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你覺得這個想法怎麼樣?",
+    "elapsed_s": 0.432,
+    "rtf": 0.0753
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "能不能在auto的情況下就算是auto然後再用tag是英文的跑第二次",
+    "elapsed_s": 0.51,
+    "rtf": 0.0558
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "其實我有一個想法因為我們現在的語言接換的tag是AUTO",
+    "elapsed_s": 0.499,
+    "rtf": 0.0403
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "劍至一次了",
+    "elapsed_s": 0.422,
+    "rtf": 0.1259
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "已經過了然後你之前有幫我整理這個問題的文件在DOC的資料桌上你幫我更新一下它的調整是怎麼樣你順便跟我說它的它的改動你覺得做個評分怎麼樣我現在已經在跑了所以你不用再投影比我人了",
+    "elapsed_s": 0.825,
+    "rtf": 0.0288
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "應該就是最新的那個Commit因為他已經推送了所以你看讓人看不到差異了",
+    "elapsed_s": 0.528,
+    "rtf": 0.0477
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "因為你剛才陷入了思維鏈的回圈所以我剛才有請TRAG GPT幫我去改東西然後也推送了你看一下他改了什麼驗轉一下",
+    "elapsed_s": 0.667,
+    "rtf": 0.0432
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "我大概会感觉到什么差异您先跟我说一些",
+    "elapsed_s": 0.468,
+    "rtf": 0.0755
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "然后你直接部署然后打开吧",
+    "elapsed_s": 0.451,
+    "rtf": 0.1071
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你参考一下cloud.md,然后进行编译,然后我再试一下你要编译的是release的版本",
+    "elapsed_s": 0.587,
+    "rtf": 0.0584
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "7-11必定回收",
+    "elapsed_s": 0.421,
+    "rtf": 0.1227
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "7-11自用回收",
+    "elapsed_s": 0.439,
+    "rtf": 0.086
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你把之前我们遇到的辨识的问题全部整理成一份文件包括我们最后的解决思路以及还有什么问题没有解决的然后整个系统架构也写进去我给超级BD看一下多一个意见总是比较好的",
+    "elapsed_s": 0.792,
+    "rtf": 0.0298
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "十过半分",
+    "elapsed_s": 0.422,
+    "rtf": 0.1507
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "不要用他口急这个字",
+    "elapsed_s": 0.433,
+    "rtf": 0.1291
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "希希希希",
+    "elapsed_s": 3.914,
+    "rtf": 1.227
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "希希希",
+    "elapsed_s": 6.771,
+    "rtf": 2.2723
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "来四根GithubThe Ripple",
+    "elapsed_s": 0.45,
+    "rtf": 0.0936
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "音訊堂",
+    "elapsed_s": 0.43,
+    "rtf": 0.1612
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你用原始的音等去跑一下Python的模型",
+    "elapsed_s": 0.478,
+    "rtf": 0.0913
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "吃吃看希",
+    "elapsed_s": 9.044,
+    "rtf": 3.7216
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "好,請先用Agent",
+    "elapsed_s": 0.429,
+    "rtf": 0.0917
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "去看我們的uestoslike pig today吧",
+    "elapsed_s": 14.992,
+    "rtf": 0.4694
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你部署的是3D十版本吗",
+    "elapsed_s": 0.449,
+    "rtf": 0.0725
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你不说的是 叛叛吗",
+    "elapsed_s": 0.456,
+    "rtf": 0.0808
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "來多試幾次,我的report裡面有很多個Github的Connector的方案",
+    "elapsed_s": 0.516,
+    "rtf": 0.0517
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "DHopAPI",
+    "elapsed_s": 0.866,
+    "rtf": 0.1916
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "把那个release删掉我们再重跑一个新的release",
+    "elapsed_s": 0.487,
+    "rtf": 0.0851
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你直接调用就可以了因为是接在Cloud的点点AI那个后台上面所以你本机看不到不过你是可以调用的",
+    "elapsed_s": 0.631,
+    "rtf": 0.0416
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "說真的如果今天大家都用這一家那我也承示很多但是你不得不承認一個事實是普通人大部分都只會用XGPT他們對AI的認識也是XGPT出來的",
+    "elapsed_s": 0.746,
+    "rtf": 0.0325
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "現在有一個問題就是我們如果要找到他真實的endpoint要怎麼做要不然我實際去拿一個他的API來試試看這樣子嗎但是也很奇怪吧因為我不會實際去用他的API去跑啊我們只是要API這個endpoint而已啊",
+    "elapsed_s": 0.836,
+    "rtf": 0.0289
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "你直接帮我用指令验证一下OpenAI的API位置我们不用实际去打token只要去验证这个endpoint存在而已",
+    "elapsed_s": 0.648,
+    "rtf": 0.0368
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "第一個修一下,然後第三個也修一下第四個也修一下然後第五個也修一下但是第五個具體要怎麼修我有點不太知道因為我們要暴露錯誤給Client這樣Client才知道有什麼錯誤吧還是你有什麼想法",
+    "elapsed_s": 1.27,
+    "rtf": 0.0393
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "whisper-v3-turbo-mlx",
+    "transcription": "用 then release to applications",
+    "elapsed_s": 0.446,
+    "rtf": 0.1311
+  },
+  {
+    "audio": "8377F63B-EEE6-4313-905E-68B823D60403.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "查询性文件，里面应该有写在哪边吧。",
+    "elapsed_s": 3.686,
+    "rtf": 0.63
+  },
+  {
+    "audio": "E79AA611-9EAA-4CE4-9A2D-8AD9B9B74E4C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你就觉得怎么开始最好吧？你直接开始就好了。",
+    "elapsed_s": 0.568,
+    "rtf": 0.077
+  },
+  {
+    "audio": "C6CA7634-21C5-4A34-8121-8ACA54D4BBA6.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "现在已经好几天后了。我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于可以抓了！我现在终于",
+    "elapsed_s": 86.676,
+    "rtf": 5.2787
+  },
+  {
+    "audio": "C2E8F452-699D-4E25-922C-CD692909C0A1.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "然后你把我们遇到的问题也放进去，这样新的对话才知道要从哪边去下手。",
+    "elapsed_s": 0.751,
+    "rtf": 0.0794
+  },
+  {
+    "audio": "80E62BAD-7074-4D15-B6E9-0AC394330C22.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "这是我的下一步。所以你要建立一个新的档案。",
+    "elapsed_s": 0.561,
+    "rtf": 0.0965
+  },
+  {
+    "audio": "845B266E-1B63-47A1-92FE-1EE137D08B47.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "建立一个新文件。下一步，我觉得我们要用我原始的英雄狼测各种不同的模型。测，如果是在原原始模型的情形下，然后用MLS来加速。哪个模型对我的原始英雄狼效果是最好的？",
+    "elapsed_s": 1.101,
+    "rtf": 0.0489
+  },
+  {
+    "audio": "C15D19BB-0CC2-4C42-B099-BAAE9864FD02.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "正常了推送。",
+    "elapsed_s": 0.585,
+    "rtf": 0.1726
+  },
+  {
+    "audio": "698926B5-F27C-425A-9BBB-DD6992836508.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "我在查GPT，部署了很多repo。",
+    "elapsed_s": 0.538,
+    "rtf": 0.0931
+  },
+  {
+    "audio": "EDAEB810-5A2A-4480-8EA8-3C3D6B042FEF.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你看，这里又是OK的。你比较一下差异在哪里。",
+    "elapsed_s": 0.568,
+    "rtf": 0.0961
+  },
+  {
+    "audio": "0888922B-9110-4629-B31F-CB50A370ECC4.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "然后再重新部署。我对比一下。",
+    "elapsed_s": 0.502,
+    "rtf": 0.0888
+  },
+  {
+    "audio": "5656E379-E167-4E79-A5CB-32C5D9AB8680.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "把吉他板变成吉他了。",
+    "elapsed_s": 0.498,
+    "rtf": 0.1133
+  },
+  {
+    "audio": "2DA2ED56-45A6-4E05-9E07-56DD97A617B3.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你先把这的听掉。如果还没有听的话。",
+    "elapsed_s": 0.55,
+    "rtf": 0.0986
+  },
+  {
+    "audio": "66DE45C1-68F4-42C8-8A4C-6A1E93629B8B.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Clouds start at sinking.",
+    "elapsed_s": 0.536,
+    "rtf": 0.1219
+  },
+  {
+    "audio": "C3A474E9-4B31-4FF5-90A9-0364EB729390.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "但是，可不可以加一条：如果有对我有不知道不认识的先去捞记忆的系统？",
+    "elapsed_s": 0.6,
+    "rtf": 0.0462
+  },
+  {
+    "audio": "20A9130C-13CC-4DCD-97F4-A6C86C0802E6.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "可以。然后我们再看一下怎么调。",
+    "elapsed_s": 0.532,
+    "rtf": 0.1328
+  },
+  {
+    "audio": "304E1DFE-06D5-4B41-A095-08D7CC9BC0F5.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "目前我们自己做的记忆工具的话，你应该会有可以得到对我更多对我的认识了吧？你觉得在这个情况下，我在你这边的user preference应该要怎么改？因为我已经很久没有动它了。",
+    "elapsed_s": 0.848,
+    "rtf": 0.039
+  },
+  {
+    "audio": "30F5CC84-6E77-4001-A3BC-6948145ECC2C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你觉得这个想想法怎么样？",
+    "elapsed_s": 0.553,
+    "rtf": 0.0965
+  },
+  {
+    "audio": "37F853D3-AB67-493D-8B3E-8ADAC2A91589.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "能不能在Outer的情况下，就算是Outer，然后再用泰克是英文的跑第二次。",
+    "elapsed_s": 0.574,
+    "rtf": 0.0629
+  },
+  {
+    "audio": "8303FD21-DDA4-4660-9E1E-6727720E71CA.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "其实我有一个想法，因为我们现在的语言切换呢，泰格是auto。",
+    "elapsed_s": 0.599,
+    "rtf": 0.0483
+  },
+  {
+    "audio": "78B072FB-33BD-4B4E-9AA3-61A3C37A822D.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Been here once.",
+    "elapsed_s": 0.492,
+    "rtf": 0.1469
+  },
+  {
+    "audio": "5D5BBBD9-349E-4660-B4BB-3CBB8E78EF4C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "已经过了，然后你之前帮我整理这个文这个问题的文件，在DOC的资料夹下面。你帮我更新一下它的调整，怎么样？你顺便跟我说它的它的改动，你觉得做个评分怎么样？我现在已经得跑了，所以你不用再重新标点了。",
+    "elapsed_s": 0.84,
+    "rtf": 0.0293
+  },
+  {
+    "audio": "EE3831DF-C338-4704-804F-C7CD043F8147.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "应该就是最新的那个commit。因为它它已经推送了，所以你看，当然看不到差异了。",
+    "elapsed_s": 0.602,
+    "rtf": 0.0544
+  },
+  {
+    "audio": "8C12C8F9-5FF8-40C7-9434-3D34FC7BBF81.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "因为你刚才陷入了思维链的回圈，所以我刚才有请Chat GPT帮我去改东西，然后也推送了。你看一下，他改了什么，验证一下。",
+    "elapsed_s": 0.701,
+    "rtf": 0.0454
+  },
+  {
+    "audio": "C7692A31-57C1-4FFB-B2BE-B9EB289EC337.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "我大概会感觉到什么差异。你先跟我说一些。",
+    "elapsed_s": 0.554,
+    "rtf": 0.0894
+  },
+  {
+    "audio": "97576B8F-1985-440A-845C-AEF6B4E3B906.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "然后你直接部署，然后打开吧。",
+    "elapsed_s": 0.502,
+    "rtf": 0.1192
+  },
+  {
+    "audio": "7A174B55-6209-40D0-9956-812AE6D7CEAB.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你再考一下Cloud的点MD，然后进行编译。然后我再试一下，你要编译的是Redis版本。",
+    "elapsed_s": 0.626,
+    "rtf": 0.0623
+  },
+  {
+    "audio": "021D2CA3-86D5-4432-8AE9-B2E223DBF13C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Seven yen, one per pint, return.",
+    "elapsed_s": 0.503,
+    "rtf": 0.1466
+  },
+  {
+    "audio": "1C312104-519E-4D8D-8FFD-6A0924275326.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Seventy percent recycled from recycling.",
+    "elapsed_s": 0.516,
+    "rtf": 0.1011
+  },
+  {
+    "audio": "8220789E-FB5D-45AC-847C-4264C5111B0C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你把之前我们遇到的面试的问题全部整理成一份文件。包括我们最后的解决思路，以及还有什么问题没有解决的。然后整个系统架构也写进去。我给叉T P P看一下。多一个意见总是比较好的。",
+    "elapsed_s": 0.838,
+    "rtf": 0.0315
+  },
+  {
+    "audio": "18D14F13-AA0F-4B78-9589-389571BC3B30.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Scoop by scoop.",
+    "elapsed_s": 0.47,
+    "rtf": 0.1679
+  },
+  {
+    "audio": "BE9B835C-F1D6-4D08-9E91-DCD879DE40A2.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "不要用到“口疾”这个字。",
+    "elapsed_s": 0.52,
+    "rtf": 0.1554
+  },
+  {
+    "audio": "EF92CBF6-2F76-467D-ADA8-2DC6D641A894.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Google's the journey. You.",
+    "elapsed_s": 0.502,
+    "rtf": 0.1573
+  },
+  {
+    "audio": "A31764F0-3ACD-4894-B351-88259BEC65FB.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Google. 질문하여.",
+    "elapsed_s": 0.494,
+    "rtf": 0.1656
+  },
+  {
+    "audio": "80CE877A-4FCC-4C92-8AAE-91184B340DC7.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Let's listen to an hip-hop. The Rapo.",
+    "elapsed_s": 0.515,
+    "rtf": 0.107
+  },
+  {
+    "audio": "AF5D3CB3-FD55-4082-9BB4-71EDBDA47B94.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Yun Xun Tang.",
+    "elapsed_s": 0.499,
+    "rtf": 0.187
+  },
+  {
+    "audio": "F0947089-94EE-4C7C-8B23-B1B0AC58A4DB.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你用原始的引导去跑一下Python的母亲。",
+    "elapsed_s": 0.531,
+    "rtf": 0.1016
+  },
+  {
+    "audio": "F2D397CB-141E-449C-BD12-0E1CF5AA588F.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Just look.",
+    "elapsed_s": 0.564,
+    "rtf": 0.2321
+  },
+  {
+    "audio": "881D16AA-1CCE-49B5-9C18-A78E211AB922.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "How? Person use agent.",
+    "elapsed_s": 0.493,
+    "rtf": 0.1054
+  },
+  {
+    "audio": "CA8A0824-20F2-44F2-B3C3-F7309F797607.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "We can我们的。下一个。呃，Big Apple啦。Like figure day boys.",
+    "elapsed_s": 0.734,
+    "rtf": 0.023
+  },
+  {
+    "audio": "A4054A57-F1C3-4F1A-BBD7-15BCBC68BDE3.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你不服的是Redis版本吗？",
+    "elapsed_s": 0.514,
+    "rtf": 0.083
+  },
+  {
+    "audio": "951D8CB5-3F9A-4E51-91EE-B86B10DCA22A.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你部署的是release版本吗？",
+    "elapsed_s": 0.512,
+    "rtf": 0.0908
+  },
+  {
+    "audio": "096E0EDE-9F67-41E0-BA64-BB4AA6CBDC41.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "来多试几次。我的report里面有很多个GitHub的connect的方案。",
+    "elapsed_s": 0.558,
+    "rtf": 0.0559
+  },
+  {
+    "audio": "0AA9B9B7-C5F1-4DA2-8DF6-62FB6B71C13D.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "ETA API.",
+    "elapsed_s": 0.491,
+    "rtf": 0.1085
+  },
+  {
+    "audio": "529EDC2B-52AF-45B9-A48A-ECB2F70B50E4.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "把那个release删掉，我们再重跑一个新的release。",
+    "elapsed_s": 0.554,
+    "rtf": 0.0967
+  },
+  {
+    "audio": "EA501713-207A-432B-A37A-E12AA6356F06.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你直接调用就可以了，因为是接在Cloud的点点AI那个后台上面，所以你本机看不到。不过你是可以调用的。",
+    "elapsed_s": 0.658,
+    "rtf": 0.0434
+  },
+  {
+    "audio": "6A43F924-5F40-4B31-9A56-40C4EC8A56E4.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "说真的，如果今天大家都用cheese，那我也损失很多。但是你不得不承认一个事实：是普通人大部分都只会用cheese，他们对爱的认识也是cheese出来的。",
+    "elapsed_s": 0.763,
+    "rtf": 0.0333
+  },
+  {
+    "audio": "FDFBDF45-20E3-41B4-887A-49D5474E0F77.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "现在有一个问题，就是我们如果要找到它真实的MPOIN的，要怎么做？要不然，我实际去拿一个它的API来试试看，这样子吗？但是也很奇怪吧，因为我不会实际去用它的API去爬。我们只是要IPH这个MPOIN的而已啊。",
+    "elapsed_s": 0.917,
+    "rtf": 0.0317
+  },
+  {
+    "audio": "25F6F825-BE07-401C-8C6A-A114733DAF96.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "你直接帮我用指令验证一下Oppo AI的API位置。我们不用，嗯，实际去打偷坑，只要去验证这个Endpoint存在而已。",
+    "elapsed_s": 0.722,
+    "rtf": 0.041
+  },
+  {
+    "audio": "648AE911-D171-4FA6-BBF0-5CFAB2692F7C.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "第一个削一下，然后第第三个也削一下，第四个也削一下，然后第五个也削一下。但是第五个具体要怎么削？我有点不太知道哎，因为我没有披露给错误，披露错误给client，这样client才知道有什么错误吧？还是你有什么想法？",
+    "elapsed_s": 0.922,
+    "rtf": 0.0285
+  },
+  {
+    "audio": "A6A37DCC-52FC-4AA4-914C-C03475E412A3.wav",
+    "model": "qwen3-0.6b",
+    "transcription": "Build and release to applications.",
+    "elapsed_s": 0.529,
+    "rtf": 0.1555
+  }
+]

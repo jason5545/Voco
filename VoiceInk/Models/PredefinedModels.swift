@@ -153,6 +153,30 @@ import Foundation
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3)
         ),
 
+        // WhisperKit CoreML Models
+        WhisperKitModel(
+            name: "whisperkit-large-v3-turbo",
+            displayName: "Whisper Large v3 Turbo (WhisperKit)",
+            description: "CoreML + ANE optimized. Best for Chinese with native Traditional Chinese output.",
+            size: "~1 GB",
+            speed: 0.85,
+            accuracy: 0.96,
+            ramUsage: 1.5,
+            whisperKitVariant: "openai_whisper-large-v3_turbo_954MB",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperKit)
+        ),
+        WhisperKitModel(
+            name: "whisperkit-large-v3-turbo-full",
+            displayName: "Whisper Large v3 Turbo Full (WhisperKit)",
+            description: "Full precision CoreML model. Higher accuracy, larger download.",
+            size: "~3.2 GB",
+            speed: 0.75,
+            accuracy: 0.98,
+            ramUsage: 3.5,
+            whisperKitVariant: "openai_whisper-large-v3_turbo",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperKit)
+        ),
+
          // Local Models
          LocalModel(
              name: "ggml-tiny",

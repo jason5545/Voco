@@ -189,6 +189,7 @@
 				RN01E5A82F1D200000000002 /* CRNNoise */,
 				E1438ED12F3F3D5E00DBE2A1 /* LLMkit */,
 				OC01CC022F4E000000000002 /* OpenCC */,
+				WK01A0022F5000000000A002 /* WhisperKit */,
 			);
 			productName = VoiceInk;
 			productReference = E11473B02CBE0F0A00318EE4 /* VoiceInk.app */;
@@ -286,6 +287,7 @@
 				RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */,
 				E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */,
 				OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */,
+				WK01A0012F5000000000A001 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E11473B12CBE0F0A00318EE4 /* Products */;
@@ -753,6 +755,14 @@
 				branch = master;
 			};
 		};
+		WK01A0012F5000000000A001 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -824,6 +834,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */;
 			productName = OpenCC;
+		};
+		WK01A0022F5000000000A002 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = WK01A0012F5000000000A001 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

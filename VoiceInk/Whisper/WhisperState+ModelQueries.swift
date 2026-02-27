@@ -30,6 +30,11 @@ extension WhisperState {
                     return isQwen3ModelDownloaded(qwen3Model)
                 }
                 return false
+            case .whisperKit:
+                if let whisperKitModel = model as? WhisperKitModel {
+                    return isWhisperKitModelDownloaded(whisperKitModel)
+                }
+                return false
             case .nativeApple:
                 if #available(macOS 26, *) {
                     return true
