@@ -13,7 +13,7 @@ enum ModelProvider: String, Codable, Hashable, CaseIterable {
     case custom = "Custom"
     case nativeApple = "Native Apple"
     case qwen3 = "Qwen3"
-    case whisperKit = "WhisperKit"
+    case whisperMLX = "WhisperMLX"
     // Future providers can be added here
 }
 
@@ -201,18 +201,18 @@ struct Qwen3Model: TranscriptionModel {
     let supportedLanguages: [String: String]
 }
 
-// WhisperKit CoreML models
-struct WhisperKitModel: TranscriptionModel {
+// Whisper MLX models
+struct WhisperMLXModel: TranscriptionModel {
     let id = UUID()
     let name: String
     let displayName: String
     let description: String
-    let provider: ModelProvider = .whisperKit
+    let provider: ModelProvider = .whisperMLX
     let size: String
     let speed: Double
     let accuracy: Double
     let ramUsage: Double
-    let whisperKitVariant: String  // WhisperKit model variant name (e.g. "openai_whisper-large-v3_turbo")
+    let huggingFaceRepo: String  // HuggingFace model ID (e.g. "mlx-community/whisper-large-v2-mlx-4bit")
     var isMultilingualModel: Bool {
         supportedLanguages.count > 1
     }

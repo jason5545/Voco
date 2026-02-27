@@ -44,6 +44,7 @@ enum AppDefaults {
 
             // Model
             "PrewarmModelOnWake": true,
+            "ModelKeepAliveSeconds": 420.0,
 
             // Chinese Post-Processing
             "ChinesePostProcessingEnabled": false,

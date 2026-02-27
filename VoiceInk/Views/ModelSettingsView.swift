@@ -96,7 +96,7 @@ struct ModelSettingsView: View {
                 }
                 .toggleStyle(.switch)
 
-                InfoTip("Turn this on if transcriptions with local models are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.")
+                InfoTip("Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.")
             }
 
             FillerWordsSettingsView()

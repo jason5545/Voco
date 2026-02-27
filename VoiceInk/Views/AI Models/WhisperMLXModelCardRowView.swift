@@ -1,12 +1,13 @@
-// WhisperKitModelCardRowView.swift
-// UI card for WhisperKit model display and management
+// WhisperMLXModelCardRowView.swift
+// UI card for Whisper MLX model display and management
 // [AI-Claude: 2026-02-27]
 
 import SwiftUI
+import Combine
 import AppKit
 
-struct WhisperKitModelCardRowView: View {
-    let model: WhisperKitModel
+struct WhisperMLXModelCardRowView: View {
+    let model: WhisperMLXModel
     @ObservedObject var whisperState: WhisperState
 
     var isCurrent: Bool {
@@ -14,11 +15,11 @@ struct WhisperKitModelCardRowView: View {
     }
 
     var isDownloaded: Bool {
-        whisperState.isWhisperKitModelDownloaded(model)
+        whisperState.isWhisperMLXModelDownloaded(model)
     }
 
     var isDownloading: Bool {
-        whisperState.isWhisperKitModelDownloading(model)
+        whisperState.isWhisperMLXModelDownloading(model)
     }
 
     var body: some View {
@@ -43,7 +44,7 @@ struct WhisperKitModelCardRowView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Color(.labelColor))
 
-            Text("CoreML + ANE")
+            Text("MLX GPU")
                 .font(.system(size: 11, weight: .medium))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
@@ -136,7 +137,7 @@ struct WhisperKitModelCardRowView: View {
             } else {
                 Button(action: {
                     Task {
-                        await whisperState.downloadWhisperKitModel(model)
+                        await whisperState.downloadWhisperMLXModel(model)
                     }
                 }) {
                     HStack(spacing: 4) {
@@ -156,13 +157,13 @@ struct WhisperKitModelCardRowView: View {
             if isDownloaded {
                 Menu {
                     Button(action: {
-                        whisperState.deleteWhisperKitModel(model)
+                        whisperState.deleteWhisperMLXModel(model)
                     }) {
                         Label("Delete Model", systemImage: "trash")
                     }
 
                     Button {
-                        whisperState.showWhisperKitModelInFinder(model)
+                        whisperState.showWhisperMLXModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }

@@ -64,6 +64,7 @@ extension WhisperState {
             }
         } else {
             lastRecordingStopTime = nil
+            cancelScheduledModelCleanup()
             SoundManager.shared.playStartSound()
 
             // Stop background polling — not needed while recording
@@ -147,7 +148,7 @@ extension WhisperState {
             isMiniRecorderVisible = false
         }
 
-        await cleanupModelResources()
+        scheduleModelResourceCleanup()
         
         if UserDefaults.standard.bool(forKey: PowerModeDefaults.autoRestoreKey) {
             await PowerModeSessionManager.shared.endSession()

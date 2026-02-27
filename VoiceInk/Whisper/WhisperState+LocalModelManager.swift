@@ -348,8 +348,40 @@ extension WhisperState {
     }
     
     // MARK: - Resource Management
-    
+
+    func cancelScheduledModelCleanup() {
+        deferredModelCleanupTask?.cancel()
+        deferredModelCleanupTask = nil
+    }
+
+    func scheduleModelResourceCleanup() {
+        cancelScheduledModelCleanup()
+
+        let configuredKeepAlive = UserDefaults.standard.double(forKey: modelKeepAliveSecondsKey)
+        let keepAliveSeconds = max(0, configuredKeepAlive)
+        guard keepAliveSeconds > 0 else {
+            Task { [weak self] in
+                await self?.cleanupModelResources()
+            }
+            return
+        }
+
+        logger.notice("cleanupModelResources: scheduled in \(String(format: "%.0f", keepAliveSeconds))s")
+        deferredModelCleanupTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(for: .seconds(keepAliveSeconds))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self.cleanupModelResources()
+        }
+    }
+
     func cleanupModelResources() async {
+        deferredModelCleanupTask?.cancel()
+        deferredModelCleanupTask = nil
         logger.notice("cleanupModelResources: releasing model resources")
         await whisperContext?.releaseResources()
         whisperContext = nil

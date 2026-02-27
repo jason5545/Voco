@@ -63,10 +63,10 @@ struct ModelCardRowView: View {
                         whisperState: whisperState
                     )
                 }
-            case .whisperKit:
-                if let whisperKitModel = model as? WhisperKitModel {
-                    WhisperKitModelCardRowView(
-                        model: whisperKitModel,
+            case .whisperMLX:
+                if let whisperMLXModel = model as? WhisperMLXModel {
+                    WhisperMLXModelCardRowView(
+                        model: whisperMLXModel,
                         whisperState: whisperState
                     )
                 }

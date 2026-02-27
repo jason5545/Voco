@@ -153,28 +153,39 @@ import Foundation
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3)
         ),
 
-        // WhisperKit CoreML Models
-        WhisperKitModel(
-            name: "whisperkit-large-v3-turbo",
-            displayName: "Whisper Large v3 Turbo (WhisperKit)",
-            description: "CoreML + ANE optimized. Best for Chinese with native Traditional Chinese output.",
-            size: "~1 GB",
-            speed: 0.85,
+        // Whisper MLX Models
+        WhisperMLXModel(
+            name: "whisper-large-mlx-4bit",
+            displayName: "Whisper Large (4-bit)",
+            description: "MLX GPU accelerated. Stable language detection, recommended for Chinese transcription.",
+            size: "~877 MB",
+            speed: 0.70,
             accuracy: 0.96,
             ramUsage: 1.5,
-            whisperKitVariant: "openai_whisper-large-v3_turbo_954MB",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperKit)
+            huggingFaceRepo: "mlx-community/whisper-large-asr-4bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
         ),
-        WhisperKitModel(
-            name: "whisperkit-large-v3-turbo-full",
-            displayName: "Whisper Large v3 Turbo Full (WhisperKit)",
-            description: "Full precision CoreML model. Higher accuracy, larger download.",
-            size: "~3.2 GB",
-            speed: 0.75,
-            accuracy: 0.98,
-            ramUsage: 3.5,
-            whisperKitVariant: "openai_whisper-large-v3_turbo",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperKit)
+        WhisperMLXModel(
+            name: "whisper-large-mlx-8bit",
+            displayName: "Whisper Large (8-bit)",
+            description: "MLX GPU accelerated. Higher precision, better accuracy on edge cases.",
+            size: "~1.5 GB",
+            speed: 0.60,
+            accuracy: 0.97,
+            ramUsage: 2.2,
+            huggingFaceRepo: "mlx-community/whisper-large-asr-8bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
+        ),
+        WhisperMLXModel(
+            name: "whisper-large-v3-turbo-mlx-4bit",
+            displayName: "Whisper V3 Turbo (4-bit)",
+            description: "MLX GPU accelerated. Fastest Whisper model, compact size.",
+            size: "~463 MB",
+            speed: 0.85,
+            accuracy: 0.95,
+            ramUsage: 1.0,
+            huggingFaceRepo: "mlx-community/whisper-large-v3-turbo-4bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
         ),
 
          // Local Models

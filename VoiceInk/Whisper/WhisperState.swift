@@ -95,6 +95,8 @@ class WhisperState: NSObject, ObservableObject {
     private var startupPreparationTask: Task<Void, Never>?
     private var startupPreparationTaskID: UUID?
     var editModeDetectionTask: Task<Void, Never>?
+    var deferredModelCleanupTask: Task<Void, Never>?
+    let modelKeepAliveSecondsKey = "ModelKeepAliveSeconds"
 
 
     @Published var recorderType: String = UserDefaults.standard.string(forKey: "RecorderType") ?? "mini" {
@@ -172,7 +174,7 @@ class WhisperState: NSObject, ObservableObject {
     @Published var downloadProgress: [String: Double] = [:]
     @Published var parakeetDownloadStates: [String: Bool] = [:]
     @Published var qwen3DownloadStates: [String: Bool] = [:]
-    @Published var whisperKitDownloadStates: [String: Bool] = [:]
+    @Published var whisperMLXDownloadStates: [String: Bool] = [:]
     
     init(modelContext: ModelContext, enhancementService: AIEnhancementService? = nil) {
         self.modelContext = modelContext
@@ -352,8 +354,9 @@ class WhisperState: NSObject, ObservableObject {
 
                                 guard !Task.isCancelled else { return }
 
-                                // Only load model if it's a local model and not already loaded
-                                if let model = await self.currentTranscriptionModel, model.provider == .local {
+                                // Preload the active on-device model while user is recording.
+                                let selectedModel = await self.currentTranscriptionModel
+                                if let model = selectedModel, model.provider == .local {
                                     if let localWhisperModel = await self.availableModels.first(where: { $0.name == model.name }),
                                        await self.whisperContext == nil {
                                         do {
@@ -362,8 +365,10 @@ class WhisperState: NSObject, ObservableObject {
                                             await self.logger.error("❌ Model loading failed: \(error.localizedDescription)")
                                         }
                                     }
-                                } else if let parakeetModel = await self.currentTranscriptionModel as? ParakeetModel {
+                                } else if let parakeetModel = selectedModel as? ParakeetModel {
                                     try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
+                                } else if let whisperMLXModel = selectedModel as? WhisperMLXModel {
+                                    try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: whisperMLXModel)
                                 }
 
                                 guard !Task.isCancelled else { return }
