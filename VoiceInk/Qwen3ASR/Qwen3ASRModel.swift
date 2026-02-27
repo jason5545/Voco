@@ -95,6 +95,7 @@ class Qwen3ASRModel {
 
         var audioEmbeds = audioEncoder(batchedFeatures)
         audioEmbeds = audioEmbeds.expandedDimensions(axis: 0)
+        eval(audioEmbeds)  // Materialize audio encoder output, sever computation graph
 
         guard let textDecoder = textDecoder else {
             throw Qwen3ASRModelError.textDecoderNotLoaded
@@ -115,6 +116,7 @@ class Qwen3ASRModel {
         if language == nil,
            let detectedLang = result.detectedLanguage,
            let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
+            Memory.clearCache()  // Release GPU buffers from the first pass
             Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
             let remapped = try generateText(
                 audioEmbeds: audioEmbeds,
@@ -269,13 +271,13 @@ class Qwen3ASRModel {
             // Periodically force-evaluate the KV cache to materialize computation graph
             // and release intermediate MLXArray nodes, preventing GPU memory accumulation
             if generatedTokens.count % evalInterval == 0, let currentCache = cache {
-                eval(currentCache.map { [$0.0, $0.1] }.flatMap { $0 })
+                eval(currentCache.map { [$0.0, $0.1] }.flatMap { $0 } + [logits])
             }
         }
 
         // Final eval to ensure all cache tensors are materialized before they go out of scope
         if let finalCache = cache {
-            eval(finalCache.map { [$0.0, $0.1] }.flatMap { $0 })
+            eval(finalCache.map { [$0.0, $0.1] }.flatMap { $0 } + [logits])
         }
 
         let avgLogProb = logProbTokenCount > 0 ? totalLogProb / Double(logProbTokenCount) : 0.0

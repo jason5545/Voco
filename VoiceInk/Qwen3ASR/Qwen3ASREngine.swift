@@ -101,6 +101,7 @@ actor Qwen3ASREngine {
                 // Last chunk: take everything
                 let chunk = Array(samples[offset...])
                 let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+                Memory.clearCache()
                 if !result.text.isEmpty { chunkResults.append(result) }
                 break
             }
@@ -110,6 +111,7 @@ actor Qwen3ASREngine {
             let chunk = Array(samples[offset..<cutPoint])
             Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")
             let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+            Memory.clearCache()
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
         }
@@ -159,6 +161,7 @@ actor Qwen3ASREngine {
     }
 
     func unloadModel() {
+        model?.audioEncoder.clearPosEmbeddingCache()
         model = nil
         loadedModelId = nil
         hasCompletedWarmup = false
