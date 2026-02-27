@@ -688,9 +688,17 @@ class WhisperState: NSObject, ObservableObject {
 
                     // LLM response validation
                     if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
-                        let isValid = postProcessor.llmResponseValidator.isValid(response: enhancedText, original: textForAI)
-                        ChinesePostProcessingService.debugLog("LLM_VALIDATION: isValid=\(isValid) | original(\(textForAI.count)): \(textForAI) | enhanced(\(enhancedText.count)): \(enhancedText)")
-                        if !isValid {
+                        let protectedTerms = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
+                            + CorrectionProtectionList.shared.allWords()
+                        let validation = postProcessor.llmResponseValidator.validate(
+                            response: enhancedText,
+                            original: textForAI,
+                            protectedTerms: protectedTerms
+                        )
+                        ChinesePostProcessingService.debugLog(
+                            "LLM_VALIDATION: isValid=\(validation.isValid), reasons=\(validation.reasons.joined(separator: ",")) | original(\(textForAI.count)): \(textForAI) | enhanced(\(enhancedText.count)): \(enhancedText)"
+                        )
+                        if !validation.isValid {
                             logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
                             // Keep text as-is (pre-LLM), don't use enhancedText
                         } else {

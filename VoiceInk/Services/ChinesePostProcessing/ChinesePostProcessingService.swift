@@ -277,6 +277,11 @@ class ChinesePostProcessingService: ObservableObject {
             return false
         }
 
+        if lastModelProvider == .qwen3, containsSuspiciousTerminologyPattern(text) {
+            Self.debugLog("FORCE LLM: suspicious terminology/code-switch pattern | text(\(text.count)): \(text)")
+            return false
+        }
+
         // Provider-specific confidence check
         switch lastModelProvider {
         case .local:
@@ -514,6 +519,34 @@ class ChinesePostProcessingService: ObservableObject {
         if numMatches >= 2 { return true }
 
         return false
+    }
+
+    /// Qwen3 can produce high-confidence whole sentences with one badly-mangled
+    /// technical term inside them. Catch a small set of recurring patterns here
+    /// so they do not get hidden by utterance-level confidence routing.
+    private func containsSuspiciousTerminologyPattern(_ text: String) -> Bool {
+        let suspiciousPhrases = [
+            "差值被統一",
+            "差點被統一",
+            "Swiffer",
+            "千萬的 ASR",
+        ]
+        if suspiciousPhrases.contains(where: { text.localizedCaseInsensitiveContains($0) }) {
+            return true
+        }
+
+        if text.localizedCaseInsensitiveContains("Chat GPT") || text.localizedCaseInsensitiveContains("Cloud Code") {
+            return true
+        }
+
+        let containsHan = text.unicodeScalars.contains {
+            (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                || (0x20000...0x2A6DF).contains($0.value)
+        }
+        guard containsHan else { return false }
+
+        let spacedTechnicalPattern = #"\b[A-Za-z][A-Za-z0-9]*\s+[A-Z]{2,}\b"#
+        return text.range(of: spacedTechnicalPattern, options: .regularExpression) != nil
     }
 
     /// Check if text has excessive or repeated filler words (語助詞)

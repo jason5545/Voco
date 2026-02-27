@@ -91,6 +91,11 @@ class PinyinCorrector {
             ("獨立時候", "的時候"),   // 的(de) → 獨立(dúlì) ASR/pipeline hallucination
             ("提bug", "debug"),     // de → 提(tí) ASR error; 使用者會說「提出 bug」而非「提bug」
             ("抵bug", "debug"),     // de → 抵(dǐ) ASR error
+            ("Chat GPT", "ChatGPT"),
+            ("chat gpt", "ChatGPT"),
+            ("Cloud Code", "Claude Code"),
+            ("Cloud code", "Claude Code"),
+            ("cloud code", "Claude Code"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
@@ -101,6 +106,7 @@ class PinyinCorrector {
 
         // ── contextDependent rules ──
         let programmingKeywords = ["程式", "程式碼", "開發", "寫", "code", "Xcode", "Terminal", "Claude", "編譯", "build"]
+        let aiKeywords = ["AI", "助理", "模型", "語音", "ASR", "轉錄", "Prompt", "prompt", "Claude", "ChatGPT", "Whisper", "Qwen", "OpenAI"]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -111,6 +117,10 @@ class PinyinCorrector {
             ("單字", "單指", ["手指", "輸入", "打字", "鍵盤", "操作"]),
             ("轉入", "轉錄", ["轉錄", "語音", "錄音", "transcri", "Whisper", "辨識"]),
             ("推測", "推送", ["推送", "通知", "notification", "push", "訊息"]),
+            ("差值被統一", "ChatGPT", aiKeywords),
+            ("差點被統一", "ChatGPT", aiKeywords),
+            ("Swiffer", "Whisper", ["Whisper", "語音", "ASR", "轉錄", "模型"]),
+            ("千萬的 ASR", "Qwen 的 ASR", ["Qwen", "ASR", "模型", "語音", "千問"]),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(
@@ -196,8 +206,6 @@ class PinyinCorrector {
         }
 
         var result = text
-        let textChars = Array(result)
-
         // Process matches from end to start to keep indices valid
         var searchEnd = result.endIndex
         var ranges: [Range<String.Index>] = []
@@ -245,14 +253,22 @@ class PinyinCorrector {
         return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
     }
 
-    /// Check if any keyword matches in the current text or combined context (OR logic)
+    /// Current utterance gets priority. Cached context needs stronger evidence
+    /// for broad keyword sets so generic app/window noise does not over-trigger.
     private func matchesContext(keywords: [String], currentText: String, contextString: String?) -> Bool {
         let lowerText = currentText.lowercased()
-        for keyword in keywords {
-            let lowerKeyword = keyword.lowercased()
-            if lowerText.contains(lowerKeyword) { return true }
-            if let ctx = contextString, ctx.contains(lowerKeyword) { return true }
+        let currentMatches = Set(
+            keywords.map { $0.lowercased() }.filter { lowerText.contains($0) }
+        )
+        if !currentMatches.isEmpty {
+            return true
         }
-        return false
+
+        guard let ctx = contextString else { return false }
+        let contextMatches = Set(
+            keywords.map { $0.lowercased() }.filter { ctx.contains($0) }
+        )
+        let requiredContextMatches = keywords.count >= 6 ? 2 : 1
+        return contextMatches.count >= requiredContextMatches
     }
 }
