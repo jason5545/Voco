@@ -76,10 +76,16 @@ enum AIPrompts {
     - 觸控操作：單字→單指（單指捲動、單指點選）
     - 特定組合：那麼神→那麼長、那麼慘→那麼長（當描述長度時）
     - 近音混淆：觀塔→觀察、退掉→推測（「推測意思」語境）、推掉→推測、來自世界的→來試試看
-    - AI 工具：格雷特→Claude、克勞德→Claude、cloud→Claude（如 cloud.md→CLAUDE.md）、千萬→千問（Qwen 模型名稱）、熱蟲宅→熱重載、熱蟲仔→熱重載
+    - AI 工具：格雷特→Claude、克勞德→Claude、cloud→Claude、Cloud Code→Claude Code、千萬→千問（Qwen 模型名稱）、熱蟲宅→熱重載、熱蟲仔→熱重載
     - 社群媒體：臉色→臉書（在聊天軟體中提到時）
     - 程式術語：AGK→edge case、編輯案例→edge case、編輯效應→edge case、Educate→edge case、Education→edge case（程式開發的邊緣案例）
     - 日本動漫：人名、作品名、歌手名等常被誤識為無關的中文詞彙，請根據語境還原正確的日文漢字名稱
+
+    英文術語保留原則（重要！）：
+    - 當轉錄文字中出現英文技術術語、產品名稱、縮寫時，保留英文原文，不要翻譯成中文
+    - 例如：「edge case」不要改成「邊緣案例」、「async/await」不要改成「非同步/等待」
+    - 例如：「Cloud Code」→「Claude Code」是修正辨識錯誤，不是翻譯
+    - 中文句子中夾雜的英文詞彙是正常的 code-switching，保持原樣
 
     使用者說話的情境通常是：與 AI 助理討論程式開發、語音辨識系統、技術問題。
     請根據上下文判斷最合理的詞彙。
