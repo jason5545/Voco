@@ -754,6 +754,43 @@ class WhisperState: NSObject, ObservableObject {
                         finalPastedText = enhancedText
                     }
 
+                    // Post-LLM punctuation density check:
+                    // LLM may pass validation but still return text without punctuation
+                    // (Gemini Flash Lite is inconsistent about adding punctuation).
+                    // Use the same density formula as the safety net for skipped LLM.
+                    if let acceptedText = finalPastedText, acceptedText.count >= 10 {
+                        let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
+                        let pCount = acceptedText.filter { cjkPunct.contains($0) }.count
+                        let expected = max(acceptedText.count / 20, 1)
+                        if pCount < expected {
+                            ChinesePostProcessingService.debugLog(
+                                "POST_LLM_PUNCT_CHECK: len=\(acceptedText.count), punctCount=\(pCount), expected=\(expected), triggering conservative retry for punctuation"
+                            )
+                            logger.notice("🔄 Post-LLM punctuation insufficient (\(pCount)/\(expected)), retrying for punctuation")
+                            do {
+                                let (retryResult, retryDuration) = try await enhancementService.enhanceConservative(
+                                    acceptedText, uncertainWords: []
+                                )
+                                // Only accept if it actually added punctuation
+                                let retryPunctCount = retryResult.filter { cjkPunct.contains($0) }.count
+                                if retryPunctCount > pCount {
+                                    ChinesePostProcessingService.debugLog(
+                                        "POST_LLM_PUNCT_RETRY: accepted, punctCount \(pCount)→\(retryPunctCount) | result(\(retryResult.count)): \(retryResult)"
+                                    )
+                                    transcription.enhancedText = retryResult
+                                    finalPastedText = retryResult
+                                    transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + retryDuration
+                                } else {
+                                    ChinesePostProcessingService.debugLog(
+                                        "POST_LLM_PUNCT_RETRY: rejected (no improvement), punctCount \(pCount)→\(retryPunctCount)"
+                                    )
+                                }
+                            } catch {
+                                logger.warning("⚠️ Post-LLM punctuation retry error: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+
                     transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
                     transcription.promptName = promptName
                     transcription.enhancementDuration = enhancementDuration
