@@ -155,28 +155,6 @@ import Foundation
 
         // Whisper MLX Models
         WhisperMLXModel(
-            name: "whisper-large-mlx-4bit",
-            displayName: "Whisper Large (4-bit)",
-            description: "MLX GPU accelerated. Stable language detection, recommended for Chinese transcription.",
-            size: "~877 MB",
-            speed: 0.70,
-            accuracy: 0.96,
-            ramUsage: 1.5,
-            huggingFaceRepo: "mlx-community/whisper-large-asr-4bit",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
-        ),
-        WhisperMLXModel(
-            name: "whisper-large-mlx-8bit",
-            displayName: "Whisper Large (8-bit)",
-            description: "MLX GPU accelerated. Higher precision, better accuracy on edge cases.",
-            size: "~1.5 GB",
-            speed: 0.60,
-            accuracy: 0.97,
-            ramUsage: 2.2,
-            huggingFaceRepo: "mlx-community/whisper-large-asr-8bit",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
-        ),
-        WhisperMLXModel(
             name: "whisper-large-v3-turbo-mlx-4bit",
             displayName: "Whisper V3 Turbo (4-bit)",
             description: "MLX GPU accelerated. Fastest Whisper model, compact size.",
@@ -185,6 +163,39 @@ import Foundation
             accuracy: 0.95,
             ramUsage: 1.0,
             huggingFaceRepo: "mlx-community/whisper-large-v3-turbo-4bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
+        ),
+        WhisperMLXModel(
+            name: "whisper-large-v2-mlx-4bit",
+            displayName: "Whisper Large v2 (4-bit)",
+            description: "MLX GPU accelerated. Whisper v2 with improved training data.",
+            size: "~877 MB",
+            speed: 0.70,
+            accuracy: 0.96,
+            ramUsage: 1.5,
+            huggingFaceRepo: "mlx-community/whisper-large-v2-asr-4bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
+        ),
+        WhisperMLXModel(
+            name: "whisper-large-v2-mlx-8bit",
+            displayName: "Whisper Large v2 (8-bit)",
+            description: "MLX GPU accelerated. Higher precision v2 model.",
+            size: "~1.64 GB",
+            speed: 0.60,
+            accuracy: 0.97,
+            ramUsage: 2.5,
+            huggingFaceRepo: "mlx-community/whisper-large-v2-asr-8bit",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
+        ),
+        WhisperMLXModel(
+            name: "whisper-large-v2-mlx-fp16",
+            displayName: "Whisper Large v2 (fp16)",
+            description: "MLX GPU accelerated. Full precision v2 model, highest accuracy.",
+            size: "~3.08 GB",
+            speed: 0.50,
+            accuracy: 0.98,
+            ramUsage: 4.0,
+            huggingFaceRepo: "mlx-community/whisper-large-v2-asr-fp16",
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
         ),
 

@@ -153,26 +153,3 @@ struct WhisperTokens {
         "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su", "yue",
     ]
 }
-
-/// HuggingFace model definitions for Whisper MLX
-enum WhisperMLXModelDefinition {
-    case largeV2_4bit
-    case largeV3Turbo_4bit
-    case largeASR_4bit
-
-    var huggingFaceRepo: String {
-        switch self {
-        case .largeV2_4bit: return "mlx-community/whisper-large-v2-mlx-4bit"
-        case .largeV3Turbo_4bit: return "mlx-community/whisper-large-v3-turbo-4bit"
-        case .largeASR_4bit: return "mlx-community/whisper-large-asr-4bit"
-        }
-    }
-
-    /// Whether this model uses NPZ format (vs safetensors)
-    var usesNPZ: Bool {
-        switch self {
-        case .largeV2_4bit: return true
-        case .largeV3Turbo_4bit, .largeASR_4bit: return false
-        }
-    }
-}

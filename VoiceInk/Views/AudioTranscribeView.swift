@@ -228,7 +228,7 @@ struct AudioTranscribeView: View {
                 VStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.8)
-                    if let progress = whisperState.downloadProgress["ggml-large-v2_main"] {
+                    if let progress = whisperState.downloadProgress["whisper-large-v2-mlx-8bit"] {
                         ProgressView(value: progress)
                             .frame(width: 200)
                         Text("\(Int(progress * 100))%")
@@ -242,9 +242,9 @@ struct AudioTranscribeView: View {
                 }
             } else {
                 Button {
-                    downloadLargeV2()
+                    downloadWhisperV2()
                 } label: {
-                    Label("Download Large v2 (2.9 GB)", systemImage: "arrow.down.circle")
+                    Label("Download Whisper Large v2 8-bit (~1.64 GB)", systemImage: "arrow.down.circle")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -252,23 +252,23 @@ struct AudioTranscribeView: View {
         .padding(32)
     }
 
-    private func downloadLargeV2() {
-        guard let largeV2 = PredefinedModels.models.compactMap({ $0 as? LocalModel }).first(where: { $0.name == "ggml-large-v2" }) else {
+    private func downloadWhisperV2() {
+        guard let model = PredefinedModels.models.compactMap({ $0 as? WhisperMLXModel }).first(where: { $0.name == "whisper-large-v2-mlx-8bit" }) else {
             return
         }
         isDownloadingWhisper = true
         Task {
-            await whisperState.downloadModel(largeV2)
+            await whisperState.downloadWhisperMLXModel(model)
             await MainActor.run {
                 isDownloadingWhisper = false
                 whisperState.refreshAllAvailableModels()
                 // Auto-select the newly downloaded model
-                if let downloaded = whisperState.allAvailableModels.first(where: { $0.name == "ggml-large-v2" }) {
+                if let downloaded = whisperState.allAvailableModels.first(where: { $0.name == "whisper-large-v2-mlx-8bit" }) {
                     whisperState.setDefaultTranscriptionModel(downloaded)
                 }
             }
             await NotificationManager.shared.showNotification(
-                title: "Whisper Large v2 ready for file transcription",
+                title: "Whisper Large v2 (8-bit) ready for file transcription",
                 type: .success
             )
         }
