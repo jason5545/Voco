@@ -734,7 +734,16 @@ class WhisperState: NSObject, ObservableObject {
                             }
 
                             if !retrySucceeded {
-                                logger.warning("⚠️ LLM response invalid, falling back to pre-LLM text")
+                                // Fallback: use original enhanced text if failures are mild
+                                // (content-drift, dropped-term, short-edit-budget are less severe
+                                //  than losing all punctuation from the pre-LLM text)
+                                if validation.isRetryable {
+                                    logger.warning("⚠️ LLM validation failed but retryable — using enhanced text over unpunctuated fallback")
+                                    transcription.enhancedText = enhancedText
+                                    finalPastedText = enhancedText
+                                } else {
+                                    logger.warning("⚠️ LLM response invalid (non-retryable), falling back to pre-LLM text")
+                                }
                             }
                         } else {
                             transcription.enhancedText = enhancedText
