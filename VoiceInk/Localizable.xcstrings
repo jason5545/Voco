@@ -671,6 +671,16 @@
         }
       }
     },
+    "Whisper Force LLM Threshold": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whisper 強制 LLM 門檻"
+          }
+        }
+      }
+    },
     "Qwen3 Skip Threshold": {
       "localizations": {
         "zh-Hant": {

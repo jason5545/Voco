@@ -88,6 +88,19 @@ struct ChinesePostProcessingSettingsView: View {
                                     }
                                 }
 
+                                LabeledContent("Whisper Force LLM Threshold") {
+                                    HStack {
+                                        Slider(value: Binding(
+                                            get: { Double(service.whisperForceLLMThreshold) },
+                                            set: { service.whisperForceLLMThreshold = Int($0) }
+                                        ), in: 10...80, step: 5)
+                                            .frame(width: 120)
+                                        Text("\(service.whisperForceLLMThreshold)")
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 40)
+                                    }
+                                }
+
                                 LabeledContent("Qwen3 Skip Threshold") {
                                     HStack {
                                         Slider(value: Binding(

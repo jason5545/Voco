@@ -99,6 +99,10 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(qwen3SkipThreshold, forKey: "ChinesePostProcessingQwen3SkipThreshold") }
     }
 
+    @Published var whisperForceLLMThreshold: Int {
+        didSet { UserDefaults.standard.set(whisperForceLLMThreshold, forKey: "ChinesePostProcessingWhisperForceLLMThreshold") }
+    }
+
     @Published var isBERTScoringEnabled: Bool {
         didSet {
             UserDefaults.standard.set(isBERTScoringEnabled, forKey: "ChinesePostProcessingBERTScoring")
@@ -127,6 +131,7 @@ class ChinesePostProcessingService: ObservableObject {
         self.isLLMValidationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingLLMValidation") as? Bool ?? true
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
         self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
+        self.whisperForceLLMThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingWhisperForceLLMThreshold") as? Int ?? 30
         self.isBERTScoringEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingBERTScoring") as? Bool ?? false
 
         // Auto-load BERT model if enabled
@@ -286,7 +291,16 @@ class ChinesePostProcessingService: ObservableObject {
         // Provider-specific confidence check
         switch lastModelProvider {
         case .local, .whisperMLX:
-            // Whisper (cpp or MLX): use avgLogProb
+            // Whisper (cpp or MLX): force LLM for long CJK text
+            let whisperCJKCount = text.unicodeScalars.filter {
+                (0x4E00...0x9FFF).contains($0.value) ||
+                (0x3400...0x4DBF).contains($0.value)
+            }.count
+            if whisperCJKCount >= whisperForceLLMThreshold {
+                Self.debugLog("FORCE LLM: Whisper text length ≥ threshold (\(whisperCJKCount) ≥ \(whisperForceLLMThreshold)) | text(\(text.count)): \(text)")
+                return false
+            }
+            // Short text with high confidence → skip
             if lastAvgLogProb > logProbThreshold {
                 Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
                 return true
