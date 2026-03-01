@@ -120,6 +120,7 @@ final class HomophoneCorrectionEngine {
     private func findSuspicious(_ segments: [Segment]) -> [SuspiciousWord] {
         var suspicious: [SuspiciousWord] = []
         var charOffset = 0
+        let textChars = Array(segments.map(\.word).joined())
 
         for seg in segments {
             defer { charOffset += seg.word.count }
@@ -145,7 +146,7 @@ final class HomophoneCorrectionEngine {
             // Suspicious if: not in dictionary, or single-char with low freq.
             // Multi-char tokens with freq > 0 are trusted: NLTokenizer formed the word
             // AND word_freq.tsv confirms it exists — two independent sources agree.
-            let isSuspicious: Bool
+            var isSuspicious: Bool
             if freq == 0 {
                 // Unknown word — suspicious
                 isSuspicious = true
@@ -157,6 +158,18 @@ final class HomophoneCorrectionEngine {
                 isSuspicious = true
             } else {
                 isSuspicious = false
+            }
+
+            if isSuspicious && word.count == 1 {
+                // Check: does this char form a known word with its neighbors?
+                if charOffset > 0, isCJK(String(textChars[charOffset - 1])) {
+                    let leftWord = String(textChars[charOffset - 1]) + word
+                    if db.frequency(of: leftWord) > 0 { isSuspicious = false }
+                }
+                if isSuspicious, charOffset + 1 < textChars.count, isCJK(String(textChars[charOffset + 1])) {
+                    let rightWord = word + String(textChars[charOffset + 1])
+                    if db.frequency(of: rightWord) > 0 { isSuspicious = false }
+                }
             }
 
             if isSuspicious {

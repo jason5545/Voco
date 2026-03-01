@@ -263,6 +263,16 @@ final class SyllableExpansionEngine {
             if offset > 0 && !self.isCJKChar(textChars[offset - 1]) { return true }
             if offset + 1 < textChars.count && !self.isCJKChar(textChars[offset + 1]) { return true }
 
+            // Guard: if char forms a known word with either neighbor, trust it
+            if offset > 0, self.isCJKChar(textChars[offset - 1]) {
+                let leftWord = String(textChars[offset - 1]) + String(char)
+                if self.db.frequency(of: leftWord) > 0 { return true }
+            }
+            if offset + 1 < textChars.count, self.isCJKChar(textChars[offset + 1]) {
+                let rightWord = String(char) + String(textChars[offset + 1])
+                if self.db.frequency(of: rightWord) > 0 { return true }
+            }
+
             // Check left and right bigram frequencies — both must be low
             let leftFreq: Int
             if offset > 0 {

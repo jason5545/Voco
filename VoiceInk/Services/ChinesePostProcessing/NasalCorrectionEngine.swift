@@ -37,7 +37,7 @@ final class NasalCorrectionEngine {
 
     /// Maximum frequency for the original word to be eligible for correction.
     /// Words above this threshold are considered well-known and should not be replaced.
-    private let maxOriginalFreq: Int = 500
+    private let maxOriginalFreq: Int = 100
 
     /// Weight for bigram context score.
     private let bigramWeight: Double = 0.3
