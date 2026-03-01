@@ -757,29 +757,82 @@ class WhisperState: NSObject, ObservableObject {
                     // Post-LLM punctuation density check:
                     // LLM may pass validation but still return text without punctuation
                     // (Gemini Flash Lite is inconsistent about adding punctuation).
-                    // Use the same density formula as the safety net for skipped LLM.
+                    // Two checks: (1) overall density, (2) long CJK span without punctuation.
                     if let acceptedText = finalPastedText, acceptedText.count >= 10 {
                         let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
                         let pCount = acceptedText.filter { cjkPunct.contains($0) }.count
                         let expected = max(acceptedText.count / 20, 1)
-                        if pCount < expected {
+                        // Long span check: any segment with >12 consecutive CJK chars without punctuation
+                        let maxCJKSpan = 12
+                        var hasLongSpan = false
+                        var cjkRunCount = 0
+                        for char in acceptedText {
+                            if cjkPunct.contains(char) {
+                                cjkRunCount = 0
+                            } else if char.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) == true {
+                                cjkRunCount += 1
+                                if cjkRunCount > maxCJKSpan {
+                                    hasLongSpan = true
+                                    break
+                                }
+                            }
+                        }
+                        if pCount < expected || hasLongSpan {
                             ChinesePostProcessingService.debugLog(
-                                "POST_LLM_PUNCT_CHECK: len=\(acceptedText.count), punctCount=\(pCount), expected=\(expected), triggering conservative retry for punctuation"
+                                "POST_LLM_PUNCT_CHECK: len=\(acceptedText.count), punctCount=\(pCount), expected=\(expected), longSpan=\(hasLongSpan), triggering conservative retry for punctuation"
                             )
-                            logger.notice("🔄 Post-LLM punctuation insufficient (\(pCount)/\(expected)), retrying for punctuation")
+                            logger.notice("🔄 Post-LLM punctuation insufficient (count=\(pCount)/\(expected), longSpan=\(hasLongSpan)), retrying for punctuation")
                             do {
                                 let (retryResult, retryDuration) = try await enhancementService.enhanceConservative(
                                     acceptedText, uncertainWords: []
                                 )
-                                // Only accept if it actually added punctuation
+                                // Only accept if it actually added punctuation AND resolved long span
                                 let retryPunctCount = retryResult.filter { cjkPunct.contains($0) }.count
-                                if retryPunctCount > pCount {
+                                // Re-check long span on retry result
+                                var retryStillHasLongSpan = false
+                                if hasLongSpan {
+                                    var rrc = 0
+                                    for char in retryResult {
+                                        if cjkPunct.contains(char) { rrc = 0 }
+                                        else if char.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) == true {
+                                            rrc += 1
+                                            if rrc > maxCJKSpan { retryStillHasLongSpan = true; break }
+                                        }
+                                    }
+                                }
+                                if retryPunctCount > pCount && !retryStillHasLongSpan {
                                     ChinesePostProcessingService.debugLog(
                                         "POST_LLM_PUNCT_RETRY: accepted, punctCount \(pCount)→\(retryPunctCount) | result(\(retryResult.count)): \(retryResult)"
                                     )
                                     transcription.enhancedText = retryResult
                                     finalPastedText = retryResult
                                     transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + retryDuration
+                                } else if hasLongSpan {
+                                    // Conservative retry didn't resolve long span — try comma-only prompt
+                                    ChinesePostProcessingService.debugLog(
+                                        "POST_LLM_PUNCT_RETRY: still longSpan (punctCount \(pCount)→\(retryPunctCount)), trying comma insertion prompt"
+                                    )
+                                    // Use retry result if it improved (e.g. added period), otherwise use current text
+                                    let commaInput = retryPunctCount > pCount ? retryResult : (finalPastedText ?? acceptedText)
+                                    do {
+                                        let (commaResult, commaDuration) = try await enhancementService.enhanceCommaInsertion(commaInput)
+                                        let commaInputPunctCount = commaInput.filter { cjkPunct.contains($0) }.count
+                                        let commaPunctCount = commaResult.filter { cjkPunct.contains($0) }.count
+                                        if commaPunctCount > commaInputPunctCount {
+                                            ChinesePostProcessingService.debugLog(
+                                                "POST_LLM_COMMA_INSERT: accepted, punctCount \(commaInputPunctCount)→\(commaPunctCount) | result(\(commaResult.count)): \(commaResult)"
+                                            )
+                                            transcription.enhancedText = commaResult
+                                            finalPastedText = commaResult
+                                            transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + commaDuration
+                                        } else {
+                                            ChinesePostProcessingService.debugLog(
+                                                "POST_LLM_COMMA_INSERT: rejected (no improvement), punctCount \(commaInputPunctCount)→\(commaPunctCount)"
+                                            )
+                                        }
+                                    } catch {
+                                        logger.warning("⚠️ Comma insertion retry error: \(error.localizedDescription)")
+                                    }
                                 } else {
                                     ChinesePostProcessingService.debugLog(
                                         "POST_LLM_PUNCT_RETRY: rejected (no improvement), punctCount \(pCount)→\(retryPunctCount)"
@@ -805,13 +858,29 @@ class WhisperState: NSObject, ObservableObject {
                 logger.notice("📝 Skipping AI enhancement (confidence routing)")
                 ChinesePostProcessingService.debugLog("SKIPPED_LLM: confidence routing skipped | finalPastedText(\(finalPastedText?.count ?? 0)): \(finalPastedText ?? "nil")")
 
-                // Safety net: if skipped text has insufficient punctuation density, force LLM
+                // Safety net: if skipped text has insufficient punctuation density or long CJK span, force LLM
                 let cjkPunctuation: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
                 let pastedText = finalPastedText ?? ""
                 let punctCount = pastedText.filter { cjkPunctuation.contains($0) }.count
                 let expectedPunct = pastedText.count / 20
-                let insufficientPunct = pastedText.count >= 10 && punctCount < max(expectedPunct, 1)
-                ChinesePostProcessingService.debugLog("SAFETY_NET_CHECK: len=\(pastedText.count), punctCount=\(punctCount), expected=\(max(expectedPunct, 1)), willTrigger=\(insufficientPunct)")
+                // Long span check: any segment with >15 consecutive CJK chars without punctuation
+                var safetyNetLongSpan = false
+                if pastedText.count >= 10 {
+                    var safetyRunCount = 0
+                    for char in pastedText {
+                        if cjkPunctuation.contains(char) {
+                            safetyRunCount = 0
+                        } else if char.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) == true {
+                            safetyRunCount += 1
+                            if safetyRunCount > 12 {
+                                safetyNetLongSpan = true
+                                break
+                            }
+                        }
+                    }
+                }
+                let insufficientPunct = pastedText.count >= 10 && (punctCount < max(expectedPunct, 1) || safetyNetLongSpan)
+                ChinesePostProcessingService.debugLog("SAFETY_NET_CHECK: len=\(pastedText.count), punctCount=\(punctCount), expected=\(max(expectedPunct, 1)), longSpan=\(safetyNetLongSpan), willTrigger=\(insufficientPunct)")
                 if insufficientPunct,
                    let enhancementService = enhancementService,
                    enhancementService.isEnhancementEnabled,

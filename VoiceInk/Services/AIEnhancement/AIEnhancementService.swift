@@ -449,6 +449,16 @@ class AIEnhancementService: ObservableObject {
         return (result, Date().timeIntervalSince(startTime))
     }
 
+    func enhanceCommaInsertion(_ text: String) async throws -> (String, TimeInterval) {
+        let startTime = Date()
+        let result = try await makeRequest(
+            text: text,
+            mode: .transcriptionEnhancement,
+            systemMessageOverride: AIPrompts.commaInsertionPrompt
+        )
+        return (result, Date().timeIntervalSince(startTime))
+    }
+
     func enhanceForEditMode(instruction: String, selectedText: String) async throws -> (String, TimeInterval, WordSubstitution?) {
         let startTime = Date()
         guard isConfigured else { throw EnhancementError.notConfigured }
