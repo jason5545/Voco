@@ -71,7 +71,7 @@ class AudioTranscriptionService: ObservableObject {
             do {
                 try FileManager.default.copyItem(at: url, to: permanentURL)
             } catch {
-                logger.error("❌ Failed to create permanent copy of audio: \(error.localizedDescription)")
+                logger.error("❌ Failed to create permanent copy of audio: \(error.localizedDescription, privacy: .public)")
                 isTranscribing = false
                 throw error
             }
@@ -116,7 +116,7 @@ class AudioTranscriptionService: ObservableObject {
                         NotificationCenter.default.post(name: .transcriptionCreated, object: newTranscription)
                         NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                     } catch {
-                        logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
+                        logger.error("❌ Failed to save transcription: \(error.localizedDescription, privacy: .public)")
                     }
 
                     // Restore original prompt settings if AI was temporarily enabled
@@ -147,7 +147,7 @@ class AudioTranscriptionService: ObservableObject {
                         NotificationCenter.default.post(name: .transcriptionCreated, object: newTranscription)
                         NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                     } catch {
-                        logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
+                        logger.error("❌ Failed to save transcription: \(error.localizedDescription, privacy: .public)")
                     }
 
                     await MainActor.run {
@@ -172,7 +172,7 @@ class AudioTranscriptionService: ObservableObject {
                     try modelContext.save()
                     NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                 } catch {
-                    logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
+                    logger.error("❌ Failed to save transcription: \(error.localizedDescription, privacy: .public)")
                 }
 
                 await MainActor.run {
@@ -182,7 +182,7 @@ class AudioTranscriptionService: ObservableObject {
                 return newTranscription
             }
         } catch {
-            logger.error("❌ Transcription failed: \(error.localizedDescription)")
+            logger.error("❌ Transcription failed: \(error.localizedDescription, privacy: .public)")
             currentError = .transcriptionFailed
             isTranscribing = false
             throw error

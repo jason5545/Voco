@@ -8,7 +8,7 @@ extension WhisperState {
     // MARK: - Recorder Panel Management
     
     func showRecorderPanel() {
-        logger.notice("📱 Showing \(self.recorderType) recorder")
+        logger.notice("📱 Showing \(self.recorderType, privacy: .public) recorder")
         if recorderType == "notch" {
             if notchWindowManager == nil {
                 notchWindowManager = NotchWindowManager(whisperState: self, recorder: recorder)
@@ -35,7 +35,7 @@ extension WhisperState {
     // MARK: - Mini Recorder Management
     
     func toggleMiniRecorder(powerModeId: UUID? = nil) async {
-        logger.notice("toggleMiniRecorder called – visible=\(self.isMiniRecorderVisible), state=\(String(describing: self.recordingState))")
+        logger.notice("toggleMiniRecorder called – visible=\(self.isMiniRecorderVisible, privacy: .public), state=\(String(describing: self.recordingState), privacy: .public)")
         if isMiniRecorderVisible {
             if recordingState == .recording {
                 if lastRecordingStopTime != nil {
@@ -107,7 +107,7 @@ extension WhisperState {
     }
     
     func dismissMiniRecorder() async {
-        logger.notice("dismissMiniRecorder called – state=\(String(describing: self.recordingState))")
+        logger.notice("dismissMiniRecorder called – state=\(String(describing: self.recordingState), privacy: .public)")
         if recordingState == .busy {
             logger.notice("dismissMiniRecorder: early return, state is busy")
             return

@@ -78,14 +78,14 @@ final class CoreAudioRecorder {
 
         // Validate device still exists before proceeding with setup
         guard isDeviceAvailable(deviceID) else {
-            logger.error("Cannot start recording - device \(deviceID) is no longer available")
+            logger.error("Cannot start recording - device \(deviceID, privacy: .public) is no longer available")
             throw CoreAudioRecorderError.deviceNotAvailable
         }
 
         currentDeviceID = deviceID
         recordingURL = url
 
-        logger.notice("🎙️ Starting recording from device \(deviceID)")
+        logger.notice("🎙️ Starting recording from device \(deviceID, privacy: .public)")
         logDeviceDetails(deviceID: deviceID)
 
         // Step 1: Create and configure the AudioUnit (AUHAL)
@@ -183,18 +183,18 @@ final class CoreAudioRecorder {
         guard newDeviceID != currentDeviceID else { return }
 
         let oldDeviceID = currentDeviceID
-        logger.notice("🎙️ Switching recording device from \(oldDeviceID) to \(newDeviceID)")
+        logger.notice("🎙️ Switching recording device from \(oldDeviceID, privacy: .public) to \(newDeviceID, privacy: .public)")
 
         // Step 1: Stop the AudioUnit (but keep file open)
         var status = AudioOutputUnitStop(unit)
         if status != noErr {
-            logger.warning("🎙️ Warning: AudioOutputUnitStop returned \(status)")
+            logger.warning("🎙️ Warning: AudioOutputUnitStop returned \(status, privacy: .public)")
         }
 
         // Step 2: Uninitialize to allow reconfiguration
         status = AudioUnitUninitialize(unit)
         if status != noErr {
-            logger.warning("🎙️ Warning: AudioUnitUninitialize returned \(status)")
+            logger.warning("🎙️ Warning: AudioUnitUninitialize returned \(status, privacy: .public)")
         }
 
         // Step 3: Set the new device
@@ -210,7 +210,7 @@ final class CoreAudioRecorder {
 
         if status != noErr {
             // Try to recover by restarting with old device
-            logger.error("Failed to set new device: \(status). Attempting recovery...")
+            logger.error("Failed to set new device: \(status, privacy: .public). Attempting recovery...")
             var recoveryDevice = oldDeviceID
             AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &recoveryDevice, UInt32(MemoryLayout<AudioDeviceID>.size))
             AudioUnitInitialize(unit)
@@ -302,7 +302,7 @@ final class CoreAudioRecorder {
             throw CoreAudioRecorderError.failedToStart(status: status)
         }
 
-        logger.notice("🎙️ Successfully switched to device \(newDeviceID)")
+        logger.notice("🎙️ Successfully switched to device \(newDeviceID, privacy: .public)")
     }
 
     // MARK: - AudioUnit Setup
@@ -324,7 +324,7 @@ final class CoreAudioRecorder {
         var unit: AudioUnit?
         var status = AudioComponentInstanceNew(component, &unit)
         guard status == noErr, let audioUnit = unit else {
-            logger.error("Failed to create AudioUnit instance: \(status)")
+            logger.error("Failed to create AudioUnit instance: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToCreateAudioUnit(status: status)
         }
 
@@ -342,7 +342,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to enable audio input: \(status)")
+            logger.error("Failed to enable audio input: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToEnableInput(status: status)
         }
 
@@ -358,7 +358,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to disable audio output: \(status)")
+            logger.error("Failed to disable audio output: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToDisableOutput(status: status)
         }
     }
@@ -379,7 +379,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to set input device \(deviceID): \(status)")
+            logger.error("Failed to set input device \(deviceID, privacy: .public): \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToSetDevice(status: status)
         }
     }
@@ -401,7 +401,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to get device format: \(status)")
+            logger.error("Failed to get device format: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToGetDeviceFormat(status: status)
         }
 
@@ -441,7 +441,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to set audio format: \(status)")
+            logger.error("Failed to set audio format: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToSetFormat(status: status)
         }
 
@@ -452,10 +452,10 @@ final class CoreAudioRecorder {
         let outSampleRate = outputFormat.mSampleRate
         let outChannels = outputFormat.mChannelsPerFrame
         let outBits = outputFormat.mBitsPerChannel
-        logger.notice("🎙️ Device format: sampleRate=\(devSampleRate), channels=\(devChannels), bitsPerChannel=\(devBits)")
-        logger.notice("🎙️ Output format: sampleRate=\(outSampleRate), channels=\(outChannels), bitsPerChannel=\(outBits)")
+        logger.notice("🎙️ Device format: sampleRate=\(devSampleRate, privacy: .public), channels=\(devChannels, privacy: .public), bitsPerChannel=\(devBits, privacy: .public)")
+        logger.notice("🎙️ Output format: sampleRate=\(outSampleRate, privacy: .public), channels=\(outChannels, privacy: .public), bitsPerChannel=\(outBits, privacy: .public)")
         if devSampleRate != outSampleRate {
-            logger.notice("🎙️ Converting: \(Int(devSampleRate))Hz → \(Int(outSampleRate))Hz")
+            logger.notice("🎙️ Converting: \(Int(devSampleRate), privacy: .public)Hz → \(Int(outSampleRate), privacy: .public)Hz")
         }
 
         // Pre-allocate buffers for real-time callback (avoid malloc in callback)
@@ -497,7 +497,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to set input callback: \(status)")
+            logger.error("Failed to set input callback: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToSetCallback(status: status)
         }
     }
@@ -520,7 +520,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to create audio file at \(url.path): \(status)")
+            logger.error("Failed to create audio file at \(url.path, privacy: .public): \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToCreateFile(status: status)
         }
 
@@ -535,7 +535,7 @@ final class CoreAudioRecorder {
         )
 
         if status != noErr {
-            logger.error("Failed to set file format: \(status)")
+            logger.error("Failed to set file format: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToSetFileFormat(status: status)
         }
     }
@@ -547,13 +547,13 @@ final class CoreAudioRecorder {
 
         var status = AudioUnitInitialize(audioUnit)
         if status != noErr {
-            logger.error("Failed to initialize AudioUnit: \(status)")
+            logger.error("Failed to initialize AudioUnit: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToInitialize(status: status)
         }
 
         status = AudioOutputUnitStart(audioUnit)
         if status != noErr {
-            logger.error("Failed to start AudioUnit: \(status)")
+            logger.error("Failed to start AudioUnit: \(status, privacy: .public)")
             throw CoreAudioRecorderError.failedToStart(status: status)
         }
     }
@@ -747,7 +747,7 @@ final class CoreAudioRecorder {
 
         let writeStatus = ExtAudioFileWrite(file, outputFrameCount, &outputBufferList)
         if writeStatus != noErr {
-            logger.error("🎙️ ExtAudioFileWrite failed with status: \(writeStatus)")
+            logger.error("🎙️ ExtAudioFileWrite failed with status: \(writeStatus, privacy: .public)")
         }
 
         // Send the same PCM data to the streaming callback if set
@@ -773,13 +773,13 @@ final class CoreAudioRecorder {
         // Get manufacturer
         let manufacturer = getDeviceStringProperty(deviceID: deviceID, selector: kAudioDevicePropertyDeviceManufacturerCFString) ?? "Unknown"
 
-        logger.notice("🎙️ Device info: name=\(deviceName), uid=\(deviceUID)")
-        logger.notice("🎙️ Device details: transport=\(transportType), manufacturer=\(manufacturer)")
+        logger.notice("🎙️ Device info: name=\(deviceName, privacy: .public), uid=\(deviceUID, privacy: .public)")
+        logger.notice("🎙️ Device details: transport=\(transportType, privacy: .public), manufacturer=\(manufacturer, privacy: .public)")
 
         // Get buffer frame size
         if let bufferSize = getBufferFrameSize(deviceID: deviceID) {
             let latencyMs = (Double(bufferSize) / 48000.0) * 1000.0 // Approximate latency assuming 48kHz
-            logger.notice("🎙️ Buffer size: \(bufferSize) frames, ~latency: \(String(format: "%.1f", latencyMs))ms")
+            logger.notice("🎙️ Buffer size: \(bufferSize, privacy: .public) frames, ~latency: \(String(format: "%.1f", latencyMs), privacy: .public)ms")
         }
     }
 

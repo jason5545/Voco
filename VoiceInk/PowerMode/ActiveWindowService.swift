@@ -65,7 +65,7 @@ class ActiveWindowService: ObservableObject {
                     logger.notice("⏱️ Browser URL lookup for \(browserType.displayName) took \(String(format: "%.3f", browserLookupDuration))s")
                 }
             } catch {
-                logger.error("❌ Failed to get URL from \(browserType.displayName): \(error.localizedDescription)")
+                logger.error("❌ Failed to get URL from \(browserType.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 
