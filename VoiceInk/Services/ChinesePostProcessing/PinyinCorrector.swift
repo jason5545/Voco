@@ -96,6 +96,7 @@ class PinyinCorrector {
             ("Cloud Code", "Claude Code"),
             ("Cloud code", "Claude Code"),
             ("cloud code", "Claude Code"),
+            ("可以推測了", "可以推送了"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
