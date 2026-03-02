@@ -201,20 +201,21 @@ final class PinyinDatabase: @unchecked Sendable {
     /// Similar to `homophones(of:)` but searches the swapped nasal pinyin.
     func nasalVariants(of char: Character) -> [Character] {
         guard isLoaded else { return [] }
-        guard let readings = charToPinyin[char] else { return [] }
+        guard let readings = charToPinyin[char],
+              let primaryReading = readings.first else { return [] }
+
+        // Use primary reading only — same rationale as homophones(of:).
+        let toneless = Self.stripTone(primaryReading)
+        guard let swapped = Self.swapNasal(toneless) else { return [] }
+        guard let chars = pinyinToChars[swapped] else { return [] }
 
         var result = Set<Character>()
-        for reading in readings {
-            let toneless = Self.stripTone(reading)
-            guard let swapped = Self.swapNasal(toneless) else { continue }
-            guard let chars = pinyinToChars[swapped] else { continue }
-            for candidate in chars {
-                // Only accept candidates whose primary reading matches the swapped pinyin
-                if let candidateReadings = charToPinyin[candidate],
-                   let primary = candidateReadings.first,
-                   Self.stripTone(primary) == swapped {
-                    result.insert(candidate)
-                }
+        for candidate in chars {
+            // Only accept candidates whose primary reading matches the swapped pinyin
+            if let candidateReadings = charToPinyin[candidate],
+               let primary = candidateReadings.first,
+               Self.stripTone(primary) == swapped {
+                result.insert(candidate)
             }
         }
         result.remove(char)
