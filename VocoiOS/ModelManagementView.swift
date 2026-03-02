@@ -129,7 +129,7 @@ struct ModelManagementView: View {
 
     private func downloadModel(_ model: WhisperCoreMLModel) async {
         let modelId = model.coremlModelId
-        let baseURL = "https://github.com/jason5545/Voco/releases/download/coreml-models"
+        let baseURL = "https://github.com/jason5545/Voco/releases/download/coreml-\(modelId)"
 
         downloadingModels.insert(modelId)
         downloadProgress[modelId] = 0
