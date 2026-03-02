@@ -738,9 +738,26 @@ class WhisperState: NSObject, ObservableObject {
                                 // (content-drift, dropped-term, short-edit-budget are less severe
                                 //  than losing all punctuation from the pre-LLM text)
                                 if validation.isRetryable {
-                                    logger.warning("⚠️ LLM validation failed but retryable — using enhanced text over unpunctuated fallback")
-                                    transcription.enhancedText = enhancedText
-                                    finalPastedText = enhancedText
+                                    // CJK overlap check: detect hallucination where enhanced text
+                                    // shares almost no CJK characters with the original
+                                    let originalCJK = Set(textForAI.unicodeScalars.filter {
+                                        (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                                    })
+                                    let enhancedCJK = Set(enhancedText.unicodeScalars.filter {
+                                        (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                                    })
+                                    let overlap = originalCJK.intersection(enhancedCJK).count
+                                    let overlapRatio = originalCJK.isEmpty ? 1.0 : Double(overlap) / Double(originalCJK.count)
+                                    ChinesePostProcessingService.debugLog(
+                                        "CJK_OVERLAP_CHECK: originalCJK=\(originalCJK.count), enhancedCJK=\(enhancedCJK.count), overlap=\(overlap), ratio=\(String(format: "%.2f", overlapRatio))"
+                                    )
+                                    if overlapRatio < 0.3 {
+                                        logger.warning("⚠️ LLM hallucination detected (CJK overlap \(String(format: "%.0f", overlapRatio * 100))%), falling back to pre-LLM text")
+                                    } else {
+                                        logger.warning("⚠️ LLM validation failed but retryable — using enhanced text over unpunctuated fallback")
+                                        transcription.enhancedText = enhancedText
+                                        finalPastedText = enhancedText
+                                    }
                                 } else {
                                     logger.warning("⚠️ LLM response invalid (non-retryable), falling back to pre-LLM text")
                                 }
@@ -840,6 +857,36 @@ class WhisperState: NSObject, ObservableObject {
                                 }
                             } catch {
                                 logger.warning("⚠️ Post-LLM punctuation retry error: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+
+                    // Final fallback: rule-based punctuation insertion
+                    // If after all LLM attempts the text still lacks punctuation, apply pure Swift rules
+                    if let currentText = finalPastedText, currentText.count >= 10 {
+                        let cjkPunctFinal: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
+                        let finalPunctCount = currentText.filter { cjkPunctFinal.contains($0) }.count
+                        let finalExpected = max(currentText.count / 20, 1)
+                        // Long span check
+                        var finalHasLongSpan = false
+                        var finalCjkRun = 0
+                        for char in currentText {
+                            if cjkPunctFinal.contains(char) { finalCjkRun = 0 }
+                            else if char.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) == true {
+                                finalCjkRun += 1
+                                if finalCjkRun > 12 { finalHasLongSpan = true; break }
+                            }
+                        }
+                        if finalPunctCount < finalExpected || finalHasLongSpan {
+                            let ruleResult = RuleBasedPunctuationInserter.insert(into: currentText)
+                            let rulePunctCount = ruleResult.filter { cjkPunctFinal.contains($0) }.count
+                            if rulePunctCount > finalPunctCount {
+                                ChinesePostProcessingService.debugLog(
+                                    "RULE_BASED_PUNCT: applied, punctCount \(finalPunctCount)→\(rulePunctCount) | result(\(ruleResult.count)): \(ruleResult)"
+                                )
+                                logger.notice("📝 Rule-based punctuation applied as final fallback (punct \(finalPunctCount)→\(rulePunctCount))")
+                                transcription.enhancedText = ruleResult
+                                finalPastedText = ruleResult
                             }
                         }
                     }
