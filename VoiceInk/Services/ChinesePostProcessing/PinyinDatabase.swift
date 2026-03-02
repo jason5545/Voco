@@ -43,19 +43,20 @@ final class PinyinDatabase: @unchecked Sendable {
     /// primary reading is tàn but that carry an obsolete xián reading in the data.
     func homophones(of char: Character) -> [Character] {
         guard isLoaded else { return [] }
-        guard let readings = charToPinyin[char] else { return [] }
+        guard let readings = charToPinyin[char],
+              let primaryReading = readings.first else { return [] }
 
+        // Use primary reading only — secondary/archaic readings (e.g. 掉=nuo2)
+        // cause false positives by matching unrelated characters (e.g. 諾=nuo4).
+        let toneless = Self.stripTone(primaryReading)
         var result = Set<Character>()
-        for reading in readings {
-            let toneless = Self.stripTone(reading)
-            if let chars = pinyinToChars[toneless] {
-                for candidate in chars {
-                    // Only accept candidates whose primary reading matches
-                    if let candidateReadings = charToPinyin[candidate],
-                       let primary = candidateReadings.first,
-                       Self.stripTone(primary) == toneless {
-                        result.insert(candidate)
-                    }
+        if let chars = pinyinToChars[toneless] {
+            for candidate in chars {
+                // Only accept candidates whose primary reading matches
+                if let candidateReadings = charToPinyin[candidate],
+                   let primary = candidateReadings.first,
+                   Self.stripTone(primary) == toneless {
+                    result.insert(candidate)
                 }
             }
         }
