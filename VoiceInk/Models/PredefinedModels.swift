@@ -92,8 +92,59 @@ import Foundation
     ]
     
     static var models: [any TranscriptionModel] {
-        return predefinedModels + CustomModelManager.shared.customModels
+        return predefinedModels + coremlModels + CustomModelManager.shared.customModels
     }
+
+    #if os(iOS)
+    private static let coremlModels: [any TranscriptionModel] = [
+        WhisperCoreMLModel(
+            name: "whisper-small-coreml-int8",
+            displayName: "Whisper Small (CoreML)",
+            description: "CoreML ANE-optimized. Best balance of accuracy and efficiency for iOS.",
+            size: "~233 MB",
+            speed: 0.80,
+            accuracy: 0.92,
+            ramUsage: 0.5,
+            coremlModelId: "whisper-small-int8",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
+        ),
+        WhisperCoreMLModel(
+            name: "whisper-base-coreml-int8",
+            displayName: "Whisper Base (CoreML)",
+            description: "CoreML ANE-optimized. Lightweight option for basic transcription.",
+            size: "~71 MB",
+            speed: 0.90,
+            accuracy: 0.85,
+            ramUsage: 0.2,
+            coremlModelId: "whisper-base-int8",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
+        ),
+        WhisperCoreMLModel(
+            name: "whisper-medium-coreml-int8",
+            displayName: "Whisper Medium (CoreML)",
+            description: "CoreML ANE-optimized. Higher accuracy for demanding use cases.",
+            size: "~750 MB",
+            speed: 0.60,
+            accuracy: 0.95,
+            ramUsage: 1.2,
+            coremlModelId: "whisper-medium-int8",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
+        ),
+        WhisperCoreMLModel(
+            name: "whisper-large-v2-coreml-int8",
+            displayName: "Whisper Large v2 (CoreML)",
+            description: "CoreML ANE-optimized. Highest accuracy, requires extended memory entitlement on iOS.",
+            size: "~1.5 GB",
+            speed: 0.45,
+            accuracy: 0.97,
+            ramUsage: 3.0,
+            coremlModelId: "whisper-large-v2-int8",
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
+        ),
+    ]
+    #else
+    private static let coremlModels: [any TranscriptionModel] = []
+    #endif
     
     private static let predefinedModels: [any TranscriptionModel] = [
         // Native Apple Model
@@ -199,51 +250,7 @@ import Foundation
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperMLX)
         ),
 
-        // Whisper CoreML Models (iOS ANE-optimized)
-        WhisperCoreMLModel(
-            name: "whisper-small-coreml-int8",
-            displayName: "Whisper Small (CoreML)",
-            description: "CoreML ANE-optimized. Best balance of accuracy and efficiency for iOS.",
-            size: "~233 MB",
-            speed: 0.80,
-            accuracy: 0.92,
-            ramUsage: 0.5,
-            coremlModelId: "whisper-small-int8",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
-        ),
-        WhisperCoreMLModel(
-            name: "whisper-base-coreml-int8",
-            displayName: "Whisper Base (CoreML)",
-            description: "CoreML ANE-optimized. Lightweight option for basic transcription.",
-            size: "~71 MB",
-            speed: 0.90,
-            accuracy: 0.85,
-            ramUsage: 0.2,
-            coremlModelId: "whisper-base-int8",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
-        ),
-        WhisperCoreMLModel(
-            name: "whisper-medium-coreml-int8",
-            displayName: "Whisper Medium (CoreML)",
-            description: "CoreML ANE-optimized. Higher accuracy for demanding use cases.",
-            size: "~750 MB",
-            speed: 0.60,
-            accuracy: 0.95,
-            ramUsage: 1.2,
-            coremlModelId: "whisper-medium-int8",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
-        ),
-        WhisperCoreMLModel(
-            name: "whisper-large-v2-coreml-int8",
-            displayName: "Whisper Large v2 (CoreML)",
-            description: "CoreML ANE-optimized. Highest accuracy, requires extended memory entitlement on iOS.",
-            size: "~1.5 GB",
-            speed: 0.45,
-            accuracy: 0.97,
-            ramUsage: 3.0,
-            coremlModelId: "whisper-large-v2-int8",
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .whisperCoreML)
-        ),
+        // Whisper CoreML Models (iOS ANE-optimized) — excluded on macOS via coremlModels below
 
          // Local Models
          LocalModel(
