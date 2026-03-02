@@ -179,7 +179,11 @@ final class NasalCorrectionEngine {
 
         var best: ScoredCandidate?
 
+        #if os(macOS)
         let useBERT = BERTScorer.shared.isLoaded
+        #else
+        let useBERT = false
+        #endif
 
         // Pre-compute original bigram context score (only needed for frequency fallback)
         let origBigramScore = useBERT ? 0 : bigramContextScore(for: chars, leftContext: leftContext, rightContext: rightContext)
@@ -202,6 +206,7 @@ final class NasalCorrectionEngine {
                 guard candidateFreq >= minCandidateFreq else { continue }
 
                 let score: Double
+                #if os(macOS)
                 if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(
                     text: fullText, wordOffset: wordOffset,
                     originalWord: word, candidateWord: candidateWord
@@ -212,6 +217,13 @@ final class NasalCorrectionEngine {
                     let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
                     score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
                 }
+                #else
+                do {
+                    let baseScore = log(Double(candidateFreq + 1)) - log(Double(originalFreq + 1))
+                    let candBigramScore = bigramContextScore(for: candidate, leftContext: leftContext, rightContext: rightContext)
+                    score = baseScore + bigramWeight * (candBigramScore - origBigramScore)
+                }
+                #endif
 
                 if score > threshold {
                     if best == nil || score > best!.score {

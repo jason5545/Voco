@@ -48,12 +48,7 @@ class WhisperMLXModelImpl {
         }
         self.config = config
 
-        do {
-            self.melProcessor = try WhisperMelSpectrogram(nMels: config.nMels)
-        } catch {
-            Self.logger.error("Mel spectrogram init failed: \(error)")
-            throw error
-        }
+        self.melProcessor = WhisperMelSpectrogram(nMels: config.nMels)
 
         let encoder = WhisperAudioEncoder(config: config)
         let decoder = WhisperTextDecoder(config: config)
@@ -97,7 +92,7 @@ class WhisperMLXModelImpl {
         }
 
         // 1. Audio → Mel spectrogram (padded to 30s)
-        let mel = try melProcessor.process(audio)
+        let mel = melProcessor.process(audio)
         let batchedMel = mel.expandedDimensions(axis: 0)  // [1, nMels, nFrames]
 
         // 2. Encode audio

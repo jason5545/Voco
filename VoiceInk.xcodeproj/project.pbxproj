@@ -22,7 +22,94 @@
 		E1F350122F1D10D600790A2C /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E1A0BD052EB1E7B800266859 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */ = {isa = PBXBuildFile; productRef = RN01E5A82F1D200000000002 /* CRNNoise */; };
 		OC01CC012F4E000000000001 /* OpenCC in Frameworks */ = {isa = PBXBuildFile; productRef = OC01CC022F4E000000000002 /* OpenCC */; };
+		IA0100000000000000000005 /* VocoKeyboard.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = KB0100000000000000000001 /* VocoKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		KB01LK012F5A000000000001 /* LLMkit in Frameworks */ = {isa = PBXBuildFile; productRef = KB01LK012F5A000000000002 /* LLMkit */; };
+		KB01OC012F5A000000000001 /* OpenCC in Frameworks */ = {isa = PBXBuildFile; productRef = KB01OC012F5A000000000002 /* OpenCC */; };
+		IA01LK012F5A000000000001 /* LLMkit in Frameworks */ = {isa = PBXBuildFile; productRef = IA01LK012F5A000000000002 /* LLMkit */; };
+		IA01OC012F5A000000000001 /* OpenCC in Frameworks */ = {isa = PBXBuildFile; productRef = IA01OC012F5A000000000002 /* OpenCC */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		KB010000000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = KB0100000000000000000003 /* VocoKeyboard */;
+		};
+		KB010000000000000000000E /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIdentifiers.swift,
+				"Whisper/WhisperTokens.swift",
+				"Whisper/WhisperMelSpectrogramCore.swift",
+				"WhisperMLX/WhisperTokenizer.swift",
+				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
+				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
+				"WhisperCoreML/WhisperCoreMLEncoder.swift",
+				"WhisperCoreML/WhisperCoreMLDecoder.swift",
+				"WhisperCoreML/WhisperCoreMLModel.swift",
+				"WhisperCoreML/WhisperCoreMLEngine.swift",
+				"WhisperCoreML/WhisperCoreMLModelManager.swift",
+				"Services/ChinesePostProcessing/ChinesePostProcessingService.swift",
+				"Services/ChinesePostProcessing/OpenCCConverter.swift",
+				"Services/ChinesePostProcessing/PinyinCorrector.swift",
+				"Services/ChinesePostProcessing/PinyinDatabase.swift",
+				"Services/ChinesePostProcessing/HomophoneCorrectionEngine.swift",
+				"Services/ChinesePostProcessing/NasalCorrectionEngine.swift",
+				"Services/ChinesePostProcessing/SyllableExpansionEngine.swift",
+				"Services/ChinesePostProcessing/CorrectionEngine.swift",
+				"Services/ChinesePostProcessing/PunctuationConverter.swift",
+				"Services/ChinesePostProcessing/RepetitionDetector.swift",
+				"Services/ChinesePostProcessing/TranscriptionContextMemory.swift",
+				"Services/ChinesePostProcessing/LLMResponseValidator.swift",
+				"Services/ChinesePostProcessing/RuleBasedPunctuationInserter.swift",
+				"Services/AIEnhancement/AIEnhancementOutputFilter.swift",
+				"Services/AIEnhancement/ReasoningConfig.swift",
+				"Models/AIPrompts.swift",
+				"Models/PredefinedPrompts.swift",
+				"Models/CustomPrompt.swift",
+				"Models/PromptTemplates.swift",
+				"Models/TranscriptionModel.swift",
+				"Models/PredefinedModels.swift",
+				"Resources/ChineseCorrection/char_pinyin.json",
+				"Resources/ChineseCorrection/pinyin_chars.json",
+				"Resources/ChineseCorrection/word_freq.tsv",
+				"Resources/ChineseCorrection/bigram_freq.tsv",
+			);
+			target = KB0100000000000000000003 /* VocoKeyboard */;
+		};
+		IA0100000000000000000008 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = IA010000000000000000000A /* VocoiOS */;
+		};
+		IA0100000000000000000009 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIdentifiers.swift,
+				"Models/TranscriptionModel.swift",
+				"Models/PredefinedModels.swift",
+				"Models/AIPrompts.swift",
+				"Models/PredefinedPrompts.swift",
+				"Models/CustomPrompt.swift",
+				"Models/PromptTemplates.swift",
+				"Whisper/WhisperTokens.swift",
+				"Whisper/WhisperMelSpectrogramCore.swift",
+				"WhisperMLX/WhisperTokenizer.swift",
+				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
+				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
+				"WhisperCoreML/WhisperCoreMLEncoder.swift",
+				"WhisperCoreML/WhisperCoreMLDecoder.swift",
+				"WhisperCoreML/WhisperCoreMLModel.swift",
+				"WhisperCoreML/WhisperCoreMLEngine.swift",
+				"WhisperCoreML/WhisperCoreMLModelManager.swift",
+			);
+			target = IA010000000000000000000A /* VocoiOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXContainerItemProxy section */
 		E11473C42CBE0F0B00318EE4 /* PBXContainerItemProxy */ = {
@@ -39,6 +126,13 @@
 			remoteGlobalIDString = E11473AF2CBE0F0A00318EE4;
 			remoteInfo = VoiceInk;
 		};
+		IA010000000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E11473A82CBE0F0A00318EE4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = KB0100000000000000000003;
+			remoteInfo = VocoKeyboard;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,6 +148,17 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		IA0100000000000000000004 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				IA0100000000000000000005 /* VocoKeyboard.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -64,12 +169,26 @@
 		E1A0BD052EB1E7B800266859 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = "$(HOME)/VoiceInk-Dependencies/whisper.cpp/build-apple/whisper.xcframework"; sourceTree = "<group>"; };
 		E1B2DCAA2E3DE70A008DFD68 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = "../whisper.cpp/build-apple/whisper.xcframework"; sourceTree = "<group>"; };
 		E1CE28772E4336150082B758 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = "../build-apple/whisper.xcframework"; sourceTree = "<group>"; };
+		KB0100000000000000000001 /* VocoKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VocoKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		IA0100000000000000000006 /* VocoiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VocoiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E11473B22CBE0F0A00318EE4 /* VoiceInk */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				KB010000000000000000000E /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				IA0100000000000000000009 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
 			path = VoiceInk;
+			sourceTree = "<group>";
+		};
+		KB0100000000000000000002 /* VocoKeyboard */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				KB010000000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			path = VocoKeyboard;
 			sourceTree = "<group>";
 		};
 		E11473C62CBE0F0B00318EE4 /* VoiceInkTests */ = {
@@ -80,6 +199,14 @@
 		E11473D02CBE0F0B00318EE4 /* VoiceInkUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = VoiceInkUITests;
+			sourceTree = "<group>";
+		};
+		IA0100000000000000000007 /* VocoiOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				IA0100000000000000000008 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			path = VocoiOS;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -119,6 +246,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		KB0100000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				KB01LK012F5A000000000001 /* LLMkit in Frameworks */,
+				KB01OC012F5A000000000001 /* OpenCC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		IA0100000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				IA01LK012F5A000000000001 /* LLMkit in Frameworks */,
+				IA01OC012F5A000000000001 /* OpenCC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -126,6 +271,8 @@
 			isa = PBXGroup;
 			children = (
 				E11473B22CBE0F0A00318EE4 /* VoiceInk */,
+				IA0100000000000000000007 /* VocoiOS */,
+				KB0100000000000000000002 /* VocoKeyboard */,
 				E11473C62CBE0F0B00318EE4 /* VoiceInkTests */,
 				E11473D02CBE0F0B00318EE4 /* VoiceInkUITests */,
 				E114741C2CBE1DE200318EE4 /* Frameworks */,
@@ -139,6 +286,8 @@
 				E11473B02CBE0F0A00318EE4 /* VoiceInk.app */,
 				E11473C32CBE0F0B00318EE4 /* VoiceInkTests.xctest */,
 				E11473CD2CBE0F0B00318EE4 /* VoiceInkUITests.xctest */,
+				KB0100000000000000000001 /* VocoKeyboard.appex */,
+				IA0100000000000000000006 /* VocoiOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -240,6 +389,56 @@
 			productReference = E11473CD2CBE0F0B00318EE4 /* VoiceInkUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		KB0100000000000000000003 /* VocoKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = KB0100000000000000000009 /* Build configuration list for PBXNativeTarget "VocoKeyboard" */;
+			buildPhases = (
+				KB0100000000000000000004 /* Sources */,
+				KB0100000000000000000005 /* Frameworks */,
+				KB0100000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				KB0100000000000000000002 /* VocoKeyboard */,
+			);
+			name = VocoKeyboard;
+			packageProductDependencies = (
+				KB01LK012F5A000000000002 /* LLMkit */,
+				KB01OC012F5A000000000002 /* OpenCC */,
+			);
+			productName = VocoKeyboard;
+			productReference = KB0100000000000000000001 /* VocoKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		IA010000000000000000000A /* VocoiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = IA010000000000000000000F /* Build configuration list for PBXNativeTarget "VocoiOS" */;
+			buildPhases = (
+				IA0100000000000000000001 /* Sources */,
+				IA0100000000000000000002 /* Frameworks */,
+				IA0100000000000000000003 /* Resources */,
+				IA0100000000000000000004 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				IA010000000000000000000C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				IA0100000000000000000007 /* VocoiOS */,
+			);
+			name = VocoiOS;
+			packageProductDependencies = (
+				IA01LK012F5A000000000002 /* LLMkit */,
+				IA01OC012F5A000000000002 /* OpenCC */,
+			);
+			productName = VocoiOS;
+			productReference = IA0100000000000000000006 /* VocoiOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -260,6 +459,12 @@
 					E11473CC2CBE0F0B00318EE4 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = E11473AF2CBE0F0A00318EE4;
+					};
+					KB0100000000000000000003 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					IA010000000000000000000A = {
+						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
@@ -295,6 +500,8 @@
 				E11473AF2CBE0F0A00318EE4 /* VoiceInk */,
 				E11473C22CBE0F0B00318EE4 /* VoiceInkTests */,
 				E11473CC2CBE0F0B00318EE4 /* VoiceInkUITests */,
+				KB0100000000000000000003 /* VocoKeyboard */,
+				IA010000000000000000000A /* VocoiOS */,
 			);
 		};
 /* End PBXProject section */
@@ -315,6 +522,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E11473CB2CBE0F0B00318EE4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KB0100000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		IA0100000000000000000003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -345,6 +566,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		KB0100000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		IA0100000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -357,6 +592,11 @@
 			isa = PBXTargetDependency;
 			target = E11473AF2CBE0F0A00318EE4 /* VoiceInk */;
 			targetProxy = E11473CE2CBE0F0B00318EE4 /* PBXContainerItemProxy */;
+		};
+		IA010000000000000000000C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = KB0100000000000000000003 /* VocoKeyboard */;
+			targetProxy = IA010000000000000000000B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -616,6 +856,120 @@
 			};
 			name = Release;
 		};
+		KB0100000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VocoKeyboard/VocoKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 171;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocoKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Voco Keyboard";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.71;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco.VocoKeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		KB0100000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VocoKeyboard/VocoKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 171;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocoKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Voco Keyboard";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.71;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco.VocoKeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		IA010000000000000000000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VocoiOS/VocoiOS.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocoiOS/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Voco;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
+				PRODUCT_NAME = Voco;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		IA010000000000000000000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VocoiOS/VocoiOS.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocoiOS/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Voco;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
+				PRODUCT_NAME = Voco;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -651,6 +1005,24 @@
 			buildConfigurations = (
 				E11473DE2CBE0F0B00318EE4 /* Debug */,
 				E11473DF2CBE0F0B00318EE4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		KB0100000000000000000009 /* Build configuration list for PBXNativeTarget "VocoKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				KB0100000000000000000007 /* Debug */,
+				KB0100000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		IA010000000000000000000F /* Build configuration list for PBXNativeTarget "VocoiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				IA010000000000000000000D /* Debug */,
+				IA010000000000000000000E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -821,6 +1193,26 @@
 			productName = CRNNoise;
 		};
 		OC01CC022F4E000000000002 /* OpenCC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */;
+			productName = OpenCC;
+		};
+		KB01LK012F5A000000000002 /* LLMkit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */;
+			productName = LLMkit;
+		};
+		KB01OC012F5A000000000002 /* OpenCC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */;
+			productName = OpenCC;
+		};
+		IA01LK012F5A000000000002 /* LLMkit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */;
+			productName = LLMkit;
+		};
+		IA01OC012F5A000000000002 /* OpenCC */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */;
 			productName = OpenCC;

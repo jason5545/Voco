@@ -14,7 +14,7 @@ enum ModelProvider: String, Codable, Hashable, CaseIterable {
     case nativeApple = "Native Apple"
     case qwen3 = "Qwen3"
     case whisperMLX = "WhisperMLX"
-    // Future providers can be added here
+    case whisperCoreML = "WhisperCoreML"
 }
 
 // A unified protocol for any transcription model
@@ -213,6 +213,24 @@ struct WhisperMLXModel: TranscriptionModel {
     let accuracy: Double
     let ramUsage: Double
     let huggingFaceRepo: String  // HuggingFace model ID (e.g. "mlx-community/whisper-large-v2-mlx-4bit")
+    var isMultilingualModel: Bool {
+        supportedLanguages.count > 1
+    }
+    let supportedLanguages: [String: String]
+}
+
+// Whisper CoreML models (iOS ANE-optimized)
+struct WhisperCoreMLModel: TranscriptionModel {
+    let id = UUID()
+    let name: String
+    let displayName: String
+    let description: String
+    let provider: ModelProvider = .whisperCoreML
+    let size: String
+    let speed: Double
+    let accuracy: Double
+    let ramUsage: Double
+    let coremlModelId: String  // Identifier for model download/cache lookup
     var isMultilingualModel: Bool {
         supportedLanguages.count > 1
     }

@@ -106,11 +106,13 @@ class ChinesePostProcessingService: ObservableObject {
     @Published var isBERTScoringEnabled: Bool {
         didSet {
             UserDefaults.standard.set(isBERTScoringEnabled, forKey: "ChinesePostProcessingBERTScoring")
+            #if os(macOS)
             if isBERTScoringEnabled {
                 Task { await BERTScorer.shared.loadModel() }
             } else {
                 BERTScorer.shared.unloadModel()
             }
+            #endif
         }
     }
 
@@ -136,9 +138,11 @@ class ChinesePostProcessingService: ObservableObject {
         self.isBERTScoringEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingBERTScoring") as? Bool ?? false
 
         // Auto-load BERT model if enabled
+        #if os(macOS)
         if isBERTScoringEnabled {
             Task { await BERTScorer.shared.loadModel() }
         }
+        #endif
     }
 
     // MARK: - Main Processing Pipeline
@@ -171,12 +175,20 @@ class ChinesePostProcessingService: ObservableObject {
         // Step 3: Pinyin correction (rule-based + data-driven)
         if isPinyinCorrectionEnabled {
             // Layer 1: Rule-based (hand-curated, highest priority)
+            #if os(macOS)
             let editCache = EditModeCacheService.shared
             let correctionContext = CorrectionContext(
                 recentTranscriptions: contextMemory.getRecent(count: 5),
                 appName: editCache.cachedAppName,
                 windowTitle: editCache.cachedWindowTitle
             )
+            #else
+            let correctionContext = CorrectionContext(
+                recentTranscriptions: contextMemory.getRecent(count: 5),
+                appName: nil,
+                windowTitle: nil
+            )
+            #endif
             let correctionResult = pinyinCorrector.correct(result, context: correctionContext)
             if !correctionResult.corrections.isEmpty {
                 steps.append("PinyinCorrection")
@@ -291,8 +303,8 @@ class ChinesePostProcessingService: ObservableObject {
 
         // Provider-specific confidence check
         switch lastModelProvider {
-        case .local, .whisperMLX:
-            // Whisper (cpp or MLX): force LLM for long CJK text
+        case .local, .whisperMLX, .whisperCoreML:
+            // Whisper (cpp, MLX, or CoreML): force LLM for long CJK text
             let whisperCJKCount = text.unicodeScalars.filter {
                 (0x4E00...0x9FFF).contains($0.value) ||
                 (0x3400...0x4DBF).contains($0.value)
@@ -339,6 +351,7 @@ class ChinesePostProcessingService: ObservableObject {
 
     // MARK: - Debug File Logging
 
+    #if os(macOS)
     private static let debugLogURL: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/Voco", isDirectory: true)
@@ -361,6 +374,11 @@ class ChinesePostProcessingService: ObservableObject {
             }
         }
     }
+    #else
+    static func debugLog(_ message: String) {
+        // iOS: no-op (use os_log in production if needed)
+    }
+    #endif
 
     // MARK: - Private Helpers
 

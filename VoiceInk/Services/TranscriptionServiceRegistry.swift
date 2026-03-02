@@ -17,6 +17,7 @@ class TranscriptionServiceRegistry {
     private(set) lazy var parakeetTranscriptionService = ParakeetTranscriptionService()
     private(set) lazy var qwen3TranscriptionService = Qwen3TranscriptionService()
     private(set) lazy var whisperMLXTranscriptionService = WhisperMLXTranscriptionService()
+    private(set) lazy var whisperCoreMLTranscriptionService = WhisperCoreMLTranscriptionService()
     init(whisperState: WhisperState, modelsDirectory: URL) {
         self.whisperState = whisperState
         self.modelsDirectory = modelsDirectory
@@ -32,6 +33,8 @@ class TranscriptionServiceRegistry {
             return qwen3TranscriptionService
         case .whisperMLX:
             return whisperMLXTranscriptionService
+        case .whisperCoreML:
+            return whisperCoreMLTranscriptionService
         case .nativeApple:
             return nativeAppleTranscriptionService
         default:
@@ -92,14 +95,14 @@ class TranscriptionServiceRegistry {
     func cleanup() {
         parakeetTranscriptionService.cleanup()
         Task { await whisperMLXTranscriptionService.cleanup() }
-        Task {
-            await qwen3TranscriptionService.cleanup()
-        }
+        Task { await qwen3TranscriptionService.cleanup() }
+        Task { await whisperCoreMLTranscriptionService.cleanup() }
     }
 
     func cleanupAsync() async {
         parakeetTranscriptionService.cleanup()
         await whisperMLXTranscriptionService.cleanup()
         await qwen3TranscriptionService.cleanup()
+        await whisperCoreMLTranscriptionService.cleanup()
     }
 }

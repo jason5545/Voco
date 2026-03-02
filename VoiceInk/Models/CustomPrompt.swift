@@ -137,7 +137,8 @@ struct CustomPrompt: Identifiable, Codable, Equatable {
     }
 }
 
-// MARK: - UI Extensions
+#if os(macOS)
+// MARK: - UI Extensions (macOS only)
 extension CustomPrompt {
     func promptIcon(isSelected: Bool, onTap: @escaping () -> Void, onEdit: ((CustomPrompt) -> Void)? = nil, onDelete: ((CustomPrompt) -> Void)? = nil) -> some View {
         VStack(spacing: 8) {
@@ -392,3 +393,4 @@ extension CustomPrompt {
         .onTapGesture(perform: action)
     }
 }
+#endif

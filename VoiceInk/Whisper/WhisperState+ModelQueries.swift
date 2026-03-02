@@ -2,9 +2,9 @@ import Foundation
 
 extension WhisperState {
     /// Returns the best available Whisper model for file transcription.
-    /// File transcription accepts both local (ggml) and WhisperMLX models; Qwen3-ASR is for real-time voice input only.
+    /// File transcription accepts local (ggml), WhisperMLX, and WhisperCoreML models.
     var bestLocalModelForFileTranscription: (any TranscriptionModel)? {
-        let whisperProviders: Set<ModelProvider> = [.local, .whisperMLX]
+        let whisperProviders: Set<ModelProvider> = [.local, .whisperMLX, .whisperCoreML]
         // If current model is already Whisper and downloaded, use it
         if let current = currentTranscriptionModel, whisperProviders.contains(current.provider),
            usableModels.contains(where: { $0.name == current.name }) {
@@ -13,8 +13,8 @@ extension WhisperState {
         // Otherwise find the best downloaded Whisper model (highest accuracy)
         let whisperModels = usableModels.filter { whisperProviders.contains($0.provider) }
         return whisperModels.sorted { m1, m2 in
-            let a1 = (m1 as? LocalModel)?.accuracy ?? (m1 as? WhisperMLXModel)?.accuracy ?? 0
-            let a2 = (m2 as? LocalModel)?.accuracy ?? (m2 as? WhisperMLXModel)?.accuracy ?? 0
+            let a1 = (m1 as? LocalModel)?.accuracy ?? (m1 as? WhisperMLXModel)?.accuracy ?? (m1 as? WhisperCoreMLModel)?.accuracy ?? 0
+            let a2 = (m2 as? LocalModel)?.accuracy ?? (m2 as? WhisperMLXModel)?.accuracy ?? (m2 as? WhisperCoreMLModel)?.accuracy ?? 0
             return a1 > a2
         }.first
     }
@@ -34,6 +34,11 @@ extension WhisperState {
             case .whisperMLX:
                 if let whisperMLXModel = model as? WhisperMLXModel {
                     return isWhisperMLXModelDownloaded(whisperMLXModel)
+                }
+                return false
+            case .whisperCoreML:
+                if let coremlModel = model as? WhisperCoreMLModel {
+                    return WhisperCoreMLModelManager.isModelDownloaded(modelId: coremlModel.coremlModelId)
                 }
                 return false
             case .nativeApple:

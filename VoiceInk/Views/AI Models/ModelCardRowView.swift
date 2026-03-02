@@ -70,6 +70,13 @@ struct ModelCardRowView: View {
                         whisperState: whisperState
                     )
                 }
+            case .whisperCoreML:
+                if let coremlModel = model as? WhisperCoreMLModel {
+                    WhisperCoreMLModelCardRowView(
+                        model: coremlModel,
+                        whisperState: whisperState
+                    )
+                }
             case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox:
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(
