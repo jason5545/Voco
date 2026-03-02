@@ -37,8 +37,6 @@ struct ChinesePostProcessingSettingsView: View {
                     if service.isDataDrivenCorrectionEnabled {
                         Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
                             .padding(.leading, 40)
-                        Toggle("Syllable Expansion", isOn: $service.isSyllableExpansionEnabled)
-                            .padding(.leading, 40)
                     }
                 }
 

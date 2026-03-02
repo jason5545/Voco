@@ -122,7 +122,8 @@ class ChinesePostProcessingService: ObservableObject {
         self.isPinyinCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPinyin") as? Bool ?? true
         self.isDataDrivenCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingDataDriven") as? Bool ?? true
         self.isNasalCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingNasal") as? Bool ?? true
-        self.isSyllableExpansionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSyllableExpansion") as? Bool ?? true
+        UserDefaults.standard.set(false, forKey: "ChinesePostProcessingSyllableExpansion")
+        self.isSyllableExpansionEnabled = false
         self.isSpokenPunctuationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSpokenPunctuation") as? Bool ?? true
         self.isHalfWidthConversionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingHalfWidth") as? Bool ?? true
         self.isRepetitionDetectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingRepetition") as? Bool ?? true
