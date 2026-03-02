@@ -28,6 +28,11 @@ final class HomophoneCorrectionEngine {
     /// Maximum word length to attempt correction on (longer words are less likely speech errors).
     private let maxWordLength = 4
 
+    /// Minimum candidate frequency for sliding-window sourced suspicious words.
+    /// Sliding window pairs are less reliable than single-char or tokenizer-based suspicious words,
+    /// so we require candidates to have much higher frequency to avoid false positives.
+    private let slidingWindowMinCandidateFreq: Int = 1000
+
     /// Common function words to skip (too short, too common, not worth checking).
     private static let skipChars: Set<Character> = [
         "的", "了", "嗎", "呢", "吧", "啊", "哦", "喔", "嗯", "呀",
@@ -70,7 +75,7 @@ final class HomophoneCorrectionEngine {
             let rightEnd = offset + seg.word.count
             let rightContext: Character? = rightEnd < textChars.count ? textChars[rightEnd] : nil
 
-            if let best = findBestCandidate(for: seg.word, at: offset, in: text, leftContext: leftContext, rightContext: rightContext) {
+            if let best = findBestCandidate(for: seg.word, at: offset, in: text, leftContext: leftContext, rightContext: rightContext, isFromSlidingWindow: seg.isFromSlidingWindow) {
                 // Replace the specific occurrence at the known range
                 if let range = findRange(of: seg.word, in: result, near: seg.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
@@ -115,6 +120,7 @@ final class HomophoneCorrectionEngine {
         let word: String
         let freq: Int
         let approximateOffset: Int // character offset for disambiguation
+        let isFromSlidingWindow: Bool
     }
 
     private func findSuspicious(_ segments: [Segment]) -> [SuspiciousWord] {
@@ -173,7 +179,7 @@ final class HomophoneCorrectionEngine {
             }
 
             if isSuspicious {
-                suspicious.append(SuspiciousWord(word: word, freq: freq, approximateOffset: charOffset))
+                suspicious.append(SuspiciousWord(word: word, freq: freq, approximateOffset: charOffset, isFromSlidingWindow: false))
             }
         }
 
@@ -188,6 +194,7 @@ final class HomophoneCorrectionEngine {
     private func findSlidingWindowSuspicious(_ segments: [Segment]) -> [SuspiciousWord] {
         var result: [SuspiciousWord] = []
         var charOffset = 0
+        let allChars = Array(segments.map(\.word).joined())
 
         for i in 0..<segments.count {
             defer { charOffset += segments[i].word.count }
@@ -204,7 +211,23 @@ final class HomophoneCorrectionEngine {
 
             // If the combined 2-char word is also not in dict or low freq, it's suspicious
             if freq <= lowFreqThreshold {
-                result.append(SuspiciousWord(word: combined, freq: freq, approximateOffset: charOffset))
+                // Neighbor word guard: check outer neighbors form known words
+                var skip = false
+                // char1's left neighbor + char1
+                if charOffset > 0, isCJK(String(allChars[charOffset - 1])) {
+                    let leftPair = String(allChars[charOffset - 1]) + segments[i].word
+                    if db.frequency(of: leftPair) > 0 { skip = true }
+                }
+                // char2 + char2's right neighbor
+                let nextOffset = charOffset + 2
+                if !skip, nextOffset < allChars.count, isCJK(String(allChars[nextOffset])) {
+                    let rightPair = segments[i + 1].word + String(allChars[nextOffset])
+                    if db.frequency(of: rightPair) > 0 { skip = true }
+                }
+
+                if !skip {
+                    result.append(SuspiciousWord(word: combined, freq: freq, approximateOffset: charOffset, isFromSlidingWindow: true))
+                }
             }
         }
         return result
@@ -223,7 +246,8 @@ final class HomophoneCorrectionEngine {
         at wordOffset: Int,
         in fullText: String,
         leftContext: Character?,
-        rightContext: Character?
+        rightContext: Character?,
+        isFromSlidingWindow: Bool
     ) -> ScoredCandidate? {
         let chars = Array(word)
         let originalFreq = db.frequency(of: word)
@@ -236,6 +260,9 @@ final class HomophoneCorrectionEngine {
 
         let threshold = useBERT ? bertMinScoreDelta : minScoreDelta
 
+        // Sliding window candidates require higher minimum candidate frequency
+        let minCandFreq = isFromSlidingWindow ? slidingWindowMinCandidateFreq : 1
+
         // Try replacing each single character
         for i in 0..<chars.count {
             let homophones = db.homophones(of: chars[i])
@@ -245,7 +272,7 @@ final class HomophoneCorrectionEngine {
                 let candidateWord = String(candidate)
                 let candidateFreq = db.frequency(of: candidateWord)
 
-                guard candidateFreq > 0 else { continue }
+                guard candidateFreq >= minCandFreq else { continue }
 
                 let score: Double
                 if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(
@@ -282,7 +309,7 @@ final class HomophoneCorrectionEngine {
                     let candidate = [c0, c1]
                     let candidateWord = String(candidate)
                     let candidateFreq = db.frequency(of: candidateWord)
-                    guard candidateFreq > 0 else { continue }
+                    guard candidateFreq >= minCandFreq else { continue }
 
                     let score: Double
                     if useBERT, let bertScore = BERTScorer.shared.scoreWordReplacement(

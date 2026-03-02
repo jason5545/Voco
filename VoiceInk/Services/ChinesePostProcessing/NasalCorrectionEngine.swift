@@ -39,6 +39,10 @@ final class NasalCorrectionEngine {
     /// Words above this threshold are considered well-known and should not be replaced.
     private let maxOriginalFreq: Int = 100
 
+    /// Maximum single-character frequency for nasal swap eligibility.
+    /// High-frequency characters (e.g., 嚴=5182) are almost certainly correct.
+    private let maxCharFreqForSwap: Int = 3000
+
     /// Weight for bigram context score.
     private let bigramWeight: Double = 0.3
 
@@ -184,6 +188,10 @@ final class NasalCorrectionEngine {
 
         // Try replacing each single character with its nasal variant
         for i in 0..<chars.count {
+            // Skip high-frequency single chars — they are almost certainly correct
+            let charFreq = db.frequency(of: String(chars[i]))
+            if charFreq > maxCharFreqForSwap { continue }
+
             let variants = db.nasalVariants(of: chars[i])
             for variant in variants {
                 var candidate = chars

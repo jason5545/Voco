@@ -47,7 +47,7 @@ final class SyllableExpansionEngine {
     /// Minimum frequency ratio: candidate word freq must be this many times
     /// the original char freq to be considered. Prevents replacing common
     /// single chars (e.g. 改=9286) with similarly-frequent words (e.g. 過來=20536).
-    private let minFreqRatio: Double = 5.0
+    private let minFreqRatio: Double = 10.0
 
     /// Common function words to skip (same set as HomophoneCorrectionEngine)
     private static let skipChars: Set<Character> = [
