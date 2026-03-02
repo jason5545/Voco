@@ -835,13 +835,21 @@ class WhisperState: NSObject, ObservableObject {
                                         let (commaResult, commaDuration) = try await enhancementService.enhanceCommaInsertion(commaInput)
                                         let commaInputPunctCount = commaInput.filter { cjkPunct.contains($0) }.count
                                         let commaPunctCount = commaResult.filter { cjkPunct.contains($0) }.count
-                                        if commaPunctCount > commaInputPunctCount {
+                                        // Text-unchanged validation: comma insertion should only add commas, not change any text
+                                        let commaInputStripped = String(commaInput.filter { !cjkPunct.contains($0) })
+                                        let commaResultStripped = String(commaResult.filter { !cjkPunct.contains($0) })
+                                        let commaTextUnchanged = commaInputStripped == commaResultStripped
+                                        if commaPunctCount > commaInputPunctCount && commaTextUnchanged {
                                             ChinesePostProcessingService.debugLog(
                                                 "POST_LLM_COMMA_INSERT: accepted, punctCount \(commaInputPunctCount)→\(commaPunctCount) | result(\(commaResult.count)): \(commaResult)"
                                             )
                                             transcription.enhancedText = commaResult
                                             finalPastedText = commaResult
                                             transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + commaDuration
+                                        } else if !commaTextUnchanged {
+                                            ChinesePostProcessingService.debugLog(
+                                                "POST_LLM_COMMA_INSERT: rejected (text changed) | input: \(commaInputStripped) | result: \(commaResultStripped)"
+                                            )
                                         } else {
                                             ChinesePostProcessingService.debugLog(
                                                 "POST_LLM_COMMA_INSERT: rejected (no improvement), punctCount \(commaInputPunctCount)→\(commaPunctCount)"
