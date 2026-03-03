@@ -121,24 +121,29 @@ class KeyboardAudioRecorder {
         let samples: [Float]
 
         if let converter = converter {
-            // Need sample rate / channel conversion
+            guard let inputBuffer = AVAudioPCMBuffer(
+                pcmFormat: buffer.format,
+                frameCapacity: buffer.frameLength
+            ) else { return }
+            inputBuffer.frameLength = buffer.frameLength
+            
+            if let src = buffer.floatChannelData, let dst = inputBuffer.floatChannelData {
+                memcpy(dst[0], src[0], Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            }
+
             let ratio = targetSampleRate / buffer.format.sampleRate
-            let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1
+            let outputFrameCount = AVAudioFrameCount(ceil(Double(buffer.frameLength) * ratio))
             guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outputFrameCount) else {
                 return
             }
 
             var error: NSError?
-            var inputConsumed = false
-            converter.convert(to: outputBuffer, error: &error) { _, outStatus in
-                if inputConsumed {
-                    outStatus.pointee = .noDataNow
-                    return nil
-                }
-                inputConsumed = true
+            let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
                 outStatus.pointee = .haveData
-                return buffer
+                return inputBuffer
             }
+
+            converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
 
             if let error = error {
                 Self.logger.error("Audio conversion error: \(error)")
@@ -149,18 +154,15 @@ class KeyboardAudioRecorder {
             let count = Int(outputBuffer.frameLength)
             samples = Array(UnsafeBufferPointer(start: floatData[0], count: count))
         } else {
-            // Already in target format
             guard let floatData = buffer.floatChannelData else { return }
             let count = Int(buffer.frameLength)
             samples = Array(UnsafeBufferPointer(start: floatData[0], count: count))
         }
 
-        // Update metering (RMS)
         if !samples.isEmpty {
             var rms: Float = 0
             for s in samples { rms += s * s }
             rms = sqrt(rms / Float(samples.count))
-            // Map to 0-1 range (typical speech RMS is 0.01-0.3)
             currentLevel = min(1.0, rms * 5.0)
         }
 

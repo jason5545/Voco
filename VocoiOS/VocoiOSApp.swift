@@ -8,12 +8,12 @@ import SwiftUI
 struct VocoiOSApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            VocoiOSContentView()
         }
     }
 }
 
-struct ContentView: View {
+struct VocoiOSContentView: View {
     var body: some View {
         TabView {
             ModelManagementView()

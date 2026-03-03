@@ -163,8 +163,9 @@ class KeyboardViewController: UIInputViewController {
                     // Set model provider for confidence routing
                     ChinesePostProcessingService.shared.lastModelProvider = .whisperCoreML
 
-                    // Run enhancement pipeline (Chinese post-processing + optional LLM)
-                    let enhancedText = await enhancementService.enhance(result.text, language: language)
+                    // Use detected language from Whisper result (not user-selected, which may be "auto")
+                    let detectedLang = result.detectedLanguage ?? language
+                    let enhancedText = await enhancementService.enhance(result.text, language: detectedLang)
                     textDocumentProxy.insertText(enhancedText)
                     viewModel.statusText = "Done (\(result.tokenCount) tokens)"
                 } else {

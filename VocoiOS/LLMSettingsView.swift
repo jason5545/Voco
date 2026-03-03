@@ -10,6 +10,7 @@ struct LLMSettingsView: View {
     @State private var isEnabled: Bool = false
     @State private var selectedProvider: String = "Groq"
     @State private var apiKey: String = ""
+    @State private var apiKeyValidationMessage: String?
     @State private var modelName: String = ""
     @State private var selectedPromptId: String = PredefinedPrompts.taiwaneseChinesePromptId.uuidString
 
@@ -48,7 +49,13 @@ struct LLMSettingsView: View {
                         .textInputAutocapitalization(.never)
                         .onChange(of: apiKey) { _, newValue in
                             defaults?.set(newValue, forKey: "KeyboardLLMAPIKey")
+                            validateAPIKey(newValue)
                         }
+                    if let message = apiKeyValidationMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(message.contains("Valid") ? .green : .orange)
+                    }
                 }
 
                 Section {
@@ -103,6 +110,48 @@ struct LLMSettingsView: View {
         apiKey = defaults?.string(forKey: "KeyboardLLMAPIKey") ?? ""
         modelName = defaults?.string(forKey: "KeyboardLLMModel") ?? ""
         selectedPromptId = defaults?.string(forKey: "KeyboardLLMPromptId") ?? PredefinedPrompts.taiwaneseChinesePromptId.uuidString
+        
+        if !apiKey.isEmpty {
+            validateAPIKey(apiKey)
+        }
+    }
+
+    private func validateAPIKey(_ key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmed.isEmpty else {
+            apiKeyValidationMessage = nil
+            return
+        }
+        
+        switch selectedProvider {
+        case "Anthropic":
+            if trimmed.hasPrefix("sk-ant-") && trimmed.count >= 20 {
+                apiKeyValidationMessage = "Valid Anthropic key format"
+            } else {
+                apiKeyValidationMessage = "Key should start with 'sk-ant-'"
+            }
+        case "OpenAI":
+            if trimmed.hasPrefix("sk-") && trimmed.count >= 30 {
+                apiKeyValidationMessage = "Valid OpenAI key format"
+            } else {
+                apiKeyValidationMessage = "Key should start with 'sk-'"
+            }
+        case "Groq", "Cerebras", "OpenRouter":
+            if trimmed.count >= 20 {
+                apiKeyValidationMessage = "Key length OK"
+            } else {
+                apiKeyValidationMessage = "Key seems too short"
+            }
+        case "Gemini":
+            if trimmed.count >= 20 {
+                apiKeyValidationMessage = "Key length OK"
+            } else {
+                apiKeyValidationMessage = "Key seems too short"
+            }
+        default:
+            apiKeyValidationMessage = nil
+        }
     }
 
     private func defaultModelForProvider(_ provider: String) -> String {
