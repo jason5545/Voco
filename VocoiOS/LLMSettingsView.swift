@@ -13,7 +13,10 @@ struct LLMSettingsView: View {
     @State private var apiKeyValidationMessage: String?
     @State private var modelName: String = ""
     @State private var selectedPromptId: String = PredefinedPrompts.taiwaneseChinesePromptId.uuidString
-
+    
+    @State private var openRouterModels: [OpenRouterModel] = []
+    @State private var isLoadingModels: Bool = false
+    
     private let providers = ["Cerebras", "Groq", "Gemini", "Anthropic", "OpenAI", "OpenRouter"]
 
     var body: some View {
@@ -39,6 +42,13 @@ struct LLMSettingsView: View {
                         // Reset model to provider default
                         modelName = ""
                         defaults?.set("", forKey: "KeyboardLLMModel")
+                        
+                        // Fetch OpenRouter models when switching to OpenRouter
+                        if newValue == "OpenRouter" && !apiKey.isEmpty && apiKey.count >= 20 {
+                            Task {
+                                await fetchOpenRouterModels()
+                            }
+                        }
                     }
                 }
 
@@ -50,6 +60,13 @@ struct LLMSettingsView: View {
                         .onChange(of: apiKey) { _, newValue in
                             defaults?.set(newValue, forKey: "KeyboardLLMAPIKey")
                             validateAPIKey(newValue)
+                            
+                            // Fetch OpenRouter models when key is entered for OpenRouter
+                            if selectedProvider == "OpenRouter" && newValue.count >= 20 {
+                                Task {
+                                    await fetchOpenRouterModels()
+                                }
+                            }
                         }
                     if let message = apiKeyValidationMessage {
                         Text(message)
@@ -59,16 +76,39 @@ struct LLMSettingsView: View {
                 }
 
                 Section {
-                    TextField("Model name (leave empty for default)", text: $modelName)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                    if selectedProvider == "OpenRouter" && !openRouterModels.isEmpty {
+                        Picker("Model", selection: $modelName) {
+                            Text("Default (recommended)").tag("")
+                            ForEach(openRouterModels, id: \.id) { model in
+                                Text(model.displayName).tag(model.id)
+                            }
+                        }
                         .onChange(of: modelName) { _, newValue in
                             defaults?.set(newValue, forKey: "KeyboardLLMModel")
                         }
+                        if isLoadingModels {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Loading models...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        TextField("Model name (leave empty for default)", text: $modelName)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onChange(of: modelName) { _, newValue in
+                                defaults?.set(newValue, forKey: "KeyboardLLMModel")
+                            }
+                    }
                 } header: {
                     Text("Model")
                 } footer: {
-                    Text("Default: \(defaultModelForProvider(selectedProvider))")
+                    Text(selectedProvider == "OpenRouter" && !openRouterModels.isEmpty 
+                         ? "Select a model or leave empty for recommended"
+                         : "Default: \(defaultModelForProvider(selectedProvider))")
                 }
 
                 Section("Prompt") {
@@ -113,6 +153,13 @@ struct LLMSettingsView: View {
         
         if !apiKey.isEmpty {
             validateAPIKey(apiKey)
+        }
+        
+        // Auto-fetch OpenRouter models on appear if OpenRouter is selected
+        if selectedProvider == "OpenRouter" && !apiKey.isEmpty && apiKey.count >= 20 {
+            Task {
+                await fetchOpenRouterModels()
+            }
         }
     }
 
@@ -165,4 +212,46 @@ struct LLMSettingsView: View {
         default:           return ""
         }
     }
+    
+    private func fetchOpenRouterModels() async {
+        isLoadingModels = true
+        
+        do {
+            let url = URL(string: "https://openrouter.ai/api/v1/models")!
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 15
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                isLoadingModels = false
+                return
+            }
+            
+            let result = try JSONDecoder().decode(OpenRouterModelsResponse.self, from: data)
+            openRouterModels = result.data.sorted { $0.id < $1.id }
+        } catch {
+            openRouterModels = []
+        }
+        
+        isLoadingModels = false
+    }
+}
+
+struct OpenRouterModel: Identifiable, Codable {
+    let id: String
+    let name: String?
+    
+    var displayName: String {
+        if let name = name, !name.isEmpty {
+            return name
+        }
+        return id.replacingOccurrences(of: "/", with: " • ")
+    }
+}
+
+struct OpenRouterModelsResponse: Codable {
+    let data: [OpenRouterModel]
 }
