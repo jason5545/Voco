@@ -194,6 +194,15 @@ struct LLMSettingsView: View {
             } else {
                 apiKeyValidationMessage = "Key seems too short"
             }
+        case "Groq":
+            if trimmed.count >= 20 {
+                apiKeyValidationMessage = "Validating..."
+                Task {
+                    await validateGroqKey(trimmed)
+                }
+            } else {
+                apiKeyValidationMessage = "Key seems too short"
+            }
         case "Gemini":
             if trimmed.count >= 20 {
                 apiKeyValidationMessage = "Key length OK"
@@ -264,6 +273,37 @@ struct LLMSettingsView: View {
                 apiKeyValidationMessage = "✓ Valid key"
                 // Also fetch models on successful validation
                 await fetchOpenRouterModels()
+            } else if httpResponse.statusCode == 401 {
+                apiKeyValidationMessage = "✗ Invalid key"
+            } else {
+                apiKeyValidationMessage = "Validation error (\(httpResponse.statusCode))"
+            }
+        } catch {
+            apiKeyValidationMessage = "Validation failed: \(error.localizedDescription)"
+        }
+        
+        isValidatingKey = false
+    }
+    
+    private func validateGroqKey(_ key: String) async {
+        isValidatingKey = true
+        
+        do {
+            let url = URL(string: "https://api.groq.com/openai/v1/models")!
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 10
+            
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                apiKeyValidationMessage = "Validation failed"
+                isValidatingKey = false
+                return
+            }
+            
+            if httpResponse.statusCode == 200 {
+                apiKeyValidationMessage = "✓ Valid key"
             } else if httpResponse.statusCode == 401 {
                 apiKeyValidationMessage = "✗ Invalid key"
             } else {
