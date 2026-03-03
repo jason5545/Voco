@@ -11,6 +11,7 @@ struct LLMSettingsView: View {
     @State private var selectedProvider: String = "Groq"
     @State private var apiKey: String = ""
     @State private var apiKeyValidationMessage: String?
+    @State private var isValidatingKey: Bool = false
     @State private var modelName: String = ""
     @State private var selectedPromptId: String = PredefinedPrompts.taiwaneseChinesePromptId.uuidString
     
@@ -184,9 +185,12 @@ struct LLMSettingsView: View {
             } else {
                 apiKeyValidationMessage = "Key should start with 'sk-'"
             }
-        case "Groq", "Cerebras", "OpenRouter":
+        case "OpenRouter":
             if trimmed.count >= 20 {
-                apiKeyValidationMessage = "Key length OK"
+                apiKeyValidationMessage = "Validating..."
+                Task {
+                    await validateOpenRouterKey(trimmed)
+                }
             } else {
                 apiKeyValidationMessage = "Key seems too short"
             }
@@ -237,6 +241,39 @@ struct LLMSettingsView: View {
         }
         
         isLoadingModels = false
+    }
+    
+    private func validateOpenRouterKey(_ key: String) async {
+        isValidatingKey = true
+        
+        do {
+            let url = URL(string: "https://openrouter.ai/api/v1/auth/key")!
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 10
+            
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                apiKeyValidationMessage = "Validation failed"
+                isValidatingKey = false
+                return
+            }
+            
+            if httpResponse.statusCode == 200 {
+                apiKeyValidationMessage = "✓ Valid key"
+                // Also fetch models on successful validation
+                await fetchOpenRouterModels()
+            } else if httpResponse.statusCode == 401 {
+                apiKeyValidationMessage = "✗ Invalid key"
+            } else {
+                apiKeyValidationMessage = "Validation error (\(httpResponse.statusCode))"
+            }
+        } catch {
+            apiKeyValidationMessage = "Validation failed: \(error.localizedDescription)"
+        }
+        
+        isValidatingKey = false
     }
 }
 
