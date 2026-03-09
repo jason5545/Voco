@@ -37,6 +37,14 @@ struct ChinesePostProcessingSettingsView: View {
                     if service.isDataDrivenCorrectionEnabled {
                         Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
                             .padding(.leading, 40)
+
+                        Toggle(isOn: $service.isSyllableExpansionEnabled) {
+                            HStack(spacing: 4) {
+                                Text("Syllable Expansion")
+                                InfoTip("Detect and expand single characters that may be compressed syllables back to 2-character words. Experimental — default off.")
+                            }
+                        }
+                        .padding(.leading, 40)
                     }
                 }
 

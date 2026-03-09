@@ -27,17 +27,17 @@ final class SyllableExpansionEngine {
     private let distancePenalty: Double = 2.0
 
     /// Minimum context improvement required (hard gate)
-    private let minContextImprovement: Double = 3.0
+    private let minContextImprovement: Double = 5.0
 
     /// Minimum total score required to apply correction
-    private let minTotalScore: Double = 7.0
+    private let minTotalScore: Double = 12.0
 
     /// Maximum bigram frequency for a character to be considered "out of context"
-    private let suspiciousBigramThreshold: Int = 50
+    private let suspiciousBigramThreshold: Int = 10
 
     /// Single-char word frequency threshold: characters with freq above this
     /// are too common to be syllable compression errors and will be skipped.
-    private let highFreqCharThreshold: Int = 5000
+    private let highFreqCharThreshold: Int = 3000
 
     /// Maximum allowed edit distance between merge form and target pinyin.
     /// 0 = exact match only (safest), 1 = allow 1 edit (more aggressive).
@@ -47,7 +47,7 @@ final class SyllableExpansionEngine {
     /// Minimum frequency ratio: candidate word freq must be this many times
     /// the original char freq to be considered. Prevents replacing common
     /// single chars (e.g. 改=9286) with similarly-frequent words (e.g. 過來=20536).
-    private let minFreqRatio: Double = 10.0
+    private let minFreqRatio: Double = 50.0
 
     /// Common function words to skip (same set as HomophoneCorrectionEngine)
     private static let skipChars: Set<Character> = [
