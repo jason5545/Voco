@@ -121,6 +121,7 @@ class RecorderUIManager: ObservableObject {
             }
         } else {
             lastRecordingStopTime = nil
+            engine.cancelScheduledModelCleanup()
             SoundManager.shared.playStartSound()
 
             // Edit Mode detection: atomic snapshot BEFORE stopping (avoids race with activation observer invalidate)
@@ -185,10 +186,13 @@ class RecorderUIManager: ObservableObject {
         }
 
         await MainActor.run {
+            engine.forkState.isEditMode = false
+            engine.forkState.editModeSelectedText = nil
+            engine.forkState.pendingDictionaryEntry = nil
             isMiniRecorderVisible = false
         }
 
-        await engine.cleanupResources()
+        engine.scheduleModelResourceCleanup()
 
         if UserDefaults.standard.bool(forKey: PowerModeDefaults.autoRestoreKey) {
             await PowerModeSessionManager.shared.endSession()
@@ -219,6 +223,9 @@ class RecorderUIManager: ObservableObject {
             doublePressStopTask?.cancel()
             doublePressStopTask = nil
             miniRecorderError = nil
+            engine.forkState.isEditMode = false
+            engine.forkState.editModeSelectedText = nil
+            engine.forkState.pendingDictionaryEntry = nil
             engine.recordingState = .idle
         }
         await engine.cleanupResources()

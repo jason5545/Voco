@@ -125,8 +125,15 @@ class VoiceInkEngine: NSObject, ObservableObject {
             shouldCancelRecording = false
             partialTranscript = ""
 
+            // Capture frontmost app BEFORE entering Task (Voco becomes frontmost inside Task)
+            let capturedFrontApp = NSWorkspace.shared.frontmostApplication
+            let capturedAppName = capturedFrontApp?.localizedName
+
             requestRecordPermission { [self] granted in
                 if granted {
+                    // Set recording state immediately for responsive UI (eliminates ~500ms visual delay)
+                    self.recordingState = .recording
+
                     Task {
                         do {
                             let fileName = "\(UUID().uuidString).wav"
@@ -143,10 +150,10 @@ class VoiceInkEngine: NSObject, ObservableObject {
                             guard self.recorderUIManager?.isMiniRecorderVisible ?? false, !self.shouldCancelRecording else {
                                 self.recorder.stopRecording()
                                 self.recordedFile = nil
+                                self.recordingState = .idle
                                 return
                             }
 
-                            self.recordingState = .recording
                             self.logger.notice("toggleRecord: recording started successfully, state=recording")
 
                             await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId)
@@ -208,10 +215,33 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 }
 
                                 if let enhancementService = await self.enhancementService {
+                                    // Cache app context from EditModeCacheService (populated before recording)
+                                    let editCache = EditModeCacheService.shared
                                     await MainActor.run {
-                                        enhancementService.captureClipboardContext()
+                                        enhancementService.cachedAppName = editCache.cachedAppName ?? capturedAppName
+                                        enhancementService.cachedWindowTitle = editCache.cachedWindowTitle
+                                        enhancementService.cachedSelectedText = editCache.cachedSelectedText
                                     }
-                                    await enhancementService.captureScreenContext()
+
+                                    guard !Task.isCancelled else { return }
+
+                                    let shouldCaptureClipboard = await MainActor.run {
+                                        enhancementService.useClipboardContext
+                                    }
+                                    if shouldCaptureClipboard {
+                                        await MainActor.run {
+                                            enhancementService.captureClipboardContext()
+                                        }
+                                    }
+
+                                    guard !Task.isCancelled else { return }
+
+                                    let shouldCaptureScreen = await MainActor.run {
+                                        enhancementService.useScreenCaptureContext
+                                    }
+                                    if shouldCaptureScreen {
+                                        await enhancementService.captureScreenContext()
+                                    }
                                 }
                             }
 
@@ -330,9 +360,45 @@ class VoiceInkEngine: NSObject, ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
     }
 
+    // MARK: - Deferred Model Cleanup (fork feature)
+
+    private var deferredModelCleanupTask: Task<Void, Never>?
+    private let modelKeepAliveSecondsKey = "ModelKeepAliveSeconds"
+
+    func cancelScheduledModelCleanup() {
+        deferredModelCleanupTask?.cancel()
+        deferredModelCleanupTask = nil
+    }
+
+    func scheduleModelResourceCleanup() {
+        cancelScheduledModelCleanup()
+
+        let configuredKeepAlive = UserDefaults.standard.double(forKey: modelKeepAliveSecondsKey)
+        let keepAliveSeconds = max(0, configuredKeepAlive)
+        guard keepAliveSeconds > 0 else {
+            Task { [weak self] in
+                await self?.cleanupResources()
+            }
+            return
+        }
+
+        logger.notice("cleanupModelResources: scheduled in \(String(format: "%.0f", keepAliveSeconds))s")
+        deferredModelCleanupTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(for: .seconds(keepAliveSeconds))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self.cleanupResources()
+        }
+    }
+
     // MARK: - Resource Cleanup
 
     func cleanupResources() async {
+        cancelScheduledModelCleanup()
         logger.notice("cleanupResources: releasing model resources")
         await whisperModelManager.cleanupResources()
         serviceRegistry.cleanup()
