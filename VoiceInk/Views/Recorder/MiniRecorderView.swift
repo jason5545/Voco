@@ -1,8 +1,9 @@
 import SwiftUI
 
-struct MiniRecorderView: View {
-    @ObservedObject var whisperState: WhisperState
+struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
+    @ObservedObject var stateProvider: S
     @ObservedObject var recorder: Recorder
+    @EnvironmentObject var windowManager: MiniWindowManager
     @EnvironmentObject private var enhancementService: AIEnhancementService
 
     @State private var activePopover: ActivePopoverState = .none
@@ -24,9 +25,8 @@ struct MiniRecorderView: View {
             Spacer(minLength: 0)
 
             RecorderStatusDisplay(
-                currentState: whisperState.recordingState,
-                audioMeter: recorder.audioMeter,
-                isEditMode: whisperState.isEditMode
+                currentState: stateProvider.recordingState,
+                audioMeter: recorder.audioMeter
             )
 
             Spacer(minLength: 0)
@@ -42,25 +42,12 @@ struct MiniRecorderView: View {
     }
 
     var body: some View {
-        if whisperState.isMiniRecorderVisible {
-            Group {
-                if let entry = whisperState.pendingDictionaryEntry {
-                    DictionaryConfirmationView(
-                        original: entry.original,
-                        replacement: entry.replacement,
-                        onConfirm: { whisperState.confirmDictionaryEntry() },
-                        onDismiss: { whisperState.dismissDictionaryEntry() }
-                    )
-                    .frame(height: mainContentHeight)
-                } else {
-                    contentLayout
-                }
-            }
-            .frame(width: width)
-            .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        if windowManager.isVisible {
+            contentLayout
+                .frame(width: width)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 }
-

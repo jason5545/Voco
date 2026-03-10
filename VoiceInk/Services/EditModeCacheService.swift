@@ -9,7 +9,7 @@ final class EditModeCacheService: @unchecked Sendable {
     static let shared = EditModeCacheService()
 
     /// Terminal apps where Edit Mode should be skipped.
-    /// Shared with `WhisperState+UI.swift` to avoid duplication.
+    /// Shared with `RecorderUIManager` to avoid duplication.
     static let terminalBundleIDs: Set<String> = [
         "com.apple.Terminal",
         "com.googlecode.iterm2",

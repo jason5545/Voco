@@ -14,23 +14,9 @@ enum ViewType: String, CaseIterable, Identifiable {
     case audioInput = "Audio Input"
     case dictionary = "Dictionary"
     case settings = "Settings"
+    case license = "VoiceInk Pro"
 
     var id: String { rawValue }
-
-    var localizedName: String {
-        switch self {
-        case .metrics: return String(localized: "Dashboard")
-        case .transcribeAudio: return String(localized: "Transcribe Audio")
-        case .history: return String(localized: "History")
-        case .models: return String(localized: "AI Models")
-        case .enhancement: return String(localized: "Enhancement")
-        case .powerMode: return String(localized: "Power Mode")
-        case .permissions: return String(localized: "Permissions")
-        case .audioInput: return String(localized: "Audio Input")
-        case .dictionary: return String(localized: "Dictionary")
-        case .settings: return String(localized: "Settings")
-        }
-    }
 
     var icon: String {
         switch self {
@@ -44,6 +30,7 @@ enum ViewType: String, CaseIterable, Identifiable {
         case .audioInput: return "mic.fill"
         case .dictionary: return "character.book.closed.fill"
         case .settings: return "gearshape.fill"
+        case .license: return "checkmark.seal.fill"
         }
     }
 }
@@ -69,11 +56,15 @@ struct VisualEffectView: NSViewRepresentable {
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var engine: VoiceInkEngine
+    @EnvironmentObject private var whisperModelManager: WhisperModelManager
+    @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @EnvironmentObject private var hotkeyManager: HotkeyManager
     @AppStorage("powerModeUIFlag") private var powerModeUIFlag = false
     @State private var selectedView: ViewType? = .metrics
     let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    @StateObject private var licenseViewModel = LicenseViewModel()
+
     private var visibleViewTypes: [ViewType] {
         ViewType.allCases.filter { viewType in
             if viewType == .powerMode {
@@ -97,8 +88,18 @@ struct ContentView: View {
                                 .cornerRadius(8)
                         }
 
-                        Text("Voco")
+                        Text("VoiceInk")
                             .font(.system(size: 14, weight: .semibold))
+
+                        if case .licensed = licenseViewModel.licenseState {
+                            Text("PRO")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.blue)
+                                .cornerRadius(4)
+                        }
 
                         Spacer()
                     }
@@ -111,7 +112,7 @@ struct ContentView: View {
                             Button(action: {
                                 HistoryWindowController.shared.showHistoryWindow(
                                     modelContainer: modelContext.container,
-                                    whisperState: whisperState
+                                    engine: engine
                                 )
                             }) {
                                 SidebarItemView(viewType: viewType)
@@ -130,13 +131,13 @@ struct ContentView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationTitle("Voco")
+            .navigationTitle("VoiceInk")
             .navigationSplitViewColumnWidth(210)
         } detail: {
             if let selectedView = selectedView {
                 detailView(for: selectedView)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle(selectedView.localizedName)
+                    .navigationTitle(selectedView.rawValue)
             } else {
                 Text("Select a view")
                     .foregroundColor(.secondary)
@@ -152,10 +153,12 @@ struct ContentView: View {
                     selectedView = .settings
                 case "AI Models":
                     selectedView = .models
+                case "VoiceInk Pro":
+                    selectedView = .license
                 case "History":
                     HistoryWindowController.shared.showHistoryWindow(
                         modelContainer: modelContext.container,
-                        whisperState: whisperState
+                        engine: engine
                     )
                 case "Permissions":
                     selectedView = .permissions
@@ -178,7 +181,7 @@ struct ContentView: View {
         case .metrics:
             MetricsView()
         case .models:
-            ModelManagementView(whisperState: whisperState)
+            ModelManagementView()
         case .enhancement:
             EnhancementSettingsView()
         case .transcribeAudio:
@@ -189,12 +192,13 @@ struct ContentView: View {
         case .audioInput:
             AudioInputSettingsView()
         case .dictionary:
-            DictionarySettingsView(whisperPrompt: whisperState.whisperPrompt)
+            DictionarySettingsView(whisperPrompt: whisperModelManager.whisperPrompt)
         case .powerMode:
             PowerModeView()
         case .settings:
             SettingsView()
-                .environmentObject(whisperState)
+        case .license:
+            LicenseManagementView()
         case .permissions:
             PermissionsView()
         }
@@ -210,7 +214,7 @@ private struct SidebarItemView: View {
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 24, height: 24)
 
-            Text(viewType.localizedName)
+            Text(viewType.rawValue)
                 .font(.system(size: 14, weight: .medium))
 
             Spacer()

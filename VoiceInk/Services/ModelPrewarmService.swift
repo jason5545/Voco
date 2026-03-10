@@ -5,19 +5,21 @@ import AppKit
 
 @MainActor
 final class ModelPrewarmService: ObservableObject {
-    private let whisperState: WhisperState
+    private let transcriptionModelManager: TranscriptionModelManager
+    private let whisperModelManager: WhisperModelManager
     private let modelContext: ModelContext
-    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ModelPrewarm")
-    /// Reuse WhisperState's registry so Qwen3 prewarm hits the same engine
-    /// that handles real transcriptions (each registry creates its own Qwen3ASREngine).
-    private var serviceRegistry: TranscriptionServiceRegistry {
-        whisperState.serviceRegistry
-    }
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ModelPrewarm")
+    private lazy var serviceRegistry = TranscriptionServiceRegistry(
+        modelProvider: whisperModelManager,
+        modelsDirectory: whisperModelManager.modelsDirectory,
+        modelContext: modelContext
+    )
     private let prewarmAudioURL = Bundle.main.url(forResource: "esc", withExtension: "wav")
     private let prewarmEnabledKey = "PrewarmModelOnWake"
 
-    init(whisperState: WhisperState, modelContext: ModelContext) {
-        self.whisperState = whisperState
+    init(transcriptionModelManager: TranscriptionModelManager, whisperModelManager: WhisperModelManager, modelContext: ModelContext) {
+        self.transcriptionModelManager = transcriptionModelManager
+        self.whisperModelManager = whisperModelManager
         self.modelContext = modelContext
         setupNotifications()
         schedulePrewarmOnAppLaunch()
@@ -36,14 +38,14 @@ final class ModelPrewarmService: ObservableObject {
             object: nil
         )
 
-        logger.notice("🌅 ModelPrewarmService initialized - listening for wake and app launch")
+        logger.notice("ModelPrewarmService initialized - listening for wake and app launch")
     }
 
     // MARK: - Trigger Handlers
 
     /// Trigger on app launch (cold start)
     private func schedulePrewarmOnAppLaunch() {
-        logger.notice("🌅 App launched, scheduling prewarm")
+        logger.notice("App launched, scheduling prewarm")
         Task {
             try? await Task.sleep(for: .seconds(3))
             await performPrewarm()
@@ -52,7 +54,7 @@ final class ModelPrewarmService: ObservableObject {
 
     /// Trigger on wake from sleep or screen unlock
     @objc private func schedulePrewarm() {
-        logger.notice("🌅 Mac activity detected (wake/unlock), scheduling prewarm")
+        logger.notice("Mac activity detected (wake/unlock), scheduling prewarm")
         Task {
             try? await Task.sleep(for: .seconds(3))
             await performPrewarm()
@@ -69,19 +71,19 @@ final class ModelPrewarmService: ObservableObject {
             return
         }
 
-        guard let currentModel = whisperState.currentTranscriptionModel else {
-            logger.notice("🌅 No model selected, skipping prewarm")
+        guard let currentModel = transcriptionModelManager.currentTranscriptionModel else {
+            logger.notice("No model selected, skipping prewarm")
             return
         }
 
-        logger.notice("🌅 Prewarming \(currentModel.displayName, privacy: .public)")
+        logger.notice("Prewarming \(currentModel.displayName, privacy: .public)")
         let startTime = Date()
 
         do {
             let _ = try await serviceRegistry.transcribe(audioURL: audioURL, model: currentModel)
             let duration = Date().timeIntervalSince(startTime)
 
-            logger.notice("🌅 Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s")
+            logger.notice("Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s")
 
         } catch {
             logger.error("❌ Prewarm failed: \(error.localizedDescription, privacy: .public)")
@@ -94,26 +96,26 @@ final class ModelPrewarmService: ObservableObject {
         // Check if user has enabled prewarming
         let isEnabled = UserDefaults.standard.bool(forKey: prewarmEnabledKey)
         guard isEnabled else {
-            logger.notice("🌅 Prewarm disabled by user")
+            logger.notice("Prewarm disabled by user")
             return false
         }
 
-        // Only prewarm local/on-device models that benefit from upfront compilation/loading.
-        guard let model = whisperState.currentTranscriptionModel else {
+        // Only prewarm local models (Parakeet and Whisper need ANE compilation)
+        guard let model = transcriptionModelManager.currentTranscriptionModel else {
             return false
         }
 
         switch model.provider {
-        case .local, .parakeet, .qwen3, .whisperMLX, .whisperCoreML:
+        case .local, .parakeet:
             return true
         default:
-            logger.notice("🌅 Skipping prewarm - cloud models don't need it")
+            logger.notice("Skipping prewarm - cloud models don't need it")
             return false
         }
     }
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
-        logger.notice("🌅 ModelPrewarmService deinitialized")
+        logger.notice("ModelPrewarmService deinitialized")
     }
 }

@@ -6,7 +6,7 @@ import os
 @MainActor
 class Recorder: NSObject, ObservableObject {
     private var recorder: CoreAudioRecorder?
-    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Recorder")
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Recorder")
     private let deviceManager = AudioDeviceManager.shared
     private var deviceSwitchObserver: NSObjectProtocol?
     private var isReconfiguring = false
@@ -15,7 +15,9 @@ class Recorder: NSObject, ObservableObject {
     @Published var audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
     private var audioLevelCheckTask: Task<Void, Never>?
     private var audioMeterUpdateTimer: DispatchSourceTimer?
-    private let audioMeterQueue = DispatchQueue(label: "\(AppIdentifiers.subsystem).audiometer", qos: .userInteractive)
+    private let audioMeterQueue = DispatchQueue(label: "com.prakashjoshipax.voiceink.audiometer", qos: .userInteractive)
+    /// Dedicated serial queue for hardware setup.
+    private let audioSetupQueue = DispatchQueue(label: "com.prakashjoshipax.voiceink.audioSetup", qos: .userInitiated)
     private var audioRestorationTask: Task<Void, Never>?
     private var hasDetectedAudioInCurrentSession = false
     private let smoothedValuesLock = NSLock()
@@ -65,7 +67,16 @@ class Recorder: NSObject, ObservableObject {
         logger.notice("🎙️ Device switch required: switching to device \(newDeviceID, privacy: .public)")
 
         do {
-            try recorder.switchDevice(to: newDeviceID)
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                audioSetupQueue.async {
+                    do {
+                        try recorder.switchDevice(to: newDeviceID)
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
 
             // Notify user about the switch
             if let deviceName = deviceManager.availableDevices.first(where: { $0.id == newDeviceID })?.name {
@@ -114,7 +125,17 @@ class Recorder: NSObject, ObservableObject {
             coreAudioRecorder.onAudioChunk = onAudioChunk
             recorder = coreAudioRecorder
 
-            try coreAudioRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+            // Offload initialization to background thread to avoid hotkey lag.
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                audioSetupQueue.async {
+                    do {
+                        try coreAudioRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
             logger.notice("startRecording: CoreAudioRecorder started successfully")
 
             audioRestorationTask?.cancel()
@@ -164,7 +185,12 @@ class Recorder: NSObject, ObservableObject {
         audioLevelCheckTask?.cancel()
         audioMeterUpdateTimer?.cancel()
         audioMeterUpdateTimer = nil
-        recorder?.stopRecording()
+        
+        // Capture current recorder to stop it on the serial hardware queue
+        let currentRecorder = self.recorder
+        audioSetupQueue.async {
+            currentRecorder?.stopRecording()
+        }
         recorder = nil
         onAudioChunk = nil
 

@@ -1,14 +1,15 @@
 import SwiftUI
 
-struct NotchRecorderView: View {
-    @ObservedObject var whisperState: WhisperState
+struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
+    @ObservedObject var stateProvider: S
     @ObservedObject var recorder: Recorder
+    @EnvironmentObject var windowManager: NotchWindowManager
     @State private var isHovering = false
     @State private var activePopover: ActivePopoverState = .none
     @ObservedObject private var powerModeManager = PowerModeManager.shared
-    
+
     @EnvironmentObject private var enhancementService: AIEnhancementService
-    
+
     private var menuBarHeight: CGFloat {
         if let screen = NSScreen.main {
             if screen.safeAreaInsets.top > 0 {
@@ -18,7 +19,7 @@ struct NotchRecorderView: View {
         }
         return NSStatusBar.system.thickness
     }
-    
+
     private var exactNotchWidth: CGFloat {
         if let screen = NSScreen.main {
             if screen.safeAreaInsets.left > 0 {
@@ -28,7 +29,7 @@ struct NotchRecorderView: View {
         }
         return 200
     }
-    
+
     private var leftSection: some View {
         HStack(spacing: 16) {
             RecorderPromptButton(
@@ -49,14 +50,14 @@ struct NotchRecorderView: View {
         .padding(.leading, 16)
         .padding(.leading, 4)
     }
-    
+
     private var centerSection: some View {
         Rectangle()
             .fill(Color.clear)
             .frame(width: exactNotchWidth)
             .contentShape(Rectangle())
     }
-    
+
     private var rightSection: some View {
         HStack(spacing: 8) {
             Spacer()
@@ -66,13 +67,12 @@ struct NotchRecorderView: View {
         .padding(.trailing, 16)
         .padding(.trailing, 4)
     }
-    
+
     private var statusDisplay: some View {
         RecorderStatusDisplay(
-            currentState: whisperState.recordingState,
+            currentState: stateProvider.recordingState,
             audioMeter: recorder.audioMeter,
-            menuBarHeight: menuBarHeight,
-            isEditMode: whisperState.isEditMode
+            menuBarHeight: menuBarHeight
         )
         .frame(width: 70)
         .padding(.trailing, 8)
@@ -82,37 +82,23 @@ struct NotchRecorderView: View {
         // TimelineView polls transcript at 10Hz and controls visibility
         // Same pattern as AudioVisualizer - no forced re-renders
         TimelineView(.animation(minimumInterval: 0.1)) { context in
-            let hasText = whisperState.recordingState == .recording && !whisperState.partialTranscript.isEmpty
-            let hasDictEntry = whisperState.pendingDictionaryEntry != nil
+            let hasText = stateProvider.recordingState == .recording && !stateProvider.partialTranscript.isEmpty
 
             VStack(spacing: 0) {
-                if hasDictEntry, let entry = whisperState.pendingDictionaryEntry {
-                    Divider()
-                        .background(Color.white.opacity(0.15))
+                Divider()
+                    .background(Color.white.opacity(0.15))
 
-                    DictionaryConfirmationView(
-                        original: entry.original,
-                        replacement: entry.replacement,
-                        onConfirm: { whisperState.confirmDictionaryEntry() },
-                        onDismiss: { whisperState.dismissDictionaryEntry() }
-                    )
+                Text(stateProvider.partialTranscript)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.8))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, 20)
                     .padding(.vertical, 5)
-                } else {
-                    Divider()
-                        .background(Color.white.opacity(0.15))
-
-                    Text(whisperState.partialTranscript)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.8))
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 5)
-                }
             }
-            .opacity(hasText || hasDictEntry ? 1 : 0)
-            .frame(height: hasText || hasDictEntry ? nil : 0)
+            .opacity(hasText ? 1 : 0)
+            .frame(height: hasText ? nil : 0)
             .clipped()
         }
     }
@@ -127,7 +113,7 @@ struct NotchRecorderView: View {
 
     var body: some View {
         Group {
-            if whisperState.isMiniRecorderVisible {
+            if windowManager.isVisible {
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
                         leftSection
@@ -150,7 +136,7 @@ struct NotchRecorderView: View {
                 .onHover { hovering in
                     isHovering = hovering
                 }
-                .opacity(whisperState.isMiniRecorderVisible ? 1 : 0)
+                .opacity(windowManager.isVisible ? 1 : 0)
             }
         }
     }

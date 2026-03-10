@@ -8,18 +8,19 @@ import AppKit
 
 struct Qwen3ModelCardRowView: View {
     let model: Qwen3Model
-    @ObservedObject var whisperState: WhisperState
+    @ObservedObject var engine: VoiceInkEngine
+    @ObservedObject var transcriptionModelManager: TranscriptionModelManager
 
     var isCurrent: Bool {
-        whisperState.currentTranscriptionModel?.name == model.name
+        transcriptionModelManager.currentTranscriptionModel?.name == model.name
     }
 
     var isDownloaded: Bool {
-        whisperState.isQwen3ModelDownloaded(model)
+        engine.isQwen3ModelDownloaded(model)
     }
 
     var isDownloading: Bool {
-        whisperState.isQwen3ModelDownloading(model)
+        engine.isQwen3ModelDownloading(model)
     }
 
     var body: some View {
@@ -108,7 +109,7 @@ struct Qwen3ModelCardRowView: View {
     private var progressSection: some View {
         Group {
             if isDownloading {
-                let progress = whisperState.downloadProgress[model.name] ?? 0.0
+                let progress = engine.downloadProgress[model.name] ?? 0.0
                 ProgressView(value: progress)
                     .progressViewStyle(LinearProgressViewStyle())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -125,9 +126,7 @@ struct Qwen3ModelCardRowView: View {
                     .foregroundColor(Color(.secondaryLabelColor))
             } else if isDownloaded {
                 Button(action: {
-                    Task {
-                        await whisperState.setDefaultTranscriptionModel(model)
-                    }
+                    transcriptionModelManager.setDefaultTranscriptionModel(model)
                 }) {
                     Text("Set as Default")
                         .font(.system(size: 12))
@@ -137,7 +136,7 @@ struct Qwen3ModelCardRowView: View {
             } else {
                 Button(action: {
                     Task {
-                        await whisperState.downloadQwen3Model(model)
+                        await engine.downloadQwen3Model(model)
                     }
                 }) {
                     HStack(spacing: 4) {
@@ -157,13 +156,13 @@ struct Qwen3ModelCardRowView: View {
             if isDownloaded {
                 Menu {
                     Button(action: {
-                         whisperState.deleteQwen3Model(model)
+                         engine.deleteQwen3Model(model)
                     }) {
                         Label("Delete Model", systemImage: "trash")
                     }
 
                     Button {
-                        whisperState.showQwen3ModelInFinder(model)
+                        engine.showQwen3ModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }

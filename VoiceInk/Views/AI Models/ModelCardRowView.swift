@@ -3,13 +3,15 @@ import AppKit
 
 struct ModelCardRowView: View {
     let model: any TranscriptionModel
-    @ObservedObject var whisperState: WhisperState
+    let engine: VoiceInkEngine
+    let parakeetModelManager: ParakeetModelManager
+    let transcriptionModelManager: TranscriptionModelManager
     let isDownloaded: Bool
     let isCurrent: Bool
     let downloadProgress: [String: Double]
     let modelURL: URL?
     let isWarming: Bool
-    
+
     // Actions
     var deleteAction: () -> Void
     var setDefaultAction: () -> Void
@@ -41,11 +43,12 @@ struct ModelCardRowView: View {
                         setDefaultAction: setDefaultAction
                     )
                 }
-                    case .parakeet:
-            if let parakeetModel = model as? ParakeetModel {
-                ParakeetModelCardRowView(
-                    model: parakeetModel,
-                        whisperState: whisperState
+            case .parakeet:
+                if let parakeetModel = model as? ParakeetModel {
+                    ParakeetModelCardRowView(
+                        model: parakeetModel,
+                        parakeetModelManager: parakeetModelManager,
+                        transcriptionModelManager: transcriptionModelManager
                     )
                 }
             case .nativeApple:
@@ -60,21 +63,23 @@ struct ModelCardRowView: View {
                 if let qwen3Model = model as? Qwen3Model {
                     Qwen3ModelCardRowView(
                         model: qwen3Model,
-                        whisperState: whisperState
+                        engine: engine,
+                        transcriptionModelManager: transcriptionModelManager
                     )
                 }
             case .whisperMLX:
                 if let whisperMLXModel = model as? WhisperMLXModel {
                     WhisperMLXModelCardRowView(
                         model: whisperMLXModel,
-                        whisperState: whisperState
+                        engine: engine,
+                        transcriptionModelManager: transcriptionModelManager
                     )
                 }
             case .whisperCoreML:
                 if let coremlModel = model as? WhisperCoreMLModel {
                     WhisperCoreMLModelCardRowView(
                         model: coremlModel,
-                        whisperState: whisperState
+                        transcriptionModelManager: transcriptionModelManager
                     )
                 }
             case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox:

@@ -1,493 +1,83 @@
 import Foundation
-import SwiftUI
 import AVFoundation
 import SwiftData
-import AppKit
-import KeyboardShortcuts
 import os
 
-// MARK: - Word Substitution (Edit Mode dictionary suggestion)
-struct WordSubstitution {
-    let original: String
-    let replacement: String
-}
-
-// Fixed-size ring buffer to keep pre-session streaming chunks bounded.
-private struct PendingAudioChunkBuffer {
-    private var storage: [Data?]
-    private var head: Int = 0
-    private var count: Int = 0
-
-    init(capacity: Int) {
-        storage = Array(repeating: nil, count: max(1, capacity))
-    }
-
-    mutating func append(_ chunk: Data) {
-        let capacity = storage.count
-        let tail = (head + count) % capacity
-        if count < capacity {
-            storage[tail] = chunk
-            count += 1
-        } else {
-            // Buffer full: overwrite the oldest chunk to keep recent audio.
-            storage[head] = chunk
-            head = (head + 1) % capacity
-        }
-    }
-
-    mutating func drain() -> [Data] {
-        guard count > 0 else { return [] }
-        let capacity = storage.count
-        var result: [Data] = []
-        result.reserveCapacity(count)
-
-        for offset in 0..<count {
-            let index = (head + offset) % capacity
-            if let chunk = storage[index] {
-                result.append(chunk)
-            }
-            storage[index] = nil
-        }
-
-        head = 0
-        count = 0
-        return result
-    }
-
-    mutating func clear() {
-        let capacity = storage.count
-        storage = Array(repeating: nil, count: capacity)
-        head = 0
-        count = 0
-    }
-}
-
-// MARK: - Recording State Machine
-enum RecordingState: Equatable {
-    case idle
-    case starting
-    case recording
-    case transcribing
-    case enhancing
-    case busy
-}
-
+/// Handles the full post-recording pipeline:
+/// transcribe → filter → format → word-replace → Chinese post-process → voice-command → prompt-detect → AI enhance → validate → save → paste → dismiss
 @MainActor
-class WhisperState: NSObject, ObservableObject {
-    @Published var recordingState: RecordingState = .idle
-    @Published var isModelLoaded = false
-    @Published var loadedLocalModel: WhisperModel?
-    @Published var currentTranscriptionModel: (any TranscriptionModel)?
-    @Published var isModelLoading = false
-    @Published var availableModels: [WhisperModel] = []
-    @Published var allAvailableModels: [any TranscriptionModel] = PredefinedModels.models
-    @Published var clipboardMessage = ""
-    @Published var miniRecorderError: String?
-    @Published var shouldCancelRecording = false
-    @Published var isEditMode = false
-    @Published var pendingDictionaryEntry: WordSubstitution?
-    var editModeSelectedText: String?
-    var partialTranscript: String = ""
-    var lastRecordingStopTime: Date?
-    let doublePressCancelThreshold: TimeInterval = 0.4
-    var doublePressStopTask: Task<Void, Never>?
-    var currentSession: TranscriptionSession?
-    private var startupPreparationTask: Task<Void, Never>?
-    private var startupPreparationTaskID: UUID?
-    var editModeDetectionTask: Task<Void, Never>?
-    var deferredModelCleanupTask: Task<Void, Never>?
-    let modelKeepAliveSecondsKey = "ModelKeepAliveSeconds"
-
-
-    @Published var recorderType: String = UserDefaults.standard.string(forKey: "RecorderType") ?? "mini" {
-        didSet {
-            if isMiniRecorderVisible {
-                if oldValue == "notch" {
-                    notchWindowManager?.hide()
-                    notchWindowManager = nil
-                } else {
-                    miniWindowManager?.hide()
-                    miniWindowManager = nil
-                }
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)
-                    showRecorderPanel()
-                }
-            }
-            UserDefaults.standard.set(recorderType, forKey: "RecorderType")
-        }
-    }
-    
-    @Published var isMiniRecorderVisible = false {
-        didSet {
-            // Dispatch asynchronously to avoid "Publishing changes from within view updates" warning
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if self.isMiniRecorderVisible {
-                    self.showRecorderPanel()
-                } else {
-                    self.hideRecorderPanel()
-                }
-            }
-        }
-    }
-    
-    var whisperContext: WhisperContext?
-    let recorder = Recorder()
-    var recordedFile: URL? = nil
-    let whisperPrompt = WhisperPrompt()
-    
-    // Prompt detection service for trigger word handling
+class TranscriptionPipeline {
+    private let modelContext: ModelContext
+    private let serviceRegistry: TranscriptionServiceRegistry
+    private let enhancementService: AIEnhancementService?
     private let promptDetectionService = PromptDetectionService()
-    
-    let modelContext: ModelContext
-    
-    internal var serviceRegistry: TranscriptionServiceRegistry!
-    
-    private var modelUrl: URL? {
-        let possibleURLs = [
-            Bundle.main.url(forResource: "ggml-base.en", withExtension: "bin", subdirectory: "Models"),
-            Bundle.main.url(forResource: "ggml-base.en", withExtension: "bin"),
-            Bundle.main.bundleURL.appendingPathComponent("Models/ggml-base.en.bin")
-        ]
-        
-        for url in possibleURLs {
-            if let url = url, FileManager.default.fileExists(atPath: url.path) {
-                return url
-            }
-        }
-        return nil
-    }
-    
-    private enum LoadError: Error {
-        case couldNotLocateModel
-    }
-    
-    let modelsDirectory: URL
-    let recordingsDirectory: URL
-    let enhancementService: AIEnhancementService?
-    let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "WhisperState")
-    var notchWindowManager: NotchWindowManager?
-    var miniWindowManager: MiniWindowManager?
-    
-    // For model progress tracking
-    @Published var downloadProgress: [String: Double] = [:]
-    @Published var parakeetDownloadStates: [String: Bool] = [:]
-    @Published var qwen3DownloadStates: [String: Bool] = [:]
-    @Published var whisperMLXDownloadStates: [String: Bool] = [:]
-    
-    init(modelContext: ModelContext, enhancementService: AIEnhancementService? = nil) {
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionPipeline")
+
+    var licenseViewModel: LicenseViewModel
+
+    init(
+        modelContext: ModelContext,
+        serviceRegistry: TranscriptionServiceRegistry,
+        enhancementService: AIEnhancementService?
+    ) {
         self.modelContext = modelContext
-        let appSupportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(AppIdentifiers.bundleID)
-        
-        self.modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
-        self.recordingsDirectory = appSupportDirectory.appendingPathComponent("Recordings")
-        
+        self.serviceRegistry = serviceRegistry
         self.enhancementService = enhancementService
-
-        super.init()
-        
-        // Configure the session manager
-        if let enhancementService = enhancementService {
-            PowerModeSessionManager.shared.configure(whisperState: self, enhancementService: enhancementService)
-        }
-
-        // Initialize the transcription service registry
-        self.serviceRegistry = TranscriptionServiceRegistry(whisperState: self, modelsDirectory: self.modelsDirectory)
-        
-        setupNotifications()
-        createModelsDirectoryIfNeeded()
-        createRecordingsDirectoryIfNeeded()
-        loadAvailableModels()
-        loadCurrentTranscriptionModel()
-        refreshAllAvailableModels()
-
-        // Start background Edit Mode cache polling
-        EditModeCacheService.shared.startPolling()
-    }
-    
-    private func createRecordingsDirectoryIfNeeded() {
-        do {
-            try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true, attributes: nil)
-        } catch {
-            logger.error("Error creating recordings directory: \(error.localizedDescription, privacy: .public)")
-        }
+        self.licenseViewModel = LicenseViewModel()
     }
 
-    func cancelStartupPreparationTask() {
-        startupPreparationTask?.cancel()
-        startupPreparationTask = nil
-        startupPreparationTaskID = nil
-    }
-
-    func cancelEditModeDetectionTask() {
-        editModeDetectionTask?.cancel()
-        editModeDetectionTask = nil
-    }
-    
-    func toggleRecord(powerModeId: UUID? = nil) async {
-        logger.notice("toggleRecord called – state=\(String(describing: self.recordingState), privacy: .public)")
-        if recordingState == .recording {
-            cancelStartupPreparationTask()
-            partialTranscript = ""
-            recordingState = .transcribing
-            await recorder.stopRecording()
-            if let recordedFile {
-                if !shouldCancelRecording {
-                    let audioAsset = AVURLAsset(url: recordedFile)
-                    let duration = (try? CMTimeGetSeconds(await audioAsset.load(.duration))) ?? 0.0
-
-                    let transcription = Transcription(
-                        text: "",
-                        duration: duration,
-                        audioFileURL: recordedFile.absoluteString,
-                        transcriptionStatus: .pending
-                    )
-                    modelContext.insert(transcription)
-                    try? modelContext.save()
-                    NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
-
-                    await transcribeAudio(on: transcription)
-                } else {
-                    currentSession?.cancel()
-                    currentSession = nil
-                    try? FileManager.default.removeItem(at: recordedFile)
-                    await MainActor.run {
-                        recordingState = .idle
-                    }
-                    await cleanupModelResources()
-                }
-            } else {
-                logger.error("❌ No recorded file found after stopping recording")
-                currentSession?.cancel()
-                currentSession = nil
-                await MainActor.run {
-                    recordingState = .idle
-                }
-            }
-        } else {
-            logger.notice("toggleRecord: entering start-recording branch")
-            guard currentTranscriptionModel != nil else {
-                await MainActor.run {
-                    NotificationManager.shared.showNotification(
-                        title: "No AI Model Selected",
-                        type: .error
-                    )
-                }
-                return
-            }
-            cancelStartupPreparationTask()
-            shouldCancelRecording = false
-            partialTranscript = ""
-            requestRecordPermission { [self] granted in
-                if granted {
-                    // Set recording state IMMEDIATELY — before Task scheduling.
-                    // This eliminates the ~500ms visual delay: the window shows
-                    // AudioVisualizer on the very next render cycle (~16ms) instead
-                    // of waiting for Task scheduling + startRecording to complete.
-                    self.recordingState = .recording
-
-                    Task {
-                        do {
-                            // --- Prepare permanent file URL ---
-                            let fileName = "\(UUID().uuidString).wav"
-                            let permanentURL = self.recordingsDirectory.appendingPathComponent(fileName)
-                            self.recordedFile = permanentURL
-
-                            // Buffer chunks from the start; session created after Power Mode resolves.
-                            // Keep this bounded to avoid memory growth when provider setup is delayed.
-                            let pendingChunks = OSAllocatedUnfairLock(
-                                initialState: PendingAudioChunkBuffer(capacity: 240)
-                            )
-                            self.recorder.onAudioChunk = { data in
-                                pendingChunks.withLock { $0.append(data) }
-                            }
-
-                            // Start recording — engine is pre-warmed so this is near-instant
-                            try await self.recorder.startRecording(toOutputFile: permanentURL)
-                            self.logger.notice("toggleRecord: recording started successfully")
-
-                            // Power Mode resolves while recording runs (~50-200ms)
-                            await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId)
-
-                            // Create session with the resolved model (skip if user already stopped)
-                            if self.recordingState == .recording, let model = self.currentTranscriptionModel {
-                                let session = self.serviceRegistry.createSession(for: model, onPartialTranscript: { [weak self] partial in
-                                    Task { @MainActor in
-                                        self?.partialTranscript = partial
-                                    }
-                                })
-                                self.currentSession = session
-                                let realCallback = try await session.prepare(model: model)
-
-                                if let realCallback = realCallback {
-                                    // Swap callback first so new chunks go straight to the session
-                                    self.recorder.onAudioChunk = realCallback
-                                    // Then flush anything that was buffered before the swap
-                                    let buffered = pendingChunks.withLock { $0.drain() }
-                                    for chunk in buffered { realCallback(chunk) }
-                                } else {
-                                    self.recorder.onAudioChunk = nil
-                                    pendingChunks.withLock { $0.clear() }
-                                }
-                            }
-
-                            // Load model and capture context in background without blocking
-                            // Capture frontmost app info NOW (before detached task, where frontmost = Voco)
-                            let capturedFrontApp = NSWorkspace.shared.frontmostApplication
-                            let capturedAppName = capturedFrontApp?.localizedName
-
-                            let startupTaskID = UUID()
-                            self.startupPreparationTaskID = startupTaskID
-                            self.startupPreparationTask = Task.detached { [weak self] in
-                                guard let self = self else { return }
-                                defer {
-                                    Task { @MainActor [weak self] in
-                                        guard let self = self else { return }
-                                        if self.startupPreparationTaskID == startupTaskID {
-                                            self.startupPreparationTask = nil
-                                            self.startupPreparationTaskID = nil
-                                        }
-                                    }
-                                }
-
-                                guard !Task.isCancelled else { return }
-
-                                // Preload the active on-device model while user is recording.
-                                let selectedModel = await self.currentTranscriptionModel
-                                if let model = selectedModel, model.provider == .local {
-                                    if let localWhisperModel = await self.availableModels.first(where: { $0.name == model.name }),
-                                       await self.whisperContext == nil {
-                                        do {
-                                            try await self.loadModel(localWhisperModel)
-                                        } catch {
-                                            await self.logger.error("❌ Model loading failed: \(error.localizedDescription, privacy: .public)")
-                                        }
-                                    }
-                                } else if let parakeetModel = selectedModel as? ParakeetModel {
-                                    try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
-                                } else if let whisperMLXModel = selectedModel as? WhisperMLXModel {
-                                    try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: whisperMLXModel)
-                                }
-
-                                guard !Task.isCancelled else { return }
-
-                                if let enhancementService = await self.enhancementService {
-                                    // Cache app context (app name + AX window title + selected text)
-                                    // so getSystemMessage() doesn't need live AX queries later.
-                                    // Always read from EditModeCacheService — it's the sole AX query source.
-                                    let editCache = EditModeCacheService.shared
-                                    await MainActor.run {
-                                        enhancementService.cachedAppName = editCache.cachedAppName ?? capturedAppName
-                                        enhancementService.cachedWindowTitle = editCache.cachedWindowTitle
-                                        enhancementService.cachedSelectedText = editCache.cachedSelectedText
-                                    }
-
-                                    guard !Task.isCancelled else { return }
-
-                                    let shouldCaptureClipboard = await MainActor.run {
-                                        enhancementService.useClipboardContext
-                                    }
-                                    if shouldCaptureClipboard {
-                                        await MainActor.run {
-                                            enhancementService.captureClipboardContext()
-                                        }
-                                    }
-
-                                    guard !Task.isCancelled else { return }
-
-                                    let shouldCaptureScreen = await MainActor.run {
-                                        enhancementService.useScreenCaptureContext
-                                    }
-                                    if shouldCaptureScreen {
-                                        await enhancementService.captureScreenContext()
-                                    }
-                                }
-                            }
-
-                        } catch {
-                            self.cancelStartupPreparationTask()
-                            self.logger.error("❌ Failed to start recording: \(error.localizedDescription, privacy: .public)")
-                            await NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
-                            self.logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")
-                            await self.dismissMiniRecorder()
-                            // Do not remove the file on a failed start, to preserve all recordings.
-                            self.recordedFile = nil
-                        }
-                    }
-                } else {
-                    logger.error("❌ Recording permission denied.")
-                }
-            }
-        }
-    }
-    
-    private func requestRecordPermission(response: @escaping (Bool) -> Void) {
-        response(true)
-    }
-    
-    private func transcribeAudio(on transcription: Transcription) async {
-        guard let urlString = transcription.audioFileURL, let url = URL(string: urlString) else {
-            logger.error("❌ Invalid audio file URL in transcription object.")
-            await MainActor.run {
-                recordingState = .idle
-            }
-            transcription.text = "Transcription Failed: Invalid audio file URL"
-            transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
-            try? modelContext.save()
+    /// Run the full pipeline for a given transcription record.
+    /// - Parameters:
+    ///   - transcription: The pending Transcription SwiftData object to populate and save.
+    ///   - audioURL: The recorded audio file.
+    ///   - model: The transcription model to use.
+    ///   - session: An active streaming session if one was prepared, otherwise nil.
+    ///   - isEditMode: Whether Edit Mode is active (fork feature).
+    ///   - editModeSelectedText: The selected text for Edit Mode replacement (fork feature).
+    ///   - onStateChange: Called when the pipeline moves to a new recording state (e.g. `.enhancing`).
+    ///   - shouldCancel: Returns true if the user requested cancellation.
+    ///   - onCleanup: Called when cancellation is detected to release model resources.
+    ///   - onDismiss: Called at the end to dismiss the recorder panel.
+    ///   - onEditModeComplete: Called when Edit Mode finishes, with optional dictionary suggestion.
+    func run(
+        transcription: Transcription,
+        audioURL: URL,
+        model: any TranscriptionModel,
+        session: TranscriptionSession?,
+        isEditMode: Bool = false,
+        editModeSelectedText: String? = nil,
+        onStateChange: @escaping (RecordingState) -> Void,
+        shouldCancel: () -> Bool,
+        onCleanup: @escaping () async -> Void,
+        onDismiss: @escaping () async -> Void,
+        onEditModeComplete: ((WordSubstitution?) -> Void)? = nil
+    ) async {
+        if shouldCancel() {
+            await onCleanup()
             return
         }
 
-        if shouldCancelRecording {
-            await MainActor.run {
-                recordingState = .idle
-            }
-            await cleanupModelResources()
-            return
-        }
-
-        await MainActor.run {
-            recordingState = .transcribing
-        }
-
-        // Play stop sound when transcription starts with a small delay
         Task {
             let isSystemMuteEnabled = UserDefaults.standard.bool(forKey: "isSystemMuteEnabled")
             if isSystemMuteEnabled {
-                try? await Task.sleep(nanoseconds: 200_000_000) // 200 milliseconds delay
+                try? await Task.sleep(nanoseconds: 200_000_000)
             }
-            await MainActor.run {
-                SoundManager.shared.playStopSound()
-            }
+            SoundManager.shared.playStopSound()
         }
 
-        defer {
-            if shouldCancelRecording {
-                Task {
-                    await cleanupModelResources()
-                }
-            }
-        }
-
-        logger.notice("🔄 Starting transcription...")
-        
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
         let postProcessor = ChinesePostProcessingService.shared
 
-        do {
-            guard let model = currentTranscriptionModel else {
-                throw WhisperStateError.transcriptionFailed
-            }
+        logger.notice("🔄 Starting transcription...")
 
+        do {
             let transcriptionStart = Date()
             var text: String
-            if let session = currentSession {
-                text = try await session.transcribe(audioURL: url)
-                currentSession = nil
+            if let session {
+                text = try await session.transcribe(audioURL: audioURL)
             } else {
-                text = try await serviceRegistry.transcribe(audioURL: url, model: model)
+                text = try await serviceRegistry.transcribe(audioURL: audioURL, model: model)
             }
             logger.notice("📝 Transcript: \(text, privacy: .private)")
             text = TranscriptionOutputFilter.filter(text)
@@ -499,7 +89,7 @@ class WhisperState: NSObject, ObservableObject {
             let powerModeName = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.name : nil
             let powerModeEmoji = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.emoji : nil
 
-            if await checkCancellationAndCleanup() { return }
+            if shouldCancel() { await onCleanup(); return }
 
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -515,13 +105,11 @@ class WhisperState: NSObject, ObservableObject {
             postProcessor.lastModelProvider = model.provider
 
             // Pre-compute audio duration for Qwen3 speech rate check
-            let preAudioAsset = AVURLAsset(url: url)
+            let preAudioAsset = AVURLAsset(url: audioURL)
             let preAudioDuration = (try? CMTimeGetSeconds(await preAudioAsset.load(.duration))) ?? 0.0
             postProcessor.lastAudioDuration = preAudioDuration
 
             // === Language-aware Chinese Post-Processing Pipeline ===
-            // Qwen3's language tag is unreliable for mixed Chinese-English content
-            // (e.g. 中文夾 dictionary 會被標成 English)，所以改用漢字存在性判斷
             let detectedLanguage: String? = (model.provider == .qwen3)
                 ? serviceRegistry.qwen3TranscriptionService.lastDetectedLanguage
                 : nil
@@ -550,12 +138,10 @@ class WhisperState: NSObject, ObservableObject {
                     transcription.text = "Discarded: severe repetition"
                     transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
                     try? modelContext.save()
-                    await self.dismissMiniRecorder()
-                    shouldCancelRecording = false
+                    await onDismiss()
                     return
                 }
             } else if postProcessor.isEnabled {
-                // Non-Chinese language detected: skip Chinese post-processing, skip LLM enhancement
                 ppNeedsLLM = false
                 logger.notice("📝 Skipping Chinese post-processing (detected language: \(detectedLanguage ?? "unknown", privacy: .public))")
             }
@@ -581,10 +167,7 @@ class WhisperState: NSObject, ObservableObject {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         editCommand.execute()
                     }
-                    isEditMode = false
-                    editModeSelectedText = nil
-                    await self.dismissMiniRecorder()
-                    shouldCancelRecording = false
+                    await onDismiss()
                     return
                 }
 
@@ -594,18 +177,13 @@ class WhisperState: NSObject, ObservableObject {
                     transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
                     transcription.text = text
                     try? modelContext.save()
-                    isEditMode = false
-                    editModeSelectedText = nil
-                    await self.dismissMiniRecorder()
-                    shouldCancelRecording = false
+                    await onDismiss()
                     return
                 }
 
-                if await checkCancellationAndCleanup() {
-                    isEditMode = false; editModeSelectedText = nil; return
-                }
+                if shouldCancel() { await onCleanup(); return }
 
-                await MainActor.run { self.recordingState = .enhancing }
+                onStateChange(.enhancing)
 
                 do {
                     let (editedText, editDuration, substitution) = try await enhancementService.enhanceForEditMode(
@@ -621,9 +199,7 @@ class WhisperState: NSObject, ObservableObject {
                     try? modelContext.save()
                     NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
 
-                    if await checkCancellationAndCleanup() {
-                        isEditMode = false; editModeSelectedText = nil; return
-                    }
+                    if shouldCancel() { await onCleanup(); return }
 
                     // Paste to replace selected text (no trailing space)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -632,14 +208,7 @@ class WhisperState: NSObject, ObservableObject {
 
                     // If LLM identified a simple word substitution → show dictionary confirmation
                     if let sub = substitution {
-                        await MainActor.run {
-                            self.pendingDictionaryEntry = sub
-                            self.recordingState = .idle
-                        }
-                        startDictionaryDismissTimer()
-                        isEditMode = false
-                        editModeSelectedText = nil
-                        shouldCancelRecording = false
+                        onEditModeComplete?(sub)
                         return
                     }
                 } catch {
@@ -648,14 +217,11 @@ class WhisperState: NSObject, ObservableObject {
                     try? modelContext.save()
                 }
 
-                isEditMode = false
-                editModeSelectedText = nil
-                await self.dismissMiniRecorder()
-                shouldCancelRecording = false
+                await onDismiss()
                 return
             }
 
-            // Voice command detection — intercept before AI enhancement (normal mode only)
+            // === Voice command detection (normal mode) ===
             if let command = VoiceCommandService.shared.detectCommand(in: text) {
                 logger.notice("🎤 Voice command detected: \(command.rawValue, privacy: .private)")
                 transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
@@ -664,12 +230,12 @@ class WhisperState: NSObject, ObservableObject {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     command.execute()
                 }
-                await self.dismissMiniRecorder()
-                shouldCancelRecording = false
+                await onDismiss()
                 return
             }
 
-            if let enhancementService = enhancementService, enhancementService.isConfigured {
+            // === Prompt detection ===
+            if let enhancementService, enhancementService.isConfigured {
                 let detectionResult = await promptDetectionService.analyzeText(text, with: enhancementService)
                 promptDetectionResult = detectionResult
                 await promptDetectionService.applyDetectionResult(detectionResult, to: enhancementService)
@@ -677,22 +243,22 @@ class WhisperState: NSObject, ObservableObject {
 
             // Determine if AI Enhancement should be skipped (confidence routing)
             let shouldSkipEnhancement = postProcessor.isEnabled && !ppNeedsLLM
-            ChinesePostProcessingService.debugLog("WHISPER_STATE: shouldSkip=\(shouldSkipEnhancement), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
+            ChinesePostProcessingService.debugLog("PIPELINE: shouldSkip=\(shouldSkipEnhancement), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
 
             if !shouldSkipEnhancement,
-               let enhancementService = enhancementService,
+               let enhancementService,
                enhancementService.isEnhancementEnabled,
                enhancementService.isConfigured {
-                if await checkCancellationAndCleanup() { return }
+                if shouldCancel() { await onCleanup(); return }
 
-                await MainActor.run { self.recordingState = .enhancing }
+                onStateChange(.enhancing)
                 let textForAI = promptDetectionResult?.processedText ?? text
 
                 do {
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
                     logger.notice("📝 AI enhancement: \(enhancedText, privacy: .private)")
 
-                    // LLM response validation
+                    // === LLM response validation ===
                     if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
                         let protectedTerms = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
                             + CorrectionProtectionList.shared.allWords()
@@ -734,12 +300,8 @@ class WhisperState: NSObject, ObservableObject {
                             }
 
                             if !retrySucceeded {
-                                // Fallback: use original enhanced text if failures are mild
-                                // (content-drift, dropped-term, short-edit-budget are less severe
-                                //  than losing all punctuation from the pre-LLM text)
                                 if validation.isRetryable {
-                                    // CJK overlap check: detect hallucination where enhanced text
-                                    // shares almost no CJK characters with the original
+                                    // CJK overlap check: detect hallucination
                                     let originalCJK = Set(textForAI.unicodeScalars.filter {
                                         (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
                                     })
@@ -771,15 +333,11 @@ class WhisperState: NSObject, ObservableObject {
                         finalPastedText = enhancedText
                     }
 
-                    // Post-LLM punctuation density check:
-                    // LLM may pass validation but still return text without punctuation
-                    // (Gemini Flash Lite is inconsistent about adding punctuation).
-                    // Two checks: (1) overall density, (2) long CJK span without punctuation.
+                    // === Post-LLM punctuation density check ===
                     if let acceptedText = finalPastedText, acceptedText.count >= 10 {
                         let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
                         let pCount = acceptedText.filter { cjkPunct.contains($0) }.count
                         let expected = max(acceptedText.count / 20, 1)
-                        // Long span check: any segment with >12 consecutive CJK chars without punctuation
                         let maxCJKSpan = 12
                         var hasLongSpan = false
                         var cjkRunCount = 0
@@ -803,9 +361,7 @@ class WhisperState: NSObject, ObservableObject {
                                 let (retryResult, retryDuration) = try await enhancementService.enhanceConservative(
                                     acceptedText, uncertainWords: []
                                 )
-                                // Only accept if it actually added punctuation AND resolved long span
                                 let retryPunctCount = retryResult.filter { cjkPunct.contains($0) }.count
-                                // Re-check long span on retry result
                                 var retryStillHasLongSpan = false
                                 if hasLongSpan {
                                     var rrc = 0
@@ -825,17 +381,15 @@ class WhisperState: NSObject, ObservableObject {
                                     finalPastedText = retryResult
                                     transcription.enhancementDuration = (transcription.enhancementDuration ?? 0) + retryDuration
                                 } else if hasLongSpan {
-                                    // Conservative retry didn't resolve long span — try comma-only prompt
+                                    // Try comma-only prompt
                                     ChinesePostProcessingService.debugLog(
                                         "POST_LLM_PUNCT_RETRY: still longSpan (punctCount \(pCount)→\(retryPunctCount)), trying comma insertion prompt"
                                     )
-                                    // Use retry result if it improved (e.g. added period), otherwise use current text
                                     let commaInput = retryPunctCount > pCount ? retryResult : (finalPastedText ?? acceptedText)
                                     do {
                                         let (commaResult, commaDuration) = try await enhancementService.enhanceCommaInsertion(commaInput)
                                         let commaInputPunctCount = commaInput.filter { cjkPunct.contains($0) }.count
                                         let commaPunctCount = commaResult.filter { cjkPunct.contains($0) }.count
-                                        // Text-unchanged validation: comma insertion should only add commas, not change any text
                                         let commaInputStripped = String(commaInput.filter { !cjkPunct.contains($0) })
                                         let commaResultStripped = String(commaResult.filter { !cjkPunct.contains($0) })
                                         let commaTextUnchanged = commaInputStripped == commaResultStripped
@@ -869,13 +423,11 @@ class WhisperState: NSObject, ObservableObject {
                         }
                     }
 
-                    // Final fallback: rule-based punctuation insertion
-                    // If after all LLM attempts the text still lacks punctuation, apply pure Swift rules
+                    // === Final fallback: rule-based punctuation insertion ===
                     if let currentText = finalPastedText, currentText.count >= 10 {
                         let cjkPunctFinal: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
                         let finalPunctCount = currentText.filter { cjkPunctFinal.contains($0) }.count
                         let finalExpected = max(currentText.count / 20, 1)
-                        // Long span check
                         var finalHasLongSpan = false
                         var finalCjkRun = 0
                         for char in currentText {
@@ -906,8 +458,7 @@ class WhisperState: NSObject, ObservableObject {
                     transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
                 } catch {
                     transcription.enhancedText = "Enhancement failed: \(error)"
-
-                    if await checkCancellationAndCleanup() { return }
+                    if shouldCancel() { await onCleanup(); return }
                 }
             } else if shouldSkipEnhancement {
                 logger.notice("📝 Skipping AI enhancement (confidence routing)")
@@ -918,7 +469,6 @@ class WhisperState: NSObject, ObservableObject {
                 let pastedText = finalPastedText ?? ""
                 let punctCount = pastedText.filter { cjkPunctuation.contains($0) }.count
                 let expectedPunct = pastedText.count / 20
-                // Long span check: any segment with >15 consecutive CJK chars without punctuation
                 var safetyNetLongSpan = false
                 if pastedText.count >= 10 {
                     var safetyRunCount = 0
@@ -937,11 +487,11 @@ class WhisperState: NSObject, ObservableObject {
                 let insufficientPunct = pastedText.count >= 10 && (punctCount < max(expectedPunct, 1) || safetyNetLongSpan)
                 ChinesePostProcessingService.debugLog("SAFETY_NET_CHECK: len=\(pastedText.count), punctCount=\(punctCount), expected=\(max(expectedPunct, 1)), longSpan=\(safetyNetLongSpan), willTrigger=\(insufficientPunct)")
                 if insufficientPunct,
-                   let enhancementService = enhancementService,
+                   let enhancementService,
                    enhancementService.isEnhancementEnabled,
                    enhancementService.isConfigured {
                     logger.notice("📝 Safety net triggered: long text without punctuation, forcing LLM")
-                    await MainActor.run { self.recordingState = .enhancing }
+                    onStateChange(.enhancing)
                     let textForAI = promptDetectionResult?.processedText ?? text
                     do {
                         let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
@@ -971,13 +521,13 @@ class WhisperState: NSObject, ObservableObject {
         }
 
         try? modelContext.save()
-
         NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
 
-        if await checkCancellationAndCleanup() { return }
+        if shouldCancel() { await onCleanup(); return }
 
-        if var textToPaste = finalPastedText, transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
-            // Enforce vocabulary casing as the final text processing step (after AI enhancement)
+        if var textToPaste = finalPastedText,
+           transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+            // Enforce vocabulary casing as the final text processing step
             textToPaste = WordReplacementService.shared.enforceVocabularyCasing(
                 text: textToPaste, using: modelContext)
 
@@ -986,13 +536,19 @@ class WhisperState: NSObject, ObservableObject {
                 postProcessor.contextMemory.add(textToPaste)
             }
 
+            if case .trialExpired = licenseViewModel.licenseState {
+                textToPaste = """
+                    Your trial has expired. Upgrade to VoiceInk Pro at tryvoiceink.com/buy
+                    \n\(textToPaste)
+                    """
+            }
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
                 CursorPaster.pasteAtCursor(textToPaste + (appendSpace ? " " : ""))
 
                 let powerMode = PowerModeManager.shared
                 if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.isAutoSendEnabled {
-                    // Slight delay to ensure the paste operation completes
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         CursorPaster.pressEnter()
                     }
@@ -1001,73 +557,11 @@ class WhisperState: NSObject, ObservableObject {
         }
 
         if let result = promptDetectionResult,
-           let enhancementService = enhancementService,
+           let enhancementService,
            result.shouldEnableAI {
             await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
         }
 
-        await self.dismissMiniRecorder()
-
-        shouldCancelRecording = false
-    }
-
-    // MARK: - Edit Mode Dictionary Confirmation
-
-    private var dictionaryDismissTimer: DispatchWorkItem?
-
-    func confirmDictionaryEntry() {
-        guard let entry = pendingDictionaryEntry else { return }
-        dictionaryDismissTimer?.cancel()
-        dictionaryDismissTimer = nil
-
-        let replacement = WordReplacement(
-            originalText: entry.original,
-            replacementText: entry.replacement
-        )
-        modelContext.insert(replacement)
-        try? modelContext.save()
-
-        NotificationManager.shared.showNotification(
-            title: "\(entry.original) → \(entry.replacement)",
-            type: .success,
-            duration: 2.0
-        )
-        pendingDictionaryEntry = nil
-        Task { await dismissMiniRecorder() }
-    }
-
-    func dismissDictionaryEntry() {
-        dictionaryDismissTimer?.cancel()
-        dictionaryDismissTimer = nil
-        pendingDictionaryEntry = nil
-        Task { await dismissMiniRecorder() }
-    }
-
-    func startDictionaryDismissTimer() {
-        dictionaryDismissTimer?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                self?.pendingDictionaryEntry = nil
-                await self?.dismissMiniRecorder()
-            }
-        }
-        dictionaryDismissTimer = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
-    }
-
-    func getEnhancementService() -> AIEnhancementService? {
-        return enhancementService
-    }
-    
-    private func checkCancellationAndCleanup() async -> Bool {
-        if shouldCancelRecording {
-            await cleanupModelResources()
-            return true
-        }
-        return false
-    }
-
-    private func cleanupAndDismiss() async {
-        await dismissMiniRecorder()
+        await onDismiss()
     }
 }

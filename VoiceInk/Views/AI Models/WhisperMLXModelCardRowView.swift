@@ -8,18 +8,19 @@ import AppKit
 
 struct WhisperMLXModelCardRowView: View {
     let model: WhisperMLXModel
-    @ObservedObject var whisperState: WhisperState
+    @ObservedObject var engine: VoiceInkEngine
+    @ObservedObject var transcriptionModelManager: TranscriptionModelManager
 
     var isCurrent: Bool {
-        whisperState.currentTranscriptionModel?.name == model.name
+        transcriptionModelManager.currentTranscriptionModel?.name == model.name
     }
 
     var isDownloaded: Bool {
-        whisperState.isWhisperMLXModelDownloaded(model)
+        engine.isWhisperMLXModelDownloaded(model)
     }
 
     var isDownloading: Bool {
-        whisperState.isWhisperMLXModelDownloading(model)
+        engine.isWhisperMLXModelDownloading(model)
     }
 
     var body: some View {
@@ -108,7 +109,7 @@ struct WhisperMLXModelCardRowView: View {
     private var progressSection: some View {
         Group {
             if isDownloading {
-                let progress = whisperState.downloadProgress[model.name] ?? 0.0
+                let progress = engine.downloadProgress[model.name] ?? 0.0
                 ProgressView(value: progress)
                     .progressViewStyle(LinearProgressViewStyle())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -125,9 +126,7 @@ struct WhisperMLXModelCardRowView: View {
                     .foregroundColor(Color(.secondaryLabelColor))
             } else if isDownloaded {
                 Button(action: {
-                    Task {
-                        await whisperState.setDefaultTranscriptionModel(model)
-                    }
+                    transcriptionModelManager.setDefaultTranscriptionModel(model)
                 }) {
                     Text("Set as Default")
                         .font(.system(size: 12))
@@ -137,7 +136,7 @@ struct WhisperMLXModelCardRowView: View {
             } else {
                 Button(action: {
                     Task {
-                        await whisperState.downloadWhisperMLXModel(model)
+                        await engine.downloadWhisperMLXModel(model)
                     }
                 }) {
                     HStack(spacing: 4) {
@@ -157,13 +156,13 @@ struct WhisperMLXModelCardRowView: View {
             if isDownloaded {
                 Menu {
                     Button(action: {
-                        whisperState.deleteWhisperMLXModel(model)
+                        engine.deleteWhisperMLXModel(model)
                     }) {
                         Label("Delete Model", systemImage: "trash")
                     }
 
                     Button {
-                        whisperState.showWhisperMLXModelInFinder(model)
+                        engine.showWhisperMLXModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }
