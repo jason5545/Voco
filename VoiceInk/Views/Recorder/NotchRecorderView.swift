@@ -72,7 +72,8 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         RecorderStatusDisplay(
             currentState: stateProvider.recordingState,
             audioMeter: recorder.audioMeter,
-            menuBarHeight: menuBarHeight
+            menuBarHeight: menuBarHeight,
+            isEditMode: stateProvider.isEditMode
         )
         .frame(width: 70)
         .padding(.trailing, 8)

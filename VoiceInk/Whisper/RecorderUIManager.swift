@@ -52,6 +52,7 @@ class RecorderUIManager: ObservableObject {
         self.engine = engine
         self.recorder = recorder
         setupNotifications()
+        EditModeCacheService.shared.startPolling()
     }
 
     // MARK: - Recorder Panel Management
@@ -97,6 +98,19 @@ class RecorderUIManager: ObservableObject {
             }
         } else {
             SoundManager.shared.playStartSound()
+
+            // Edit Mode detection: check cached selected text before recording
+            EditModeCacheService.shared.stopPolling()
+            let cache = EditModeCacheService.shared
+            if cache.cachedIsEditable, let selectedText = cache.cachedSelectedText, !selectedText.isEmpty {
+                engine.forkState.isEditMode = true
+                engine.forkState.editModeSelectedText = selectedText
+            } else {
+                engine.forkState.isEditMode = false
+                engine.forkState.editModeSelectedText = nil
+            }
+            logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil)")
+
             await MainActor.run { isMiniRecorderVisible = true }
             await engine.toggleRecord(powerModeId: powerModeId)
         }

@@ -14,9 +14,25 @@ enum ViewType: String, CaseIterable, Identifiable {
     case audioInput = "Audio Input"
     case dictionary = "Dictionary"
     case settings = "Settings"
-    case license = "VoiceInk Pro"
+    case license = "Voco Pro"
 
     var id: String { rawValue }
+
+    var localizedName: String {
+        switch self {
+        case .metrics: return String(localized: "Dashboard")
+        case .transcribeAudio: return String(localized: "Transcribe Audio")
+        case .history: return String(localized: "History")
+        case .models: return String(localized: "AI Models")
+        case .enhancement: return String(localized: "Enhancement")
+        case .powerMode: return String(localized: "Power Mode")
+        case .permissions: return String(localized: "Permissions")
+        case .audioInput: return String(localized: "Audio Input")
+        case .dictionary: return String(localized: "Dictionary")
+        case .settings: return String(localized: "Settings")
+        case .license: return String(localized: "Voco Pro")
+        }
+    }
 
     var icon: String {
         switch self {
@@ -70,6 +86,9 @@ struct ContentView: View {
             if viewType == .powerMode {
                 return powerModeUIFlag
             }
+            if viewType == .license {
+                return false
+            }
             return true
         }
     }
@@ -88,18 +107,8 @@ struct ContentView: View {
                                 .cornerRadius(8)
                         }
 
-                        Text("VoiceInk")
+                        Text("Voco")
                             .font(.system(size: 14, weight: .semibold))
-
-                        if case .licensed = licenseViewModel.licenseState {
-                            Text("PRO")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(4)
-                        }
 
                         Spacer()
                     }
@@ -131,13 +140,13 @@ struct ContentView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationTitle("VoiceInk")
+            .navigationTitle("Voco")
             .navigationSplitViewColumnWidth(210)
         } detail: {
             if let selectedView = selectedView {
                 detailView(for: selectedView)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle(selectedView.rawValue)
+                    .navigationTitle(selectedView.localizedName)
             } else {
                 Text("Select a view")
                     .foregroundColor(.secondary)
@@ -153,7 +162,7 @@ struct ContentView: View {
                     selectedView = .settings
                 case "AI Models":
                     selectedView = .models
-                case "VoiceInk Pro":
+                case "Voco Pro":
                     selectedView = .license
                 case "History":
                     HistoryWindowController.shared.showHistoryWindow(
@@ -214,7 +223,7 @@ private struct SidebarItemView: View {
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 24, height: 24)
 
-            Text(viewType.rawValue)
+            Text(viewType.localizedName)
                 .font(.system(size: 14, weight: .medium))
 
             Spacer()
