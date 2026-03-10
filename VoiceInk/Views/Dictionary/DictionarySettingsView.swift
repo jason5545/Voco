@@ -9,13 +9,20 @@ struct DictionarySettingsView: View {
     enum DictionarySection: String, CaseIterable {
         case replacements = "Word Replacements"
         case spellings = "Vocabulary"
-        
-        var description: String {
+
+        var localizedName: String {
+            switch self {
+            case .replacements: return String(localized: "Word Replacements")
+            case .spellings: return String(localized: "Vocabulary")
+            }
+        }
+
+        var localizedDescription: String {
             switch self {
             case .spellings:
-                return "Add words to help Voco recognize them properly"
+                return String(localized: "Add words to help Voco recognize them properly")
             case .replacements:
-                return "Automatically replace specific words/phrases with custom formatted text "
+                return String(localized: "Automatically replace specific words/phrases with custom formatted text")
             }
         }
         
@@ -131,10 +138,10 @@ struct SectionCard: View {
                     .foregroundStyle(isSelected ? .blue : .secondary)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(section.rawValue)
+                    Text(section.localizedName)
                         .font(.headline)
-                    
-                    Text(section.description)
+
+                    Text(section.localizedDescription)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

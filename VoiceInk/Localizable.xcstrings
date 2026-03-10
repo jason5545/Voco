@@ -1801,6 +1801,116 @@
         }
       }
     },
+    "Context-Aware Insertion": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上下文感知插入"
+          }
+        }
+      }
+    },
+    "Read surrounding text at the cursor position and automatically adjust spacing, capitalization, and punctuation for natural insertion.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取游標周圍的文字，自動調整空格、大小寫和標點，以自然地插入文字。"
+          }
+        }
+      }
+    },
+    "LLM Merge": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LLM 合併"
+          }
+        }
+      }
+    },
+    "When inserting in the middle of existing text, use AI to merge the inserted text seamlessly with surrounding content. Requires AI enhancement to be configured.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在現有文字中間插入時，使用 AI 將插入的文字與周圍內容無縫合併。需要先設定 AI 增強功能。"
+          }
+        }
+      }
+    },
+    "Unlike GPT, Voice Models(whisper) follows the style of your prompt rather than instructions. Use examples of your desired output format instead of commands.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "與 GPT 不同，語音模型（Whisper）會依循提示的風格而非指令。請使用您想要的輸出格式範例，而不是下達指令。"
+          }
+        }
+      }
+    },
+    "Apply intelligent text formatting to break large block of text into paragraphs.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "套用智慧文字格式，將大段文字分成段落。"
+          }
+        }
+      }
+    },
+    "Detect speech segments and filter out silence to improve accuracy of local models.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "偵測語音片段並過濾靜音，以提升本機模型的準確度。"
+          }
+        }
+      }
+    },
+    "Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果本機模型（包括 Whisper MLX）的轉錄時間超出預期，請開啟此選項。會在應用程式啟動和喚醒時執行靜默背景轉錄以觸發最佳化。"
+          }
+        }
+      }
+    },
+    "Automatically remove filler words like 'uh', 'um', 'hmm' from transcriptions.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動移除轉錄中的填充詞，如「uh」、「um」、「hmm」。"
+          }
+        }
+      }
+    },
+    "Add words to help Voco recognize them properly": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增字詞以幫助 Voco 正確辨識"
+          }
+        }
+      }
+    },
+    "Automatically replace specific words/phrases with custom formatted text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動將特定字詞或片語替換為自訂格式的文字"
+          }
+        }
+      }
+    },
     "Power Modes": {
       "localizations": {
         "zh-Hant": {
