@@ -143,7 +143,7 @@ class WhisperCoreMLModelImpl {
 
         // Extract language probabilities from last position logits
         let vocabSize = config.vocabSize
-        let numLanguages = min(WhisperTokens.languageOrder.count, vocabSize - WhisperTokens.firstLanguageTokenId)
+        let numLanguages = min(WhisperTokens.languageCount(nMels: config.numMelBins), vocabSize - WhisperTokens.firstLanguageTokenId)
         guard numLanguages > 0 else { return (nil, 0.0) }
 
         // Get logits for language tokens and compute softmax

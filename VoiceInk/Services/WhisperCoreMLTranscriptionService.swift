@@ -50,12 +50,13 @@ class WhisperCoreMLTranscriptionService: TranscriptionService {
         let audioSamples = try readWAVSamples(from: audioURL)
 
         let selectedLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage")
+        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt")
 
         logger.warning("Transcribing with Whisper CoreML, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto")")
 
         let result: WhisperCoreMLModelImpl.TranscriptionResult
         do {
-            result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage)
+            result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
         } catch {
             logger.error("Engine transcribe failed: \(error)")
             throw error

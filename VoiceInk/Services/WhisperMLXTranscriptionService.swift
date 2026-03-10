@@ -58,7 +58,7 @@ class WhisperMLXTranscriptionService: TranscriptionService {
 
         let result: WhisperMLXModelImpl.TranscriptionResult
         do {
-            result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage)
+            result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
         } catch {
             logger.error("Engine transcribe failed: \(error)")
             throw error

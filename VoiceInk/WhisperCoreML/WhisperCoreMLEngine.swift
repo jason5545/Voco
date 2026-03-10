@@ -56,7 +56,7 @@ actor WhisperCoreMLEngine {
         try ensureWarmup(reason: "loadModel(new)")
     }
 
-    func transcribe(samples: [Float], language: String?) throws -> WhisperCoreMLModelImpl.TranscriptionResult {
+    func transcribe(samples: [Float], language: String?, prompt: String?) throws -> WhisperCoreMLModelImpl.TranscriptionResult {
         guard let model = model else {
             throw WhisperCoreMLModelError.modelNotLoaded
         }
@@ -73,10 +73,12 @@ actor WhisperCoreMLEngine {
             lang = nil
         }
 
+        let effectivePrompt = (prompt?.isEmpty == false) ? prompt : nil
+
         // Whisper processes max 30 seconds at a time
         let maxSamples = 30 * Self.sampleRate
         if samples.count <= maxSamples {
-            return try model.transcribe(audio: samples, language: lang)
+            return try model.transcribe(audio: samples, language: lang, prompt: effectivePrompt)
         }
 
         // Segment long audio (same pattern as WhisperMLXEngine)
@@ -89,7 +91,7 @@ actor WhisperCoreMLEngine {
             let remaining = samples.count - offset
             if remaining <= maxSamples {
                 let chunk = Array(samples[offset...])
-                let result = try model.transcribe(audio: chunk, language: lang)
+                let result = try model.transcribe(audio: chunk, language: lang, prompt: effectivePrompt)
                 if !result.text.isEmpty { chunkResults.append(result) }
                 break
             }
@@ -97,7 +99,7 @@ actor WhisperCoreMLEngine {
             let targetCut = offset + maxSamples
             let cutPoint = findSilenceCutPoint(in: samples, targetCut: targetCut, searchWindow: searchWindow)
             let chunk = Array(samples[offset..<cutPoint])
-            let result = try model.transcribe(audio: chunk, language: lang)
+            let result = try model.transcribe(audio: chunk, language: lang, prompt: effectivePrompt)
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
         }

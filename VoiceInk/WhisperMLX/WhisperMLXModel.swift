@@ -162,8 +162,8 @@ class WhisperMLXModelImpl {
         let (logits, _) = decoder(tokenIds: sotTokens, encoderOutput: encoderOutput, cache: nil)
         let lastLogits = logits[0, -1]  // [nVocab]
 
-        // Get probabilities for language tokens only
-        let numLanguages = min(WhisperTokens.languageOrder.count, config.nVocab - WhisperTokens.firstLanguageTokenId)
+        // Get probabilities for language tokens only (v1/v2: 99, v3: 100)
+        let numLanguages = min(WhisperTokens.languageCount(nMels: config.nMels), config.nVocab - WhisperTokens.firstLanguageTokenId)
         guard numLanguages > 0 else { return (nil, 0.0) }
 
         let langStart = WhisperTokens.firstLanguageTokenId

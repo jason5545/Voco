@@ -15,8 +15,15 @@ struct WhisperTokens {
     static let noSpeechTokenId = 50362    // <|nospeech|>
     static let noTimestampsTokenId = 50363 // <|notimestamps|>
 
-    // Language token range: 50259..50358 (99 languages for v1/v2, 100 for v3)
+    // Language token range: 50259..50357 (99 languages for v1/v2), 50259..50358 (100 for v3)
     static let firstLanguageTokenId = 50259
+
+    /// Number of language tokens for the model version.
+    /// v1/v2 (nMels=80): 99 languages (token 50358 is <|translate|>, not a language)
+    /// v3 (nMels=128): 100 languages (includes "yue")
+    static func languageCount(nMels: Int) -> Int {
+        return nMels >= 128 ? 100 : 99
+    }
 
     /// Map language code to token ID
     static func languageTokenId(for code: String) -> Int? {

@@ -57,7 +57,7 @@ actor WhisperMLXEngine {
         try ensureWarmup(reason: "loadModel(new)")
     }
 
-    func transcribe(samples: [Float], language: String?) throws -> WhisperMLXModelImpl.TranscriptionResult {
+    func transcribe(samples: [Float], language: String?, prompt: String?) throws -> WhisperMLXModelImpl.TranscriptionResult {
         guard let model = model else {
             throw WhisperMLXModelError.modelNotLoaded
         }
@@ -75,11 +75,14 @@ actor WhisperMLXEngine {
             lang = nil
         }
 
+        // Map empty prompt to nil
+        let effectivePrompt = (prompt?.isEmpty == false) ? prompt : nil
+
         // Whisper processes max 30 seconds at a time
         // For longer audio, segment at silence points
         let maxSamples = 30 * Self.sampleRate
         if samples.count <= maxSamples {
-            let result = try model.transcribe(audio: samples, language: lang)
+            let result = try model.transcribe(audio: samples, language: lang, prompt: effectivePrompt)
             Memory.clearCache()
             return result
         }
@@ -94,7 +97,7 @@ actor WhisperMLXEngine {
             let remaining = samples.count - offset
             if remaining <= maxSamples {
                 let chunk = Array(samples[offset...])
-                let result = try model.transcribe(audio: chunk, language: lang)
+                let result = try model.transcribe(audio: chunk, language: lang, prompt: effectivePrompt)
                 Memory.clearCache()
                 if !result.text.isEmpty { chunkResults.append(result) }
                 break
@@ -103,7 +106,7 @@ actor WhisperMLXEngine {
             let targetCut = offset + maxSamples
             let cutPoint = findSilenceCutPoint(in: samples, targetCut: targetCut, searchWindow: searchWindow)
             let chunk = Array(samples[offset..<cutPoint])
-            let result = try model.transcribe(audio: chunk, language: lang)
+            let result = try model.transcribe(audio: chunk, language: lang, prompt: effectivePrompt)
             Memory.clearCache()
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
