@@ -290,6 +290,27 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
     private var dictionaryDismissTimer: DispatchWorkItem?
 
+    func confirmDictionaryEntry() {
+        guard let entry = forkState.pendingDictionaryEntry else { return }
+        dictionaryDismissTimer?.cancel()
+        dictionaryDismissTimer = nil
+
+        let replacement = WordReplacement(
+            originalText: entry.original,
+            replacementText: entry.replacement
+        )
+        modelContext.insert(replacement)
+        try? modelContext.save()
+
+        NotificationManager.shared.showNotification(
+            title: "\(entry.original) → \(entry.replacement)",
+            type: .success,
+            duration: 2.0
+        )
+        forkState.pendingDictionaryEntry = nil
+        Task { await recorderUIManager?.dismissMiniRecorder() }
+    }
+
     func dismissDictionaryEntry() {
         dictionaryDismissTimer?.cancel()
         dictionaryDismissTimer = nil

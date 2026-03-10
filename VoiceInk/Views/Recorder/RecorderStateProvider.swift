@@ -8,4 +8,7 @@ protocol RecorderStateProvider: AnyObject {
     var partialTranscript: String { get }
     var enhancementService: AIEnhancementService? { get }
     var isEditMode: Bool { get }
+    var pendingDictionaryEntry: WordSubstitution? { get }
+    func confirmDictionaryEntry()
+    func dismissDictionaryEntry()
 }

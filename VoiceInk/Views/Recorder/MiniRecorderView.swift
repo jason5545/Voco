@@ -44,11 +44,23 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     var body: some View {
         if windowManager.isVisible {
-            contentLayout
-                .frame(width: width)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            Group {
+                if let entry = stateProvider.pendingDictionaryEntry {
+                    DictionaryConfirmationView(
+                        original: entry.original,
+                        replacement: entry.replacement,
+                        onConfirm: { stateProvider.confirmDictionaryEntry() },
+                        onDismiss: { stateProvider.dismissDictionaryEntry() }
+                    )
+                    .frame(height: mainContentHeight)
+                } else {
+                    contentLayout
+                }
+            }
+            .frame(width: width)
+            .background(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 }
