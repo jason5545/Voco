@@ -38,10 +38,10 @@ struct ChinesePostProcessingSettingsView: View {
                         Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
                             .padding(.leading, 40)
 
-                        Toggle(isOn: $service.isSyllableExpansionEnabled) {
+                        Toggle(isOn: $service.isPersonalCorrectionEnabled) {
                             HStack(spacing: 4) {
-                                Text("Syllable Expansion")
-                                InfoTip("Detect and expand single characters that may be compressed syllables back to 2-character words. Experimental — default off.")
+                                Text("Personal Correction")
+                                InfoTip("Automatically learn recurring phonetic error patterns from your transcription history and apply corrections.")
                             }
                         }
                         .padding(.leading, 40)

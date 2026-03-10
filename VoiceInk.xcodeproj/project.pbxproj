@@ -57,7 +57,7 @@
 				"Services/ChinesePostProcessing/PinyinDatabase.swift",
 				"Services/ChinesePostProcessing/HomophoneCorrectionEngine.swift",
 				"Services/ChinesePostProcessing/NasalCorrectionEngine.swift",
-				"Services/ChinesePostProcessing/SyllableExpansionEngine.swift",
+				"Services/ChinesePostProcessing/PersonalCorrectionEngine.swift",
 				"Services/ChinesePostProcessing/CorrectionEngine.swift",
 				"Services/ChinesePostProcessing/PunctuationConverter.swift",
 				"Services/ChinesePostProcessing/RepetitionDetector.swift",

@@ -27,7 +27,7 @@ class ChinesePostProcessingService: ObservableObject {
     let dataDrivenEngines: [CorrectionEngine] = [
         HomophoneCorrectionEngine.shared,
         NasalCorrectionEngine.shared,
-        SyllableExpansionEngine.shared,
+        PersonalCorrectionEngine.shared,
     ]
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
@@ -63,8 +63,8 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(isNasalCorrectionEnabled, forKey: "ChinesePostProcessingNasal") }
     }
 
-    @Published var isSyllableExpansionEnabled: Bool {
-        didSet { UserDefaults.standard.set(isSyllableExpansionEnabled, forKey: "ChinesePostProcessingSyllableExpansion") }
+    @Published var isPersonalCorrectionEnabled: Bool {
+        didSet { UserDefaults.standard.set(isPersonalCorrectionEnabled, forKey: "ChinesePostProcessingPersonalCorrection") }
     }
 
     @Published var isSpokenPunctuationEnabled: Bool {
@@ -124,7 +124,7 @@ class ChinesePostProcessingService: ObservableObject {
         self.isPinyinCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPinyin") as? Bool ?? true
         self.isDataDrivenCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingDataDriven") as? Bool ?? true
         self.isNasalCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingNasal") as? Bool ?? true
-        self.isSyllableExpansionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSyllableExpansion") as? Bool ?? true
+        self.isPersonalCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPersonalCorrection") as? Bool ?? true
         self.isSpokenPunctuationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSpokenPunctuation") as? Bool ?? true
         self.isHalfWidthConversionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingHalfWidth") as? Bool ?? true
         self.isRepetitionDetectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingRepetition") as? Bool ?? true
@@ -203,7 +203,7 @@ class ChinesePostProcessingService: ObservableObject {
                 let enabledEngines: [(CorrectionEngine, Bool)] = [
                     (HomophoneCorrectionEngine.shared, true), // always on when data-driven is on
                     (NasalCorrectionEngine.shared, isNasalCorrectionEnabled),
-                    (SyllableExpansionEngine.shared, isSyllableExpansionEnabled),
+                    (PersonalCorrectionEngine.shared, isPersonalCorrectionEnabled),
                 ]
                 for (engine, enabled) in enabledEngines where enabled {
                     let engineResult = engine.correct(result)

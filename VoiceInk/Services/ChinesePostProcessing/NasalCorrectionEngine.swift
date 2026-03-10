@@ -10,7 +10,7 @@ import os
 /// when the candidate has overwhelmingly higher word frequency.
 ///
 /// Pipeline position: Step 3, Layer 2.5 (after HomophoneCorrectionEngine,
-/// before SyllableExpansionEngine).
+/// before PersonalCorrectionEngine).
 ///
 /// Key differences from HomophoneCorrectionEngine:
 /// - No suspicious detection — scans ALL words (nasal errors produce valid words)
