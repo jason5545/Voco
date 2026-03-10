@@ -38,11 +38,7 @@ class MiniRecorderShortcutManager: ObservableObject {
     
     private var isCancelHandlerSetup = false
     
-    // Double-tap Escape handling
-    private var escFirstPressTime: Date? = nil
-    private let escSecondPressThreshold: TimeInterval = 1.5
     private var isEscapeHandlerSetup = false
-    private var escapeTimeoutTask: Task<Void, Never>?
     
     init(engine: VoiceInkEngine, recorderUIManager: RecorderUIManager) {
         self.engine = engine
@@ -91,48 +87,10 @@ class MiniRecorderShortcutManager: ObservableObject {
         }
     }
     
-    // Setup escape handler once
-    private func setupEscapeHandlerOnce() {
-        guard !isEscapeHandlerSetup else { return }
-        isEscapeHandlerSetup = true
-        
-        KeyboardShortcuts.onKeyDown(for: .escapeRecorder) { [weak self] in
-            Task { @MainActor in
-                guard let self = self,
-                      await self.recorderUIManager.isMiniRecorderVisible else { return }
+    // ESC double-tap cancel is disabled — use double-tap hotkey or custom cancel shortcut instead.
+    private func setupEscapeHandlerOnce() {}
 
-                // Don't process if custom shortcut is configured
-                guard KeyboardShortcuts.getShortcut(for: .cancelRecorder) == nil else { return }
-
-                let now = Date()
-                if let firstTime = self.escFirstPressTime,
-                   now.timeIntervalSince(firstTime) <= self.escSecondPressThreshold {
-                    self.escFirstPressTime = nil
-                    await self.recorderUIManager.cancelRecording()
-                } else {
-                    self.escFirstPressTime = now
-                    SoundManager.shared.playEscSound()
-                    NotificationManager.shared.showNotification(
-                        title: "Press ESC again to cancel recording",
-                        type: .info,
-                        duration: self.escSecondPressThreshold
-                    )
-                    self.escapeTimeoutTask = Task { [weak self] in
-                        try? await Task.sleep(nanoseconds: UInt64((self?.escSecondPressThreshold ?? 1.5) * 1_000_000_000))
-                        await MainActor.run {
-                            self?.escFirstPressTime = nil
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func activateEscapeShortcut() {
-        // Don't activate if custom shortcut is configured
-        guard KeyboardShortcuts.getShortcut(for: .cancelRecorder) == nil else { return }
-        KeyboardShortcuts.setShortcut(.init(.escape), for: .escapeRecorder)
-    }
+    private func activateEscapeShortcut() {}
     
     // Setup cancel handler once
     private func setupCancelHandlerOnce() {
@@ -156,9 +114,6 @@ class MiniRecorderShortcutManager: ObservableObject {
     
     private func deactivateEscapeShortcut() {
         KeyboardShortcuts.setShortcut(nil, for: .escapeRecorder)
-        escFirstPressTime = nil
-        escapeTimeoutTask?.cancel()
-        escapeTimeoutTask = nil
     }
     
     private func deactivateCancelShortcut() {

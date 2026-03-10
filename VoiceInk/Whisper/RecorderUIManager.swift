@@ -45,6 +45,11 @@ class RecorderUIManager: ObservableObject {
 
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "RecorderUIManager")
 
+    // Double-tap hotkey cancel
+    private var lastRecordingStopTime: Date?
+    private let doublePressCancelThreshold: TimeInterval = 0.4
+    private var doublePressStopTask: Task<Void, Never>?
+
     init() {}
 
     /// Call after VoiceInkEngine is created to break the circular init dependency.
@@ -90,13 +95,32 @@ class RecorderUIManager: ObservableObject {
 
         if isMiniRecorderVisible {
             if engine.recordingState == .recording {
-                logger.notice("toggleMiniRecorder: stopping recording (was recording)")
-                await engine.toggleRecord(powerModeId: powerModeId)
+                if lastRecordingStopTime != nil {
+                    // Second press while still recording — cancel, skip transcribing
+                    logger.notice("toggleMiniRecorder: double-press cancel")
+                    lastRecordingStopTime = nil
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = nil
+                    await cancelRecording()
+                } else {
+                    // First press — wait briefly for possible second press
+                    logger.notice("toggleMiniRecorder: first press, waiting for double-press")
+                    lastRecordingStopTime = Date()
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        guard let self, !Task.isCancelled else { return }
+                        self.lastRecordingStopTime = nil
+                        self.doublePressStopTask = nil
+                        self.logger.notice("toggleMiniRecorder: no double-press, stopping normally")
+                        await engine.toggleRecord(powerModeId: powerModeId)
+                    }
+                }
             } else {
-                logger.notice("toggleMiniRecorder: cancelling (was not recording)")
-                await cancelRecording()
+                lastRecordingStopTime = nil
             }
         } else {
+            lastRecordingStopTime = nil
             SoundManager.shared.playStartSound()
 
             // Edit Mode detection: atomic snapshot BEFORE stopping (avoids race with activation observer invalidate)
@@ -151,6 +175,8 @@ class RecorderUIManager: ObservableObject {
 
         hideRecorderPanel()
 
+        lastRecordingStopTime = nil
+
         // Clear captured context when the recorder is dismissed
         if let enhancementService = engine.enhancementService {
             await MainActor.run {
@@ -189,6 +215,9 @@ class RecorderUIManager: ObservableObject {
         await MainActor.run {
             isMiniRecorderVisible = false
             engine.shouldCancelRecording = false
+            lastRecordingStopTime = nil
+            doublePressStopTask?.cancel()
+            doublePressStopTask = nil
             miniRecorderError = nil
             engine.recordingState = .idle
         }
@@ -198,9 +227,17 @@ class RecorderUIManager: ObservableObject {
     func cancelRecording() async {
         guard let engine = engine else { return }
         logger.notice("cancelRecording called")
+        lastRecordingStopTime = nil
+        doublePressStopTask?.cancel()
+        doublePressStopTask = nil
         SoundManager.shared.playEscSound()
         engine.shouldCancelRecording = true
         await dismissMiniRecorder()
+        NotificationManager.shared.showNotification(
+            title: String(localized: "Recording Cancelled"),
+            type: .info,
+            duration: 1.5
+        )
     }
 
     // MARK: - Notification Handling
