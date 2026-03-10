@@ -5,29 +5,22 @@ import AVFoundation
 
 struct AudioTranscribeView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var engine: VoiceInkEngine
+    @EnvironmentObject private var enhancementService: AIEnhancementService
     @StateObject private var transcriptionManager = AudioTranscriptionManager.shared
     @State private var isDropTargeted = false
     @State private var selectedAudioURL: URL?
     @State private var isAudioFileSelected = false
     @State private var isEnhancementEnabled = false
     @State private var selectedPromptId: UUID?
-    @State private var isDownloadingWhisper = false
-
-    /// True when no Whisper (local) model is downloaded at all
-    private var hasNoWhisperModel: Bool {
-        whisperState.bestLocalModelForFileTranscription == nil
-    }
-
+    
     var body: some View {
         ZStack {
             Color(NSColor.controlBackgroundColor)
                 .ignoresSafeArea()
-
+            
             VStack(spacing: 0) {
-                if hasNoWhisperModel {
-                    whisperModelRequiredView
-                } else if transcriptionManager.isProcessing {
+                if transcriptionManager.isProcessing {
                     processingView
                 } else {
                     dropZoneView
@@ -74,14 +67,13 @@ struct AudioTranscribeView: View {
                         .font(.headline)
                     
                     // AI Enhancement Settings
-                    if let enhancementService = whisperState.getEnhancementService() {
-                        VStack(spacing: 16) {
+                    VStack(spacing: 16) {
                             // AI Enhancement and Prompt in the same row
                             HStack(spacing: 16) {
                                 Toggle("AI Enhancement", isOn: $isEnhancementEnabled)
                                     .toggleStyle(.switch)
                                     .onChange(of: isEnhancementEnabled) { oldValue, newValue in
-                                        UserDefaults.standard.set(newValue, forKey: "audioTranscribe_isEnhancementEnabled")
+                                        enhancementService.isEnhancementEnabled = newValue
                                     }
                                 
                                 if isEnhancementEnabled {
@@ -105,7 +97,7 @@ struct AudioTranscribeView: View {
                                                 },
                                                 set: { newValue in
                                                     selectedPromptId = newValue
-                                                    UserDefaults.standard.set(newValue.uuidString, forKey: "audioTranscribe_selectedPromptId")
+                                                    enhancementService.selectedPromptId = newValue
                                                 }
                                             )
                                             
@@ -126,22 +118,11 @@ struct AudioTranscribeView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .onAppear {
-                            // Initialize local state from independent UserDefaults keys
-                            // Falls back to enhancement service's current values on first use
-                            if UserDefaults.standard.object(forKey: "audioTranscribe_isEnhancementEnabled") != nil {
-                                isEnhancementEnabled = UserDefaults.standard.bool(forKey: "audioTranscribe_isEnhancementEnabled")
-                            } else {
-                                isEnhancementEnabled = enhancementService.isEnhancementEnabled
-                            }
-                            if let savedPromptIdString = UserDefaults.standard.string(forKey: "audioTranscribe_selectedPromptId"),
-                               let savedPromptId = UUID(uuidString: savedPromptIdString) {
-                                selectedPromptId = savedPromptId
-                            } else {
-                                selectedPromptId = enhancementService.selectedPromptId
-                            }
+                            // Initialize local state from enhancement service
+                            isEnhancementEnabled = enhancementService.isEnhancementEnabled
+                            selectedPromptId = enhancementService.selectedPromptId
                         }
-                    }
-                    
+
                     // Action Buttons in a row
                     HStack(spacing: 12) {
                         Button("Start Transcription") {
@@ -149,9 +130,7 @@ struct AudioTranscribeView: View {
                                 transcriptionManager.startProcessing(
                                     url: url,
                                     modelContext: modelContext,
-                                    whisperState: whisperState,
-                                    enhancementEnabled: isEnhancementEnabled,
-                                    promptId: selectedPromptId
+                                    engine: engine
                                 )
                             }
                         }
@@ -209,71 +188,6 @@ struct AudioTranscribeView: View {
         .padding()
     }
     
-    private var whisperModelRequiredView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundColor(.orange)
-
-            Text("Whisper Model Required")
-                .font(.title2.bold())
-
-            Text("File transcription requires a Whisper model for best accuracy. No Whisper model is currently installed.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
-
-            if isDownloadingWhisper {
-                VStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    if let progress = whisperState.downloadProgress["whisper-large-v2-mlx-8bit"] {
-                        ProgressView(value: progress)
-                            .frame(width: 200)
-                        Text("\(Int(progress * 100))%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Preparing download...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } else {
-                Button {
-                    downloadWhisperV2()
-                } label: {
-                    Label("Download Whisper Large v2 8-bit (~1.64 GB)", systemImage: "arrow.down.circle")
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(32)
-    }
-
-    private func downloadWhisperV2() {
-        guard let model = PredefinedModels.models.compactMap({ $0 as? WhisperMLXModel }).first(where: { $0.name == "whisper-large-v2-mlx-8bit" }) else {
-            return
-        }
-        isDownloadingWhisper = true
-        Task {
-            await whisperState.downloadWhisperMLXModel(model)
-            await MainActor.run {
-                isDownloadingWhisper = false
-                whisperState.refreshAllAvailableModels()
-                // Auto-select the newly downloaded model
-                if let downloaded = whisperState.allAvailableModels.first(where: { $0.name == "whisper-large-v2-mlx-8bit" }) {
-                    whisperState.setDefaultTranscriptionModel(downloaded)
-                }
-            }
-            await NotificationManager.shared.showNotification(
-                title: "Whisper Large v2 (8-bit) ready for file transcription",
-                type: .success
-            )
-        }
-    }
-
     private var processingView: some View {
         VStack(spacing: 16) {
             ProgressView()

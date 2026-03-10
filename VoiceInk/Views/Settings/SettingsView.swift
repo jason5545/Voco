@@ -5,10 +5,12 @@ import LaunchAtLogin
 import AVFoundation
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var updaterViewModel: UpdaterViewModel
     @EnvironmentObject private var menuBarManager: MenuBarManager
     @EnvironmentObject private var hotkeyManager: HotkeyManager
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var recorderUIManager: RecorderUIManager
+    @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @StateObject private var deviceManager = AudioDeviceManager.shared
     @ObservedObject private var soundManager = SoundManager.shared
@@ -22,7 +24,7 @@ struct SettingsView: View {
     @AppStorage("useAppleScriptPaste") private var useAppleScriptPaste = false
     @State private var showResetOnboardingAlert = false
     @State private var currentShortcut = KeyboardShortcuts.getShortcut(for: .toggleMiniRecorder)
-    @State private var isCustomCancelEnabled = false
+    @State private var isCustomCancelEnabled = KeyboardShortcuts.getShortcut(for: .cancelRecorder) != nil
 
     // Expansion states - all collapsed by default
     @State private var isCustomCancelExpanded = false
@@ -190,7 +192,7 @@ struct SettingsView: View {
 
             // MARK: - Interface
             Section("Interface") {
-                Picker("Recorder Style", selection: $whisperState.recorderType) {
+                Picker("Recorder Style", selection: $recorderUIManager.recorderType) {
                     Text("Notch").tag("notch")
                     Text("Mini").tag("mini")
                 }
@@ -259,7 +261,8 @@ struct SettingsView: View {
                             mediaController: mediaController,
                             playbackController: playbackController,
                             soundManager: soundManager,
-                            whisperState: whisperState
+                            recorderUIManager: recorderUIManager,
+                            modelContext: modelContext
                         )
                     }
                 }
@@ -274,7 +277,9 @@ struct SettingsView: View {
                             mediaController: mediaController,
                             playbackController: playbackController,
                             soundManager: soundManager,
-                            whisperState: whisperState
+                            recorderUIManager: recorderUIManager,
+                            modelContext: modelContext,
+                            transcriptionModelManager: transcriptionModelManager
                         )
                     }
                 }
@@ -292,9 +297,6 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Color(NSColor.controlBackgroundColor))
-        .onAppear {
-            isCustomCancelEnabled = KeyboardShortcuts.getShortcut(for: .cancelRecorder) != nil
-        }
         .alert("Reset Onboarding", isPresented: $showResetOnboardingAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {

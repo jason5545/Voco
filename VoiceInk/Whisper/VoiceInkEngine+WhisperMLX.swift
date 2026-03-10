@@ -1,27 +1,27 @@
-// WhisperState+Qwen3.swift
-// Download/delete state management for Qwen3-ASR models
-// [AI-Claude: 2025-02-18]
+// VoiceInkEngine+WhisperMLX.swift
+// Download/delete state management for Whisper MLX models
+// [AI-Claude: 2026-02-27]
 
 import Foundation
 import AppKit
 
-extension WhisperState {
-    func isQwen3ModelDownloaded(_ model: Qwen3Model) -> Bool {
-        Qwen3ModelManager.isModelDownloaded(modelId: model.modelId)
+extension VoiceInkEngine {
+    func isWhisperMLXModelDownloaded(_ model: WhisperMLXModel) -> Bool {
+        WhisperMLXModelManager.isModelDownloaded(modelId: model.huggingFaceRepo)
     }
 
-    func isQwen3ModelDownloading(_ model: Qwen3Model) -> Bool {
-        qwen3DownloadStates[model.name] ?? false
+    func isWhisperMLXModelDownloading(_ model: WhisperMLXModel) -> Bool {
+        whisperMLXDownloadStates[model.name] ?? false
     }
 
     @MainActor
-    func downloadQwen3Model(_ model: Qwen3Model) async {
-        if isQwen3ModelDownloaded(model) {
+    func downloadWhisperMLXModel(_ model: WhisperMLXModel) async {
+        if isWhisperMLXModelDownloaded(model) {
             return
         }
 
         let modelName = model.name
-        qwen3DownloadStates[modelName] = true
+        whisperMLXDownloadStates[modelName] = true
         downloadProgress[modelName] = 0.0
 
         // Simulated progress timer (actual download progress is coarse per-file)
@@ -34,11 +34,8 @@ extension WhisperState {
         }
 
         do {
-            let cacheDir = try Qwen3HuggingFaceDownloader.getCacheDirectory(for: model.modelId)
-
-            try await Qwen3HuggingFaceDownloader.downloadWeights(
-                modelId: model.modelId,
-                to: cacheDir,
+            try await WhisperMLXModelManager.downloadModel(
+                modelId: model.huggingFaceRepo,
                 progressHandler: { progress in
                     Task { @MainActor in
                         self.downloadProgress[modelName] = progress
@@ -52,33 +49,32 @@ extension WhisperState {
         }
 
         timer.invalidate()
-        qwen3DownloadStates[modelName] = false
+        whisperMLXDownloadStates[modelName] = false
         downloadProgress[modelName] = nil
 
-        refreshAllAvailableModels()
+        transcriptionModelManager.refreshAllAvailableModels()
     }
 
     @MainActor
-    func deleteQwen3Model(_ model: Qwen3Model) {
-        if let currentModel = currentTranscriptionModel,
-           currentModel.provider == .qwen3,
+    func deleteWhisperMLXModel(_ model: WhisperMLXModel) {
+        if let currentModel = transcriptionModelManager.currentTranscriptionModel,
+           currentModel.provider == .whisperMLX,
            currentModel.name == model.name {
-            currentTranscriptionModel = nil
-            UserDefaults.standard.removeObject(forKey: "CurrentTranscriptionModel")
+            transcriptionModelManager.clearCurrentTranscriptionModel()
         }
 
         do {
-            try Qwen3ModelManager.deleteModel(modelId: model.modelId)
+            try WhisperMLXModelManager.deleteModel(modelId: model.huggingFaceRepo)
         } catch {
             // Silently ignore removal errors
         }
 
-        refreshAllAvailableModels()
+        transcriptionModelManager.refreshAllAvailableModels()
     }
 
     @MainActor
-    func showQwen3ModelInFinder(_ model: Qwen3Model) {
-        let dir = Qwen3ModelManager.modelDirectory(for: model.modelId)
+    func showWhisperMLXModelInFinder(_ model: WhisperMLXModel) {
+        let dir = WhisperMLXModelManager.modelDirectory(for: model.huggingFaceRepo)
 
         if FileManager.default.fileExists(atPath: dir.path) {
             NSWorkspace.shared.selectFile(dir.path, inFileViewerRootedAtPath: "")

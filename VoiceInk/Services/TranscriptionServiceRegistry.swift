@@ -1,26 +1,30 @@
 import Foundation
 import SwiftUI
+import SwiftData
 import os
 
 @MainActor
 class TranscriptionServiceRegistry {
-    private let whisperState: WhisperState
+    private weak var modelProvider: (any LocalModelProvider)?
     private let modelsDirectory: URL
-    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionServiceRegistry")
+    private let modelContext: ModelContext
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionServiceRegistry")
 
     private(set) lazy var localTranscriptionService = LocalTranscriptionService(
         modelsDirectory: modelsDirectory,
-        whisperState: whisperState
+        modelProvider: modelProvider
     )
-    private(set) lazy var cloudTranscriptionService = CloudTranscriptionService(modelContext: whisperState.modelContext)
+    private(set) lazy var cloudTranscriptionService = CloudTranscriptionService(modelContext: modelContext)
     private(set) lazy var nativeAppleTranscriptionService = NativeAppleTranscriptionService()
     private(set) lazy var parakeetTranscriptionService = ParakeetTranscriptionService()
     private(set) lazy var qwen3TranscriptionService = Qwen3TranscriptionService()
     private(set) lazy var whisperMLXTranscriptionService = WhisperMLXTranscriptionService()
     private(set) lazy var whisperCoreMLTranscriptionService = WhisperCoreMLTranscriptionService()
-    init(whisperState: WhisperState, modelsDirectory: URL) {
-        self.whisperState = whisperState
+
+    init(modelProvider: any LocalModelProvider, modelsDirectory: URL, modelContext: ModelContext) {
+        self.modelProvider = modelProvider
         self.modelsDirectory = modelsDirectory
+        self.modelContext = modelContext
     }
 
     func service(for provider: ModelProvider) -> TranscriptionService {
@@ -53,7 +57,7 @@ class TranscriptionServiceRegistry {
     func createSession(for model: any TranscriptionModel, onPartialTranscript: ((String) -> Void)? = nil) -> TranscriptionSession {
         if supportsStreaming(model: model) {
             let streamingService = StreamingTranscriptionService(
-                modelContext: whisperState.modelContext,
+                modelContext: modelContext,
                 onPartialTranscript: onPartialTranscript
             )
             let fallback = service(for: model.provider)

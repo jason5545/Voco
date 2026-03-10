@@ -273,12 +273,12 @@ struct AudioPlayerView: View {
     @State private var showRetranscribeError = false
     @State private var errorMessage = ""
     @State private var showPromptPopover = false
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var engine: VoiceInkEngine
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @Environment(\.modelContext) private var modelContext
-    
+
     private var transcriptionService: AudioTranscriptionService {
-        AudioTranscriptionService(modelContext: modelContext, whisperState: whisperState)
+        AudioTranscriptionService(modelContext: modelContext, engine: engine)
     }
     
     var body: some View {
@@ -457,21 +457,20 @@ struct AudioPlayerView: View {
     }
     
     private func retranscribeAudio() {
-        // File transcription is locked to Whisper for accuracy
-        guard let localModel = whisperState.bestLocalModelForFileTranscription else {
-            errorMessage = "No Whisper model available for file transcription"
+        guard let currentTranscriptionModel = engine.transcriptionModelManager.currentTranscriptionModel else {
+            errorMessage = "No transcription model selected"
             showRetranscribeError = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 withAnimation { showRetranscribeError = false }
             }
             return
         }
-
+        
         isRetranscribing = true
-
+        
         Task {
             do {
-                let _ = try await transcriptionService.retranscribeAudio(from: url, using: localModel)
+                let _ = try await transcriptionService.retranscribeAudio(from: url, using: currentTranscriptionModel)
                 await MainActor.run {
                     isRetranscribing = false
                     showRetranscribeSuccess = true

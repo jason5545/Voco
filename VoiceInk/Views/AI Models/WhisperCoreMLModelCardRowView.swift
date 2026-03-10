@@ -6,10 +6,10 @@ import SwiftUI
 
 struct WhisperCoreMLModelCardRowView: View {
     let model: WhisperCoreMLModel
-    @ObservedObject var whisperState: WhisperState
+    @ObservedObject var transcriptionModelManager: TranscriptionModelManager
 
     var isCurrent: Bool {
-        whisperState.currentTranscriptionModel?.name == model.name
+        transcriptionModelManager.currentTranscriptionModel?.name == model.name
     }
 
     var isDownloaded: Bool {
@@ -106,9 +106,7 @@ struct WhisperCoreMLModelCardRowView: View {
                     .foregroundColor(Color(.secondaryLabelColor))
             } else if isDownloaded {
                 Button(action: {
-                    Task {
-                        await whisperState.setDefaultTranscriptionModel(model)
-                    }
+                    transcriptionModelManager.setDefaultTranscriptionModel(model)
                 }) {
                     Text("Set as Default")
                         .font(.system(size: 12))

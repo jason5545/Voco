@@ -15,7 +15,7 @@ class AudioTranscriptionManager: ObservableObject {
     
     private var currentTask: Task<Void, Error>?
     private let audioProcessor = AudioProcessor()
-    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AudioTranscriptionManager")
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "AudioTranscriptionManager")
     
     enum ProcessingPhase {
         case idle
@@ -45,7 +45,7 @@ class AudioTranscriptionManager: ObservableObject {
     
     private init() {}
     
-    func startProcessing(url: URL, modelContext: ModelContext, whisperState: WhisperState, enhancementEnabled: Bool? = nil, promptId: UUID? = nil) {
+    func startProcessing(url: URL, modelContext: ModelContext, engine: VoiceInkEngine) {
         // Cancel any existing processing
         cancelProcessing()
 
@@ -55,13 +55,11 @@ class AudioTranscriptionManager: ObservableObject {
 
         currentTask = Task {
             do {
-                // File transcription is locked to Whisper for accuracy
-                guard let currentModel = whisperState.bestLocalModelForFileTranscription else {
-                    throw TranscriptionError.noWhisperModel
+                guard let currentModel = engine.transcriptionModelManager.currentTranscriptionModel else {
+                    throw TranscriptionError.noModelSelected
                 }
 
-                let serviceRegistry = TranscriptionServiceRegistry(whisperState: whisperState, modelsDirectory: whisperState.modelsDirectory)
-                serviceRegistry.localTranscriptionService.useVAD = false  // Disable VAD for file transcription
+                let serviceRegistry = TranscriptionServiceRegistry(modelProvider: engine.whisperModelManager, modelsDirectory: engine.whisperModelManager.modelsDirectory, modelContext: modelContext)
                 defer {
                     serviceRegistry.cleanup()
                 }
@@ -73,7 +71,7 @@ class AudioTranscriptionManager: ObservableObject {
                 let duration = CMTimeGetSeconds(try await audioAsset.load(.duration))
 
                 let recordingsDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent(AppIdentifiers.bundleID)
+                    .appendingPathComponent("com.prakashjoshipax.VoiceInk")
                     .appendingPathComponent("Recordings")
 
                 let fileName = "transcribed_\(UUID().uuidString).wav"
@@ -99,34 +97,15 @@ class AudioTranscriptionManager: ObservableObject {
                 }
 
                 text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
-
-                // Determine whether enhancement should run:
-                // Use the explicitly passed parameter if provided, otherwise fall back to the service's own state
-                let shouldEnhance = enhancementEnabled ?? whisperState.enhancementService?.isEnhancementEnabled ?? false
-
+                
                 // Handle enhancement if enabled
-                if let enhancementService = whisperState.enhancementService,
-                   shouldEnhance,
+                if let enhancementService = engine.enhancementService,
+                   enhancementService.isEnhancementEnabled,
                    enhancementService.isConfigured {
-
-                    // Save original enhancement service state so voice input settings are not affected
-                    let originalIsEnabled = enhancementService.isEnhancementEnabled
-                    let originalPromptId = enhancementService.selectedPromptId
-
-                    // Temporarily apply the audio transcribe settings
-                    enhancementService.isEnhancementEnabled = true
-                    if let promptId = promptId {
-                        enhancementService.selectedPromptId = promptId
-                    }
-
                     processingPhase = .enhancing
                     do {
+                        // inside the enhancement success path where transcription is created
                         let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(text)
-
-                        // Restore original settings before creating transcription
-                        enhancementService.isEnhancementEnabled = originalIsEnabled
-                        enhancementService.selectedPromptId = originalPromptId
-
                         let transcription = Transcription(
                             text: text,
                             duration: duration,
@@ -148,11 +127,7 @@ class AudioTranscriptionManager: ObservableObject {
                         NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                         currentTranscription = transcription
                     } catch {
-                        // Restore original settings on error path too
-                        enhancementService.isEnhancementEnabled = originalIsEnabled
-                        enhancementService.selectedPromptId = originalPromptId
-
-                        logger.error("Enhancement failed: \(error.localizedDescription, privacy: .public)")
+                        logger.error("❌ Enhancement failed: \(error.localizedDescription, privacy: .public)")
                         let transcription = Transcription(
                             text: text,
                             duration: duration,
@@ -186,11 +161,11 @@ class AudioTranscriptionManager: ObservableObject {
                     NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                     currentTranscription = transcription
                 }
-
+                
                 processingPhase = .completed
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 await finishProcessing()
-
+                
             } catch {
                 await handleError(error)
             }
@@ -208,7 +183,7 @@ class AudioTranscriptionManager: ObservableObject {
     }
     
     private func handleError(_ error: Error) {
-        logger.error("Transcription error: \(error.localizedDescription, privacy: .public)")
+        logger.error("❌ Transcription error: \(error.localizedDescription, privacy: .public)")
         errorMessage = error.localizedDescription
         isProcessing = false
         processingPhase = .idle
@@ -218,15 +193,12 @@ class AudioTranscriptionManager: ObservableObject {
 
 enum TranscriptionError: Error, LocalizedError {
     case noModelSelected
-    case noWhisperModel
     case transcriptionCancelled
-
+    
     var errorDescription: String? {
         switch self {
         case .noModelSelected:
             return "No transcription model selected"
-        case .noWhisperModel:
-            return "File transcription requires a Whisper model. Please download one from the Models page."
         case .transcriptionCancelled:
             return "Transcription was cancelled"
         }
