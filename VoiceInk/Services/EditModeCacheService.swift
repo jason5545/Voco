@@ -42,6 +42,23 @@ final class EditModeCacheService: @unchecked Sendable {
     var cachedPid: pid_t? { lock.withLock { _cachedPid } }
     var cachedWindowTitle: String? { lock.withLock { _cachedWindowTitle } }
 
+    /// Atomic snapshot of edit mode state — avoids race with activation observer invalidate().
+    struct EditModeSnapshot {
+        let isEditable: Bool
+        let focusedElementUnavailable: Bool
+        let selectedText: String?
+    }
+
+    func snapshotEditModeState() -> EditModeSnapshot {
+        lock.withLock {
+            EditModeSnapshot(
+                isEditable: _cachedIsEditable,
+                focusedElementUnavailable: _cachedFocusedElementUnavailable,
+                selectedText: _cachedSelectedText
+            )
+        }
+    }
+
     // MARK: - Polling
 
     private var pollingTask: Task<Void, Never>?

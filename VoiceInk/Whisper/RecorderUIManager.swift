@@ -99,17 +99,27 @@ class RecorderUIManager: ObservableObject {
         } else {
             SoundManager.shared.playStartSound()
 
-            // Edit Mode detection: check cached selected text before recording
+            // Edit Mode detection: atomic snapshot BEFORE stopping (avoids race with activation observer invalidate)
+            let snapshot = EditModeCacheService.shared.snapshotEditModeState()
             EditModeCacheService.shared.stopPolling()
-            let cache = EditModeCacheService.shared
-            if cache.cachedIsEditable, let selectedText = cache.cachedSelectedText, !selectedText.isEmpty {
+
+            if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
                 engine.forkState.isEditMode = true
                 engine.forkState.editModeSelectedText = selectedText
+            } else if snapshot.focusedElementUnavailable {
+                // AX focused element unavailable (e.g. Electron apps) — try menuAction fallback
+                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                    engine.forkState.isEditMode = true
+                    engine.forkState.editModeSelectedText = selectedText
+                } else {
+                    engine.forkState.isEditMode = false
+                    engine.forkState.editModeSelectedText = nil
+                }
             } else {
                 engine.forkState.isEditMode = false
                 engine.forkState.editModeSelectedText = nil
             }
-            logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil)")
+            logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil), cacheEditable=\(snapshot.isEditable), cacheUnavail=\(snapshot.focusedElementUnavailable)")
 
             await MainActor.run { isMiniRecorderVisible = true }
             await engine.toggleRecord(powerModeId: powerModeId)
@@ -164,6 +174,10 @@ class RecorderUIManager: ObservableObject {
         await MainActor.run {
             engine.recordingState = .idle
         }
+
+        // Restart edit mode cache polling so next recording gets fresh AX state
+        EditModeCacheService.shared.startPolling()
+
         logger.notice("dismissMiniRecorder completed")
     }
 
