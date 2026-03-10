@@ -6,6 +6,8 @@ struct ModelSettingsView: View {
     @AppStorage("IsTextFormattingEnabled") private var isTextFormattingEnabled = true
     @AppStorage("IsVADEnabled") private var isVADEnabled = true
     @AppStorage("AppendTrailingSpace") private var appendTrailingSpace = true
+    @AppStorage("ContextAwareInsertionEnabled") private var contextAwareInsertionEnabled = false
+    @AppStorage("ContextAwareLLMMergeEnabled") private var contextAwareLLMMergeEnabled = false
     @AppStorage("PrewarmModelOnWake") private var prewarmModelOnWake = true
     @State private var customPrompt: String = ""
     @State private var isEditing: Bool = false
@@ -71,6 +73,31 @@ struct ModelSettingsView: View {
                 Text("Add Space After Paste")
             }
             .toggleStyle(.switch)
+
+            Divider().padding(.vertical, 4)
+
+            HStack {
+                Toggle(isOn: $contextAwareInsertionEnabled) {
+                    Text("Context-Aware Insertion")
+                }
+                .toggleStyle(.switch)
+
+                InfoTip("Read surrounding text at the cursor position and automatically adjust spacing, capitalization, and punctuation for natural insertion.")
+            }
+
+            if contextAwareInsertionEnabled {
+                HStack {
+                    Toggle(isOn: $contextAwareLLMMergeEnabled) {
+                        Text("LLM Merge")
+                    }
+                    .toggleStyle(.switch)
+
+                    InfoTip("When inserting in the middle of existing text, use AI to merge the inserted text seamlessly with surrounding content. Requires AI enhancement to be configured.")
+                }
+                .padding(.leading, 20)
+            }
+
+            Divider().padding(.vertical, 4)
 
             HStack {
                 Toggle(isOn: $isTextFormattingEnabled) {

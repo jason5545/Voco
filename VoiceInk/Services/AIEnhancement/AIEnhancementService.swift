@@ -525,6 +525,41 @@ class AIEnhancementService: ObservableObject {
         return (raw, duration, nil)
     }
 
+    /// Merge inserted text into surrounding context for seamless reading (fork feature).
+    /// Only adjusts the inserted portion — surrounding text is context-only.
+    func enhanceMerge(
+        insertedText: String,
+        textBefore: String,
+        textAfter: String
+    ) async throws -> (String, TimeInterval) {
+        let startTime = Date()
+        guard isConfigured else { throw EnhancementError.notConfigured }
+        guard !insertedText.isEmpty else { return (insertedText, 0) }
+
+        let systemMessage = AIPrompts.contextMergePrompt
+        let userMessage = """
+        <TEXT_BEFORE_CURSOR>
+        \(textBefore)
+        </TEXT_BEFORE_CURSOR>
+
+        <INSERTED_TEXT>
+        \(insertedText)
+        </INSERTED_TEXT>
+
+        <TEXT_AFTER_CURSOR>
+        \(textAfter)
+        </TEXT_AFTER_CURSOR>
+        """
+
+        let result = try await makeRequestWithRetry(
+            text: "", mode: .transcriptionEnhancement,
+            systemMessageOverride: systemMessage,
+            userMessageOverride: userMessage
+        )
+        let duration = Date().timeIntervalSince(startTime)
+        return (result.trimmingCharacters(in: .whitespacesAndNewlines), duration)
+    }
+
     func captureScreenContext() async {
         guard useScreenCaptureContext else {
             return

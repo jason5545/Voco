@@ -47,6 +47,10 @@ enum AppDefaults {
             "PrewarmModelOnWake": true,
             "ModelKeepAliveSeconds": 420.0,
 
+            // Context-Aware Insertion (fork feature)
+            "ContextAwareInsertionEnabled": false,
+            "ContextAwareLLMMergeEnabled": false,
+
             // Chinese Post-Processing
             "ChinesePostProcessingEnabled": false,
             "ChinesePostProcessingOpenCC": true,

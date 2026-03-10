@@ -1,0 +1,169 @@
+import Foundation
+import os
+
+final class ContextAwareInsertionService {
+    static let shared = ContextAwareInsertionService()
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ContextAwareInsertion")
+
+    private init() {}
+
+    /// Apply context-aware adjustments to text before pasting.
+    /// Returns adjusted text ready for CursorPaster.
+    func adjust(_ text: String, context: SurroundingTextContext?, appendTrailingSpace: Bool) -> String {
+        guard let ctx = context, ctx.isAvailable else {
+            // No context available — use current behavior
+            return text + (appendTrailingSpace ? " " : "")
+        }
+
+        var result = text
+
+        // Rule 1: Smart leading space (English word boundary)
+        result = adjustLeadingSpace(result, textBefore: ctx.textBefore)
+
+        // Rule 2: Prevent duplicate punctuation at junction
+        result = preventDuplicatePunctuation(result, textBefore: ctx.textBefore, textAfter: ctx.textAfter)
+
+        // Rule 3: Capitalize first letter if at sentence start
+        result = adjustCapitalization(result, textBefore: ctx.textBefore)
+
+        // Rule 4: CJK-Latin spacing
+        result = adjustCJKLatinSpacing(result, textBefore: ctx.textBefore, textAfter: ctx.textAfter)
+
+        // Rule 5: Smart trailing space (must be last — depends on final state of result)
+        result = adjustTrailingSpace(result, textAfter: ctx.textAfter, appendSpaceSetting: appendTrailingSpace)
+
+        return result
+    }
+
+    // MARK: - Rule Implementations
+
+    /// Rule 1: If both sides are Latin letters, ensure exactly one space between them.
+    private func adjustLeadingSpace(_ text: String, textBefore: String) -> String {
+        guard !text.isEmpty, !textBefore.isEmpty else { return text }
+        let lastBefore = textBefore.last!
+        let firstInserted = text.first!
+
+        // Both are Latin letters — need a space between
+        let needsSpace = lastBefore.isLetter && !lastBefore.isCJK
+            && firstInserted.isLetter && !firstInserted.isCJK
+
+        if needsSpace && lastBefore != " " && firstInserted != " " {
+            return " " + text
+        }
+        // Prevent double space
+        if lastBefore == " " && text.hasPrefix(" ") {
+            return String(text.dropFirst())
+        }
+        return text
+    }
+
+    /// Rule 2: Remove duplicate punctuation at the insertion boundaries.
+    private func preventDuplicatePunctuation(_ text: String, textBefore: String, textAfter: String) -> String {
+        guard !text.isEmpty else { return text }
+        var result = text
+
+        // Leading duplicate: inserted text starts with same punctuation as textBefore ends with
+        if let lastBefore = textBefore.last, let firstInserted = result.first,
+           lastBefore == firstInserted && (lastBefore.isPunctuation || lastBefore.isCJKPunctuation) {
+            result = String(result.dropFirst())
+        }
+        // Trailing duplicate: inserted text ends with same punctuation as textAfter starts with
+        if !result.isEmpty,
+           let lastInserted = result.last, let firstAfter = textAfter.first,
+           lastInserted == firstAfter && (lastInserted.isPunctuation || lastInserted.isCJKPunctuation) {
+            result = String(result.dropLast())
+        }
+        return result
+    }
+
+    /// Rule 3: Capitalize at sentence start, lowercase mid-sentence (but preserve acronyms).
+    private func adjustCapitalization(_ text: String, textBefore: String) -> String {
+        guard !text.isEmpty, let firstChar = text.first, firstChar.isLetter else { return text }
+        // Only adjust Latin characters
+        guard !firstChar.isCJK else { return text }
+
+        let trimmedBefore = textBefore.trimmingCharacters(in: .whitespaces)
+
+        let atSentenceStart = trimmedBefore.isEmpty
+            || trimmedBefore.hasSuffix(".")
+            || trimmedBefore.hasSuffix("!")
+            || trimmedBefore.hasSuffix("?")
+            || trimmedBefore.hasSuffix("。")
+            || trimmedBefore.hasSuffix("！")
+            || trimmedBefore.hasSuffix("？")
+
+        if atSentenceStart {
+            // Uppercase first letter
+            if firstChar.isLowercase {
+                return text.prefix(1).uppercased() + text.dropFirst()
+            }
+        } else {
+            // Mid-sentence: lowercase the first letter, unless it's an acronym (all uppercase word)
+            let firstWord = text.prefix(while: { $0.isLetter })
+            if firstWord.count > 1 && firstChar.isUppercase
+                && firstWord.dropFirst().allSatisfy({ $0.isLowercase }) {
+                // Single capitalized word like "Hello" → "hello", but keep "API", "HTTP" etc.
+                return text.prefix(1).lowercased() + text.dropFirst()
+            }
+        }
+        return text
+    }
+
+    /// Rule 4: Add space at CJK-Latin boundaries.
+    private func adjustCJKLatinSpacing(_ text: String, textBefore: String, textAfter: String) -> String {
+        guard !text.isEmpty else { return text }
+        var result = text
+
+        // Leading boundary: CJK before + Latin inserted (or vice versa)
+        if let lastBefore = textBefore.last, lastBefore != " ",
+           let firstInserted = result.first, firstInserted != " " {
+            if (lastBefore.isCJK && firstInserted.isASCII && firstInserted.isLetter)
+                || (lastBefore.isASCII && lastBefore.isLetter && firstInserted.isCJK) {
+                result = " " + result
+            }
+        }
+        // Trailing boundary: Latin inserted + CJK after (or vice versa)
+        if let lastInserted = result.last, lastInserted != " ",
+           let firstAfter = textAfter.first, firstAfter != " " {
+            if (lastInserted.isASCII && lastInserted.isLetter && firstAfter.isCJK)
+                || (lastInserted.isCJK && firstAfter.isASCII && firstAfter.isLetter) {
+                result = result + " "
+            }
+        }
+        return result
+    }
+
+    /// Rule 5: Smart trailing space — only add when the character after cursor isn't already a space or punctuation.
+    private func adjustTrailingSpace(_ text: String, textAfter: String, appendSpaceSetting: Bool) -> String {
+        guard appendSpaceSetting, !text.isEmpty else { return text }
+
+        // If nothing after cursor (end of field), follow the setting
+        if textAfter.isEmpty { return text + " " }
+
+        let firstAfter = textAfter.first!
+        // Don't append if next char is already space, punctuation, or CJK punctuation
+        if firstAfter == " " || firstAfter.isPunctuation || firstAfter.isCJKPunctuation {
+            return text
+        }
+        return text + " "
+    }
+}
+
+// MARK: - Character Extensions
+
+extension Character {
+    var isCJK: Bool {
+        guard let scalar = unicodeScalars.first else { return false }
+        let v = scalar.value
+        return (0x4E00...0x9FFF).contains(v)       // CJK Unified Ideographs
+            || (0x3400...0x4DBF).contains(v)       // CJK Extension A
+            || (0x20000...0x2A6DF).contains(v)     // CJK Extension B
+            || (0xF900...0xFAFF).contains(v)       // CJK Compatibility Ideographs
+            || (0x2F800...0x2FA1F).contains(v)     // CJK Compatibility Supplement
+    }
+
+    var isCJKPunctuation: Bool {
+        let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "（", "）", "《", "》", "【", "】", "〈", "〉"]
+        return cjkPunct.contains(self)
+    }
+}

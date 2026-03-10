@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AppKit
 import SwiftData
 import os
 
@@ -536,9 +537,47 @@ class TranscriptionPipeline {
                 postProcessor.contextMemory.add(textToPaste)
             }
 
+            // === Context-Aware Insertion (fork feature) ===
+            let contextAwareEnabled = UserDefaults.standard.bool(forKey: "ContextAwareInsertionEnabled")
+            let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
+
+            if contextAwareEnabled {
+                // Query surrounding text via AX API (already on MainActor)
+                let context: SurroundingTextContext?
+                if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+                    context = SurroundingTextService.shared.querySurroundingText(for: pid)
+                } else {
+                    context = nil
+                }
+
+                // Rule-based adjustments (handles nil context by falling back to current behavior)
+                textToPaste = ContextAwareInsertionService.shared.adjust(
+                    textToPaste, context: context, appendTrailingSpace: appendSpace)
+
+                // LLM merge for mid-text insertion
+                let llmMergeEnabled = UserDefaults.standard.bool(forKey: "ContextAwareLLMMergeEnabled")
+                if llmMergeEnabled,
+                   let ctx = context, !ctx.textBefore.isEmpty, !ctx.textAfter.isEmpty,
+                   let enhancementService, enhancementService.isConfigured {
+                    do {
+                        let (merged, _) = try await enhancementService.enhanceMerge(
+                            insertedText: textToPaste,
+                            textBefore: ctx.textBefore,
+                            textAfter: ctx.textAfter
+                        )
+                        if !merged.isEmpty {
+                            textToPaste = merged
+                        }
+                    } catch {
+                        logger.warning("⚠️ LLM merge failed, using rule-based result: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                textToPaste = textToPaste + (appendSpace ? " " : "")
+            }
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
-                CursorPaster.pasteAtCursor(textToPaste + (appendSpace ? " " : ""))
+                CursorPaster.pasteAtCursor(textToPaste)
 
                 let powerMode = PowerModeManager.shared
                 if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.isAutoSendEnabled {
