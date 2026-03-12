@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import KeyboardShortcuts
+import OSLog
 
 // ViewType enum with all cases
 enum ViewType: String, CaseIterable, Identifiable {
@@ -70,6 +71,7 @@ struct VisualEffectView: NSViewRepresentable {
 }
 
 struct ContentView: View {
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ContentView")
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var engine: VoiceInkEngine
@@ -155,8 +157,15 @@ struct ContentView: View {
         .navigationSplitViewStyle(.balanced)
         .frame(width: 950)
         .frame(minHeight: 730)
+        .onAppear {
+            logger.notice("ContentView appeared")
+        }
+        .onDisappear {
+            logger.notice("ContentView disappeared")
+        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { notification in
             if let destination = notification.userInfo?["destination"] as? String {
+                logger.notice("navigateToDestination received: \(destination, privacy: .public)")
                 switch destination {
                 case "Settings":
                     selectedView = .settings
