@@ -267,7 +267,7 @@ struct ModelManagementView: View {
                 return index1 < index2
             }
         case .local:
-            return transcriptionModelManager.allAvailableModels.filter { $0.provider == .local || $0.provider == .nativeApple || $0.provider == .parakeet }
+            return transcriptionModelManager.allAvailableModels.filter { $0.provider == .local || $0.provider == .nativeApple || $0.provider == .parakeet || $0.provider == .qwen3 }
         case .cloud:
             let cloudProviders: [ModelProvider] = [.groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox]
             return transcriptionModelManager.allAvailableModels.filter { cloudProviders.contains($0.provider) }
