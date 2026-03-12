@@ -3,6 +3,7 @@
 // Properties needed by WhisperMLX, Qwen3, WhisperCoreML, and Edit Mode
 
 import Foundation
+import Combine
 
 // MARK: - Word Substitution (Edit Mode dictionary suggestion)
 struct WordSubstitution {
@@ -32,6 +33,11 @@ extension VoiceInkEngine {
             return existing
         }
         let state = ForkEngineState()
+        // Forward forkState changes to engine so SwiftUI views observing engine will re-render
+        let cancellable = state.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        objc_setAssociatedObject(self, &AssociatedKeys.forkStateSink, cancellable, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         objc_setAssociatedObject(self, &AssociatedKeys.forkState, state, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return state
     }
@@ -70,4 +76,5 @@ extension VoiceInkEngine {
 
 private enum AssociatedKeys {
     nonisolated(unsafe) static var forkState = "forkState"
+    nonisolated(unsafe) static var forkStateSink = "forkStateSink"
 }
