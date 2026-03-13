@@ -29,35 +29,25 @@ class Qwen3FeatureExtractor {
 
     private var melFilterbank: [Float]?
     private var hannWindow: [Float]
-    // Precomputed DFT basis matrices [nBins x nFFT] (row-major)
-    // Used for direct 400-point DFT via matrix-vector multiply,
-    // since vDSP_DFT_zrop only supports lengths of the form f*2^n (f in {1,3,5,15}).
-    private var cosBasis: [Float]
-    private var sinBasis: [Float]
+    // vDSP DFT setup for 400-point complex FFT (400 = 2^4 × 5^2, supported by vDSP_DFT_zop)
+    private var dftSetup: OpaquePointer
 
     init() throws {
-        let nBins = nFFT / 2 + 1  // 201
-
         hannWindow = [Float](repeating: 0, count: nFFT)
         for i in 0..<nFFT {
             hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(nFFT)))
         }
 
-        // Precompute DFT twiddle factors for bins 0..nFFT/2
-        // X[k] = Σ x[n] * exp(-j * 2π * k * n / N)
-        //      = Σ x[n] * cos(2πkn/N) - j * Σ x[n] * sin(2πkn/N)
-        cosBasis = [Float](repeating: 0, count: nBins * nFFT)
-        sinBasis = [Float](repeating: 0, count: nBins * nFFT)
-        let twoPiOverN = 2.0 * Float.pi / Float(nFFT)
-        for k in 0..<nBins {
-            for n in 0..<nFFT {
-                let angle = twoPiOverN * Float(k) * Float(n)
-                cosBasis[k * nFFT + n] = cos(angle)
-                sinBasis[k * nFFT + n] = sin(angle)
-            }
+        guard let setup = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(nFFT), .FORWARD) else {
+            throw Qwen3PreprocessingError.melFilterbankNotInitialized
         }
+        dftSetup = setup
 
         setupMelFilterbank()
+    }
+
+    deinit {
+        vDSP_DFT_DestroySetup(dftSetup)
     }
 
     private func setupMelFilterbank() {
@@ -156,8 +146,10 @@ class Qwen3FeatureExtractor {
         let nFrames = (paddedAudio.count - nFFT) / hopLength + 1
 
         var windowedFrame = [Float](repeating: 0, count: nFFT)
-        var realPart = [Float](repeating: 0, count: nBins)
-        var imagPart = [Float](repeating: 0, count: nBins)
+        var inputImag = [Float](repeating: 0, count: nFFT)
+        var outputReal = [Float](repeating: 0, count: nFFT)
+        var outputImag = [Float](repeating: 0, count: nFFT)
+        var tempSq = [Float](repeating: 0, count: nBins)
         var magnitude = [Float](repeating: 0, count: nFrames * nBins)
 
         for frame in 0..<nFrames {
@@ -168,18 +160,16 @@ class Qwen3FeatureExtractor {
                 vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &windowedFrame, 1, vDSP_Length(nFFT))
             }
 
-            // 400-point DFT via matrix-vector multiply
-            // realPart[k] = Σ_n windowedFrame[n] * cos(2πkn/N)
-            // imagPart[k] = Σ_n windowedFrame[n] * sin(2πkn/N)
-            vDSP_mmul(cosBasis, 1, windowedFrame, 1, &realPart, 1,
-                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
-            vDSP_mmul(sinBasis, 1, windowedFrame, 1, &imagPart, 1,
-                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
+            // 400-point DFT via vDSP (O(N log N) vs O(N²) matrix multiply)
+            vDSP_DFT_Execute(dftSetup, windowedFrame, inputImag, &outputReal, &outputImag)
 
-            // Power spectrum: |X[k]|^2 = real^2 + imag^2
+            // Power spectrum: |X[k]|^2 = real^2 + imag^2 (only first nBins)
             let baseIdx = frame * nBins
-            for k in 0..<nBins {
-                magnitude[baseIdx + k] = realPart[k] * realPart[k] + imagPart[k] * imagPart[k]
+            magnitude.withUnsafeMutableBufferPointer { magBuf in
+                let magPtr = magBuf.baseAddress! + baseIdx
+                vDSP_vsq(outputReal, 1, magPtr, 1, vDSP_Length(nBins))
+                vDSP_vsq(outputImag, 1, &tempSq, 1, vDSP_Length(nBins))
+                vDSP_vadd(magPtr, 1, tempSq, 1, magPtr, 1, vDSP_Length(nBins))
             }
         }
 
