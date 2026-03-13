@@ -132,13 +132,16 @@ class RecorderUIManager: ObservableObject {
                 engine.forkState.isEditMode = true
                 engine.forkState.editModeSelectedText = selectedText
             } else if snapshot.focusedElementUnavailable {
-                // AX focused element unavailable (e.g. Electron apps) — try menuAction fallback
-                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                    engine.forkState.isEditMode = true
-                    engine.forkState.editModeSelectedText = selectedText
-                } else {
-                    engine.forkState.isEditMode = false
-                    engine.forkState.editModeSelectedText = nil
+                // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback
+                // Don't block UI; fetch selected text in background and set edit mode later
+                engine.forkState.isEditMode = false
+                engine.forkState.editModeSelectedText = nil
+                Task { @MainActor [weak engine] in
+                    guard let engine else { return }
+                    if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                        engine.forkState.isEditMode = true
+                        engine.forkState.editModeSelectedText = selectedText
+                    }
                 }
             } else {
                 engine.forkState.isEditMode = false
