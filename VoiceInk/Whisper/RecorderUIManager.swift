@@ -124,30 +124,7 @@ class RecorderUIManager: ObservableObject {
             engine.cancelScheduledModelCleanup()
             SoundManager.shared.playStartSound()
 
-            // Edit Mode detection: atomic snapshot BEFORE stopping (avoids race with activation observer invalidate)
-            let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-            EditModeCacheService.shared.stopPolling()
-
-            if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
-                engine.forkState.isEditMode = true
-                engine.forkState.editModeSelectedText = selectedText
-            } else if snapshot.focusedElementUnavailable {
-                // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback
-                // Don't block UI; fetch selected text in background and set edit mode later
-                engine.forkState.isEditMode = false
-                engine.forkState.editModeSelectedText = nil
-                Task { @MainActor [weak engine] in
-                    guard let engine else { return }
-                    if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                        engine.forkState.isEditMode = true
-                        engine.forkState.editModeSelectedText = selectedText
-                    }
-                }
-            } else {
-                engine.forkState.isEditMode = false
-                engine.forkState.editModeSelectedText = nil
-            }
-            logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil), cacheEditable=\(snapshot.isEditable), cacheUnavail=\(snapshot.focusedElementUnavailable)")
+            detectEditMode(engine: engine)
 
             await MainActor.run { isMiniRecorderVisible = true }
             await engine.toggleRecord(powerModeId: powerModeId)
@@ -248,6 +225,36 @@ class RecorderUIManager: ObservableObject {
             type: .info,
             duration: 1.5
         )
+    }
+
+    // MARK: - Edit Mode Detection (Fork-only)
+
+    /// Detects edit mode state from the AX cache snapshot.
+    /// Isolated from toggleMiniRecorder to minimize upstream merge conflicts.
+    private func detectEditMode(engine: VoiceInkEngine) {
+        let snapshot = EditModeCacheService.shared.snapshotEditModeState()
+        EditModeCacheService.shared.stopPolling()
+
+        if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
+            engine.forkState.isEditMode = true
+            engine.forkState.editModeSelectedText = selectedText
+        } else if snapshot.focusedElementUnavailable {
+            // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback
+            // Don't block UI; fetch selected text in background and set edit mode later
+            engine.forkState.isEditMode = false
+            engine.forkState.editModeSelectedText = nil
+            Task { @MainActor [weak engine] in
+                guard let engine else { return }
+                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                    engine.forkState.isEditMode = true
+                    engine.forkState.editModeSelectedText = selectedText
+                }
+            }
+        } else {
+            engine.forkState.isEditMode = false
+            engine.forkState.editModeSelectedText = nil
+        }
+        logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil), cacheEditable=\(snapshot.isEditable), cacheUnavail=\(snapshot.focusedElementUnavailable)")
     }
 
     // MARK: - Notification Handling
