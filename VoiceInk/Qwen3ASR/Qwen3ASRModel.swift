@@ -144,7 +144,7 @@ class Qwen3ASRModel {
         return result
     }
 
-    private func generateText(
+    func generateText(
         audioEmbeds: MLXArray,
         textDecoder: Qwen3QuantizedTextModel,
         language: String?,
@@ -386,7 +386,7 @@ class Qwen3ASRModel {
     // MARK: - Uncertain Word Grouping
 
     /// Build UncertainWord list by grouping adjacent low-confidence tokens
-    private func buildUncertainWords(
+    func buildUncertainWords(
         tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)],
         textTokens: [Int32],
         tokenizer: Qwen3Tokenizer

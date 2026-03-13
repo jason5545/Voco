@@ -11,7 +11,7 @@ import Foundation
                 return allLanguages.filter { appleSupportedCodes.contains($0.key) }
             }
             // Qwen3-ASR supports all languages (30+ languages + auto-detect)
-            if provider == .qwen3 {
+            if provider == .qwen3 || provider == .qwen3CoreML {
                 return allLanguages
             }
             // For Soniox, return only the 60 languages supported by stt-async-v4
@@ -202,6 +202,21 @@ import Foundation
             modelId: "mlx-community/Qwen3-ASR-1.7B-8bit",
             modelSize: .large,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3)
+        ),
+
+        // Qwen3-ASR CoreML Hybrid Models (ANE encoder + GPU decoder)
+        Qwen3CoreMLModel(
+            name: "qwen3-asr-0.6b-coreml-hybrid",
+            displayName: "Qwen3-ASR 0.6B (CoreML Hybrid)",
+            description: "CoreML encoder on ANE + MLX decoder on GPU. Frees GPU for other tasks while maintaining accuracy.",
+            size: "~500 MB (2 components)",
+            speed: 0.85,
+            accuracy: 0.97,
+            ramUsage: 1.2,
+            coremlModelId: "aufklarer/Qwen3-ASR-CoreML",
+            mlxModelId: "mlx-community/Qwen3-ASR-0.6B-4bit",
+            modelSize: .small,
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .qwen3CoreML)
         ),
 
         // Whisper MLX Models

@@ -24,7 +24,7 @@ enum Qwen3DownloadError: Error, LocalizedError {
 
 /// HuggingFace model downloader for Qwen3-ASR
 enum Qwen3HuggingFaceDownloader {
-    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3Downloader")
+    static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3Downloader")
     private static let maxRetries = 3
 
     /// Get cache directory for a model under Application Support
@@ -93,7 +93,7 @@ enum Qwen3HuggingFaceDownloader {
         return local
     }
 
-    private static func makeSession() -> URLSession {
+    static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 600
@@ -101,7 +101,7 @@ enum Qwen3HuggingFaceDownloader {
         return URLSession(configuration: config)
     }
 
-    private static func downloadFile(
+    static func downloadFile(
         url: URL,
         to localPath: URL,
         session: URLSession,

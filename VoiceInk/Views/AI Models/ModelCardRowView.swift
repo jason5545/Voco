@@ -82,6 +82,14 @@ struct ModelCardRowView: View {
                         transcriptionModelManager: transcriptionModelManager
                     )
                 }
+            case .qwen3CoreML:
+                if let qwen3CoreMLModel = model as? Qwen3CoreMLModel {
+                    Qwen3CoreMLModelCardRowView(
+                        model: qwen3CoreMLModel,
+                        engine: engine,
+                        transcriptionModelManager: transcriptionModelManager
+                    )
+                }
             case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox:
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(

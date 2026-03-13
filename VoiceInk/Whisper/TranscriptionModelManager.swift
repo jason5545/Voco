@@ -57,6 +57,13 @@ class TranscriptionModelManager: ObservableObject {
                     return WhisperCoreMLModelManager.isModelDownloaded(modelId: coreMLModel.coremlModelId)
                 }
                 return false
+            case .qwen3CoreML:
+                if let qwen3CoreMLModel = model as? Qwen3CoreMLModel {
+                    // Both CoreML encoder and MLX decoder must be downloaded
+                    return Qwen3CoreMLModelManager.isEncoderDownloaded(modelId: qwen3CoreMLModel.coremlModelId)
+                        && Qwen3ModelManager.isModelDownloaded(modelId: qwen3CoreMLModel.mlxModelId)
+                }
+                return false
             case .nativeApple:
                 if #available(macOS 26, *) {
                     return true

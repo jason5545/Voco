@@ -15,6 +15,7 @@ enum ModelProvider: String, Codable, Hashable, CaseIterable {
     case qwen3 = "Qwen3"
     case whisperMLX = "WhisperMLX"
     case whisperCoreML = "WhisperCoreML"
+    case qwen3CoreML = "Qwen3CoreML"
 }
 
 // A unified protocol for any transcription model
@@ -231,6 +232,26 @@ struct WhisperCoreMLModel: TranscriptionModel {
     let accuracy: Double
     let ramUsage: Double
     let coremlModelId: String  // Identifier for model download/cache lookup
+    var isMultilingualModel: Bool {
+        supportedLanguages.count > 1
+    }
+    let supportedLanguages: [String: String]
+}
+
+// Qwen3-ASR CoreML Hybrid models (CoreML encoder + MLX decoder)
+struct Qwen3CoreMLModel: TranscriptionModel {
+    let id = UUID()
+    let name: String
+    let displayName: String
+    let description: String
+    let provider: ModelProvider = .qwen3CoreML
+    let size: String
+    let speed: Double
+    let accuracy: Double
+    let ramUsage: Double
+    let coremlModelId: String  // HuggingFace repo for CoreML encoder
+    let mlxModelId: String     // HuggingFace repo for MLX text decoder
+    let modelSize: Qwen3ASRModelSize
     var isMultilingualModel: Bool {
         supportedLanguages.count > 1
     }

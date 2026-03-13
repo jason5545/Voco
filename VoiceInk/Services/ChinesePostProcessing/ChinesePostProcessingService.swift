@@ -317,7 +317,7 @@ class ChinesePostProcessingService: ObservableObject {
                 Self.debugLog("SKIP: high confidence (avgLogProb=\(String(format: "%.3f", lastAvgLogProb)), threshold=\(String(format: "%.3f", logProbThreshold)), foundCJKPunct=\"\(foundPunct)\") | text(\(text.count)): \(text)")
                 return true
             }
-        case .qwen3:
+        case .qwen3, .qwen3CoreML:
             // Qwen3: use logprob when available, fallback to text heuristic
             if lastAvgLogProb != 0.0 {
                 // Has logprob data → use it (same logic as Whisper)

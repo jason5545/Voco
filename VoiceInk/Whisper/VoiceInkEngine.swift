@@ -207,7 +207,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                         if let mlxModel = model as? WhisperMLXModel {
                                             try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: mlxModel)
                                         }
-                                    case .qwen3:
+                                    case .qwen3, .qwen3CoreML:
                                         break // Qwen3 loads on demand during transcription
                                     default:
                                         break
