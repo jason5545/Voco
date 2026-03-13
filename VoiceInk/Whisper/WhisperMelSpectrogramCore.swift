@@ -30,26 +30,36 @@ class WhisperMelSpectrogramCore {
 
     private var melFilterbank: [Float]  // [nMels x nBins] row-major
     private var hannWindow: [Float]
-    // vDSP DFT setup for 400-point complex FFT (400 = 2^4 × 5^2, supported by vDSP_DFT_zop)
-    private var dftSetup: OpaquePointer
+    // Precomputed DFT basis matrices for 400-point DFT via matrix-vector multiply.
+    // Whisper models are trained with 400-point FFT (201 bins); zero-padding to 512
+    // changes frequency resolution and mel features, so we keep the exact DFT.
+    private var cosBasis: [Float]
+    private var sinBasis: [Float]
 
     init(nMels: Int = 80) {
         self.nMels = nMels
+        let nBins = nFFT / 2 + 1  // 201
 
         hannWindow = [Float](repeating: 0, count: nFFT)
         for i in 0..<nFFT {
             hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(nFFT)))
         }
 
-        dftSetup = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(nFFT), .FORWARD)!
+        // Precompute DFT twiddle factors (400-point, not power of 2)
+        cosBasis = [Float](repeating: 0, count: nBins * nFFT)
+        sinBasis = [Float](repeating: 0, count: nBins * nFFT)
+        let twoPiOverN = 2.0 * Float.pi / Float(nFFT)
+        for k in 0..<nBins {
+            for n in 0..<nFFT {
+                let angle = twoPiOverN * Float(k) * Float(n)
+                cosBasis[k * nFFT + n] = cos(angle)
+                sinBasis[k * nFFT + n] = sin(angle)
+            }
+        }
 
         melFilterbank = WhisperMelSpectrogramCore.buildMelFilterbank(
             nMels: nMels, nFFT: nFFT, sampleRate: sampleRate
         )
-    }
-
-    deinit {
-        vDSP_DFT_DestroySetup(dftSetup)
     }
 
     /// Build mel filterbank matrix [nMels x nBins]
@@ -162,10 +172,8 @@ class WhisperMelSpectrogramCore {
         let nFrames = (paddedAudio.count - nFFT) / hopLength
 
         var windowedFrame = [Float](repeating: 0, count: nFFT)
-        var inputImag = [Float](repeating: 0, count: nFFT)
-        var outputReal = [Float](repeating: 0, count: nFFT)
-        var outputImag = [Float](repeating: 0, count: nFFT)
-        var tempSq = [Float](repeating: 0, count: nBins)
+        var realPart = [Float](repeating: 0, count: nBins)
+        var imagPart = [Float](repeating: 0, count: nBins)
         var magnitude = [Float](repeating: 0, count: nFrames * nBins)
 
         for frame in 0..<nFrames {
@@ -174,16 +182,15 @@ class WhisperMelSpectrogramCore {
                 vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &windowedFrame, 1, vDSP_Length(nFFT))
             }
 
-            // 400-point DFT via vDSP (O(N log N) vs O(N²) matrix multiply)
-            vDSP_DFT_Execute(dftSetup, windowedFrame, inputImag, &outputReal, &outputImag)
+            // 400-point DFT via matrix-vector multiply
+            vDSP_mmul(cosBasis, 1, windowedFrame, 1, &realPart, 1,
+                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
+            vDSP_mmul(sinBasis, 1, windowedFrame, 1, &imagPart, 1,
+                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
 
-            // Power spectrum: |X[k]|^2 = real^2 + imag^2 (only first nBins)
             let baseIdx = frame * nBins
-            magnitude.withUnsafeMutableBufferPointer { magBuf in
-                let magPtr = magBuf.baseAddress! + baseIdx
-                vDSP_vsq(outputReal, 1, magPtr, 1, vDSP_Length(nBins))
-                vDSP_vsq(outputImag, 1, &tempSq, 1, vDSP_Length(nBins))
-                vDSP_vadd(magPtr, 1, tempSq, 1, magPtr, 1, vDSP_Length(nBins))
+            for k in 0..<nBins {
+                magnitude[baseIdx + k] = realPart[k] * realPart[k] + imagPart[k] * imagPart[k]
             }
         }
 

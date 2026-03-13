@@ -29,8 +29,11 @@ class Qwen3FeatureExtractor {
 
     private var melFilterbank: [Float]?
     private var hannWindow: [Float]
-    // vDSP DFT setup for 400-point complex FFT (400 = 2^4 × 5^2, supported by vDSP_DFT_zop)
-    private var dftSetup: OpaquePointer
+    // Power-of-2 FFT: zero-pad nFFT=400 to paddedFFT=512 for vDSP compatibility
+    // (vDSP_DFT_zop only supports f×2^n where f∈{1,3,5,15}; 400 is not valid)
+    private let paddedFFT: Int = 512
+    private let log2PaddedFFT: vDSP_Length = 9  // log2(512)
+    private var fftSetup: FFTSetup
 
     init() throws {
         hannWindow = [Float](repeating: 0, count: nFFT)
@@ -38,16 +41,16 @@ class Qwen3FeatureExtractor {
             hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(nFFT)))
         }
 
-        guard let setup = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(nFFT), .FORWARD) else {
+        guard let setup = vDSP_create_fftsetup(9, FFTRadix(kFFTRadix2)) else {
             throw Qwen3PreprocessingError.melFilterbankNotInitialized
         }
-        dftSetup = setup
+        fftSetup = setup
 
         setupMelFilterbank()
     }
 
     deinit {
-        vDSP_DFT_DestroySetup(dftSetup)
+        vDSP_destroy_fftsetup(fftSetup)
     }
 
     private func setupMelFilterbank() {
@@ -74,11 +77,11 @@ class Qwen3FeatureExtractor {
             }
         }
 
-        let nBins = nFFT / 2 + 1
+        let nBins = paddedFFT / 2 + 1  // 257 for paddedFFT=512
 
         var fftFreqs = [Float](repeating: 0, count: nBins)
         for i in 0..<nBins {
-            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(nFFT)
+            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(paddedFFT)
         }
 
         let melMin = hzToMel(fMin)
@@ -126,7 +129,8 @@ class Qwen3FeatureExtractor {
     }
 
     func extractFeatures(_ audio: [Float]) throws -> MLXArray {
-        let nBins = nFFT / 2 + 1  // 201
+        let nBins = paddedFFT / 2 + 1  // 257 for paddedFFT=512
+        let halfPadded = paddedFFT / 2  // 256
 
         let padLength = nFFT / 2
         var paddedAudio = [Float](repeating: 0, count: padLength + audio.count + padLength)
@@ -145,31 +149,47 @@ class Qwen3FeatureExtractor {
 
         let nFrames = (paddedAudio.count - nFFT) / hopLength + 1
 
-        var windowedFrame = [Float](repeating: 0, count: nFFT)
-        var inputImag = [Float](repeating: 0, count: nFFT)
-        var outputReal = [Float](repeating: 0, count: nFFT)
-        var outputImag = [Float](repeating: 0, count: nFFT)
-        var tempSq = [Float](repeating: 0, count: nBins)
+        // Preallocate buffers for zero-padded 512-point FFT via vDSP_fft_zrip
+        var paddedFrame = [Float](repeating: 0, count: paddedFFT)
+        var splitReal = [Float](repeating: 0, count: halfPadded)
+        var splitImag = [Float](repeating: 0, count: halfPadded)
         var magnitude = [Float](repeating: 0, count: nFrames * nBins)
 
         for frame in 0..<nFrames {
             let start = frame * hopLength
 
-            // Apply Hann window
+            // Apply Hann window (first nFFT elements)
             paddedAudio.withUnsafeBufferPointer { buf in
-                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &windowedFrame, 1, vDSP_Length(nFFT))
+                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &paddedFrame, 1, vDSP_Length(nFFT))
+            }
+            // Zero-pad the rest (nFFT..<paddedFFT)
+            for i in nFFT..<paddedFFT { paddedFrame[i] = 0 }
+
+            // Pack into split-complex: realp[i] = frame[2*i], imagp[i] = frame[2*i+1]
+            for i in 0..<halfPadded {
+                splitReal[i] = paddedFrame[2 * i]
+                splitImag[i] = paddedFrame[2 * i + 1]
             }
 
-            // 400-point DFT via vDSP (O(N log N) vs O(N²) matrix multiply)
-            vDSP_DFT_Execute(dftSetup, windowedFrame, inputImag, &outputReal, &outputImag)
+            // Execute in-place real FFT
+            splitReal.withUnsafeMutableBufferPointer { realBuf in
+                splitImag.withUnsafeMutableBufferPointer { imagBuf in
+                    var splitComplex = DSPSplitComplex(
+                        realp: realBuf.baseAddress!,
+                        imagp: imagBuf.baseAddress!)
+                    vDSP_fft_zrip(fftSetup, &splitComplex, 1, log2PaddedFFT, FFTDirection(kFFTDirection_Forward))
+                }
+            }
 
-            // Power spectrum: |X[k]|^2 = real^2 + imag^2 (only first nBins)
+            // Extract power spectrum
             let baseIdx = frame * nBins
-            magnitude.withUnsafeMutableBufferPointer { magBuf in
-                let magPtr = magBuf.baseAddress! + baseIdx
-                vDSP_vsq(outputReal, 1, magPtr, 1, vDSP_Length(nBins))
-                vDSP_vsq(outputImag, 1, &tempSq, 1, vDSP_Length(nBins))
-                vDSP_vadd(magPtr, 1, tempSq, 1, magPtr, 1, vDSP_Length(nBins))
+            // DC component (purely real, stored in realp[0])
+            magnitude[baseIdx] = splitReal[0] * splitReal[0]
+            // Nyquist component (purely real, packed in imagp[0])
+            magnitude[baseIdx + halfPadded] = splitImag[0] * splitImag[0]
+            // Bins 1 to N/2-1
+            for k in 1..<halfPadded {
+                magnitude[baseIdx + k] = splitReal[k] * splitReal[k] + splitImag[k] * splitImag[k]
             }
         }
 
