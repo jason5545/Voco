@@ -65,6 +65,15 @@ class Qwen3ASRModel {
         return nlLanguageToName[lang] ?? lang.rawValue
     }
 
+    /// Count CJK characters in text
+    private static func cjkCount(in text: String) -> Int {
+        text.unicodeScalars.filter {
+            (0x4E00...0x9FFF).contains($0.value) ||
+            (0x3400...0x4DBF).contains($0.value) ||
+            (0x3000...0x303F).contains($0.value)  // CJK punctuation
+        }.count
+    }
+
     let audioEncoder: Qwen3AudioEncoder
     let featureExtractor: Qwen3FeatureExtractor
     var textDecoder: Qwen3QuantizedTextModel?
@@ -157,6 +166,15 @@ class Qwen3ASRModel {
                     prompt: prompt,
                     maxTokens: effectiveMaxTokens
                 )
+                // Guard against translation: if the remapped result lost most CJK
+                // characters, the model translated instead of preserving code-switching.
+                // Fall back to the first pass result in that case.
+                let originalCJK = Self.cjkCount(in: result.text)
+                let remappedCJK = Self.cjkCount(in: remapped.text)
+                if originalCJK > 0 && remappedCJK < originalCJK / 2 {
+                    Self.logger.warning("Code-switch remap produced translation (CJK \(originalCJK)→\(remappedCJK)), using original")
+                    return resultWithLang
+                }
                 return TranscriptionResult(
                     text: remapped.text,
                     avgLogProb: remapped.avgLogProb,
