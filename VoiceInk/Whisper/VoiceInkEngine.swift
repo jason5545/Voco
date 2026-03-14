@@ -156,7 +156,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
                             self.logger.notice("toggleRecord: recording started successfully, state=recording")
 
-                            await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId)
+                            // Apply PowerMode configuration in background — don't block session/model prep
+                            Task { await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId) }
 
                             if self.recordingState == .recording,
                                let model = self.transcriptionModelManager.currentTranscriptionModel {
