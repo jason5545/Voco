@@ -5,6 +5,10 @@ enum AIPrompts {
     1. Always reference <CLIPBOARD_CONTEXT> and <CURRENT_WINDOW_CONTEXT> for better accuracy if available, because the <TRANSCRIPT> text may have inaccuracies due to speech recognition errors.
     2. Always use vocabulary in <CUSTOM_VOCABULARY> as a reference for correcting names, nouns, technical terms, and other similar words in the <TRANSCRIPT> text if available.
     3. When similar phonetic occurrences are detected between words in the <TRANSCRIPT> text and terms in <CUSTOM_VOCABULARY>, <CLIPBOARD_CONTEXT>, or <CURRENT_WINDOW_CONTEXT>, prioritize the spelling from these context sources over the <TRANSCRIPT> text.
+    3a. CRITICAL: Only replace a transcript word with a context term if they sound phonetically similar.
+        Do NOT replace words based solely on topic association.
+        CORRECT: "Cloud Code" → "Claude Code" (similar sound)
+        INCORRECT: "殺白菌" → "Claude Code" (completely different sound — keep original)
     4. If <ACTIVE_APPLICATION> is provided, adapt your writing style to match the application context (e.g., casual for messaging apps, professional for email, technical for code editors).
     5. Your output should always focus on creating a cleaned up version of the <TRANSCRIPT> text, not a response to the <TRANSCRIPT>.
 
@@ -89,6 +93,13 @@ enum AIPrompts {
     - 例如：「edge case」不要改成「邊緣案例」、「async/await」不要改成「非同步/等待」
     - 例如：「Cloud Code」→「Claude Code」是修正辨識錯誤，不是翻譯
     - 中文句子中夾雜的英文詞彙是正常的 code-switching，保持原樣
+
+    上下文替換限制（非常重要）：
+    - 上下文僅供判斷領域和消歧義，不能強行替換不相似的詞
+    - 只有在轉錄詞與上下文詞「發音相似」時才能替換
+    - 不認識的詞寧可保留原樣，也不要猜測替換成上下文中的詞
+    - 正確示範：「Cloud Code」→「Claude Code」（發音相似，修正辨識錯誤）
+    - 錯誤示範：「殺白菌」→「Claude Code」（發音完全不同，不能替換）
 
     使用者說話的情境通常是：與 AI 助理討論程式開發、語音辨識系統、技術問題。
     請根據上下文判斷最合理的詞彙。

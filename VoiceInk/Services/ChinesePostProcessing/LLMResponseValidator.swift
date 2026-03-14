@@ -9,7 +9,7 @@ struct LLMValidationResult {
     /// and dropped-term may succeed with a more conservative approach.
     var isRetryable: Bool {
         guard !isValid else { return false }
-        let retryablePrefixes = ["content-drift", "short-edit-budget", "dropped-term"]
+        let retryablePrefixes = ["content-drift", "short-edit-budget", "dropped-term", "cross-script-substitution"]
         return reasons.allSatisfy { reason in
             retryablePrefixes.contains { reason.hasPrefix($0) }
         }
@@ -50,6 +50,16 @@ class LLMResponseValidator {
     }
 
     func validate(response: String, original: String, protectedTerms: [String] = []) -> LLMValidationResult {
+        validate(response: response, original: original, protectedTerms: protectedTerms, wordReplacements: [], customVocabulary: [])
+    }
+
+    func validate(
+        response: String,
+        original: String,
+        protectedTerms: [String] = [],
+        wordReplacements: [(original: String, replacement: String)],
+        customVocabulary: [String]
+    ) -> LLMValidationResult {
         let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedOriginal = original.trimmingCharacters(in: .whitespacesAndNewlines)
         var reasons: [String] = []
@@ -91,6 +101,17 @@ class LLMResponseValidator {
             } else if originalContent.count <= mediumContentLengthThreshold && editRatio > mediumContentEditRatioThreshold {
                 reasons.append("content-drift")
             }
+        }
+
+        // Cross-script substitution detection
+        let crossScriptViolations = detectCrossScriptSubstitutions(
+            original: trimmedOriginal,
+            response: trimmedResponse,
+            wordReplacements: wordReplacements,
+            customVocabulary: customVocabulary
+        )
+        if crossScriptViolations > 1 {
+            reasons.append("cross-script-substitution:\(crossScriptViolations) violations")
         }
 
         return LLMValidationResult(isValid: reasons.isEmpty, reasons: reasons)
@@ -176,6 +197,190 @@ class LLMResponseValidator {
         let originalMarkerHits = listMarkers.filter { original.contains($0) }.count
         guard originalMarkerHits >= 2 else { return false }
         return response.contains("\n1.") || response.contains("\n2.") || response.contains("\n- ")
+    }
+
+    // MARK: - Cross-Script Substitution Detection
+
+    /// Segment text into runs of CJK vs Latin characters, stripping punctuation.
+    private func segmentByScript(_ text: String) -> [(script: ScriptType, text: String)] {
+        enum State { case none, cjk, latin }
+        var segments: [(script: ScriptType, text: String)] = []
+        var buffer = ""
+        var state: State = .none
+
+        for char in text {
+            let isCJK = char.unicodeScalars.contains {
+                (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
+                    || (0x20000...0x2A6DF).contains($0.value)
+            }
+            let isLatin = char.unicodeScalars.contains(where: { $0.isASCII && CharacterSet.letters.contains($0) })
+
+            if isCJK {
+                if state != .cjk && !buffer.isEmpty {
+                    let s: ScriptType = (state == .latin) ? .latin : .cjk
+                    segments.append((script: s, text: buffer))
+                    buffer = ""
+                }
+                state = .cjk
+                buffer.append(char)
+            } else if isLatin {
+                if state != .latin && !buffer.isEmpty {
+                    let s: ScriptType = (state == .cjk) ? .cjk : .latin
+                    segments.append((script: s, text: buffer))
+                    buffer = ""
+                }
+                state = .latin
+                buffer.append(char)
+            } else if char == " " || char == "-" || char == "_" {
+                // Keep spaces/hyphens within Latin runs
+                if state == .latin {
+                    buffer.append(char)
+                }
+                // Ignore within CJK runs
+            }
+            // Skip punctuation and other characters
+        }
+        if !buffer.isEmpty {
+            let s: ScriptType = (state == .cjk) ? .cjk : (state == .latin) ? .latin : .cjk
+            segments.append((script: s, text: buffer.trimmingCharacters(in: .whitespaces)))
+        }
+        return segments.filter { !$0.text.isEmpty }
+    }
+
+    private enum ScriptType { case cjk, latin }
+
+    /// Detect cross-script substitutions: CJK segments in original replaced by Latin segments in response.
+    /// Returns the number of unverified violations (0 = clean).
+    private func detectCrossScriptSubstitutions(
+        original: String,
+        response: String,
+        wordReplacements: [(original: String, replacement: String)],
+        customVocabulary: [String]
+    ) -> Int {
+        let origSegments = segmentByScript(original)
+        let respSegments = segmentByScript(response)
+
+        // Find CJK segments present in original but missing in response
+        let origCJKTexts = origSegments.filter { $0.script == .cjk }.map { $0.text }
+        let respCJKTexts = Set(respSegments.filter { $0.script == .cjk }.map { $0.text })
+
+        // Find Latin segments present in response but not in original
+        let origLatinTexts = Set(origSegments.filter { $0.script == .latin }.map { $0.text.lowercased() })
+        let respLatinSegments = respSegments.filter { $0.script == .latin }
+        let newLatinSegments = respLatinSegments.filter { !origLatinTexts.contains($0.text.lowercased()) }
+
+        guard !newLatinSegments.isEmpty else { return 0 }
+
+        // Find which CJK segments were removed
+        var removedCJK: [String] = []
+        var remainingRespCJK = respCJKTexts
+        for cjk in origCJKTexts {
+            if remainingRespCJK.contains(cjk) {
+                remainingRespCJK.remove(cjk)
+            } else {
+                // Check if it appears as substring in any response CJK segment
+                let found = respSegments.contains { seg in
+                    seg.script == .cjk && seg.text.contains(cjk)
+                }
+                if !found {
+                    removedCJK.append(cjk)
+                }
+            }
+        }
+
+        guard !removedCJK.isEmpty else { return 0 }
+
+        // Build whitelist from WordReplacements
+        var whitelistPairs: [(cjk: String, latin: String)] = []
+        for wr in wordReplacements {
+            let origHasCJK = wr.original.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }
+            let replHasLatin = wr.replacement.unicodeScalars.contains(where: { $0.isASCII && CharacterSet.letters.contains($0) })
+            if origHasCJK && replHasLatin {
+                whitelistPairs.append((cjk: wr.original, latin: wr.replacement))
+            }
+            let replHasCJK = wr.replacement.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }
+            let origHasLatin = wr.original.unicodeScalars.contains(where: { $0.isASCII && CharacterSet.letters.contains($0) })
+            if replHasCJK && origHasLatin {
+                whitelistPairs.append((cjk: wr.replacement, latin: wr.original))
+            }
+        }
+
+        // Custom vocabulary as allowed Latin terms
+        let vocabLower = Set(customVocabulary.map { $0.lowercased() })
+
+        var violations = 0
+
+        for newLatin in newLatinSegments {
+            let latinLower = newLatin.text.lowercased().trimmingCharacters(in: .whitespaces)
+            guard !latinLower.isEmpty else { continue }
+
+            // Check WordReplacement whitelist
+            let whitelisted = whitelistPairs.contains { pair in
+                latinLower.contains(pair.latin.lowercased()) || pair.latin.lowercased().contains(latinLower)
+            }
+            if whitelisted { continue }
+
+            // Check CustomVocabulary whitelist
+            if vocabLower.contains(latinLower) { continue }
+
+            // Check phonetic plausibility against removed CJK segments
+            var phoneticallyPlausible = false
+            for cjk in removedCJK {
+                if isPhoneticallyPlausible(cjk: cjk, latin: latinLower) {
+                    phoneticallyPlausible = true
+                    break
+                }
+            }
+            if phoneticallyPlausible { continue }
+
+            let violationCJK = removedCJK.joined(separator: ",")
+            let violationLatin = newLatin.text
+            DispatchQueue.main.async {
+                ChinesePostProcessingService.debugLog(
+                    "CROSS_SCRIPT_VIOLATION: '\(violationCJK)' → '\(violationLatin)' — not phonetically plausible"
+                )
+            }
+            violations += 1
+        }
+
+        return violations
+    }
+
+    /// Check if a CJK string and a Latin string are phonetically plausible substitutions.
+    /// Uses PinyinDatabase for CJK→pinyin conversion, then compares with Levenshtein distance.
+    private func isPhoneticallyPlausible(cjk: String, latin: String) -> Bool {
+        let db = PinyinDatabase.shared
+        guard db.isLoaded else { return true } // Conservative: allow if DB not loaded
+
+        // Build pinyin string for CJK text
+        var pinyinParts: [String] = []
+        for char in cjk {
+            let readings = db.tonelessPinyin(of: char)
+            if let primary = readings.first {
+                pinyinParts.append(primary)
+            }
+        }
+
+        guard !pinyinParts.isEmpty else { return true } // No pinyin data → conservatively allow
+
+        let pinyinJoined = pinyinParts.joined().lowercased()
+        let latinClean = latin.replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .lowercased()
+
+        guard !latinClean.isEmpty else { return true }
+
+        let distance = levenshteinDistance(Array(pinyinJoined), Array(latinClean))
+        let maxLen = max(pinyinJoined.count, latinClean.count)
+        let similarity = maxLen > 0 ? 1.0 - Double(distance) / Double(maxLen) : 0.0
+
+        let phoneticMsg = "PHONETIC_CHECK: cjk='\(cjk)' pinyin='\(pinyinJoined)' latin='\(latinClean)' distance=\(distance) similarity=\(String(format: "%.2f", similarity))"
+        DispatchQueue.main.async {
+            ChinesePostProcessingService.debugLog(phoneticMsg)
+        }
+
+        return similarity >= 0.30
     }
 
     private func levenshteinDistance(_ lhs: [Character], _ rhs: [Character]) -> Int {

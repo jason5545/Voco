@@ -212,12 +212,21 @@ class TranscriptionPipeline {
 
                     // === LLM response validation ===
                     if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
-                        let protectedTerms = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
-                            + CorrectionProtectionList.shared.allWords()
+                        let customVocabWords = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
+                        let protectedTerms = customVocabWords + CorrectionProtectionList.shared.allWords()
+
+                        // Fetch word replacements for cross-script validation
+                        let wrDescriptor = FetchDescriptor<WordReplacement>(predicate: #Predicate { $0.isEnabled })
+                        let wordReplacementPairs: [(original: String, replacement: String)] = (try? modelContext.fetch(wrDescriptor))?.map {
+                            (original: $0.originalText, replacement: $0.replacementText)
+                        } ?? []
+
                         let validation = postProcessor.llmResponseValidator.validate(
                             response: enhancedText,
                             original: textForAI,
-                            protectedTerms: protectedTerms
+                            protectedTerms: protectedTerms,
+                            wordReplacements: wordReplacementPairs,
+                            customVocabulary: customVocabWords
                         )
                         ChinesePostProcessingService.debugLog(
                             "LLM_VALIDATION: isValid=\(validation.isValid), reasons=\(validation.reasons.joined(separator: ",")) | original(\(textForAI.count)): \(textForAI) | enhanced(\(enhancedText.count)): \(enhancedText)"
@@ -235,7 +244,9 @@ class TranscriptionPipeline {
                                     let retryValidation = postProcessor.llmResponseValidator.validate(
                                         response: retryResult,
                                         original: textForAI,
-                                        protectedTerms: protectedTerms
+                                        protectedTerms: protectedTerms,
+                                        wordReplacements: wordReplacementPairs,
+                                        customVocabulary: customVocabWords
                                     )
                                     ChinesePostProcessingService.debugLog(
                                         "CONSERVATIVE_RETRY: isValid=\(retryValidation.isValid), reasons=\(retryValidation.reasons.joined(separator: ",")) | result(\(retryResult.count)): \(retryResult)"

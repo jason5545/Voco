@@ -43,7 +43,28 @@ class Qwen3ASRModel {
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
 
-    /// Map NLLanguage to the language names used for detected language reporting
+    /// Language tags that cause English transliteration; remap to preserve code-switching
+    private static let codeSwitchLanguageRemap: [String: String] = [
+        "Chinese": "English",
+    ]
+
+    /// Count CJK characters in text
+    private static func cjkCount(in text: String) -> Int {
+        text.unicodeScalars.filter {
+            (0x4E00...0x9FFF).contains($0.value) ||
+            (0x3400...0x4DBF).contains($0.value) ||
+            (0x3000...0x303F).contains($0.value)  // CJK punctuation
+        }.count
+    }
+
+    /// Count Latin letter characters in text
+    private static func latinCount(in text: String) -> Int {
+        text.unicodeScalars.filter {
+            $0.isASCII && CharacterSet.letters.contains($0)
+        }.count
+    }
+
+    /// Map NLLanguage to the language names used by codeSwitchLanguageRemap
     private static let nlLanguageToName: [NLLanguage: String] = [
         .simplifiedChinese: "Chinese",
         .traditionalChinese: "Chinese",
@@ -129,16 +150,54 @@ class Qwen3ASRModel {
             maxTokens: effectiveMaxTokens
         )
 
-        // Auto-detect: report detected language via NLLanguageRecognizer
+        // Code-switch remap: detect language from output text using NLLanguageRecognizer.
+        // If the dominant language transliterates English (e.g. Chinese), re-run with
+        // a remapped tag to preserve code-switching.
         if language == nil {
             let detectedLang = Self.detectLanguage(from: result.text)
-            return TranscriptionResult(
+            let resultWithLang = TranscriptionResult(
                 text: result.text,
                 avgLogProb: result.avgLogProb,
                 tokenCount: result.tokenCount,
                 detectedLanguage: detectedLang,
                 uncertainWords: result.uncertainWords
             )
+            if let detectedLang,
+               let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
+                Memory.clearCache()  // Release GPU buffers from the first pass
+                Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
+                let remapped = try generateText(
+                    audioEmbeds: audioEmbeds,
+                    textDecoder: textDecoder,
+                    language: remappedLang,
+                    prompt: prompt,
+                    maxTokens: effectiveMaxTokens
+                )
+                // Guard against translation: require that the remapped result
+                // retains at least 70% of CJK characters AND actually gained Latin content.
+                let originalCJK = Self.cjkCount(in: result.text)
+                let remappedCJK = Self.cjkCount(in: remapped.text)
+                let originalLatin = Self.latinCount(in: result.text)
+                let remappedLatin = Self.latinCount(in: remapped.text)
+                let cjkRetained = originalCJK == 0 || Double(remappedCJK) >= Double(originalCJK) * 0.7
+                let latinGained = remappedLatin > originalLatin
+                let lengthReasonable = remapped.text.count <= result.text.count * 2
+
+                if cjkRetained && latinGained && lengthReasonable {
+                    Self.logger.info("Code-switch remap accepted (CJK \(originalCJK)→\(remappedCJK), Latin \(originalLatin)→\(remappedLatin))")
+                    return TranscriptionResult(
+                        text: remapped.text,
+                        avgLogProb: remapped.avgLogProb,
+                        tokenCount: remapped.tokenCount,
+                        detectedLanguage: detectedLang,
+                        uncertainWords: remapped.uncertainWords
+                    )
+                } else {
+                    Self.logger.warning("Code-switch remap rejected (CJK \(originalCJK)→\(remappedCJK), Latin \(originalLatin)→\(remappedLatin), len \(result.text.count)→\(remapped.text.count)), using original")
+                    return resultWithLang
+                }
+            }
+            return resultWithLang
         }
 
         return result
