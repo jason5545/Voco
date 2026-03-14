@@ -43,12 +43,7 @@ class Qwen3ASRModel {
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
 
-    /// Language tags that cause English transliteration; remap to preserve code-switching
-    private static let codeSwitchLanguageRemap: [String: String] = [
-        "Chinese": "English",
-    ]
-
-    /// Map NLLanguage to the language names used by codeSwitchLanguageRemap
+    /// Map NLLanguage to the language names used for detected language reporting
     private static let nlLanguageToName: [NLLanguage: String] = [
         .simplifiedChinese: "Chinese",
         .traditionalChinese: "Chinese",
@@ -63,15 +58,6 @@ class Qwen3ASRModel {
         recognizer.processString(text)
         guard let lang = recognizer.dominantLanguage else { return nil }
         return nlLanguageToName[lang] ?? lang.rawValue
-    }
-
-    /// Count CJK characters in text
-    private static func cjkCount(in text: String) -> Int {
-        text.unicodeScalars.filter {
-            (0x4E00...0x9FFF).contains($0.value) ||
-            (0x3400...0x4DBF).contains($0.value) ||
-            (0x3000...0x303F).contains($0.value)  // CJK punctuation
-        }.count
     }
 
     let audioEncoder: Qwen3AudioEncoder
@@ -143,47 +129,16 @@ class Qwen3ASRModel {
             maxTokens: effectiveMaxTokens
         )
 
-        // Code-switch remap: detect language from output text using NLLanguageRecognizer.
-        // If the dominant language transliterates English (e.g. Chinese), re-run with
-        // a remapped tag to preserve code-switching.
+        // Auto-detect: report detected language via NLLanguageRecognizer
         if language == nil {
             let detectedLang = Self.detectLanguage(from: result.text)
-            let resultWithLang = TranscriptionResult(
+            return TranscriptionResult(
                 text: result.text,
                 avgLogProb: result.avgLogProb,
                 tokenCount: result.tokenCount,
                 detectedLanguage: detectedLang,
                 uncertainWords: result.uncertainWords
             )
-            if let detectedLang,
-               let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
-                Memory.clearCache()  // Release GPU buffers from the first pass
-                Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
-                let remapped = try generateText(
-                    audioEmbeds: audioEmbeds,
-                    textDecoder: textDecoder,
-                    language: remappedLang,
-                    prompt: prompt,
-                    maxTokens: effectiveMaxTokens
-                )
-                // Guard against translation: if the remapped result lost most CJK
-                // characters, the model translated instead of preserving code-switching.
-                // Fall back to the first pass result in that case.
-                let originalCJK = Self.cjkCount(in: result.text)
-                let remappedCJK = Self.cjkCount(in: remapped.text)
-                if originalCJK > 0 && remappedCJK < originalCJK / 2 {
-                    Self.logger.warning("Code-switch remap produced translation (CJK \(originalCJK)→\(remappedCJK)), using original")
-                    return resultWithLang
-                }
-                return TranscriptionResult(
-                    text: remapped.text,
-                    avgLogProb: remapped.avgLogProb,
-                    tokenCount: remapped.tokenCount,
-                    detectedLanguage: detectedLang,
-                    uncertainWords: remapped.uncertainWords
-                )
-            }
-            return resultWithLang
         }
 
         return result
