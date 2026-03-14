@@ -8,6 +8,7 @@ import Foundation
 import MLX
 import MLXNN
 import MLXFast
+import NaturalLanguage
 import os
 
 enum Qwen3ASRModelError: Error, LocalizedError {
@@ -46,6 +47,23 @@ class Qwen3ASRModel {
     private static let codeSwitchLanguageRemap: [String: String] = [
         "Chinese": "English",
     ]
+
+    /// Map NLLanguage to the language names used by codeSwitchLanguageRemap
+    private static let nlLanguageToName: [NLLanguage: String] = [
+        .simplifiedChinese: "Chinese",
+        .traditionalChinese: "Chinese",
+        .japanese: "Japanese",
+        .english: "English",
+        .korean: "Korean",
+    ]
+
+    /// Detect dominant language from transcription text using NLLanguageRecognizer
+    private static func detectLanguage(from text: String) -> String? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let lang = recognizer.dominantLanguage else { return nil }
+        return nlLanguageToName[lang] ?? lang.rawValue
+    }
 
     let audioEncoder: Qwen3AudioEncoder
     let featureExtractor: Qwen3FeatureExtractor
@@ -116,29 +134,38 @@ class Qwen3ASRModel {
             maxTokens: effectiveMaxTokens
         )
 
-        // Code-switch remap: if auto-detect found a language that transliterates
-        // English (e.g. "Chinese"), re-run with a remapped tag to preserve
-        // code-switching.  Done here (not inside the generation loop) so the
-        // first pass completes fully and its GPU resources are properly released.
-        if language == nil,
-           let detectedLang = result.detectedLanguage,
-           let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
-            Memory.clearCache()  // Release GPU buffers from the first pass
-            Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
-            let remapped = try generateText(
-                audioEmbeds: audioEmbeds,
-                textDecoder: textDecoder,
-                language: remappedLang,
-                prompt: prompt,
-                maxTokens: effectiveMaxTokens
-            )
-            return TranscriptionResult(
-                text: remapped.text,
-                avgLogProb: remapped.avgLogProb,
-                tokenCount: remapped.tokenCount,
+        // Code-switch remap: detect language from output text using NLLanguageRecognizer.
+        // If the dominant language transliterates English (e.g. Chinese), re-run with
+        // a remapped tag to preserve code-switching.
+        if language == nil {
+            let detectedLang = Self.detectLanguage(from: result.text)
+            let resultWithLang = TranscriptionResult(
+                text: result.text,
+                avgLogProb: result.avgLogProb,
+                tokenCount: result.tokenCount,
                 detectedLanguage: detectedLang,
-                uncertainWords: remapped.uncertainWords
+                uncertainWords: result.uncertainWords
             )
+            if let detectedLang,
+               let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
+                Memory.clearCache()  // Release GPU buffers from the first pass
+                Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
+                let remapped = try generateText(
+                    audioEmbeds: audioEmbeds,
+                    textDecoder: textDecoder,
+                    language: remappedLang,
+                    prompt: prompt,
+                    maxTokens: effectiveMaxTokens
+                )
+                return TranscriptionResult(
+                    text: remapped.text,
+                    avgLogProb: remapped.avgLogProb,
+                    tokenCount: remapped.tokenCount,
+                    detectedLanguage: detectedLang,
+                    uncertainWords: remapped.uncertainWords
+                )
+            }
+            return resultWithLang
         }
 
         return result
@@ -182,23 +209,15 @@ class Qwen3ASRModel {
         // <|im_start|>assistant\n
         inputIds.append(contentsOf: [tokens.imStartTokenId, tokens.assistantId, tokens.newlineId].map { Int32($0) })
 
-        // Auto-detect mode: pre-fill "language" as prompt prefix so the model
-        // only needs to predict the language NAME (e.g. " Chinese"), not the
-        // entire "language Chinese<asr_text>..." sequence from scratch.
-        // This dramatically stabilizes first-inference language detection.
-        var autoDetectPrefillTokens: [Int32]? = nil
-        if language == nil, let tokenizer = tokenizer {
-            let prefillTokens = tokenizer.encode("language").map { Int32($0) }
-            autoDetectPrefillTokens = prefillTokens
-            inputIds.append(contentsOf: prefillTokens)
-        }
-
+        // Add language hint if specified, then always add <asr_text> marker.
+        // <asr_text> forces the model into transcription mode — without it,
+        // the model may translate or produce non-ASR output.
         if let lang = language, let tokenizer = tokenizer {
             let langPrefix = "language \(lang)"
             let langTokens = tokenizer.encode(langPrefix)
             inputIds.append(contentsOf: langTokens.map { Int32($0) })
-            inputIds.append(Int32(tokens.asrTextId))
         }
+        inputIds.append(Int32(tokens.asrTextId))
 
         let inputIdsTensor = MLXArray(inputIds).expandedDimensions(axis: 0)
         var inputEmbeds = textDecoder.embedTokens(inputIdsTensor)
@@ -211,35 +230,16 @@ class Qwen3ASRModel {
 
         var cache: [(MLXArray, MLXArray)]? = nil
         var generatedTokens: [Int32] = []
-        // Pre-seed "language" tokens into generatedTokens so downstream
-        // parsing (which expects "language XXX" before <asr_text>) works unchanged.
-        if let prefill = autoDetectPrefillTokens {
-            generatedTokens.append(contentsOf: prefill)
-        }
         let evalInterval = 50  // Force MLX evaluation every N tokens to prevent computation graph accumulation
 
-        // Per-token logprob tracking
+        // Per-token logprob tracking — <asr_text> is always in inputIds,
+        // so all generated tokens are text tokens; start counting immediately.
         var totalLogProb: Double = 0.0
         var logProbTokenCount: Int = 0
-        // When language is specified, <asr_text> was appended to inputIds;
-        // all generated tokens are text tokens → start counting immediately
-        var isCountingLogProb = (language != nil)
 
-        // Low-confidence token tracking (Feature 1)
+        // Low-confidence token tracking
         let uncertaintyThreshold: Double = -1.0
         var tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
-
-        // Helper: extract language name from "language XXX" prefix
-        func extractLanguageName(from rawText: String) -> String? {
-            guard rawText.hasPrefix("language ") else { return nil }
-            let afterLang = rawText.dropFirst("language ".count)
-            // Language name is a single word (e.g. "Japanese", "Chinese", "English")
-            if let spaceIdx = afterLang.firstIndex(of: " ") {
-                return String(afterLang[afterLang.startIndex..<spaceIdx])
-            }
-            // If no space found, the entire remainder is the language name (edge case)
-            return afterLang.isEmpty ? nil : String(afterLang)
-        }
 
         var (hiddenStates, newCache) = try textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
@@ -249,9 +249,7 @@ class Qwen3ASRModel {
         var logits = textDecoder.embedTokens.asLinear(lastHidden)
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
-        if nextToken == Int32(tokens.asrTextId) {
-            isCountingLogProb = true
-        } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
+        if nextToken != Int32(tokens.eosTokenId) {
             let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
             let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
             totalLogProb += tokenLogProb
@@ -275,9 +273,7 @@ class Qwen3ASRModel {
             logits = textDecoder.embedTokens.asLinear(lastHiddenNext)
             nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
-            if nextToken == Int32(tokens.asrTextId) {
-                isCountingLogProb = true
-            } else if isCountingLogProb && nextToken != Int32(tokens.eosTokenId) {
+            if nextToken != Int32(tokens.eosTokenId) {
                 let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
                 let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
                 totalLogProb += tokenLogProb
@@ -312,62 +308,9 @@ class Qwen3ASRModel {
             )
         }
 
-        // Find <asr_text> marker by token ID (more reliable than string matching)
-        let asrTokenId = Int32(tokens.asrTextId)
-        let textTokens: [Int32]
-        var detectedLang: String? = nil
-
-        if let asrIndex = generatedTokens.firstIndex(of: asrTokenId) {
-            // Extract only tokens after <asr_text>
-            textTokens = Array(generatedTokens[(asrIndex + 1)...])
-            // In auto mode, tokens before <asr_text> contain "language XXX"
-            if language == nil {
-                let prefixTokens = Array(generatedTokens[0..<asrIndex])
-                let prefixText = tokenizer.decode(tokens: prefixTokens.map { Int($0) })
-                detectedLang = extractLanguageName(from: prefixText)
-            }
-        } else if language == nil {
-            // Auto mode: model may have generated "language XXX" prefix without <asr_text>
-            // Fall back to string-based extraction
-            let rawText = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
-            detectedLang = extractLanguageName(from: rawText)
-            if let range = rawText.range(of: "<asr_text>") {
-                return TranscriptionResult(
-                    text: String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces),
-                    avgLogProb: avgLogProb,
-                    tokenCount: logProbTokenCount,
-                    detectedLanguage: detectedLang,
-                    uncertainWords: []  // Fallback path: no token-level data available
-                )
-            }
-            // Strip "language XXX" prefix if present
-            if rawText.hasPrefix("language ") {
-                let afterLang = rawText.dropFirst("language ".count)
-                if let spaceIdx = afterLang.firstIndex(of: " ") {
-                    return TranscriptionResult(
-                        text: String(afterLang[afterLang.index(after: spaceIdx)...])
-                            .trimmingCharacters(in: .whitespaces),
-                        avgLogProb: avgLogProb,
-                        tokenCount: logProbTokenCount,
-                        detectedLanguage: detectedLang,
-                        uncertainWords: []  // Fallback path
-                    )
-                }
-            }
-            return TranscriptionResult(
-                text: rawText,
-                avgLogProb: avgLogProb,
-                tokenCount: logProbTokenCount,
-                detectedLanguage: detectedLang,
-                uncertainWords: []  // Fallback path
-            )
-        } else {
-            // Manual language mode: no prefix, all tokens are transcription
-            textTokens = generatedTokens
-        }
-
-        // Filter out EOS token before decoding
-        let filtered = textTokens.filter { $0 != Int32(tokens.eosTokenId) }
+        // All generated tokens are transcription text (no prefix to strip)
+        // since <asr_text> is always in the input prompt.
+        let filtered = generatedTokens.filter { $0 != Int32(tokens.eosTokenId) }
         let uncertainWords = buildUncertainWords(
             tokenLogProbs: tokenLogProbs,
             textTokens: filtered,
@@ -378,7 +321,7 @@ class Qwen3ASRModel {
                 .trimmingCharacters(in: .whitespaces),
             avgLogProb: avgLogProb,
             tokenCount: logProbTokenCount,
-            detectedLanguage: detectedLang,
+            detectedLanguage: nil,  // Language detection done by caller via NLLanguageRecognizer
             uncertainWords: uncertainWords
         )
     }
