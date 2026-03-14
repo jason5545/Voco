@@ -24,7 +24,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
     let modelContext: ModelContext
     internal let serviceRegistry: TranscriptionServiceRegistry
     let enhancementService: AIEnhancementService?
-    private let pipeline: TranscriptionPipeline
+    internal let pipeline: TranscriptionPipeline
 
     let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "VoiceInkEngine")
 
@@ -215,12 +215,9 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 }
 
                                 if let enhancementService = await self.enhancementService {
-                                    // Cache app context from EditModeCacheService (populated before recording)
-                                    let editCache = EditModeCacheService.shared
+                                    // Cache app context from EditModeCacheService (fork feature)
                                     await MainActor.run {
-                                        enhancementService.cachedAppName = editCache.cachedAppName ?? capturedAppName
-                                        enhancementService.cachedWindowTitle = editCache.cachedWindowTitle
-                                        enhancementService.cachedSelectedText = editCache.cachedSelectedText
+                                        self.cacheEditModeAppContext(capturedAppName: capturedAppName)
                                     }
 
                                     guard !Task.isCancelled else { return }
@@ -278,120 +275,16 @@ class VoiceInkEngine: NSObject, ObservableObject {
         let session = currentSession
         currentSession = nil
 
-        // Capture edit mode state before pipeline (fork feature)
-        let editMode = forkState.isEditMode
-        let editSelectedText = forkState.editModeSelectedText
-
-        await pipeline.run(
+        await runPipelineWithForkFeatures(
             transcription: transcription,
             audioURL: audioURL,
             model: model,
-            session: session,
-            isEditMode: editMode,
-            editModeSelectedText: editSelectedText,
-            onStateChange: { [weak self] state in self?.recordingState = state },
-            shouldCancel: { [weak self] in self?.shouldCancelRecording ?? false },
-            onCleanup: { [weak self] in await self?.cleanupResources() },
-            onDismiss: { [weak self] in
-                self?.forkState.isEditMode = false
-                self?.forkState.editModeSelectedText = nil
-                await self?.recorderUIManager?.dismissMiniRecorder()
-            },
-            onEditModeComplete: { [weak self] substitution in
-                self?.forkState.pendingDictionaryEntry = substitution
-                self?.forkState.isEditMode = false
-                self?.forkState.editModeSelectedText = nil
-                self?.recordingState = .idle
-                self?.startDictionaryDismissTimer()
-            }
+            session: session
         )
-
-        // Reset edit mode state after pipeline
-        forkState.isEditMode = false
-        forkState.editModeSelectedText = nil
 
         shouldCancelRecording = false
         if recordingState != .idle {
             recordingState = .idle
-        }
-    }
-
-    // MARK: - Dictionary Dismiss Timer (fork feature)
-
-    private var dictionaryDismissTimer: DispatchWorkItem?
-
-    func confirmDictionaryEntry() {
-        guard let entry = forkState.pendingDictionaryEntry else { return }
-        dictionaryDismissTimer?.cancel()
-        dictionaryDismissTimer = nil
-
-        let replacement = WordReplacement(
-            originalText: entry.original,
-            replacementText: entry.replacement
-        )
-        modelContext.insert(replacement)
-        try? modelContext.save()
-
-        NotificationManager.shared.showNotification(
-            title: "\(entry.original) → \(entry.replacement)",
-            type: .success,
-            duration: 2.0
-        )
-        forkState.pendingDictionaryEntry = nil
-        Task { await recorderUIManager?.dismissMiniRecorder() }
-    }
-
-    func dismissDictionaryEntry() {
-        dictionaryDismissTimer?.cancel()
-        dictionaryDismissTimer = nil
-        forkState.pendingDictionaryEntry = nil
-        Task { await recorderUIManager?.dismissMiniRecorder() }
-    }
-
-    func startDictionaryDismissTimer() {
-        dictionaryDismissTimer?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                self?.forkState.pendingDictionaryEntry = nil
-                await self?.recorderUIManager?.dismissMiniRecorder()
-            }
-        }
-        dictionaryDismissTimer = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
-    }
-
-    // MARK: - Deferred Model Cleanup (fork feature)
-
-    private var deferredModelCleanupTask: Task<Void, Never>?
-    private let modelKeepAliveSecondsKey = "ModelKeepAliveSeconds"
-
-    func cancelScheduledModelCleanup() {
-        deferredModelCleanupTask?.cancel()
-        deferredModelCleanupTask = nil
-    }
-
-    func scheduleModelResourceCleanup() {
-        cancelScheduledModelCleanup()
-
-        let configuredKeepAlive = UserDefaults.standard.double(forKey: modelKeepAliveSecondsKey)
-        let keepAliveSeconds = max(0, configuredKeepAlive)
-        guard keepAliveSeconds > 0 else {
-            Task { [weak self] in
-                await self?.cleanupResources()
-            }
-            return
-        }
-
-        logger.notice("cleanupModelResources: scheduled in \(String(format: "%.0f", keepAliveSeconds))s")
-        deferredModelCleanupTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await Task.sleep(for: .seconds(keepAliveSeconds))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self.cleanupResources()
         }
     }
 

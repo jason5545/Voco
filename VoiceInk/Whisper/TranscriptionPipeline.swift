@@ -8,11 +8,11 @@ import os
 /// transcribe → filter → format → word-replace → Chinese post-process → voice-command → prompt-detect → AI enhance → validate → save → paste → dismiss
 @MainActor
 class TranscriptionPipeline {
-    private let modelContext: ModelContext
+    let modelContext: ModelContext
     private let serviceRegistry: TranscriptionServiceRegistry
     private let enhancementService: AIEnhancementService?
     private let promptDetectionService = PromptDetectionService()
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionPipeline")
+    let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionPipeline")
 
     var licenseViewModel: LicenseViewModel
 
@@ -157,69 +157,20 @@ class TranscriptionPipeline {
             transcription.powerModeEmoji = powerModeEmoji
             finalPastedText = text
 
-            // === Edit Mode Branch ===
+            // === Edit Mode Branch (fork feature) ===
             if isEditMode, let selectedText = editModeSelectedText {
-                // 1. Direct edit commands (no LLM needed)
-                if let editCommand = VoiceCommandService.shared.detectEditModeCommand(in: text) {
-                    logger.notice("🎤 Edit mode command detected: \(editCommand.rawValue, privacy: .private)")
-                    transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
-                    try? modelContext.save()
-                    NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        editCommand.execute()
-                    }
-                    await onDismiss()
-                    return
-                }
-
-                // 2. LLM-based edit instruction
-                guard let enhancementService, enhancementService.isConfigured else {
-                    logger.warning("⚠️ Edit mode: AI not configured, cannot process LLM instruction")
-                    transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
-                    transcription.text = text
-                    try? modelContext.save()
-                    await onDismiss()
-                    return
-                }
-
-                if shouldCancel() { await onCleanup(); return }
-
-                onStateChange(.enhancing)
-
-                do {
-                    let (editedText, editDuration, substitution) = try await enhancementService.enhanceForEditMode(
-                        instruction: text, selectedText: selectedText
-                    )
-                    logger.notice("📝 Edit mode result: \(editedText, privacy: .private)")
-                    transcription.enhancedText = editedText
-                    transcription.enhancementDuration = editDuration
-                    transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
-                    transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
-                    transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
-                    transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
-                    try? modelContext.save()
-                    NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
-
-                    if shouldCancel() { await onCleanup(); return }
-
-                    // Paste to replace selected text (no trailing space)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        CursorPaster.pasteAtCursor(editedText)
-                    }
-
-                    // If LLM identified a simple word substitution → show dictionary confirmation
-                    if let sub = substitution {
-                        onEditModeComplete?(sub)
-                        return
-                    }
-                } catch {
-                    logger.error("❌ Edit mode enhancement failed: \(error.localizedDescription)")
-                    transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
-                    try? modelContext.save()
-                }
-
-                await onDismiss()
-                return
+                let handled = await handleEditMode(
+                    text: text,
+                    selectedText: selectedText,
+                    transcription: transcription,
+                    enhancementService: enhancementService,
+                    onStateChange: onStateChange,
+                    shouldCancel: shouldCancel,
+                    onCleanup: onCleanup,
+                    onDismiss: onDismiss,
+                    onEditModeComplete: onEditModeComplete
+                )
+                if handled { return }
             }
 
             // === Voice command detection (normal mode) ===
@@ -538,43 +489,7 @@ class TranscriptionPipeline {
             }
 
             // === Context-Aware Insertion (fork feature) ===
-            let contextAwareEnabled = UserDefaults.standard.bool(forKey: "ContextAwareInsertionEnabled")
-            let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
-
-            if contextAwareEnabled {
-                // Query surrounding text via AX API (already on MainActor)
-                let context: SurroundingTextContext?
-                if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
-                    context = SurroundingTextService.shared.querySurroundingText(for: pid)
-                } else {
-                    context = nil
-                }
-
-                // Rule-based adjustments (handles nil context by falling back to current behavior)
-                textToPaste = ContextAwareInsertionService.shared.adjust(
-                    textToPaste, context: context, appendTrailingSpace: appendSpace)
-
-                // LLM merge for mid-text insertion
-                let llmMergeEnabled = UserDefaults.standard.bool(forKey: "ContextAwareLLMMergeEnabled")
-                if llmMergeEnabled,
-                   let ctx = context, !ctx.textBefore.isEmpty, !ctx.textAfter.isEmpty,
-                   let enhancementService, enhancementService.isConfigured {
-                    do {
-                        let (merged, _) = try await enhancementService.enhanceMerge(
-                            insertedText: textToPaste,
-                            textBefore: ctx.textBefore,
-                            textAfter: ctx.textAfter
-                        )
-                        if !merged.isEmpty {
-                            textToPaste = merged
-                        }
-                    } catch {
-                        logger.warning("⚠️ LLM merge failed, using rule-based result: \(error.localizedDescription)")
-                    }
-                }
-            } else {
-                textToPaste = textToPaste + (appendSpace ? " " : "")
-            }
+            textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 CursorPaster.pasteAtCursor(textToPaste)
