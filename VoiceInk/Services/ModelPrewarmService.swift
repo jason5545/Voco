@@ -17,15 +17,6 @@ final class ModelPrewarmService: ObservableObject {
     private let prewarmAudioURL = Bundle.main.url(forResource: "esc", withExtension: "wav")
     private let prewarmEnabledKey = "PrewarmModelOnWake"
 
-    /// Heartbeat task that periodically warms Metal shader cache
-    private var heartbeatTask: Task<Void, Never>?
-    /// Interval between heartbeat warmups (seconds)
-    private let heartbeatInterval: TimeInterval = 300  // 5 minutes
-    /// Track screen sleep state to pause heartbeat
-    private var isScreenAsleep = false
-    /// Track last successful prewarm to skip redundant warmups
-    private var lastPrewarmTime: Date?
-
     init(transcriptionModelManager: TranscriptionModelManager, whisperModelManager: WhisperModelManager, modelContext: ModelContext) {
         self.transcriptionModelManager = transcriptionModelManager
         self.whisperModelManager = whisperModelManager
@@ -42,29 +33,12 @@ final class ModelPrewarmService: ObservableObject {
         // Trigger on wake from sleep
         center.addObserver(
             self,
-            selector: #selector(handleSystemWake),
+            selector: #selector(schedulePrewarm),
             name: NSWorkspace.didWakeNotification,
             object: nil
         )
 
-        // Trigger on screen wake (covers screen lock/unlock without full system sleep —
-        // very common on Apple Silicon Macs that rarely do full sleep)
-        center.addObserver(
-            self,
-            selector: #selector(handleScreenWake),
-            name: NSWorkspace.screensDidWakeNotification,
-            object: nil
-        )
-
-        // Pause heartbeat when screen sleeps to save energy
-        center.addObserver(
-            self,
-            selector: #selector(handleScreenSleep),
-            name: NSWorkspace.screensDidSleepNotification,
-            object: nil
-        )
-
-        logger.notice("ModelPrewarmService initialized - listening for system wake, screen wake/sleep, and app launch")
+        logger.notice("ModelPrewarmService initialized - listening for wake and app launch")
     }
 
     // MARK: - Trigger Handlers
@@ -74,78 +48,22 @@ final class ModelPrewarmService: ObservableObject {
         logger.notice("App launched, scheduling prewarm")
         Task {
             try? await Task.sleep(for: .seconds(3))
-            await performPrewarm(reason: "app launch")
-            startHeartbeat()
+            await performPrewarm()
         }
     }
 
-    /// Trigger on full system wake from sleep
-    @objc private func handleSystemWake() {
-        isScreenAsleep = false
-        logger.notice("System wake detected, scheduling prewarm")
+    /// Trigger on wake from sleep or screen unlock
+    @objc private func schedulePrewarm() {
+        logger.notice("Mac activity detected (wake/unlock), scheduling prewarm")
         Task {
             try? await Task.sleep(for: .seconds(3))
-            await performPrewarm(reason: "system wake")
-            startHeartbeat()
+            await performPrewarm()
         }
-    }
-
-    /// Trigger on screen wake (more frequent than full system wake on Apple Silicon)
-    @objc private func handleScreenWake() {
-        isScreenAsleep = false
-        logger.notice("Screen wake detected, scheduling prewarm")
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            await performPrewarm(reason: "screen wake")
-            startHeartbeat()
-        }
-    }
-
-    /// Pause heartbeat when screen sleeps to save energy
-    @objc private func handleScreenSleep() {
-        isScreenAsleep = true
-        stopHeartbeat()
-        logger.notice("Screen sleep detected, heartbeat paused")
-    }
-
-    // MARK: - Heartbeat (Metal Shader Keep-Alive)
-
-    /// Starts a periodic heartbeat that runs a micro-inference to keep Metal shader cache warm.
-    /// Metal compiled shaders are device-global, so warming any engine instance keeps shaders
-    /// cached for all instances (including VoiceInkEngine's real transcription engine).
-    private func startHeartbeat() {
-        guard heartbeatTask == nil, shouldPrewarm() else { return }
-
-        logger.notice("Starting shader heartbeat (interval: \(self.heartbeatInterval, privacy: .public)s)")
-        heartbeatTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(self?.heartbeatInterval ?? 300))
-                } catch {
-                    return  // Task cancelled
-                }
-                guard let self, !Task.isCancelled, !self.isScreenAsleep else { return }
-
-                // Skip if a recent prewarm happened within 80% of heartbeat interval
-                if let last = self.lastPrewarmTime,
-                   Date().timeIntervalSince(last) < self.heartbeatInterval * 0.8 {
-                    continue
-                }
-
-                await self.performPrewarm(reason: "heartbeat")
-            }
-        }
-    }
-
-    /// Stops the heartbeat timer.
-    private func stopHeartbeat() {
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
     }
 
     // MARK: - Core Prewarming Logic
 
-    private func performPrewarm(reason: String) async {
+    private func performPrewarm() async {
         guard shouldPrewarm() else { return }
 
         guard let audioURL = prewarmAudioURL else {
@@ -158,18 +76,17 @@ final class ModelPrewarmService: ObservableObject {
             return
         }
 
-        logger.notice("Prewarming \(currentModel.displayName, privacy: .public) (\(reason, privacy: .public))")
+        logger.notice("Prewarming \(currentModel.displayName, privacy: .public)")
         let startTime = Date()
 
         do {
             let _ = try await serviceRegistry.transcribe(audioURL: audioURL, model: currentModel)
             let duration = Date().timeIntervalSince(startTime)
-            lastPrewarmTime = Date()
 
-            logger.notice("Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s (\(reason, privacy: .public))")
+            logger.notice("Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s")
 
         } catch {
-            logger.error("❌ Prewarm failed (\(reason, privacy: .public)): \(error.localizedDescription, privacy: .public)")
+            logger.error("❌ Prewarm failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -199,7 +116,6 @@ final class ModelPrewarmService: ObservableObject {
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
-        heartbeatTask?.cancel()
         logger.notice("ModelPrewarmService deinitialized")
     }
 }

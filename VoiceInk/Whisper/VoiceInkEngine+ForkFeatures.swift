@@ -104,17 +104,8 @@ extension VoiceInkEngine {
     }
 
     /// Schedules model resource cleanup after the configured keep-alive period.
-    /// When prewarm is enabled, model stays loaded to avoid cold-start delays —
-    /// Metal shaders are kept warm by ModelPrewarmService's heartbeat mechanism.
     func scheduleModelResourceCleanup() {
         cancelScheduledModelCleanup()
-
-        // When prewarm is enabled, keep model loaded to eliminate cold-start delays.
-        // macOS unified memory will swap model pages naturally under memory pressure.
-        if UserDefaults.standard.bool(forKey: "PrewarmModelOnWake") {
-            logger.notice("cleanupModelResources: skipped (prewarm enabled, model stays loaded)")
-            return
-        }
 
         let configuredKeepAlive = UserDefaults.standard.double(forKey: modelKeepAliveSecondsKey)
         let keepAliveSeconds = max(0, configuredKeepAlive)
