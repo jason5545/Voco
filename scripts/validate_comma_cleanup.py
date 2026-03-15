@@ -222,8 +222,18 @@ def clean_by_original_comparison(text: str, original_text: str) -> str:
             and is_cjk(chars[i + 1])
         ):
             pair = chars[i - 1] + chars[i + 1]
-            if pair in original_text and cjk_run <= 12:
-                continue  # remove comma
+            if pair in original_text:
+                # Compute forward CJK run to next punctuation
+                cjk_run_right = 0
+                for j in range(i + 1, len(chars)):
+                    if is_cjk(chars[j]):
+                        cjk_run_right += 1
+                    elif chars[j] in BOUNDARY_PUNCTUATION:
+                        break
+                # Keep comma only if BOTH sides are long;
+                # short right side (<= 3) means word split — always remove.
+                if cjk_run <= 12 or cjk_run_right <= 3:
+                    continue  # remove comma
 
         result.append(ch)
         if is_cjk(ch):

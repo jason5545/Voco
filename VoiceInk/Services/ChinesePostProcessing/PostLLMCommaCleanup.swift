@@ -296,10 +296,23 @@ enum PostLLMCommaCleanup {
             {
                 let pair = String([chars[i - 1], chars[i + 1]])
 
-                if originalText.contains(pair) && cjkRunSinceLastPunct <= 12 {
-                    // The two chars around this comma were adjacent in the original
-                    // (no comma between them) — LLM wrongly split them. Remove.
-                    continue
+                if originalText.contains(pair) {
+                    // Compute forward CJK run to next punctuation
+                    var cjkRunRight = 0
+                    for j in (i + 1)..<chars.count {
+                        if isCJK(chars[j]) {
+                            cjkRunRight += 1
+                        } else if boundaryPunctuation.contains(chars[j]) {
+                            break
+                        }
+                    }
+
+                    // Safety valve: keep comma if BOTH sides are long
+                    // (provides needed structure in long sentences).
+                    // But if right side is very short (<= 3), it's a word split — always remove.
+                    if cjkRunSinceLastPunct <= 12 || cjkRunRight <= 3 {
+                        continue
+                    }
                 }
             }
 
