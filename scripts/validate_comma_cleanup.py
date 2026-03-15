@@ -44,6 +44,16 @@ BOUNDARY_PUNCTUATION = set("，。？！、；：…,.?!:;\n")
 # Verb markers in the segment after comma that indicate sentence-final 的
 VERB_MARKERS = ["為", "成"]
 
+# Prepositions/complements that always take pronoun objects
+# 把他帶走, 被他發現, 替他想, 拖累到他
+SAFE_PREPOSITIONS = set("把被替到")
+
+# Pronouns that can be verb/preposition objects (multi-char first for prefix matching)
+OBJECT_PRONOUNS = ["我們", "你們", "他們", "她們", "我", "你", "他", "她", "它"]
+
+# Sentence-final particles — comma after these + pronoun is a real clause break
+SENTENCE_FINAL_PARTICLES = set("了的嗎呢吧啊呀哦嘛囉")
+
 # Complement patterns after 了 that should never have a comma
 LE_COMPLEMENT_PREFIXES = ["一下", "一些", "一點", "一番", "一會", "一陣"]
 
@@ -127,6 +137,52 @@ def clean_le_comma(text: str) -> str:
     return "".join(result)
 
 
+def clean_verb_pronoun_comma(text: str) -> str:
+    """Remove comma between verb/preposition and its pronoun object.
+
+    Rule 1: Safe preposition (把/被/替/到) + ，+ pronoun → always remove
+    Rule 2: non-particle CJK + ，+ pronoun + 的 → remove (pronoun is possessive object)
+    """
+    chars = list(text)
+    result = []
+    i = 0
+    while i < len(chars):
+        if (
+            chars[i] == "，"
+            and i >= 1
+            and i + 1 < len(chars)
+        ):
+            before = chars[i - 1]
+            after = "".join(chars[i + 1:])
+
+            matched_pronoun = None
+            for p in OBJECT_PRONOUNS:
+                if after.startswith(p):
+                    matched_pronoun = p
+                    break
+
+            if matched_pronoun:
+                after_pronoun = after[len(matched_pronoun):]
+
+                # Rule 1: safe preposition before comma
+                if before in SAFE_PREPOSITIONS:
+                    i += 1  # skip comma
+                    continue
+
+                # Rule 2: pronoun+的, before is not a sentence-final particle
+                if (
+                    after_pronoun.startswith("的")
+                    and before not in SENTENCE_FINAL_PARTICLES
+                    and is_cjk(before)
+                ):
+                    i += 1  # skip comma
+                    continue
+
+        result.append(chars[i])
+        i += 1
+    return "".join(result)
+
+
 def clean(text: str) -> str:
     """Apply all comma cleanup rules."""
     if len(text) < 3:
@@ -134,6 +190,7 @@ def clean(text: str) -> str:
     result = text
     result = clean_de_comma(result)
     result = clean_le_comma(result)
+    result = clean_verb_pronoun_comma(result)
     return result
 
 

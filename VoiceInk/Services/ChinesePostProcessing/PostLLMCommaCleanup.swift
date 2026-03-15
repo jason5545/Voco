@@ -52,6 +52,25 @@ enum PostLLMCommaCleanup {
         "解", "結", "斷", "事", "得", "無",
     ]
 
+    // MARK: - Verb/Preposition + pronoun sets
+
+    /// Prepositions/complements that always take pronoun objects.
+    /// Comma between these and a following pronoun is always wrong.
+    /// e.g. "把，他帶走" → "把他帶走", "拖累到，他的" → "拖累到他的"
+    private static let safePrepositions: Set<Character> = ["把", "被", "替", "到"]
+
+    /// Pronouns that can be verb/preposition objects (multi-char first for prefix matching).
+    private static let objectPronouns: [String] = [
+        "我們", "你們", "他們", "她們",
+        "我", "你", "他", "她", "它",
+    ]
+
+    /// Sentence-final particles. Comma after these + pronoun is a real clause break.
+    /// e.g. "他說了，他的意思是..." — 了 is particle, comma is correct.
+    private static let sentenceFinalParticles: Set<Character> = [
+        "了", "的", "嗎", "呢", "吧", "啊", "呀", "哦", "嘛", "囉",
+    ]
+
     // MARK: - Public API
 
     /// Apply comma cleanup rules to LLM-enhanced text.
@@ -60,6 +79,7 @@ enum PostLLMCommaCleanup {
         var result = text
         result = cleanDeComma(result)
         result = cleanLeComma(result)
+        result = cleanVerbPronounComma(result)
         return result
     }
 
@@ -159,6 +179,55 @@ enum PostLLMCommaCleanup {
                     result.append("了")
                     i += 2  // skip 了 and ，
                     continue
+                }
+            }
+
+            result.append(chars[i])
+            i += 1
+        }
+
+        return String(result)
+    }
+
+    // MARK: - Verb/Prep + ，+ pronoun cleanup
+
+    /// Remove comma between a verb/preposition and its pronoun object.
+    ///
+    /// Rule 1: Safe preposition (把/被/替/到) + ，+ pronoun → always remove
+    /// Rule 2: non-particle CJK + ，+ pronoun + 的 → remove (pronoun is possessive object)
+    private static func cleanVerbPronounComma(_ text: String) -> String {
+        let chars = Array(text)
+        var result: [Character] = []
+        var i = 0
+
+        while i < chars.count {
+            if chars[i] == "，"
+                && i >= 1
+                && i + 1 < chars.count
+            {
+                let beforeComma = chars[i - 1]
+                let afterComma = String(chars[(i + 1)...])
+
+                // Find matching pronoun after comma
+                let matchedPronoun = objectPronouns.first { afterComma.hasPrefix($0) }
+
+                if let pronoun = matchedPronoun {
+                    let afterPronoun = String(afterComma.dropFirst(pronoun.count))
+
+                    // Rule 1: safe preposition before comma
+                    if safePrepositions.contains(beforeComma) {
+                        i += 1  // skip comma
+                        continue
+                    }
+
+                    // Rule 2: pronoun+的, and char before comma is not a sentence-final particle
+                    if afterPronoun.hasPrefix("的")
+                        && !sentenceFinalParticles.contains(beforeComma)
+                        && isCJK(beforeComma)
+                    {
+                        i += 1  // skip comma
+                        continue
+                    }
                 }
             }
 
