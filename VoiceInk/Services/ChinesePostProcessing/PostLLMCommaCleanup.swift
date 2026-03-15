@@ -23,7 +23,7 @@ enum PostLLMCommaCleanup {
         "除非", "否則", "既然", "無論", "不管",
         "不是", "不要", "不能", "不會", "不可",
         // Single-char
-        "我", "你", "他", "她", "它",
+        "我", "你", "您", "他", "她", "它",
         "但", "卻", "再", "只",
     ]
 
@@ -62,7 +62,7 @@ enum PostLLMCommaCleanup {
     /// Pronouns that can be verb/preposition objects (multi-char first for prefix matching).
     private static let objectPronouns: [String] = [
         "我們", "你們", "他們", "她們",
-        "我", "你", "他", "她", "它",
+        "我", "你", "您", "他", "她", "它",
     ]
 
     /// Sentence-final particles. Comma after these + pronoun is a real clause break.

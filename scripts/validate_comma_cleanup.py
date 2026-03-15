@@ -31,7 +31,7 @@ DE_COMMA_KEEP_PREFIXES = [
     "除非", "否則", "既然", "無論", "不管",
     "不是", "不要", "不能", "不會", "不可",
     # Single-char
-    "我", "你", "他", "她", "它",
+    "我", "你", "您", "他", "她", "它",
     "但", "卻", "再", "只",
 ]
 
@@ -49,7 +49,7 @@ VERB_MARKERS = ["為", "成"]
 SAFE_PREPOSITIONS = set("把被替到")
 
 # Pronouns that can be verb/preposition objects (multi-char first for prefix matching)
-OBJECT_PRONOUNS = ["我們", "你們", "他們", "她們", "我", "你", "他", "她", "它"]
+OBJECT_PRONOUNS = ["我們", "你們", "他們", "她們", "我", "你", "您", "他", "她", "它"]
 
 # Sentence-final particles — comma after these + pronoun is a real clause break
 SENTENCE_FINAL_PARTICLES = set("了的嗎呢吧啊呀哦嘛囉")
