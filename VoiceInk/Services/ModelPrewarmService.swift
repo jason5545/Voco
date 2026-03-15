@@ -73,9 +73,10 @@ final class ModelPrewarmService: ObservableObject {
         }
 
         scheduledPrewarmTask?.cancel()
-        logger.notice("Scheduling prewarm for \(trigger, privacy: .public) in \(String(describing: prewarmDelay), privacy: .public)")
-
         let delay = prewarmDelay
+        let delayDescription = String(describing: delay)
+        logger.notice("Scheduling prewarm for \(trigger, privacy: .public) in \(delayDescription, privacy: .public)")
+
         scheduledPrewarmTask = Task { [weak self] in
             guard let self else { return }
 
@@ -103,7 +104,8 @@ final class ModelPrewarmService: ObservableObject {
         }
 
         let task = Task { [weak self] in
-            await self?.performPrewarm(trigger: trigger)
+            guard let self else { return }
+            await self.performPrewarm(trigger: trigger)
         }
         activePrewarmTask = task
 
