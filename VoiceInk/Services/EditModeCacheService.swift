@@ -17,9 +17,11 @@ final class EditModeCacheService: @unchecked Sendable {
         "com.mitchellh.ghostty",
         "io.alacritty",
         "dev.warp.Warp-Stable",
+        "dev.warp.Warp",
         "com.github.wez.wezterm",
         "co.zeit.hyper",
         "org.tabby",
+        "com.cmuxterm.app",
     ]
 
     // MARK: - Cached State

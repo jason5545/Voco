@@ -79,20 +79,11 @@ enum PostLLMCommaCleanup {
         "了", "的", "嗎", "呢", "吧", "啊", "呀", "哦", "嘛", "囉",
     ]
 
-    /// Two-character words that must NEVER be split by a comma.
-    /// These override the ZTEXT safety valve — a comma inside these words is always wrong.
-    /// e.g. "分析這，個的文章" → "分析這個的文章"
-    private static let neverSplitPairs: Set<String> = [
-        // 這/那/哪 + measure word/suffix
-        "這個", "那個", "哪個", "每個", "幾個", "各個",
-        "這些", "那些", "哪些",
-        "這裡", "那裡", "哪裡", "這邊", "那邊", "哪邊",
-        "這樣", "那樣", "怎樣",
-        "這種", "那種", "哪種",
-        "這麼", "那麼", "怎麼", "什麼", "多麼",
-        "這次", "那次", "這時", "那時",
-        "這位", "那位", "哪位",
-    ]
+    /// Minimum word frequency to bypass the ZTEXT safety valve.
+    /// If the two characters around a comma form a known word above this threshold,
+    /// the comma is always removed (it's splitting a real word, not a clause boundary).
+    /// 1000 = common word in the 366K-entry word_freq.tsv dictionary.
+    private static let neverSplitFreqThreshold = 1000
 
     // MARK: - Public API
 
@@ -312,8 +303,9 @@ enum PostLLMCommaCleanup {
                 let pair = String([chars[i - 1], chars[i + 1]])
 
                 if originalText.contains(pair) {
-                    // Never-split words: always remove comma regardless of run length
-                    if neverSplitPairs.contains(pair) {
+                    // Known word: always remove comma regardless of run length.
+                    // Uses PinyinDatabase word_freq (366K entries, loaded at app launch).
+                    if PinyinDatabase.shared.frequency(of: pair) >= neverSplitFreqThreshold {
                         continue
                     }
 
