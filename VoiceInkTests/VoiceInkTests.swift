@@ -50,4 +50,36 @@ struct VoiceInkTests {
         #expect(result.reasons.contains(where: { $0 == "short-edit-budget" }))
     }
 
+    @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
+        var state = EditModePollingState()
+
+        let firstGeneration = try #require(state.startPolling())
+        #expect(state.beginNextRefresh() == firstGeneration)
+        #expect(state.enqueueRefresh() == .queuedBehindInFlight)
+
+        state.stopPolling()
+        #expect(state.shouldApplyResult(for: firstGeneration) == false)
+
+        let secondGeneration = try #require(state.startPolling())
+        #expect(secondGeneration > firstGeneration)
+        #expect(state.enqueueRefresh() == .coalesced)
+
+        state.finishRefresh()
+        #expect(state.beginNextRefresh() == secondGeneration)
+    }
+
+    @Test func editModePollingStateIgnoresRefreshRequestsWhenStopped() async throws {
+        var state = EditModePollingState()
+
+        #expect(state.enqueueRefresh() == .ignoredStopped)
+
+        let generation = try #require(state.startPolling())
+        #expect(state.shouldContinuePolling(expectedGeneration: generation) == true)
+
+        state.stopPolling()
+        #expect(state.shouldContinuePolling(expectedGeneration: generation) == false)
+        #expect(state.shouldApplyResult(for: generation) == false)
+        #expect(state.enqueueRefresh() == .ignoredStopped)
+    }
+
 }

@@ -62,20 +62,25 @@ final class EditModeCacheService: @unchecked Sendable {
     // MARK: - Polling
 
     private var pollingTask: Task<Void, Never>?
+	private var refreshCoordinatorTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
+	private var pollingState = EditModePollingState()
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "EditModeCache")
 
     private init() {}
 
     func startPolling() {
-        guard pollingTask == nil else { return }
+		let generation: UInt64? = lock.withLock {
+			guard let generation = pollingState.startPolling() else { return nil }
+			ensureRefreshCoordinatorLocked()
+			return generation
+		}
+		guard let generation else { return }
+
         logger.debug("Edit mode cache polling started")
-        pollingTask = Task.detached(priority: .utility) { [weak self] in
-            while !Task.isCancelled {
-                await self?.pollOnce()
-                try? await Task.sleep(for: .seconds(1))
-            }
-        }
+		pollingTask = Task(priority: .utility) { [weak self] in
+			await self?.runPollingLoop(expectedGeneration: generation)
+		}
 
         // Eagerly refresh cache when the user switches apps
         if activationObserver == nil {
@@ -85,39 +90,123 @@ final class EditModeCacheService: @unchecked Sendable {
                 queue: nil
             ) { [weak self] _ in
                 guard let self else { return }
-                self.invalidate()
-                Task.detached(priority: .utility) {
-                    await self.pollOnce()
-                }
+				self.requestRefresh(reason: "activation", invalidateCache: true)
             }
         }
     }
 
     func stopPolling() {
-        pollingTask?.cancel()
-        pollingTask = nil
+		let didStop = lock.withLock {
+			pollingState.stopPolling()
+			let hadActivePolling = pollingTask != nil || activationObserver != nil
+			pollingTask?.cancel()
+			pollingTask = nil
+			return hadActivePolling
+		}
         if let observer = activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             activationObserver = nil
         }
-        logger.debug("Edit mode cache polling stopped")
+		if didStop {
+			logger.debug("Edit mode cache polling stopped")
+		}
     }
 
     func invalidate() {
         lock.withLock {
-            _cachedIsEditable = false
-            _cachedFocusedElementUnavailable = false
-            _cachedSelectedText = nil
-            _cachedAppName = nil
-            _cachedBundleID = nil
-            _cachedPid = nil
-            _cachedWindowTitle = nil
+			invalidateLocked()
         }
     }
 
+	private func ensureRefreshCoordinatorLocked() {
+		guard refreshCoordinatorTask == nil else { return }
+		refreshCoordinatorTask = Task(priority: .utility) { [weak self] in
+			await self?.drainRefreshQueue()
+		}
+	}
+
+	private func requestRefresh(reason: String, invalidateCache: Bool = false) {
+		let disposition = lock.withLock { () -> EditModeRefreshDisposition in
+			if invalidateCache {
+				invalidateLocked()
+			}
+			let disposition = pollingState.enqueueRefresh()
+			if disposition != .ignoredStopped {
+				ensureRefreshCoordinatorLocked()
+			}
+			return disposition
+		}
+
+		switch disposition {
+		case .scheduled:
+			logger.debug("Scheduled edit mode refresh (reason: \(reason, privacy: .public))")
+		case .queuedBehindInFlight:
+			logger.debug("Queued edit mode refresh behind active poll (reason: \(reason, privacy: .public))")
+		case .coalesced:
+			logger.debug("Coalesced edit mode refresh request (reason: \(reason, privacy: .public))")
+		case .ignoredStopped:
+			logger.debug("Skipped edit mode refresh because polling is stopped (reason: \(reason, privacy: .public))")
+		}
+	}
+
+	private func runPollingLoop(expectedGeneration: UInt64) async {
+		while !Task.isCancelled {
+			do {
+				try await Task.sleep(for: .seconds(1))
+			} catch {
+				break
+			}
+
+			let shouldContinue = lock.withLock {
+				pollingState.shouldContinuePolling(expectedGeneration: expectedGeneration)
+			}
+			guard shouldContinue else { break }
+
+			requestRefresh(reason: "interval")
+		}
+	}
+
+	private func drainRefreshQueue() async {
+		while true {
+			let expectedGeneration = lock.withLock { () -> UInt64? in
+				guard let generation = pollingState.beginNextRefresh() else {
+					refreshCoordinatorTask = nil
+					return nil
+				}
+				return generation
+			}
+
+			guard let expectedGeneration else { return }
+			await pollOnce(expectedGeneration: expectedGeneration)
+
+			let shouldContinue = lock.withLock { () -> Bool in
+				pollingState.finishRefresh()
+				let hasPendingRefresh = pollingState.hasPendingRefresh
+				if !hasPendingRefresh {
+					refreshCoordinatorTask = nil
+				}
+				return hasPendingRefresh
+			}
+
+			if !shouldContinue {
+				return
+			}
+		}
+	}
+
+	private func invalidateLocked() {
+		_cachedIsEditable = false
+		_cachedFocusedElementUnavailable = false
+		_cachedSelectedText = nil
+		_cachedAppName = nil
+		_cachedBundleID = nil
+		_cachedPid = nil
+		_cachedWindowTitle = nil
+	}
+
     // MARK: - Single Poll Cycle
 
-    private func pollOnce() async {
+	private func pollOnce(expectedGeneration: UInt64) async {
         // Step 1: Get frontmost app info (fast, non-AX)
         let frontApp = NSWorkspace.shared.frontmostApplication
         let bundleID = frontApp?.bundleIdentifier
@@ -128,9 +217,14 @@ final class EditModeCacheService: @unchecked Sendable {
 
         // If terminal or no AX trust, just cache the basic info with isEditable = false
         guard axTrusted, !isTerminal, let pid = pid else {
+			guard shouldApplyPollResult(expectedGeneration: expectedGeneration) else {
+				logger.debug("Suppressing stale basic edit mode refresh result")
+				return
+			}
             lock.withLock {
                 _cachedIsEditable = false
                 _cachedSelectedText = nil
+				_cachedFocusedElementUnavailable = false
                 _cachedAppName = appName
                 _cachedBundleID = bundleID
                 _cachedPid = pid
@@ -139,97 +233,82 @@ final class EditModeCacheService: @unchecked Sendable {
             return
         }
 
-        // Step 2: AX queries with 800ms timeout
-        let axResult: AXPollResult? = await withTaskGroup(of: AXPollResult?.self) { group in
-            group.addTask {
-                // Actual AX work — inline focused element check to distinguish
-                // "element unavailable" (e.g. Claude desktop) from "not editable"
-                let axApp = AXUIElementCreateApplication(pid)
-
-                var isEditable = false
-                var focusedElementUnavailable = false
-
-                var focusedElementObj: AnyObject?
-                let focusedResult = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedElementObj)
-
-                if focusedResult == .success {
-                    let element = focusedElementObj as! AXUIElement
-                    var roleValue: AnyObject?
-                    if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
-                       let role = roleValue as? String {
-                        let editableRoles: Set<String> = [
-                            kAXTextFieldRole as String,
-                            kAXTextAreaRole as String,
-                            kAXComboBoxRole as String,
-                        ]
-                        isEditable = editableRoles.contains(role)
-                    }
-                } else {
-                    focusedElementUnavailable = true
-                }
-
-                var selectedText: String?
-                if isEditable {
-                    selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
-                    if let text = selectedText, text.isEmpty {
-                        selectedText = nil
-                    }
-                }
-
-                // Window title via AX
-                var windowTitle: String?
-                var focusedWindow: AnyObject?
-                if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
-                    var titleValue: AnyObject?
-                    if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
-                        windowTitle = titleValue as? String
-                    }
-                }
-
-                return AXPollResult(
-                    isEditable: isEditable,
-                    focusedElementUnavailable: focusedElementUnavailable,
-                    selectedText: selectedText,
-                    windowTitle: windowTitle
-                )
-            }
-
-            group.addTask {
-                // 800ms timeout sentinel
-                try? await Task.sleep(for: .milliseconds(800))
-                return nil
-            }
-
-            // First non-nil result wins
-            for await value in group {
-                if let v = value {
-                    group.cancelAll()
-                    return v
-                }
-            }
-            group.cancelAll()
-            return nil // timeout
-        }
+		let axResult = await Self.performAXPoll(pid: pid)
+		guard shouldApplyPollResult(expectedGeneration: expectedGeneration) else {
+			logger.debug("Suppressing stale AX edit mode refresh result")
+			return
+		}
 
         // Step 3: Write cache
         lock.withLock {
-            if let result = axResult {
-                _cachedIsEditable = result.isEditable
-                _cachedFocusedElementUnavailable = result.focusedElementUnavailable
-                _cachedSelectedText = result.selectedText
-                _cachedWindowTitle = result.windowTitle
-            } else {
-                // Timeout — keep basic info, mark not editable (conservative)
-                _cachedIsEditable = false
-                _cachedFocusedElementUnavailable = false
-                _cachedSelectedText = nil
-                _cachedWindowTitle = nil
-            }
+			_cachedIsEditable = axResult.isEditable
+			_cachedFocusedElementUnavailable = axResult.focusedElementUnavailable
+			_cachedSelectedText = axResult.selectedText
+			_cachedWindowTitle = axResult.windowTitle
             _cachedAppName = appName
             _cachedBundleID = bundleID
             _cachedPid = pid
         }
     }
+
+	private func shouldApplyPollResult(expectedGeneration: UInt64) -> Bool {
+		lock.withLock {
+			pollingState.shouldApplyResult(for: expectedGeneration)
+		}
+	}
+
+	private static func performAXPoll(pid: pid_t) async -> AXPollResult {
+		// Actual AX work — inline focused element check to distinguish
+		// "element unavailable" (e.g. Claude desktop) from "not editable"
+		let axApp = AXUIElementCreateApplication(pid)
+
+		var isEditable = false
+		var focusedElementUnavailable = false
+
+		var focusedElementObj: AnyObject?
+		let focusedResult = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedElementObj)
+
+		if focusedResult == .success {
+			let element = focusedElementObj as! AXUIElement
+			var roleValue: AnyObject?
+			if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+			   let role = roleValue as? String {
+				let editableRoles: Set<String> = [
+					kAXTextFieldRole as String,
+					kAXTextAreaRole as String,
+					kAXComboBoxRole as String,
+				]
+				isEditable = editableRoles.contains(role)
+			}
+		} else {
+			focusedElementUnavailable = true
+		}
+
+		var selectedText: String?
+		if isEditable {
+			selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
+			if let text = selectedText, text.isEmpty {
+				selectedText = nil
+			}
+		}
+
+		// Window title via AX
+		var windowTitle: String?
+		var focusedWindow: AnyObject?
+		if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success {
+			var titleValue: AnyObject?
+			if AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &titleValue) == .success {
+				windowTitle = titleValue as? String
+			}
+		}
+
+		return AXPollResult(
+			isEditable: isEditable,
+			focusedElementUnavailable: focusedElementUnavailable,
+			selectedText: selectedText,
+			windowTitle: windowTitle
+		)
+	}
 }
 
 /// Internal result type for a single AX poll cycle.
@@ -238,4 +317,61 @@ private struct AXPollResult {
     let focusedElementUnavailable: Bool
     let selectedText: String?
     let windowTitle: String?
+}
+
+enum EditModeRefreshDisposition: Equatable {
+	case scheduled
+	case queuedBehindInFlight
+	case coalesced
+	case ignoredStopped
+}
+
+struct EditModePollingState {
+	private(set) var generation: UInt64 = 0
+	private(set) var isPollingEnabled = false
+	private(set) var hasPendingRefresh = false
+	private(set) var isPollInFlight = false
+
+	mutating func startPolling() -> UInt64? {
+		guard !isPollingEnabled else { return nil }
+		generation &+= 1
+		isPollingEnabled = true
+		hasPendingRefresh = true
+		return generation
+	}
+
+	mutating func stopPolling() {
+		guard isPollingEnabled || hasPendingRefresh || isPollInFlight else { return }
+		generation &+= 1
+		isPollingEnabled = false
+		hasPendingRefresh = false
+	}
+
+	mutating func enqueueRefresh() -> EditModeRefreshDisposition {
+		guard isPollingEnabled else { return .ignoredStopped }
+		if hasPendingRefresh {
+			return .coalesced
+		}
+		hasPendingRefresh = true
+		return isPollInFlight ? .queuedBehindInFlight : .scheduled
+	}
+
+	mutating func beginNextRefresh() -> UInt64? {
+		guard hasPendingRefresh, !isPollInFlight else { return nil }
+		hasPendingRefresh = false
+		isPollInFlight = true
+		return generation
+	}
+
+	mutating func finishRefresh() {
+		isPollInFlight = false
+	}
+
+	func shouldContinuePolling(expectedGeneration: UInt64) -> Bool {
+		isPollingEnabled && generation == expectedGeneration
+	}
+
+	func shouldApplyResult(for expectedGeneration: UInt64) -> Bool {
+		isPollingEnabled && generation == expectedGeneration
+	}
 }
