@@ -183,7 +183,58 @@ def clean_verb_pronoun_comma(text: str) -> str:
     return "".join(result)
 
 
-def clean(text: str) -> str:
+FIXED_PHRASES = [
+    ("另外", "一"), ("其中", "一"), ("其他", "一"),
+    ("另外", "也"), ("另外", "還"),
+]
+
+
+def clean_fixed_phrases(text: str) -> str:
+    """Remove commas that split known fixed phrases."""
+    result = text
+    for before, after in FIXED_PHRASES:
+        result = result.replace(f"{before}，{after}", f"{before}{after}")
+    return result
+
+
+def clean_by_original_comparison(text: str, original_text: str) -> str:
+    """Remove commas the LLM inserted between chars that were adjacent in ASR original.
+
+    Checks the original text directly (with punctuation intact). If the pair
+    charBefore+charAfter exists as a substring in the original, the LLM wrongly
+    split adjacent chars → remove the comma.
+
+    Safety valve: if the CJK run since last punctuation > 12 chars, keep the comma.
+    """
+    if not original_text:
+        return text
+
+    chars = list(text)
+    result = []
+    cjk_run = 0
+
+    for i, ch in enumerate(chars):
+        if (
+            ch == "，"
+            and i >= 1
+            and i + 1 < len(chars)
+            and is_cjk(chars[i - 1])
+            and is_cjk(chars[i + 1])
+        ):
+            pair = chars[i - 1] + chars[i + 1]
+            if pair in original_text and cjk_run <= 12:
+                continue  # remove comma
+
+        result.append(ch)
+        if is_cjk(ch):
+            cjk_run += 1
+        elif ch in BOUNDARY_PUNCTUATION:
+            cjk_run = 0
+
+    return "".join(result)
+
+
+def clean(text: str, original_text: str | None = None) -> str:
     """Apply all comma cleanup rules."""
     if len(text) < 3:
         return text
@@ -191,6 +242,9 @@ def clean(text: str) -> str:
     result = clean_de_comma(result)
     result = clean_le_comma(result)
     result = clean_verb_pronoun_comma(result)
+    result = clean_fixed_phrases(result)
+    if original_text:
+        result = clean_by_original_comparison(result, original_text)
     return result
 
 
@@ -285,7 +339,7 @@ def main():
     missed_count = 0
 
     for dt, ztext, zenhanced in rows:
-        cleaned = clean(zenhanced)
+        cleaned = clean(zenhanced, original_text=ztext)
         has_change = cleaned != zenhanced
 
         # Check if original ZTEXT can tell us if the change is correct
@@ -316,7 +370,7 @@ def main():
     # Show records where 的，or 了，still exist after cleanup (kept by exceptions)
     kept_count = 0
     for dt, ztext, zenhanced in rows:
-        cleaned = clean(zenhanced)
+        cleaned = clean(zenhanced, original_text=ztext)
         if "的，" in cleaned or "了，" in cleaned:
             kept_count += 1
 
@@ -327,7 +381,7 @@ def main():
     if kept_count > 0:
         print(f"{BOLD}Kept commas (verify these are correct):{RESET}")
         for dt, ztext, zenhanced in rows:
-            cleaned = clean(zenhanced)
+            cleaned = clean(zenhanced, original_text=ztext)
             for particle in ["的，", "了，"]:
                 idx = 0
                 while True:

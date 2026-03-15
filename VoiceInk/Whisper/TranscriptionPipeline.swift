@@ -474,7 +474,7 @@ class TranscriptionPipeline {
 
             // === Post-LLM comma cleanup: remove wrongly inserted commas after 的/了 ===
             if let currentText = finalPastedText, currentText.count >= 3 {
-                let cleaned = PostLLMCommaCleanup.clean(currentText)
+                let cleaned = PostLLMCommaCleanup.clean(currentText, originalText: transcription.text)
                 if cleaned != currentText {
                     ChinesePostProcessingService.debugLog(
                         "COMMA_CLEANUP: \(currentText) → \(cleaned)"

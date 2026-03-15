@@ -65,6 +65,14 @@ enum PostLLMCommaCleanup {
         "我", "你", "您", "他", "她", "它",
     ]
 
+    /// Fixed phrases where a comma should never be inserted.
+    /// Each entry is (before_comma_suffix, after_comma_prefix).
+    /// e.g. "另外，一個" → "另外一個", "其中，一個" → "其中一個"
+    private static let fixedPhrases: [(String, String)] = [
+        ("另外", "一"), ("其中", "一"), ("其他", "一"),
+        ("另外", "也"), ("另外", "還"),
+    ]
+
     /// Sentence-final particles. Comma after these + pronoun is a real clause break.
     /// e.g. "他說了，他的意思是..." — 了 is particle, comma is correct.
     private static let sentenceFinalParticles: Set<Character> = [
@@ -74,12 +82,21 @@ enum PostLLMCommaCleanup {
     // MARK: - Public API
 
     /// Apply comma cleanup rules to LLM-enhanced text.
-    static func clean(_ text: String) -> String {
+    /// - Parameters:
+    ///   - text: The LLM-enhanced text to clean.
+    ///   - originalText: The ASR original text (ZTEXT). When provided, a final
+    ///     comparison pass removes commas that the LLM inserted between characters
+    ///     that were adjacent in the original.
+    static func clean(_ text: String, originalText: String? = nil) -> String {
         guard text.count >= 3 else { return text }
         var result = text
         result = cleanDeComma(result)
         result = cleanLeComma(result)
         result = cleanVerbPronounComma(result)
+        result = cleanFixedPhrases(result)
+        if let originalText {
+            result = cleanByOriginalComparison(result, originalText: originalText)
+        }
         return result
     }
 
@@ -238,6 +255,67 @@ enum PostLLMCommaCleanup {
         return String(result)
     }
 
+    // MARK: - Fixed phrase cleanup
+
+    /// Remove commas that split known fixed phrases.
+    /// e.g. "另外，一個" → "另外一個"
+    private static func cleanFixedPhrases(_ text: String) -> String {
+        var result = text
+        for (before, after) in fixedPhrases {
+            result = result.replacingOccurrences(of: "\(before)，\(after)", with: "\(before)\(after)")
+        }
+        return result
+    }
+
+    // MARK: - ZTEXT-guided comparison cleanup
+
+    /// Remove commas that the LLM inserted between characters that were adjacent
+    /// (no punctuation between them) in the ASR original text (ZTEXT).
+    ///
+    /// Key insight: check the original text directly WITHOUT stripping punctuation.
+    /// If the original has "結果出來", the pair "果出" exists as a substring → remove.
+    /// If the original also has "想說，我們", the pair "說我" is NOT adjacent → keep.
+    ///
+    /// Safety valve: if the CJK run since the last punctuation exceeds 12 characters,
+    /// the comma is kept (long sentences need pauses).
+    private static func cleanByOriginalComparison(_ text: String, originalText: String) -> String {
+        guard !originalText.isEmpty else { return text }
+
+        let chars = Array(text)
+        var result: [Character] = []
+        var cjkRunSinceLastPunct = 0
+
+        for i in 0..<chars.count {
+            let ch = chars[i]
+
+            if ch == "，"
+                && i >= 1
+                && i + 1 < chars.count
+                && isCJK(chars[i - 1])
+                && isCJK(chars[i + 1])
+            {
+                let pair = String([chars[i - 1], chars[i + 1]])
+
+                if originalText.contains(pair) && cjkRunSinceLastPunct <= 12 {
+                    // The two chars around this comma were adjacent in the original
+                    // (no comma between them) — LLM wrongly split them. Remove.
+                    continue
+                }
+            }
+
+            result.append(ch)
+
+            // Track CJK run length for safety valve
+            if isCJK(ch) {
+                cjkRunSinceLastPunct += 1
+            } else if boundaryPunctuation.contains(ch) {
+                cjkRunSinceLastPunct = 0
+            }
+        }
+
+        return String(result)
+    }
+
     // MARK: - Helpers
 
     private static func isCJK(_ c: Character) -> Bool {
@@ -245,4 +323,5 @@ enum PostLLMCommaCleanup {
             (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
         } ?? false
     }
+
 }
