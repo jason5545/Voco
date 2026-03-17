@@ -486,7 +486,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷鍵"
+            "value": "快速鍵"
           }
         }
       }
@@ -516,7 +516,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "額外快捷鍵"
+            "value": "額外快速鍵"
           }
         }
       }
@@ -526,7 +526,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷鍵 1"
+            "value": "快速鍵 1"
           }
         }
       }
@@ -536,7 +536,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷鍵 2"
+            "value": "快速鍵 2"
           }
         }
       }
@@ -546,7 +546,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增第二個快捷鍵"
+            "value": "新增第二個快速鍵"
           }
         }
       }
@@ -586,7 +586,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "取消快捷鍵（單按）"
+            "value": "取消快速鍵（單按）"
           }
         }
       }
@@ -596,7 +596,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "自訂取消快捷鍵"
+            "value": "自訂取消快速鍵"
           }
         }
       }
@@ -606,7 +606,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷鍵"
+            "value": "快速鍵"
           }
         }
       }
@@ -1906,7 +1906,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "自動將特定字詞或片語替換為自訂格式的文字"
+            "value": "自動將特定字詞或片語取代為自訂格式的文字"
           }
         }
       }
@@ -2116,7 +2116,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "鍵盤快捷鍵"
+            "value": "鍵盤快速鍵"
           }
         }
       }
@@ -2966,7 +2966,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "您的快捷鍵"
+            "value": "您的快速鍵"
           }
         }
       }
@@ -3116,7 +3116,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "字詞替換"
+            "value": "字詞取代"
           }
         }
       }
@@ -3126,7 +3126,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "定義字詞替換以自動替換特定字詞或片語"
+            "value": "定義字詞取代以自動取代特定字詞或片語"
           }
         }
       }
@@ -3146,7 +3146,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "替換字詞"
+            "value": "取代字詞"
           }
         }
       }
@@ -3156,7 +3156,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "如何使用字詞替換"
+            "value": "如何使用字詞取代"
           }
         }
       }
@@ -3196,7 +3196,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "替換字詞："
+            "value": "取代字詞："
           }
         }
       }
@@ -3216,7 +3216,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "替換文字"
+            "value": "取代文字"
           }
         }
       }
@@ -3236,7 +3236,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "字詞替換"
+            "value": "字詞取代"
           }
         }
       }
@@ -3246,7 +3246,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "編輯字詞替換"
+            "value": "編輯字詞取代"
           }
         }
       }
@@ -3256,7 +3256,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新應自動替換的字詞或片語。"
+            "value": "更新應自動取代的字詞或片語。"
           }
         }
       }
@@ -3286,7 +3286,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "替換文字"
+            "value": "取代文字"
           }
         }
       }
@@ -3296,7 +3296,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "輸入要替換的字詞或片語（多個用逗號分隔）"
+            "value": "輸入要取代的字詞或片語（多個用逗號分隔）"
           }
         }
       }
@@ -3456,7 +3456,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "透過全域快捷鍵從任何地方開啟歷史紀錄"
+            "value": "透過全域快速鍵從任何地方開啟歷史紀錄"
           }
         }
       }
@@ -4076,7 +4076,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "設定鍵盤快捷鍵"
+            "value": "設定鍵盤快速鍵"
           }
         }
       }
@@ -4146,7 +4146,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "設定快捷鍵"
+            "value": "設定快速鍵"
           }
         }
       }
@@ -4286,7 +4286,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯入詞彙與字詞替換"
+            "value": "匯入詞彙與字詞取代"
           }
         }
       }
@@ -4296,7 +4296,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯出詞彙與字詞替換"
+            "value": "匯出詞彙與字詞取代"
           }
         }
       }
@@ -4306,7 +4306,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增字詞替換"
+            "value": "新增字詞取代"
           }
         }
       }
@@ -4326,7 +4326,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按替換字詞排序"
+            "value": "按取代字詞排序"
           }
         }
       }
@@ -4336,7 +4336,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "編輯替換"
+            "value": "編輯取代"
           }
         }
       }
@@ -4346,7 +4346,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除替換"
+            "value": "移除取代"
           }
         }
       }
@@ -4832,7 +4832,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "定義文字替換規則，自動替換轉錄中的特定字詞或語句。"
+            "value": "定義文字取代規則，自動取代轉錄中的特定字詞或語句。"
           }
         }
       }
@@ -6108,7 +6108,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用快捷鍵在任何地方使用 Voco。"
+            "value": "使用快速鍵在任何地方使用 Voco。"
           }
         }
       }
@@ -6301,6 +6301,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "已撤銷"
+          }
+        }
+      }
+    },
+    "Toggle": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換"
+          }
+        }
+      }
+    },
+    "Push to Talk": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住說話"
+          }
+        }
+      }
+    },
+    "Hybrid": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "混合"
+          }
+        }
+      }
+    },
+    "Shortcut 1": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速鍵 1"
+          }
+        }
+      }
+    },
+    "Shortcut 2": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速鍵 2"
+          }
+        }
+      }
+    },
+    "Add Second Shortcut": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增第二個快速鍵"
+          }
+        }
+      }
+    },
+    "Use AppleScript Paste": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 AppleScript 貼上"
+          }
+        }
+      }
+    },
+    "Enable this if pasting doesn't work with your keyboard layout (e.g. Neo2). Uses AppleScript instead of simulated key events.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若您的鍵盤佈局（如 Neo2）無法正常貼上，請啟用此選項。將改用 AppleScript 而非模擬按鍵事件。"
           }
         }
       }
