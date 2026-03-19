@@ -444,8 +444,8 @@ import Foundation
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .gemini)
         ),
         CloudModel(
-            name: "gemini-3-pro-preview",
-            displayName: "Gemini 3 Pro",
+            name: "gemini-3.1-pro-preview",
+            displayName: "Gemini 3.1 Pro",
             description: "Google's latest model with enhanced transcription capabilities",
             provider: .gemini,
             speed: 0.75,
