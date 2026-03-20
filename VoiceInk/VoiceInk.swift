@@ -154,6 +154,7 @@ struct VoiceInkApp: App {
             serviceRegistry: engine.serviceRegistry
         )
         _prewarmService = StateObject(wrappedValue: prewarmService)
+        engine.prewarmService = prewarmService
 
         appDelegate.menuBarManager = menuBarManager
 

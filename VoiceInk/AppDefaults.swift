@@ -46,6 +46,8 @@ enum AppDefaults {
             // Model
             "PrewarmModelOnWake": true,
             "ModelKeepAliveSeconds": 420.0,
+            "KeepModelAlive": false,
+            "KeepModelAliveOnBattery": false,
 
             // Context-Aware Insertion (fork feature)
             "ContextAwareInsertionEnabled": false,

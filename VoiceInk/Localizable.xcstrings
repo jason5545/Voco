@@ -6384,6 +6384,46 @@
           }
         }
       }
+    },
+    "Keep model in memory": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持模型常駐記憶體"
+          }
+        }
+      }
+    },
+    "Keep alive on battery": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用電池時也保持常駐"
+          }
+        }
+      }
+    },
+    "Periodically touch the model's memory pages (every 5 minutes) to prevent macOS from swapping them to disk. Keeps the first transcription after idle as fast as subsequent ones.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每 5 分鐘觸碰模型的記憶體頁面，防止 macOS 將其交換到磁碟。讓閒置後的第一次轉錄跟後續一樣快。"
+          }
+        }
+      }
+    },
+    "By default, keep-alive pauses when running on battery to save power. Enable this to keep the model resident even on battery.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設使用電池時會暫停常駐功能以節省電量。啟用此選項可在電池供電時也保持模型常駐。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

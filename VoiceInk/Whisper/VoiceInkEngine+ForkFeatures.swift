@@ -104,8 +104,16 @@ extension VoiceInkEngine {
     }
 
     /// Schedules model resource cleanup after the configured keep-alive period.
+    /// If `ModelPrewarmService.isKeepAliveActive` is true, cleanup is suppressed
+    /// so the model stays resident for fast transcription.
     func scheduleModelResourceCleanup() {
         cancelScheduledModelCleanup()
+
+        // Keep-alive ping keeps memory pages resident — don't unload the model
+        if prewarmService?.isKeepAliveActive == true {
+            logger.notice("cleanupModelResources: skipped (keep-alive active)")
+            return
+        }
 
         let configuredKeepAlive = UserDefaults.standard.double(forKey: modelKeepAliveSecondsKey)
         let keepAliveSeconds = max(0, configuredKeepAlive)

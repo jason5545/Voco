@@ -9,6 +9,8 @@ struct ModelSettingsView: View {
     @AppStorage("ContextAwareInsertionEnabled") private var contextAwareInsertionEnabled = false
     @AppStorage("ContextAwareLLMMergeEnabled") private var contextAwareLLMMergeEnabled = false
     @AppStorage("PrewarmModelOnWake") private var prewarmModelOnWake = true
+    @AppStorage("KeepModelAlive") private var keepModelAlive = false
+    @AppStorage("KeepModelAliveOnBattery") private var keepModelAliveOnBattery = false
     @State private var customPrompt: String = ""
     @State private var isEditing: Bool = false
     
@@ -124,6 +126,30 @@ struct ModelSettingsView: View {
                 .toggleStyle(.switch)
 
                 InfoTip("Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.")
+            }
+
+            if prewarmModelOnWake {
+                HStack {
+                    Toggle(isOn: $keepModelAlive) {
+                        Text("Keep model in memory")
+                    }
+                    .toggleStyle(.switch)
+
+                    InfoTip("Periodically touch the model's memory pages (every 5 minutes) to prevent macOS from swapping them to disk. Keeps the first transcription after idle as fast as subsequent ones.")
+                }
+                .padding(.leading, 20)
+
+                if keepModelAlive {
+                    HStack {
+                        Toggle(isOn: $keepModelAliveOnBattery) {
+                            Text("Keep alive on battery")
+                        }
+                        .toggleStyle(.switch)
+
+                        InfoTip("By default, keep-alive pauses when running on battery to save power. Enable this to keep the model resident even on battery.")
+                    }
+                    .padding(.leading, 40)
+                }
             }
 
             FillerWordsSettingsView()

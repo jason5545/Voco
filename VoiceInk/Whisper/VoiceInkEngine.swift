@@ -20,6 +20,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
     let whisperModelManager: WhisperModelManager
     let transcriptionModelManager: TranscriptionModelManager
     weak var recorderUIManager: RecorderUIManager?
+    weak var prewarmService: ModelPrewarmService?
 
     let modelContext: ModelContext
     internal let serviceRegistry: TranscriptionServiceRegistry

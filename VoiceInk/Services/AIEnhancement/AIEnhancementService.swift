@@ -244,7 +244,7 @@ class AIEnhancementService: ObservableObject {
                 return "「\(orig)」→「\(r.replacementText)」"
             }
             if !entries.isEmpty {
-                knownASRErrorsSection = "\n\n<KNOWN_ASR_ERRORS>\n以下是已知的語音辨識錯誤對照，如果轉錄中出現類似模式請參考修正：\n\(entries.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
+                knownASRErrorsSection = "\n\n<KNOWN_ASR_ERRORS>\n以下是已知的語音辨識錯誤對照。只有在轉錄文字中「完整出現」左側詞彙時才替換為右側，不可部分匹配（例如規則寫「歷史階梯」→「歷史節點」，則只替換「歷史階梯」，不可看到「階梯」就改成「歷史節點」）：\n\(entries.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
             } else {
                 knownASRErrorsSection = ""
             }

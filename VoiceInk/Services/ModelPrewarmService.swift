@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import IOKit.ps
 import os
 
 @MainActor
@@ -13,13 +14,25 @@ extension TranscriptionServiceRegistry: ModelPrewarmTranscribing {}
 final class ModelPrewarmService: ObservableObject {
     private let transcriptionModelManager: TranscriptionModelManager
     private let serviceRegistry: any ModelPrewarmTranscribing
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ModelPrewarm")
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ModelPrewarm")
     private let prewarmEnabledKey = "PrewarmModelOnWake"
     private let prewarmAudioURL: URL?
     private let prewarmDelay: Duration
 
     private var scheduledPrewarmTask: Task<Void, Never>?
     private var activePrewarmTask: Task<Void, Never>?
+
+    // MARK: - Keep-Alive
+
+    static let keepAliveEnabledKey = "KeepModelAlive"
+    static let keepAliveOnBatteryKey = "KeepModelAliveOnBattery"
+    private let keepAliveInterval: TimeInterval = 5 * 60  // 5 minutes
+    private var keepAliveTask: Task<Void, Never>?
+
+    /// Whether the keep-alive loop is currently running.
+    /// Other subsystems (e.g. deferred model cleanup) can check this to avoid
+    /// unloading a model that keep-alive is trying to keep resident.
+    var isKeepAliveActive: Bool { keepAliveTask != nil }
 
     init(
         transcriptionModelManager: TranscriptionModelManager,
@@ -111,7 +124,10 @@ final class ModelPrewarmService: ObservableObject {
 
         Task { [weak self] in
             await task.value
-            await self?.clearActivePrewarmTask()
+            guard let self else { return }
+            self.clearActivePrewarmTask()
+            // (Re)start keep-alive after prewarm completes from launch or wake
+            self.startKeepAlive()
         }
     }
 
@@ -172,9 +188,75 @@ final class ModelPrewarmService: ObservableObject {
         }
     }
 
+    // MARK: - Keep-Alive Loop
+
+    /// Starts or restarts the keep-alive loop.
+    /// Called after prewarm completes on app launch and wake, and when settings change.
+    func startKeepAlive() {
+        keepAliveTask?.cancel()
+        guard UserDefaults.standard.bool(forKey: Self.keepAliveEnabledKey) else {
+            keepAliveTask = nil
+            logger.notice("Keep-alive disabled")
+            return
+        }
+        guard shouldPrewarm() else {
+            keepAliveTask = nil
+            return
+        }
+
+        logger.notice("Keep-alive started (interval: \(String(format: "%.0f", self.keepAliveInterval))s)")
+        keepAliveTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(self.keepAliveInterval))
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled else { break }
+
+                // Skip if on battery and user hasn't opted in
+                if self.isOnBattery && !UserDefaults.standard.bool(forKey: Self.keepAliveOnBatteryKey) {
+                    self.logger.notice("Keep-alive ping skipped (on battery)")
+                    continue
+                }
+
+                await self.performPrewarm(trigger: "keep-alive")
+            }
+        }
+    }
+
+    /// Stops the keep-alive loop.
+    func stopKeepAlive() {
+        keepAliveTask?.cancel()
+        keepAliveTask = nil
+        logger.notice("Keep-alive stopped")
+    }
+
+    // MARK: - Battery Detection
+
+    private var isOnBattery: Bool {
+        guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef],
+              !sources.isEmpty else {
+            // Desktop Mac or unable to read — assume AC power
+            return false
+        }
+        for source in sources {
+            if let desc = IOPSGetPowerSourceDescription(snapshot, source)?.takeUnretainedValue() as? [String: Any],
+               let state = desc[kIOPSPowerSourceStateKey] as? String {
+                if state == kIOPSBatteryPowerValue {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     deinit {
         scheduledPrewarmTask?.cancel()
         activePrewarmTask?.cancel()
+        keepAliveTask?.cancel()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         logger.notice("ModelPrewarmService deinitialized")
     }
