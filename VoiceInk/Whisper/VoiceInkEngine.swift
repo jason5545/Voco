@@ -118,6 +118,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 await cleanupResources()
             }
         } else {
+            StartupTracer.checkpoint("toggleRecord_start_branch")
             logger.notice("toggleRecord: entering start-recording branch")
             guard transcriptionModelManager.currentTranscriptionModel != nil else {
                 NotificationManager.shared.showNotification(title: "No AI Model Selected", type: .error)
@@ -134,6 +135,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 if granted {
                     // Set recording state immediately for responsive UI (eliminates ~500ms visual delay)
                     self.recordingState = .recording
+                    StartupTracer.checkpoint("toggleRecord_state_set_recording")
 
                     Task {
                         do {
@@ -146,7 +148,10 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 pendingChunks.withLock { $0.append(data) }
                             }
 
+                            StartupTracer.checkpoint("toggleRecord_before_startRecording")
                             try await self.recorder.startRecording(toOutputFile: permanentURL)
+
+                            StartupTracer.end("recorder_startRecording_done")
 
                             guard self.recorderUIManager?.isMiniRecorderVisible ?? false, !self.shouldCancelRecording else {
                                 self.recorder.stopRecording()

@@ -43,6 +43,7 @@ class MiniWindowManager: ObservableObject {
 
     func show() {
         if isVisible { return }
+        StartupTracer.checkpoint("MiniWindowManager.show_enter")
 
         if miniPanel == nil {
             let activeScreen = NSApp.keyWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
@@ -51,6 +52,7 @@ class MiniWindowManager: ObservableObject {
 
         self.isVisible = true
         miniPanel?.show()
+        StartupTracer.checkpoint("MiniWindowManager.show_panel_visible")
     }
 
     func hide() {
@@ -65,19 +67,25 @@ class MiniWindowManager: ObservableObject {
     }
 
     private func initializeWindow(screen: NSScreen) {
+        StartupTracer.checkpoint("initializeWindow_enter")
         deinitializeWindow()
 
         let metrics = MiniRecorderPanel.calculateWindowMetrics()
+        StartupTracer.checkpoint("initializeWindow_metrics_calculated")
         let panel = MiniRecorderPanel(contentRect: metrics)
+        StartupTracer.checkpoint("initializeWindow_panel_created")
 
         let miniRecorderView = makeView(self)
+        StartupTracer.checkpoint("initializeWindow_swiftui_view_created")
         let hostingController = NSHostingController(rootView: miniRecorderView)
+        StartupTracer.checkpoint("initializeWindow_hosting_controller_created")
         panel.contentView = hostingController.view
 
         self.miniPanel = panel
         self.windowController = NSWindowController(window: panel)
 
         panel.orderFrontRegardless()
+        StartupTracer.checkpoint("initializeWindow_orderFrontRegardless_done")
     }
 
     private func deinitializeWindow() {

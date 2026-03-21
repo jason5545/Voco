@@ -64,6 +64,7 @@ class RecorderUIManager: ObservableObject {
 
     func showRecorderPanel() {
         guard let engine = engine, let recorder = recorder else { return }
+        StartupTracer.checkpoint("showRecorderPanel_enter(\(recorderType))")
         logger.notice("Showing \(self.recorderType, privacy: .public) recorder")
 
         if recorderType == "notch" {
@@ -120,13 +121,18 @@ class RecorderUIManager: ObservableObject {
                 lastRecordingStopTime = nil
             }
         } else {
+            StartupTracer.begin("hotkey_press")
             lastRecordingStopTime = nil
             engine.cancelScheduledModelCleanup()
+            StartupTracer.checkpoint("cancelModelCleanup_done")
             SoundManager.shared.playStartSound()
+            StartupTracer.checkpoint("playStartSound_done")
 
             detectEditMode(engine: engine)
+            StartupTracer.checkpoint("detectEditMode_done")
 
-            await MainActor.run { isMiniRecorderVisible = true }
+            isMiniRecorderVisible = true
+            StartupTracer.checkpoint("isMiniRecorderVisible_set")
             await engine.toggleRecord(powerModeId: powerModeId)
         }
     }

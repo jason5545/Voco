@@ -96,12 +96,13 @@ class Recorder: NSObject, ObservableObject {
     }
 
     func startRecording(toOutputFile url: URL) async throws {
+        StartupTracer.checkpoint("Recorder.startRecording_enter")
         logger.notice("startRecording called – deviceID=\(self.deviceManager.getCurrentDevice(), privacy: .public), file=\(url.lastPathComponent, privacy: .public)")
         deviceManager.isRecordingActive = true
-        
+
         let currentDeviceID = deviceManager.getCurrentDevice()
         let lastDeviceID = UserDefaults.standard.string(forKey: "lastUsedMicrophoneDeviceID")
-        
+
         if String(currentDeviceID) != lastDeviceID {
             if let deviceName = deviceManager.availableDevices.first(where: { $0.id == currentDeviceID })?.name {
                 await MainActor.run {
@@ -113,7 +114,7 @@ class Recorder: NSObject, ObservableObject {
             }
         }
         UserDefaults.standard.set(String(currentDeviceID), forKey: "lastUsedMicrophoneDeviceID")
-        
+
 
         let deviceID = deviceManager.getCurrentDevice()
 
@@ -121,6 +122,7 @@ class Recorder: NSObject, ObservableObject {
             let coreAudioRecorder = CoreAudioRecorder()
             coreAudioRecorder.onAudioChunk = onAudioChunk
             recorder = coreAudioRecorder
+            StartupTracer.checkpoint("Recorder.CoreAudioRecorder_created")
 
             // Offload initialization to background thread to avoid hotkey lag.
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -133,6 +135,7 @@ class Recorder: NSObject, ObservableObject {
                     }
                 }
             }
+            StartupTracer.checkpoint("Recorder.CoreAudioRecorder_started")
             logger.notice("startRecording: CoreAudioRecorder started successfully")
 
             audioRestorationTask?.cancel()
