@@ -6424,6 +6424,206 @@
           }
         }
       }
+    },
+    "Enhancement Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強設定"
+          }
+        }
+      }
+    },
+    "Context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脈絡"
+          }
+        }
+      }
+    },
+    "Skip short transcriptions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳過短轉錄"
+          }
+        }
+      }
+    },
+    "Automatically skip AI enhancement when the transcription has very few words. Short phrases like \"yes\", \"thank you\", or quick commands don't benefit from enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當轉錄內容字數很少時自動跳過 AI 增強。像「好」、「謝謝」或快速指令等簡短語句不需要增強處理。"
+          }
+        }
+      }
+    },
+    "Use clipboard text to understand context for better enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用剪貼簿文字來理解脈絡，以獲得更好的增強效果。"
+          }
+        }
+      }
+    },
+    "Capture on-screen text to understand context for better enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "擷取螢幕上的文字來理解脈絡，以獲得更好的增強效果。"
+          }
+        }
+      }
+    },
+    "Minimum words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最少字數"
+          }
+        }
+      }
+    },
+    "word": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個字"
+          }
+        }
+      }
+    },
+    "words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個字"
+          }
+        }
+      }
+    },
+    "Enter website URL": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入網站 URL"
+          }
+        }
+      }
+    },
+    "Edit Power Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯 Power Mode"
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無"
+          }
+        }
+      }
+    },
+    "Return (⏎)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return (⏎)"
+          }
+        }
+      }
+    },
+    "Shift + Return (⇧⏎)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shift + Return (⇧⏎)"
+          }
+        }
+      }
+    },
+    "Command + Return (⌘⏎)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command + Return (⌘⏎)"
+          }
+        }
+      }
+    },
+    "Search apps...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋應用程式⋯"
+          }
+        }
+      }
+    },
+    "Brief description": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "簡短描述"
+          }
+        }
+      }
+    },
+    "Automatically presses a key combination after pasting text. Useful for chat applications or forms that use different send shortcuts.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上文字後自動按下組合鍵。適用於使用不同送出快速鍵的聊天應用程式或表單。"
+          }
+        }
+      }
+    },
+    "Enhancement failed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強失敗"
+          }
+        }
+      }
+    },
+    "Automatically detect the active application to adjust enhancement style.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動偵測目前使用的應用程式，以調整增強風格。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

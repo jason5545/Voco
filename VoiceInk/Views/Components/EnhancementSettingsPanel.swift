@@ -110,7 +110,7 @@ struct EnhancementSettingsPanel: View {
                         if isSkipShortEnhancementEnabled && isShortEnhancementExpanded {
                             Picker("Minimum words", selection: $shortEnhancementWordThreshold) {
                                 ForEach(1...15, id: \.self) { count in
-                                    Text("\(count) \(count == 1 ? "word" : "words")").tag(count)
+                                    Text("\(count) \(count == 1 ? String(localized: "word") : String(localized: "words"))").tag(count)
                                 }
                             }
                             .padding(.top, 12)

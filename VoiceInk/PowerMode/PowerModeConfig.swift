@@ -9,10 +9,10 @@ enum AutoSendKey: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .none: return "None"
-        case .enter: return "Return (⏎)"
-        case .shiftEnter: return "Shift + Return (⇧⏎)"
-        case .commandEnter: return "Command + Return (⌘⏎)"
+        case .none: return String(localized: "None")
+        case .enter: return String(localized: "Return (⏎)")
+        case .shiftEnter: return String(localized: "Shift + Return (⇧⏎)")
+        case .commandEnter: return String(localized: "Command + Return (⌘⏎)")
         }
     }
 
