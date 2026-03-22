@@ -101,6 +101,13 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Scripts (local dev/eval only)
+scripts/__pycache__/
+scripts/asr_eval/.venv*/
+scripts/asr_eval/models/
+scripts/convert_whisper_coreml/
+transcript.txt
+
 # Claude Code
 CLAUDE.md
 AI_HANDOFF.md

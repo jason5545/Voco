@@ -13,156 +13,128 @@ struct ModelSettingsView: View {
     @AppStorage("KeepModelAliveOnBattery") private var keepModelAliveOnBattery = false
     @State private var customPrompt: String = ""
     @State private var isEditing: Bool = false
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Output Format")
-                    .font(.headline)
-                
-                InfoTip(
-                    "Unlike GPT, Voice Models(whisper) follows the style of your prompt rather than instructions. Use examples of your desired output format instead of commands.",
-                    learnMoreURL: "https://cookbook.openai.com/examples/whisper_prompting_guide#comparison-with-gpt-prompting"
-                )
-                
-                Spacer()
-                
-                Button(action: {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
                     if isEditing {
-                        // Save changes
-                        whisperPrompt.setCustomPrompt(customPrompt, for: selectedLanguage)
-                        isEditing = false
+                        TextEditor(text: $customPrompt)
+                            .font(.system(size: 12))
+                            .frame(minHeight: 40, maxHeight: 80)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .scrollContentBackground(.hidden)
+
+                        Button("Save") {
+                            whisperPrompt.setCustomPrompt(customPrompt, for: selectedLanguage)
+                            isEditing = false
+                        }
                     } else {
-                        // Enter edit mode
-                        customPrompt = whisperPrompt.getLanguagePrompt(for: selectedLanguage)
-                        isEditing = true
+                        Text(whisperPrompt.getLanguagePrompt(for: selectedLanguage))
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button("Edit") {
+                            customPrompt = whisperPrompt.getLanguagePrompt(for: selectedLanguage)
+                            isEditing = true
+                        }
                     }
-                }) {
-                    Text(isEditing ? "Save" : "Edit")
-                        .font(.caption)
+                }
+            } header: {
+                HStack(spacing: 4) {
+                    Text("Output Format")
+                    InfoTip(
+                        "Only supported for local Whisper models. Unlike GPT, Voice Models(whisper) follows the style of your prompt rather than instructions. Use examples of your desired output format instead of commands.",
+                        learnMoreURL: "https://cookbook.openai.com/examples/whisper_prompting_guide#comparison-with-gpt-prompting"
+                    )
                 }
             }
-            
-            if isEditing {
-                TextEditor(text: $customPrompt)
-                    .font(.system(size: 12))
-                    .padding(8)
-                    .frame(height: 80)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-                
-            } else {
-                Text(whisperPrompt.getLanguagePrompt(for: selectedLanguage))
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(.windowBackgroundColor).opacity(0.4))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-            }
 
-            Divider().padding(.vertical, 4)
+            Section {
+                Toggle(isOn: $appendTrailingSpace) {
+                    Text("Add Space After Paste")
+                }
+                .toggleStyle(.switch)
 
-            Toggle(isOn: $appendTrailingSpace) {
-                Text("Add Space After Paste")
-            }
-            .toggleStyle(.switch)
-
-            Divider().padding(.vertical, 4)
-
-            HStack {
                 Toggle(isOn: $contextAwareInsertionEnabled) {
-                    Text("Context-Aware Insertion")
+                    HStack(spacing: 4) {
+                        Text("Context-Aware Insertion")
+                        InfoTip("Read surrounding text at the cursor position and automatically adjust spacing, capitalization, and punctuation for natural insertion.")
+                    }
                 }
                 .toggleStyle(.switch)
 
-                InfoTip("Read surrounding text at the cursor position and automatically adjust spacing, capitalization, and punctuation for natural insertion.")
-            }
-
-            if contextAwareInsertionEnabled {
-                HStack {
+                if contextAwareInsertionEnabled {
                     Toggle(isOn: $contextAwareLLMMergeEnabled) {
-                        Text("LLM Merge")
+                        HStack(spacing: 4) {
+                            Text("LLM Merge")
+                            InfoTip("When inserting in the middle of existing text, use AI to merge the inserted text seamlessly with surrounding content. Requires AI enhancement to be configured.")
+                        }
                     }
                     .toggleStyle(.switch)
-
-                    InfoTip("When inserting in the middle of existing text, use AI to merge the inserted text seamlessly with surrounding content. Requires AI enhancement to be configured.")
+                    .padding(.leading, 20)
                 }
-                .padding(.leading, 20)
-            }
 
-            Divider().padding(.vertical, 4)
-
-            HStack {
                 Toggle(isOn: $isTextFormattingEnabled) {
-                    Text("Automatic text formatting")
+                    HStack(spacing: 4) {
+                        Text("Automatic text formatting")
+                        InfoTip("Apply intelligent text formatting to break large block of text into paragraphs.")
+                    }
                 }
                 .toggleStyle(.switch)
-                
-                InfoTip("Apply intelligent text formatting to break large block of text into paragraphs.")
-            }
 
-            HStack {
                 Toggle(isOn: $isVADEnabled) {
-                    Text("Voice Activity Detection (VAD)")
+                    HStack(spacing: 4) {
+                        Text("Voice Activity Detection (VAD)")
+                        InfoTip("Detect speech segments and filter out silence to improve accuracy of local models.")
+                    }
                 }
                 .toggleStyle(.switch)
 
-                InfoTip("Detect speech segments and filter out silence to improve accuracy of local models.")
-            }
-
-            HStack {
                 Toggle(isOn: $prewarmModelOnWake) {
-                    Text("Prewarm model (Experimental)")
+                    HStack(spacing: 4) {
+                        Text("Prewarm model (Experimental)")
+                        InfoTip("Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.")
+                    }
                 }
                 .toggleStyle(.switch)
 
-                InfoTip("Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.")
-            }
-
-            if prewarmModelOnWake {
-                HStack {
+                if prewarmModelOnWake {
                     Toggle(isOn: $keepModelAlive) {
-                        Text("Keep model in memory")
+                        HStack(spacing: 4) {
+                            Text("Keep model in memory")
+                            InfoTip("Periodically touch the model's memory pages (every 5 minutes) to prevent macOS from swapping them to disk. Keeps the first transcription after idle as fast as subsequent ones.")
+                        }
                     }
                     .toggleStyle(.switch)
+                    .padding(.leading, 20)
 
-                    InfoTip("Periodically touch the model's memory pages (every 5 minutes) to prevent macOS from swapping them to disk. Keeps the first transcription after idle as fast as subsequent ones.")
-                }
-                .padding(.leading, 20)
-
-                if keepModelAlive {
-                    HStack {
+                    if keepModelAlive {
                         Toggle(isOn: $keepModelAliveOnBattery) {
-                            Text("Keep alive on battery")
+                            HStack(spacing: 4) {
+                                Text("Keep alive on battery")
+                                InfoTip("By default, keep-alive pauses when running on battery to save power. Enable this to keep the model resident even on battery.")
+                            }
                         }
                         .toggleStyle(.switch)
-
-                        InfoTip("By default, keep-alive pauses when running on battery to save power. Enable this to keep the model resident even on battery.")
+                        .padding(.leading, 40)
                     }
-                    .padding(.leading, 40)
                 }
+            } header: {
+                Text("Transcription")
             }
 
-            FillerWordsSettingsView()
-
+            Section {
+                FillerWordsSettingsView()
+            }
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(10)
-        // Reset the editor when language changes
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .onChange(of: selectedLanguage) { oldValue, newValue in
             if isEditing {
                 customPrompt = whisperPrompt.getLanguagePrompt(for: selectedLanguage)
             }
         }
     }
-} 
+}

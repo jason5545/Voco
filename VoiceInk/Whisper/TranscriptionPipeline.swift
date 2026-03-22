@@ -194,13 +194,22 @@ class TranscriptionPipeline {
             }
 
             // Determine if AI Enhancement should be skipped (confidence routing)
-            let shouldSkipEnhancement = postProcessor.isEnabled && !ppNeedsLLM
-            ChinesePostProcessingService.debugLog("PIPELINE: shouldSkip=\(shouldSkipEnhancement), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
+            let confidenceSkip = postProcessor.isEnabled && !ppNeedsLLM
+
+            // Skip short enhancement (upstream feature)
+            let isSkipShortEnhancementEnabled = UserDefaults.standard.bool(forKey: "SkipShortEnhancement")
+            let savedThreshold = UserDefaults.standard.integer(forKey: "ShortEnhancementWordThreshold")
+            let shortEnhancementWordThreshold = savedThreshold > 0 ? savedThreshold : 3
+            let shortSkip = isSkipShortEnhancementEnabled && WordCounter.count(in: text) <= shortEnhancementWordThreshold
+
+            let shouldSkipEnhancement = confidenceSkip || shortSkip
+            ChinesePostProcessingService.debugLog("PIPELINE: shouldSkip=\(shouldSkipEnhancement) (confidence=\(confidenceSkip), short=\(shortSkip)), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
 
             if !shouldSkipEnhancement,
                let enhancementService,
                enhancementService.isEnhancementEnabled,
-               enhancementService.isConfigured {
+               enhancementService.isConfigured,
+               !shouldSkipEnhancement {
                 if shouldCancel() { await onCleanup(); return }
 
                 onStateChange(.enhancing)
@@ -421,6 +430,12 @@ class TranscriptionPipeline {
                     transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
                 } catch {
                     transcription.enhancedText = "Enhancement failed: \(error)"
+                    await MainActor.run {
+                        NotificationManager.shared.showNotification(
+                            title: "Enhancement failed",
+                            type: .warning
+                        )
+                    }
                     if shouldCancel() { await onCleanup(); return }
                 }
             } else if shouldSkipEnhancement {
@@ -521,9 +536,9 @@ class TranscriptionPipeline {
                 CursorPaster.pasteAtCursor(textToPaste)
 
                 let powerMode = PowerModeManager.shared
-                if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.isAutoSendEnabled {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        CursorPaster.pressEnter()
+                if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.autoSendKey.isEnabled {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        CursorPaster.performAutoSend(activeConfig.autoSendKey)
                     }
                 }
             }
