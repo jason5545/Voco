@@ -64,9 +64,19 @@ class Qwen3QuantizedTextAttention: Module {
         super.init()
     }
 
+    /// Create additive causal mask (matches Python's create_additive_causal_mask)
+    private func createCausalMask(queryLen: Int, offset: Int, dtype: DType) -> MLXArray {
+        let totalLen = queryLen + offset
+        let rinds = MLXArray(0..<Int32(totalLen))
+        let linds = offset > 0
+            ? MLXArray(Int32(offset)..<Int32(offset + queryLen))
+            : rinds
+        let mask = linds.expandedDimensions(axis: 1) .< rinds.expandedDimensions(axis: 0)
+        return (mask * MLXArray(Float(-1e9))).asType(dtype)
+    }
+
     func callAsFunction(
         _ hiddenStates: MLXArray,
-        attentionMask: MLXArray? = nil,
         cache: (MLXArray, MLXArray)? = nil
     ) -> (MLXArray, (MLXArray, MLXArray)) {
         let (batch, seqLen, _) = (hiddenStates.dim(0), hiddenStates.dim(1), hiddenStates.dim(2))
@@ -98,9 +108,12 @@ class Qwen3QuantizedTextAttention: Module {
             cachedValues = concatenated([prevValues, values], axis: 2)
         }
 
+        // Create causal mask inside attention (matches Python reference)
+        let mask = createCausalMask(queryLen: seqLen, offset: offset, dtype: queries.dtype)
+
         let attnOutput = MLXFast.scaledDotProductAttention(
             queries: queries, keys: cachedKeys, values: cachedValues,
-            scale: scale, mask: attentionMask)
+            scale: scale, mask: mask)
 
         let output = oProj(attnOutput.transposed(0, 2, 1, 3).reshaped(batch, seqLen, numHeads * headDim))
         return (output, (cachedKeys, cachedValues))
@@ -155,12 +168,11 @@ class Qwen3QuantizedTextDecoderLayer: Module {
 
     func callAsFunction(
         _ hiddenStates: MLXArray,
-        attentionMask: MLXArray? = nil,
         cache: (MLXArray, MLXArray)? = nil
     ) -> (MLXArray, (MLXArray, MLXArray)) {
         let residual = hiddenStates
         var hidden = inputLayerNorm(hiddenStates)
-        let (attnOutput, newCache) = selfAttn(hidden, attentionMask: attentionMask, cache: cache)
+        let (attnOutput, newCache) = selfAttn(hidden, cache: cache)
         hidden = residual + attnOutput
 
         let residual2 = hidden
@@ -199,7 +211,6 @@ class Qwen3QuantizedTextModel: Module {
     func callAsFunction(
         inputIds: MLXArray? = nil,
         inputsEmbeds: MLXArray? = nil,
-        attentionMask: MLXArray? = nil,
         cache: [(MLXArray, MLXArray)]? = nil
     ) throws -> (MLXArray, [(MLXArray, MLXArray)]) {
         var hiddenStates: MLXArray
@@ -211,27 +222,12 @@ class Qwen3QuantizedTextModel: Module {
             throw Qwen3TextDecoderError.noInputProvided
         }
 
-        let seqLen = hiddenStates.dim(1)
-
-        let mask: MLXArray?
-        if let providedMask = attentionMask {
-            mask = providedMask
-        } else if seqLen == 1 {
-            mask = nil
-        } else {
-            let cacheLen = cache?.first?.0.dim(2) ?? 0
-            let totalLen = seqLen + cacheLen
-            let rows = (MLXArray(0..<Int32(seqLen)) + Int32(cacheLen)).expandedDimensions(axis: 1)
-            let cols = MLXArray(0..<Int32(totalLen)).expandedDimensions(axis: 0)
-            mask = MLX.where(cols .> rows, MLXArray(Float(-1e9)), MLXArray(Float(0)))
-                .expandedDimensions(axes: [0, 1])
-                .asType(hiddenStates.dtype)
-        }
-
+        // Each attention layer creates its own causal mask internally
+        // (matches Python reference implementation)
         var newCache: [(MLXArray, MLXArray)] = []
         for (i, layer) in layers.enumerated() {
             let layerCache = cache?[i]
-            let (output, updatedCache) = layer(hiddenStates, attentionMask: mask, cache: layerCache)
+            let (output, updatedCache) = layer(hiddenStates, cache: layerCache)
             hiddenStates = output
             newCache.append(updatedCache)
         }

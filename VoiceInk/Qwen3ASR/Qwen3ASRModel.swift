@@ -279,6 +279,7 @@ class Qwen3ASRModel {
         let seqLen = hiddenStates.dim(1)
         let lastHidden = hiddenStates[0..., (seqLen-1)..<seqLen, 0...]
         var logits = textDecoder.embedTokens.asLinear(lastHidden)
+
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
         if nextToken != Int32(tokens.eosTokenId) {

@@ -202,4 +202,5 @@ actor Qwen3ASREngine {
             underlying: lastError ?? Qwen3ASRModelError.loadFailed("unknown warmup error")
         )
     }
+
 }

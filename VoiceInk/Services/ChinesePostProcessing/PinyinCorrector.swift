@@ -122,7 +122,6 @@ class PinyinCorrector {
             ("差點被統一", "ChatGPT", aiKeywords),
             ("Swiffer", "Whisper", ["Whisper", "語音", "ASR", "轉錄", "模型"]),
             ("千萬的 ASR", "Qwen 的 ASR", ["Qwen", "ASR", "模型", "語音", "千問"]),
-            ("日誌", "記憶", ["memory", "記憶", "MCP", "存記憶", "搜尋記憶", "recall", "remember", "save_memory", "search_memory"]),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(
