@@ -39,9 +39,16 @@ final class CorrectionProtectionList {
     private let queue = DispatchQueue(label: "com.jasonchien.Voco.protectionList", attributes: .concurrent)
     private var words: Set<String>
 
+    /// Words that should never be "corrected" by any engine.
+    /// Add entries here when a correction engine repeatedly damages a valid word.
+    private static let builtInProtected: Set<String> = [
+        "記憶",  // PersonalCorrectionEngine was changing to 日誌 (not a homophone)
+        "鬆",    // HomophoneCorrectionEngine was changing to 送 (song1→song4)
+    ]
+
     private init() {
         let stored = UserDefaults.standard.stringArray(forKey: key) ?? []
-        self.words = Set(stored)
+        self.words = Set(stored).union(Self.builtInProtected)
     }
 
     /// Check if a word (or any substring of it) is protected.

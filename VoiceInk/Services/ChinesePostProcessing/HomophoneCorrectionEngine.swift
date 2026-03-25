@@ -69,6 +69,9 @@ final class HomophoneCorrectionEngine {
 
         // Process from end to start so indices remain valid
         for seg in suspicious.reversed() {
+            // Skip protected words
+            if CorrectionProtectionList.shared.contains(seg.word) { continue }
+
             // Extract left/right context characters from original text
             let offset = seg.approximateOffset
             let leftContext: Character? = offset > 0 ? textChars[offset - 1] : nil
