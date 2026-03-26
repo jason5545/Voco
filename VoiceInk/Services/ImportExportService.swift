@@ -28,6 +28,11 @@ struct GeneralSettings: Codable {
     let restoreClipboardAfterPaste: Bool?
     let clipboardRestoreDelay: Double?
     let useAppleScriptPaste: Bool?
+
+    // Per-user Chinese post-processing data (stored in UserDefaults, not in source code)
+    let correctionProtectedWords: [String]?
+    let llmCorrectionExamples: String?
+    let llmUserContext: String?
 }
 
 // Simple codable struct for vocabulary words (for export/import only)
@@ -95,7 +100,7 @@ class ImportExportService {
         var exportedWordReplacements: [String: String]? = nil
         let replacementsDescriptor = FetchDescriptor<WordReplacement>()
         if let replacements = try? modelContext.fetch(replacementsDescriptor), !replacements.isEmpty {
-            exportedWordReplacements = Dictionary(uniqueKeysWithValues: replacements.map { ($0.originalText, $0.replacementText) })
+            exportedWordReplacements = Dictionary(replacements.map { ($0.originalText, $0.replacementText) }, uniquingKeysWith: { _, latest in latest })
         }
 
         let generalSettingsToExport = GeneralSettings(
@@ -120,7 +125,10 @@ class ImportExportService {
             isExperimentalFeaturesEnabled: UserDefaults.standard.bool(forKey: "isExperimentalFeaturesEnabled"),
             restoreClipboardAfterPaste: UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"),
             clipboardRestoreDelay: UserDefaults.standard.double(forKey: "clipboardRestoreDelay"),
-            useAppleScriptPaste: UserDefaults.standard.bool(forKey: "useAppleScriptPaste")
+            useAppleScriptPaste: UserDefaults.standard.bool(forKey: "useAppleScriptPaste"),
+            correctionProtectedWords: UserDefaults.standard.stringArray(forKey: "CorrectionProtectionWords"),
+            llmCorrectionExamples: UserDefaults.standard.string(forKey: "llmCorrectionExamples"),
+            llmUserContext: UserDefaults.standard.string(forKey: "llmUserContext")
         )
 
         let exportedSettings = VoiceInkExportedSettings(
@@ -341,6 +349,15 @@ class ImportExportService {
                         }
                         if let appleScriptPaste = general.useAppleScriptPaste {
                             UserDefaults.standard.set(appleScriptPaste, forKey: "useAppleScriptPaste")
+                        }
+                        if let protectedWords = general.correctionProtectedWords {
+                            UserDefaults.standard.set(protectedWords, forKey: "CorrectionProtectionWords")
+                        }
+                        if let examples = general.llmCorrectionExamples {
+                            UserDefaults.standard.set(examples, forKey: "llmCorrectionExamples")
+                        }
+                        if let context = general.llmUserContext {
+                            UserDefaults.standard.set(context, forKey: "llmUserContext")
                         }
                     }
 
