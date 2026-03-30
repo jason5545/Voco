@@ -24,6 +24,13 @@ class ForkEngineState: ObservableObject {
     @Published var isEditMode: Bool = false
     @Published var editModeSelectedText: String?
     @Published var pendingDictionaryEntry: WordSubstitution?
+    /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
+    var editModeDetectionTask: Task<Void, Never>?
+
+    func clearEditMode() {
+        isEditMode = false
+        editModeSelectedText = nil
+    }
 }
 
 extension VoiceInkEngine {

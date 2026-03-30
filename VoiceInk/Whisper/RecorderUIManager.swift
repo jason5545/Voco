@@ -128,7 +128,7 @@ class RecorderUIManager: ObservableObject {
             SoundManager.shared.playStartSound()
             StartupTracer.checkpoint("playStartSound_done")
 
-            detectEditMode(engine: engine)
+            await detectEditMode(engine: engine)
             StartupTracer.checkpoint("detectEditMode_done")
 
             isMiniRecorderVisible = true
@@ -172,8 +172,9 @@ class RecorderUIManager: ObservableObject {
         }
 
         await MainActor.run {
-            engine.forkState.isEditMode = false
-            engine.forkState.editModeSelectedText = nil
+            engine.forkState.editModeDetectionTask?.cancel()
+            engine.forkState.editModeDetectionTask = nil
+            engine.forkState.clearEditMode()
             engine.forkState.pendingDictionaryEntry = nil
             isMiniRecorderVisible = false
         }
@@ -209,8 +210,9 @@ class RecorderUIManager: ObservableObject {
             doublePressStopTask?.cancel()
             doublePressStopTask = nil
             miniRecorderError = nil
-            engine.forkState.isEditMode = false
-            engine.forkState.editModeSelectedText = nil
+            engine.forkState.editModeDetectionTask?.cancel()
+            engine.forkState.editModeDetectionTask = nil
+            engine.forkState.clearEditMode()
             engine.forkState.pendingDictionaryEntry = nil
             engine.recordingState = .idle
         }
@@ -237,19 +239,38 @@ class RecorderUIManager: ObservableObject {
 
     /// Detects edit mode state from the AX cache snapshot.
     /// Isolated from toggleMiniRecorder to minimize upstream merge conflicts.
-    private func detectEditMode(engine: VoiceInkEngine) {
+    private func detectEditMode(engine: VoiceInkEngine) async {
+        defer { EditModeCacheService.shared.stopPolling() }
+
+        // Direct terminal check — safety net regardless of cache state.
+        // Cache may be stale if the user switched apps after polling stopped.
+        let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if let bundleID, EditModeCacheService.terminalBundleIDs.contains(bundleID) {
+            engine.forkState.clearEditMode()
+            logger.notice("Edit mode skipped: terminal app (\(bundleID, privacy: .public))")
+            return
+        }
+
         let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-        EditModeCacheService.shared.stopPolling()
 
         if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
             engine.forkState.isEditMode = true
             engine.forkState.editModeSelectedText = selectedText
+        } else if snapshot.isEditable {
+            // Editable field but AX couldn't get selected text (e.g. Chrome URL bar).
+            // Fetch inline while the original app is still frontmost so menuAction (⌘C)
+            // targets the correct app. The recorder panel hasn't appeared yet.
+            if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
+                engine.forkState.isEditMode = true
+                engine.forkState.editModeSelectedText = selectedText
+            } else {
+                engine.forkState.clearEditMode()
+            }
         } else if snapshot.focusedElementUnavailable {
-            // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback
-            // Don't block UI; fetch selected text in background and set edit mode later
-            engine.forkState.isEditMode = false
-            engine.forkState.editModeSelectedText = nil
-            Task { @MainActor [weak engine] in
+            // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback.
+            // Don't block recording start; fetch in background and set edit mode later.
+            engine.forkState.clearEditMode()
+            engine.forkState.editModeDetectionTask = Task { @MainActor [weak engine] in
                 guard let engine else { return }
                 if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
                     engine.forkState.isEditMode = true
@@ -257,8 +278,7 @@ class RecorderUIManager: ObservableObject {
                 }
             }
         } else {
-            engine.forkState.isEditMode = false
-            engine.forkState.editModeSelectedText = nil
+            engine.forkState.clearEditMode()
         }
         logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil), cacheEditable=\(snapshot.isEditable), cacheUnavail=\(snapshot.focusedElementUnavailable)")
     }

@@ -33,21 +33,18 @@ extension VoiceInkEngine {
             shouldCancel: { [weak self] in self?.shouldCancelRecording ?? false },
             onCleanup: { [weak self] in await self?.cleanupResources() },
             onDismiss: { [weak self] in
-                self?.forkState.isEditMode = false
-                self?.forkState.editModeSelectedText = nil
+                self?.forkState.clearEditMode()
                 await self?.recorderUIManager?.dismissMiniRecorder()
             },
             onEditModeComplete: { [weak self] substitution in
                 self?.forkState.pendingDictionaryEntry = substitution
-                self?.forkState.isEditMode = false
-                self?.forkState.editModeSelectedText = nil
+                self?.forkState.clearEditMode()
                 self?.recordingState = .idle
                 self?.startDictionaryDismissTimer()
             }
         )
 
-        forkState.isEditMode = false
-        forkState.editModeSelectedText = nil
+        forkState.clearEditMode()
     }
 
     // MARK: - Dictionary Dismiss Timer
