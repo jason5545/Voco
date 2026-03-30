@@ -50,16 +50,32 @@ extension VoiceInkEngine {
     // MARK: - Dictionary Dismiss Timer
 
     /// Confirms the pending dictionary entry and saves it as a WordReplacement.
+    /// Promotes an existing staged entry if one exists, otherwise creates a new one.
     func confirmDictionaryEntry() {
         guard let entry = forkState.pendingDictionaryEntry else { return }
         dictionaryDismissTimer?.cancel()
         dictionaryDismissTimer = nil
 
-        let replacement = WordReplacement(
-            originalText: entry.original,
-            replacementText: entry.replacement
+        let orig = entry.original
+        let repl = entry.replacement
+        let descriptor = FetchDescriptor<WordReplacement>(
+            predicate: #Predicate<WordReplacement> {
+                $0.originalText == orig && $0.replacementText == repl
+            }
         )
-        modelContext.insert(replacement)
+
+        if let existing = (try? modelContext.fetch(descriptor))?.first {
+            existing.isEnabled = true
+            existing.source = WordReplacement.sourceUser
+            existing.lastSeenDate = Date()
+        } else {
+            let replacement = WordReplacement(
+                originalText: entry.original,
+                replacementText: entry.replacement,
+                source: WordReplacement.sourceUser
+            )
+            modelContext.insert(replacement)
+        }
         try? modelContext.save()
 
         NotificationManager.shared.showNotification(
@@ -79,13 +95,20 @@ extension VoiceInkEngine {
         Task { await recorderUIManager?.dismissMiniRecorder() }
     }
 
-    /// Starts a 15-second timer that auto-dismisses the dictionary entry suggestion.
+    /// Starts a 15-second timer that stages the dictionary entry on expiry (instead of discarding).
     func startDictionaryDismissTimer() {
         dictionaryDismissTimer?.cancel()
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                self?.forkState.pendingDictionaryEntry = nil
-                await self?.recorderUIManager?.dismissMiniRecorder()
+                guard let self else { return }
+                // Stage the entry instead of discarding
+                if let entry = self.forkState.pendingDictionaryEntry {
+                    AutoCorrectionStagingService.shared.stageCorrection(
+                        entry, in: self.modelContext
+                    )
+                }
+                self.forkState.pendingDictionaryEntry = nil
+                await self.recorderUIManager?.dismissMiniRecorder()
             }
         }
         dictionaryDismissTimer = work

@@ -77,6 +77,15 @@ extension TranscriptionPipeline {
                 onEditModeComplete?(sub)
                 return true
             }
+
+            // Fallback: diff-based extraction when LLM didn't return a substitution
+            if let diffSub = AutoCorrectionStagingService.shared.extractSubstitution(
+                original: selectedText, edited: editedText
+            ) {
+                // Show dictionary confirmation UI for diff-extracted pair too
+                onEditModeComplete?(diffSub)
+                return true
+            }
         } catch {
             logger.error("❌ Edit mode enhancement failed: \(error.localizedDescription)")
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
