@@ -17,7 +17,8 @@ extension VoiceInkEngine {
         transcription: Transcription,
         audioURL: URL,
         model: any TranscriptionModel,
-        session: TranscriptionSession?
+        session: TranscriptionSession?,
+        capturedAppPID: pid_t? = nil
     ) async {
         let editMode = forkState.isEditMode
         let editSelectedText = forkState.editModeSelectedText
@@ -29,6 +30,7 @@ extension VoiceInkEngine {
             session: session,
             isEditMode: editMode,
             editModeSelectedText: editSelectedText,
+            capturedAppPID: capturedAppPID,
             onStateChange: { [weak self] state in self?.recordingState = state },
             shouldCancel: { [weak self] in self?.shouldCancelRecording ?? false },
             onCleanup: { [weak self] in await self?.cleanupResources() },

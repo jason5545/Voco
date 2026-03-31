@@ -15,6 +15,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
     let recorder = Recorder()
     var recordedFile: URL? = nil
     let recordingsDirectory: URL
+    /// PID of the frontmost app captured at recording start, used for AX queries after transcription.
+    private var capturedFrontAppPID: pid_t?
 
     // Injected managers
     let whisperModelManager: WhisperModelManager
@@ -106,6 +108,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 } else {
                     currentSession?.cancel()
                     currentSession = nil
+                    capturedFrontAppPID = nil
                     try? FileManager.default.removeItem(at: recordedFile)
                     recordingState = .idle
                     await cleanupResources()
@@ -129,6 +132,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
             // Capture frontmost app BEFORE entering Task (Voco becomes frontmost inside Task)
             let capturedFrontApp = NSWorkspace.shared.frontmostApplication
+            capturedFrontAppPID = capturedFrontApp?.processIdentifier
             let capturedAppName = capturedFrontApp?.localizedName
 
             requestRecordPermission { [self] granted in
@@ -282,11 +286,15 @@ class VoiceInkEngine: NSObject, ObservableObject {
         let session = currentSession
         currentSession = nil
 
+        let pid = capturedFrontAppPID
+        capturedFrontAppPID = nil
+
         await runPipelineWithForkFeatures(
             transcription: transcription,
             audioURL: audioURL,
             model: model,
-            session: session
+            session: session,
+            capturedAppPID: pid
         )
 
         shouldCancelRecording = false

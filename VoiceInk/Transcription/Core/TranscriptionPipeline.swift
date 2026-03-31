@@ -47,6 +47,7 @@ class TranscriptionPipeline {
         session: TranscriptionSession?,
         isEditMode: Bool = false,
         editModeSelectedText: String? = nil,
+        capturedAppPID: pid_t? = nil,
         onStateChange: @escaping (RecordingState) -> Void,
         shouldCancel: () -> Bool,
         onCleanup: @escaping () async -> Void,
@@ -208,8 +209,7 @@ class TranscriptionPipeline {
             if !shouldSkipEnhancement,
                let enhancementService,
                enhancementService.isEnhancementEnabled,
-               enhancementService.isConfigured,
-               !shouldSkipEnhancement {
+               enhancementService.isConfigured {
                 if shouldCancel() { await onCleanup(); return }
 
                 onStateChange(.enhancing)
@@ -530,7 +530,7 @@ class TranscriptionPipeline {
             }
 
             // === Context-Aware Insertion (fork feature) ===
-            textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService)
+            textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService, capturedAppPID: capturedAppPID)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 CursorPaster.pasteAtCursor(textToPaste)

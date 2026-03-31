@@ -102,7 +102,8 @@ extension TranscriptionPipeline {
     /// Returns the adjusted text ready for pasting.
     func applyContextAwareInsertion(
         _ text: String,
-        enhancementService: AIEnhancementService?
+        enhancementService: AIEnhancementService?,
+        capturedAppPID: pid_t? = nil
     ) async -> String {
         let contextAwareEnabled = UserDefaults.standard.bool(forKey: "ContextAwareInsertionEnabled")
         let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
@@ -111,39 +112,36 @@ extension TranscriptionPipeline {
             return text + (appendSpace ? " " : "")
         }
 
-        var result = text
-
-        // Query surrounding text via AX API (already on MainActor)
+        // Query surrounding text via AX API — prefer PID captured at recording start
         let context: SurroundingTextContext?
-        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+        let pid = capturedAppPID ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
+        if let pid {
             context = SurroundingTextService.shared.querySurroundingText(for: pid)
         } else {
             context = nil
         }
 
-        // Rule-based adjustments (handles nil context by falling back to current behavior)
-        result = ContextAwareInsertionService.shared.adjust(
-            result, context: context, appendTrailingSpace: appendSpace)
-
-        // LLM merge for mid-text insertion
+        // LLM merge takes precedence for mid-text insertion — if it succeeds, skip rule-based entirely
         let llmMergeEnabled = UserDefaults.standard.bool(forKey: "ContextAwareLLMMergeEnabled")
         if llmMergeEnabled,
            let ctx = context, !ctx.textBefore.isEmpty, !ctx.textAfter.isEmpty,
            let enhancementService, enhancementService.isConfigured {
             do {
                 let (merged, _) = try await enhancementService.enhanceMerge(
-                    insertedText: result,
+                    insertedText: text,
                     textBefore: ctx.textBefore,
                     textAfter: ctx.textAfter
                 )
                 if !merged.isEmpty {
-                    result = merged
+                    return merged
                 }
             } catch {
-                logger.warning("⚠️ LLM merge failed, using rule-based result: \(error.localizedDescription)")
+                logger.warning("⚠️ LLM merge failed, falling back to rule-based: \(error.localizedDescription)")
             }
         }
 
-        return result
+        // Rule-based adjustments (fallback, or when LLM merge not applicable)
+        return ContextAwareInsertionService.shared.adjust(
+            text, context: context, appendTrailingSpace: appendSpace)
     }
 }
