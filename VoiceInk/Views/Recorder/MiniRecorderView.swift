@@ -8,12 +8,20 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     @State private var activePopover: ActivePopoverState = .none
 
-    // MARK: - Design Constants
-    private let mainContentHeight: CGFloat = 40
-    private let width: CGFloat = 184
-    private let cornerRadius: CGFloat = 20
+    // MARK: - Layout Constants
 
-    private var contentLayout: some View {
+    private let controlBarHeight: CGFloat = 40
+    private let compactWidth: CGFloat = 184
+    private let expandedWidth: CGFloat = 300
+    private let compactCornerRadius: CGFloat = 20
+    private let expandedCornerRadius: CGFloat = 14
+
+    // true when live transcript is streaming in during recording
+    private var hasLiveTranscript: Bool {
+        stateProvider.recordingState == .recording && !stateProvider.partialTranscript.isEmpty
+    }
+
+    private var controlBar: some View {
         HStack(spacing: 0) {
             RecorderPromptButton(
                 activePopover: $activePopover,
@@ -39,12 +47,21 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
             )
             .padding(.trailing, 12)
         }
-        .frame(height: mainContentHeight)
+        .frame(height: controlBarHeight)
+    }
+
+    private var transcriptSection: some View {
+        VStack(spacing: 0) {
+            if hasLiveTranscript {
+                LiveTranscriptView(text: stateProvider.partialTranscript)
+                Divider().background(Color.white.opacity(0.15))
+            }
+        }
     }
 
     var body: some View {
         if windowManager.isVisible {
-            Group {
+            VStack(spacing: 0) {
                 if let entry = stateProvider.pendingDictionaryEntry {
                     DictionaryConfirmationView(
                         original: entry.original,
@@ -52,15 +69,17 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                         onConfirm: { stateProvider.confirmDictionaryEntry() },
                         onDismiss: { stateProvider.dismissDictionaryEntry() }
                     )
-                    .frame(height: mainContentHeight)
+                    .frame(height: controlBarHeight)
                 } else {
-                    contentLayout
+                    transcriptSection
+                    controlBar
                 }
             }
-            .frame(width: width)
+            .frame(width: hasLiveTranscript ? expandedWidth : compactWidth)
             .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .clipShape(RoundedRectangle(cornerRadius: hasLiveTranscript ? expandedCornerRadius : compactCornerRadius, style: .continuous))
+            .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 }

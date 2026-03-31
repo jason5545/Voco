@@ -78,7 +78,10 @@ class AIEnhancementService: ObservableObject {
     private let aiService: AIService
     private let screenCaptureService: ScreenCaptureService
     private let customVocabularyService: CustomVocabularyService
-    private let baseTimeout: TimeInterval = 30
+    private var baseTimeout: TimeInterval {
+        let stored = UserDefaults.standard.integer(forKey: "EnhancementTimeoutSeconds")
+        return stored > 0 ? TimeInterval(stored) : 7
+    }
     private let rateLimitInterval: TimeInterval = 1.0
     private var lastRequestTime: Date?
     private let modelContext: ModelContext
@@ -371,9 +374,15 @@ class AIEnhancementService: ObservableObject {
             return .enhancementFailed
         case .networkError:
             return .networkError
-        case .invalidURL, .decodingError, .encodingError, .timeout:
+        case .timeout:
+            return .timeout
+        case .invalidURL, .decodingError, .encodingError:
             return .customError(error.localizedDescription ?? "An unknown error occurred.")
         }
+    }
+
+    private var retryOnTimeout: Bool {
+        UserDefaults.standard.bool(forKey: "EnhancementRetryOnTimeout")
     }
 
     // internal for fork extension access (AIEnhancementService+ForkEnhancements.swift)
@@ -399,6 +408,19 @@ class AIEnhancementService: ObservableObject {
                         currentDelay *= 2
                     } else {
                         logger.error("Request failed after \(maxRetries, privacy: .public) retries.")
+                        throw error
+                    }
+                case .timeout:
+                    if retryOnTimeout {
+                        retries += 1
+                        if retries < maxRetries {
+                            logger.warning("Request timed out, retrying immediately... (Attempt \(retries, privacy: .public)/\(maxRetries, privacy: .public))")
+                        } else {
+                            logger.error("Request timed out after \(maxRetries, privacy: .public) retries.")
+                            throw error
+                        }
+                    } else {
+                        logger.error("Request timed out, failing immediately (retry disabled).")
                         throw error
                     }
                 default:
@@ -528,6 +550,7 @@ enum EnhancementError: Error {
     case networkError
     case serverError
     case rateLimitExceeded
+    case timeout
     case customError(String)
 }
 
@@ -546,6 +569,8 @@ extension EnhancementError: LocalizedError {
             return "The AI provider's server encountered an error. Please try again later."
         case .rateLimitExceeded:
             return "Rate limit exceeded. Please try again later."
+        case .timeout:
+            return "Enhancement request timed out. Check your connection or increase the timeout duration."
         case .customError(let message):
             return message
         }

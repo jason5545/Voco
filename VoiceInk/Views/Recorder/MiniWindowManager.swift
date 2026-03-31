@@ -5,9 +5,8 @@ import AppKit
 class MiniWindowManager: ObservableObject {
     @Published var isVisible = false
     private var windowController: NSWindowController?
-    private var miniPanel: MiniRecorderPanel?
+    private var panel: MiniRecorderPanel?
 
-    // Type-erased view factory stored as closure
     private let makeView: (MiniWindowManager) -> AnyView
 
     init(engine: VoiceInkEngine, recorder: Recorder) {
@@ -44,21 +43,16 @@ class MiniWindowManager: ObservableObject {
     func show() {
         if isVisible { return }
         StartupTracer.checkpoint("MiniWindowManager.show_enter")
-
-        if miniPanel == nil {
-            let activeScreen = NSApp.keyWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
-            initializeWindow(screen: activeScreen)
-        }
-
-        self.isVisible = true
-        miniPanel?.show()
+        if panel == nil { initializeWindow() }
+        isVisible = true
+        panel?.show()
         StartupTracer.checkpoint("MiniWindowManager.show_panel_visible")
     }
 
     func hide() {
         guard isVisible else { return }
-        self.isVisible = false
-        miniPanel?.orderOut(nil)
+        isVisible = false
+        panel?.orderOut(nil)
     }
 
     func destroyWindow() {
@@ -66,40 +60,32 @@ class MiniWindowManager: ObservableObject {
         deinitializeWindow()
     }
 
-    private func initializeWindow(screen: NSScreen) {
+    private func initializeWindow() {
         StartupTracer.checkpoint("initializeWindow_enter")
         deinitializeWindow()
-
         let metrics = MiniRecorderPanel.calculateWindowMetrics()
         StartupTracer.checkpoint("initializeWindow_metrics_calculated")
-        let panel = MiniRecorderPanel(contentRect: metrics)
+        let newPanel = MiniRecorderPanel(contentRect: metrics)
         StartupTracer.checkpoint("initializeWindow_panel_created")
-
-        let miniRecorderView = makeView(self)
+        let view = makeView(self)
         StartupTracer.checkpoint("initializeWindow_swiftui_view_created")
-        let hostingController = NSHostingController(rootView: miniRecorderView)
+        let hostingController = NSHostingController(rootView: view)
         StartupTracer.checkpoint("initializeWindow_hosting_controller_created")
-        panel.contentView = hostingController.view
-
-        self.miniPanel = panel
-        self.windowController = NSWindowController(window: panel)
-
-        panel.orderFrontRegardless()
+        newPanel.contentView = hostingController.view
+        panel = newPanel
+        windowController = NSWindowController(window: newPanel)
+        newPanel.orderFrontRegardless()
         StartupTracer.checkpoint("initializeWindow_orderFrontRegardless_done")
     }
 
     private func deinitializeWindow() {
-        miniPanel?.orderOut(nil)
+        panel?.orderOut(nil)
         windowController?.close()
         windowController = nil
-        miniPanel = nil
+        panel = nil
     }
 
     func toggle() {
-        if isVisible {
-            hide()
-        } else {
-            show()
-        }
+        isVisible ? hide() : show()
     }
 }

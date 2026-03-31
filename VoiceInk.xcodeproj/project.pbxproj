@@ -41,8 +41,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppIdentifiers.swift,
-				"Whisper/WhisperTokens.swift",
-				"Whisper/WhisperMelSpectrogramCore.swift",
+				"Transcription/Core/WhisperTokens.swift",
+				"Transcription/Core/WhisperMelSpectrogramCore.swift",
 				"WhisperMLX/WhisperTokenizer.swift",
 				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
 				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
@@ -96,8 +96,8 @@
 				"Models/PredefinedPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
-				"Whisper/WhisperTokens.swift",
-				"Whisper/WhisperMelSpectrogramCore.swift",
+				"Transcription/Core/WhisperTokens.swift",
+				"Transcription/Core/WhisperMelSpectrogramCore.swift",
 				"WhisperMLX/WhisperTokenizer.swift",
 				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
 				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",

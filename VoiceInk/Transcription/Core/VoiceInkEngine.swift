@@ -301,7 +301,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
         cancelScheduledModelCleanup()
         logger.notice("cleanupResources: releasing model resources")
         await whisperModelManager.cleanupResources()
-        serviceRegistry.cleanup()
+        await serviceRegistry.cleanup()
         logger.notice("cleanupResources: completed")
     }
 
