@@ -12,34 +12,38 @@
 
 ---
 
-Voco 是 [VoiceInk](https://github.com/Beingpax/VoiceInk) 的 fork，專為**臺灣正體中文使用者**打造。語音轉錄完全在本機執行（whisper.cpp），只有 AI 潤稿階段會透過你自己的 API key 與 LLM 溝通。
+Voco 是 [VoiceInk](https://github.com/Beingpax/VoiceInk) 的 fork，專為**臺灣正體中文使用者**打造。語音轉錄完全在本機執行（whisper.cpp、Qwen3-ASR、Parakeet），只有 AI 潤稿階段會透過你自己的 API key 與 LLM 溝通。
 
 ## 與上游 VoiceInk 的差異
 
 | 功能 | VoiceInk | Voco |
 |------|----------|------|
 | 正體中文介面 | 英文 | 完整繁體中文本地化 |
-| 中文後處理管線 | 無 | OpenCC 簡轉繁、拼音同音字修正、口語標點轉換、重複偵測 |
+| 中文後處理管線 | 無 | OpenCC 簡轉繁、拼音同音字修正、鼻音/聲調修正、個人學習修正、口語標點轉換、重複偵測 |
 | 臺灣中文 AI 提示詞 | 無 | 內建臺灣用語提示詞（贅字過濾、自動條列化、同音字修正） |
-| App Context 注入 | 無 | 自動偵測前景 App + 視窗標題，LLM 依情境調整語氣 |
-| Qwen3-ASR 引擎 | 無 | 本機 Qwen3 語音辨識（透過 MLX Swift） |
+| Qwen3-ASR 引擎 | 無 | 本機 Qwen3 語音辨識（透過 MLX Swift，中文主力引擎） |
+| Parakeet 引擎 | 無 | 本機 Parakeet 語音辨識，支援串流轉錄 |
+| App Context 注入 | 無 | 自動偵測前景 App + 視窗標題，可選擇性開啟畫面擷取上下文 |
 | Edit Mode | 無 | 語音驅動的選取文字編輯 |
 | 語音指令 | 無 | 支援語音指令（如「全部刪除」） |
-| 信心度路由安全網 | 無 | 長段落無標點時強制走 LLM，防止漏標點 |
+| 信心度路由 | 無 | 多層安全網：信心度路由、保守重試、逗號插入重試 |
 | RNNoise 噪音抑制 | 無 | 即時噪音抑制，提升輸入品質 |
+| Siri 捷徑 | 無 | 透過捷徑 App 控制錄音器開關 |
 | 授權模式 | 付費授權 | 所有功能解鎖 |
 
 ## 功能
 
 - **離線轉錄** — whisper.cpp 本機 AI 模型，語音資料不離開你的電腦
-- **Qwen3-ASR** — 替代轉錄引擎，透過 MLX 在本機執行，針對中文優化
+- **Qwen3-ASR** — 中文主力轉錄引擎，透過 MLX 在本機執行
+- **Parakeet** — 額外的本機轉錄引擎，支援串流轉錄
 - **AI 潤稿** — 透過你自己的 API key 進行後處理（12 個 provider：OpenAI、Anthropic、Ollama、Groq、Gemini 等）
-- **臺灣中文優化** — 同音字修正、簡轉繁、口語標點、贅字過濾
+- **臺灣中文優化** — 拼音同音字修正、鼻音/聲調修正、個人學習修正、簡轉繁、口語標點、贅字過濾
+- **信心度路由** — 多層安全網：信心度路由決定是否走 LLM、保守重試處理低信心度片段、逗號插入重試補標點
 - **Edit Mode** — 選取文字後用語音指令修改，Voco 自動改寫
-- **App 情境感知** — 自動偵測目前使用的應用程式，調整輸出風格
+- **App 情境感知** — 自動偵測目前使用的應用程式，調整輸出風格；可選擇性開啟畫面擷取上下文
 - **語音指令** — 語音控制操作（如「全部刪除」）
-- **信心度路由** — 長段落無標點時強制走 LLM，防止漏標點
 - **RNNoise** — 即時噪音抑制，提升音訊輸入品質
+- **Siri 捷徑** — 透過捷徑 App 控制錄音器開關
 - **全域快捷鍵** — 可自訂的鍵盤快捷鍵，支援按住錄音
 - **個人詞典** — 自訂專有名詞、技術術語的辨識
 - **Power Mode** — 根據不同 App 自動切換預設設定
@@ -104,15 +108,17 @@ VoiceInk/
 ├── Services/           # 服務層
 │   ├── AIEnhancement/  #   AI 潤稿（多 provider 支援）
 │   └── ChinesePostProcessing/  #   中文後處理管線
+├── Transcription/      # 轉錄管線與服務
 ├── Whisper/            # whisper.cpp 整合
 ├── Qwen3ASR/           # Qwen3 語音辨識（MLX）
 ├── PowerMode/          # App 偵測與自動切換
+├── AppIntents/         # Siri 捷徑
 └── Resources/          # 模型、音效
 ```
 
 - **UI**：SwiftUI + AppKit
 - **資料**：SwiftData
-- **轉錄**：whisper.cpp（離線）+ Qwen3-ASR（離線，MLX）
+- **轉錄**：whisper.cpp（離線）+ Qwen3-ASR（離線，MLX）+ Parakeet（離線，串流）
 - **AI 潤稿**：12 個 provider，包含 OpenAI、Anthropic、Ollama、Groq、Gemini（使用者自己的 API key）
 
 ## 隱私
@@ -120,15 +126,19 @@ VoiceInk/
 - 語音轉錄 100% 離線執行
 - AI 潤稿僅傳送**文字**（非音檔）到你選擇的 LLM provider
 - API key 儲存在本機，不經過任何第三方伺服器
-- App Context 只傳送應用程式名稱和視窗標題，不擷取畫面內容
+- App Context 預設只傳送應用程式名稱和視窗標題；畫面擷取上下文需另外開啟且需 macOS 權限
 
 ## 致謝
 
 Voco 建立在以下專案之上：
 
 - [VoiceInk](https://github.com/Beingpax/VoiceInk) — 上游專案，由 Pax 開發
+- [qwen3-asr-swift](https://github.com/ivan-digital/qwen3-asr-swift) — Qwen3-ASR Swift 實作，由 Ivan 開發（Apache-2.0）
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — 高效能語音辨識引擎
+- [mlx-swift](https://github.com/ml-explore/mlx-swift) — 本機 ML 推論（MLX、MLXNN、MLXFast）
 - [SwiftyOpenCC](https://github.com/exgphe/SwiftyOpenCC) — 簡體轉正體中文（s2twp）
+- [RNNoise](https://github.com/xiph/rnnoise) — 即時噪音抑制（內建本機套件）
+- [LLMkit](https://github.com/nicktmro/LLMkit) — 多 provider LLM 整合
 - [Sparkle](https://github.com/sparkle-project/Sparkle) — 自動更新
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — 全域快捷鍵
 - [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — 選取文字擷取

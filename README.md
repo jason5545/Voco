@@ -12,33 +12,38 @@
 
 ---
 
-Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **Traditional Chinese (Taiwan)** users. Speech recognition runs entirely on-device via whisper.cpp — only the optional AI refinement step talks to an LLM through your own API key.
+Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **Traditional Chinese (Taiwan)** users. Speech recognition runs entirely on-device via whisper.cpp, Qwen3-ASR (MLX), or Parakeet — only the optional AI refinement step talks to an LLM through your own API key.
 
 ## What's different from VoiceInk?
 
 | Feature | VoiceInk | Voco |
 |---------|----------|------|
 | Traditional Chinese UI | English only | Full zh-Hant localization |
-| Chinese post-processing | None | OpenCC simplified-to-traditional, homophone correction, colloquial punctuation, repetition detection |
+| Chinese post-processing | None | OpenCC simplified-to-traditional, pinyin homophone correction, nasal/tonal correction, personal learned corrections, colloquial punctuation, repetition detection |
 | Taiwanese Chinese AI prompts | None | Built-in prompts for filler removal, auto-listing, homophone fixing |
-| Qwen3-ASR engine | None | On-device Qwen3 speech recognition via MLX Swift |
-| App context injection | None | Detects foreground app + window title, lets the LLM adapt tone |
+| Qwen3-ASR engine | None | On-device Qwen3 speech recognition via MLX Swift (primary engine for Chinese) |
+| Parakeet engine | None | On-device Parakeet speech recognition with streaming support |
+| App context injection | None | Detects foreground app + window title, optional screen capture context |
 | Edit Mode | None | Voice-driven editing of selected text |
 | Voice commands | None | Voice commands (e.g. "select all + delete") |
-| Confidence routing | None | Forces LLM pass when punctuation is missing in long segments |
+| Confidence routing | None | Multi-layer: confidence-based LLM routing, conservative retry, comma insertion retry |
 | RNNoise noise suppression | None | Real-time noise suppression for cleaner input |
+| Siri Shortcuts | None | Toggle/dismiss recorder via Shortcuts |
 | Licensing | Paid | All features unlocked |
 
 ## Features
 
 - **Offline transcription** — whisper.cpp runs locally; audio never leaves your machine
-- **Qwen3-ASR** — alternative on-device engine via MLX, optimized for Chinese
+- **Qwen3-ASR** — primary on-device engine via MLX, optimized for Chinese
+- **Parakeet** — additional on-device engine with streaming support
 - **AI refinement** — post-process text through your own API key (12 providers: OpenAI, Anthropic, Ollama, Groq, Gemini, and more)
-- **Chinese optimization** — homophone correction, simplified-to-traditional conversion, colloquial punctuation, filler removal
+- **Chinese optimization** — pinyin homophone correction, nasal/tonal correction, personal learned corrections, simplified-to-traditional conversion, colloquial punctuation, filler removal
+- **Confidence routing** — multi-layer safety net: confidence-based LLM routing, conservative retry for low-confidence segments, comma insertion retry for long unpunctuated spans
 - **Edit Mode** — select text, speak corrections, and Voco rewrites it in place
-- **App-aware context** — automatically detects the active app to adjust output style
+- **App-aware context** — automatically detects the active app to adjust output style; optional screen capture context for richer disambiguation
 - **Voice commands** — hands-free control (e.g. "delete all")
 - **RNNoise** — real-time noise suppression for cleaner audio input
+- **Siri Shortcuts** — toggle and dismiss recorder via Shortcuts
 - **Global hotkey** — customizable keyboard shortcut, supports hold-to-record
 - **Personal dictionary** — custom vocabulary for names, jargon, technical terms
 - **Power Mode** — per-app configuration presets
@@ -103,15 +108,17 @@ VoiceInk/
 ├── Services/           # Business logic
 │   ├── AIEnhancement/  #   AI refinement (multi-provider)
 │   └── ChinesePostProcessing/  #   Chinese text pipeline
+├── Transcription/      # Transcription pipeline & services
 ├── Whisper/            # whisper.cpp integration
 ├── Qwen3ASR/           # Qwen3 speech recognition (MLX)
 ├── PowerMode/          # App detection & auto-switching
+├── AppIntents/         # Siri Shortcuts
 └── Resources/          # Models, sounds
 ```
 
 - **UI**: SwiftUI + AppKit
 - **Data**: SwiftData
-- **Transcription**: whisper.cpp (offline) + Qwen3-ASR (offline, MLX)
+- **Transcription**: whisper.cpp (offline) + Qwen3-ASR (offline, MLX) + Parakeet (offline, streaming)
 - **AI refinement**: 12 providers including OpenAI, Anthropic, Ollama, Groq, Gemini (user's own API key)
 
 ## Privacy
@@ -119,15 +126,19 @@ VoiceInk/
 - Speech recognition is 100% offline
 - AI refinement sends **text only** (not audio) to the LLM provider you choose
 - API keys are stored locally in Keychain, never routed through third-party servers
-- App context sends only the application name and window title — no screen capture
+- App context sends the application name and window title by default; screen capture context is opt-in and requires explicit macOS permission
 
 ## Credits
 
 Voco is built on top of:
 
 - [VoiceInk](https://github.com/Beingpax/VoiceInk) — upstream project by Pax
+- [qwen3-asr-swift](https://github.com/ivan-digital/qwen3-asr-swift) — Qwen3-ASR Swift implementation by Ivan (Apache-2.0)
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — high-performance speech recognition
+- [mlx-swift](https://github.com/ml-explore/mlx-swift) — on-device ML inference (MLX, MLXNN, MLXFast)
 - [SwiftyOpenCC](https://github.com/exgphe/SwiftyOpenCC) — simplified-to-traditional Chinese conversion (s2twp)
+- [RNNoise](https://github.com/xiph/rnnoise) — real-time noise suppression (bundled as local package)
+- [LLMkit](https://github.com/nicktmro/LLMkit) — multi-provider LLM integration
 - [Sparkle](https://github.com/sparkle-project/Sparkle) — auto-updates
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — global hotkeys
 - [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — selected text extraction
