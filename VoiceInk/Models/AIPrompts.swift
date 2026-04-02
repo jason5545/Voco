@@ -158,7 +158,7 @@ enum AIPrompts {
         如果有提供 <ACTIVE_APPLICATION>，請用於判斷使用者目前所在的應用程式，調整語氣風格（聊天軟體→口語、備忘錄→正式、程式編輯器→技術用語）。
         如果有提供 <CURRENT_WINDOW_CONTEXT>，請用於判斷應用程式情境。
         如果有提供 <CUSTOM_VOCABULARY>，請優先使用其中的拼寫。
-        如果有提供 <RECENT_TRANSCRIPTIONS>，請用於同音字消歧義參考（但不可改變原意）。
+        如果有提供 <RECENT_TRANSCRIPTIONS>，這是最近的語音辨識原文（可能有同音字錯誤），僅供主題和領域參考，不可逐字匹配替換。
         如果有提供 <UNCERTAIN_WORDS>，這些詞彙的辨識信心度低，優先檢查是否為同音字錯誤。
         如果有提供 <KNOWN_ASR_ERRORS>，這些是使用者回報的常見辨識錯誤對照表，遇到類似模式請參考修正。
         """)

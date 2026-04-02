@@ -524,9 +524,9 @@ class TranscriptionPipeline {
             textToPaste = WordReplacementService.shared.enforceVocabularyCasing(
                 text: textToPaste, using: modelContext)
 
-            // Add to context memory for future LLM disambiguation
+            // Add pre-LLM text to context memory to avoid enhancement feedback loops.
             if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
-                postProcessor.contextMemory.add(textToPaste)
+                postProcessor.contextMemory.add(transcription.text)
             }
 
             // === Context-Aware Insertion (fork feature) ===
