@@ -135,141 +135,131 @@ class VoiceInkEngine: NSObject, ObservableObject {
             capturedFrontAppPID = capturedFrontApp?.processIdentifier
             let capturedAppName = capturedFrontApp?.localizedName
 
-            requestRecordPermission { [self] granted in
-                if granted {
-                    // Set recording state immediately for responsive UI (eliminates ~500ms visual delay)
-                    self.recordingState = .recording
-                    StartupTracer.checkpoint("toggleRecord_state_set_recording")
+            // Set recording state immediately for responsive UI
+            recordingState = .recording
+            StartupTracer.checkpoint("toggleRecord_state_set_recording")
 
-                    Task {
-                        do {
-                            let fileName = "\(UUID().uuidString).wav"
-                            let permanentURL = self.recordingsDirectory.appendingPathComponent(fileName)
-                            self.recordedFile = permanentURL
+            do {
+                let fileName = "\(UUID().uuidString).wav"
+                let permanentURL = recordingsDirectory.appendingPathComponent(fileName)
+                recordedFile = permanentURL
 
-                            let pendingChunks = OSAllocatedUnfairLock(initialState: [Data]())
-                            self.recorder.onAudioChunk = { data in
-                                pendingChunks.withLock { $0.append(data) }
+                let pendingChunks = OSAllocatedUnfairLock(initialState: [Data]())
+                recorder.onAudioChunk = { data in
+                    pendingChunks.withLock { $0.append(data) }
+                }
+
+                // Inline await: recorder.startRecording suspends into audioSetupQueue,
+                // freeing MainActor so SwiftUI render runs concurrently with Core Audio setup.
+                StartupTracer.checkpoint("toggleRecord_before_startRecording")
+                try await recorder.startRecording(toOutputFile: permanentURL)
+
+                StartupTracer.end("recorder_startRecording_done")
+
+                guard recorderUIManager?.isMiniRecorderVisible ?? false, !shouldCancelRecording else {
+                    recorder.stopRecording()
+                    recordedFile = nil
+                    recordingState = .idle
+                    return
+                }
+
+                logger.notice("toggleRecord: recording started successfully, state=recording")
+
+                // Apply PowerMode configuration in background — don't block session/model prep
+                Task { await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId) }
+
+                if recordingState == .recording,
+                   let model = transcriptionModelManager.currentTranscriptionModel {
+                    let session = serviceRegistry.createSession(
+                        for: model,
+                        onPartialTranscript: { [weak self] partial in
+                            Task { @MainActor in
+                                self?.partialTranscript = partial
                             }
+                        }
+                    )
+                    currentSession = session
+                    let realCallback = try await session.prepare(model: model)
 
-                            StartupTracer.checkpoint("toggleRecord_before_startRecording")
-                            try await self.recorder.startRecording(toOutputFile: permanentURL)
+                    if let realCallback {
+                        recorder.onAudioChunk = realCallback
+                        let buffered = pendingChunks.withLock { chunks -> [Data] in
+                            let result = chunks
+                            chunks.removeAll()
+                            return result
+                        }
+                        for chunk in buffered { realCallback(chunk) }
+                    } else {
+                        recorder.onAudioChunk = nil
+                        pendingChunks.withLock { $0.removeAll() }
+                    }
+                }
 
-                            StartupTracer.end("recorder_startRecording_done")
+                Task.detached { [weak self] in
+                    guard let self else { return }
 
-                            guard self.recorderUIManager?.isMiniRecorderVisible ?? false, !self.shouldCancelRecording else {
-                                self.recorder.stopRecording()
-                                self.recordedFile = nil
-                                self.recordingState = .idle
-                                return
-                            }
-
-                            self.logger.notice("toggleRecord: recording started successfully, state=recording")
-
-                            // Apply PowerMode configuration in background — don't block session/model prep
-                            Task { await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId) }
-
-                            if self.recordingState == .recording,
-                               let model = self.transcriptionModelManager.currentTranscriptionModel {
-                                let session = self.serviceRegistry.createSession(
-                                    for: model,
-                                    onPartialTranscript: { [weak self] partial in
-                                        Task { @MainActor in
-                                            self?.partialTranscript = partial
-                                        }
-                                    }
-                                )
-                                self.currentSession = session
-                                let realCallback = try await session.prepare(model: model)
-
-                                if let realCallback {
-                                    self.recorder.onAudioChunk = realCallback
-                                    let buffered = pendingChunks.withLock { chunks -> [Data] in
-                                        let result = chunks
-                                        chunks.removeAll()
-                                        return result
-                                    }
-                                    for chunk in buffered { realCallback(chunk) }
-                                } else {
-                                    self.recorder.onAudioChunk = nil
-                                    pendingChunks.withLock { $0.removeAll() }
+                    if let model = await self.transcriptionModelManager.currentTranscriptionModel {
+                        switch model.provider {
+                        case .local:
+                            if let localWhisperModel = await self.whisperModelManager.availableModels.first(where: { $0.name == model.name }),
+                               await self.whisperModelManager.whisperContext == nil {
+                                do {
+                                    try await self.whisperModelManager.loadModel(localWhisperModel)
+                                } catch {
+                                    await self.logger.error("❌ Model loading failed: \(error.localizedDescription, privacy: .public)")
                                 }
                             }
-
-                            Task.detached { [weak self] in
-                                guard let self else { return }
-
-                                if let model = await self.transcriptionModelManager.currentTranscriptionModel {
-                                    switch model.provider {
-                                    case .local:
-                                        if let localWhisperModel = await self.whisperModelManager.availableModels.first(where: { $0.name == model.name }),
-                                           await self.whisperModelManager.whisperContext == nil {
-                                            do {
-                                                try await self.whisperModelManager.loadModel(localWhisperModel)
-                                            } catch {
-                                                await self.logger.error("❌ Model loading failed: \(error.localizedDescription, privacy: .public)")
-                                            }
-                                        }
-                                    case .parakeet:
-                                        if let parakeetModel = model as? ParakeetModel {
-                                            try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
-                                        }
-                                    case .whisperMLX:
-                                        if let mlxModel = model as? WhisperMLXModel {
-                                            try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: mlxModel)
-                                        }
-                                    case .qwen3, .qwen3CoreML:
-                                        break // Qwen3 loads on demand during transcription
-                                    default:
-                                        break
-                                    }
-                                }
-
-                                if let enhancementService = await self.enhancementService {
-                                    // Cache app context from EditModeCacheService (fork feature)
-                                    await MainActor.run {
-                                        self.cacheEditModeAppContext(capturedAppName: capturedAppName)
-                                    }
-
-                                    guard !Task.isCancelled else { return }
-
-                                    let shouldCaptureClipboard = await MainActor.run {
-                                        enhancementService.useClipboardContext
-                                    }
-                                    if shouldCaptureClipboard {
-                                        await MainActor.run {
-                                            enhancementService.captureClipboardContext()
-                                        }
-                                    }
-
-                                    guard !Task.isCancelled else { return }
-
-                                    let shouldCaptureScreen = await MainActor.run {
-                                        enhancementService.useScreenCaptureContext
-                                    }
-                                    if shouldCaptureScreen {
-                                        await enhancementService.captureScreenContext()
-                                    }
-                                }
+                        case .parakeet:
+                            if let parakeetModel = model as? ParakeetModel {
+                                try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
                             }
-
-                        } catch {
-                            self.logger.error("❌ Failed to start recording: \(error.localizedDescription, privacy: .public)")
-                            await NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
-                            self.logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")
-                            await self.recorderUIManager?.dismissMiniRecorder()
-                            self.recordedFile = nil
+                        case .whisperMLX:
+                            if let mlxModel = model as? WhisperMLXModel {
+                                try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: mlxModel)
+                            }
+                        case .qwen3, .qwen3CoreML:
+                            break // Qwen3 loads on demand during transcription
+                        default:
+                            break
                         }
                     }
-                } else {
-                    logger.error("❌ Recording permission denied.")
+
+                    if let enhancementService = await self.enhancementService {
+                        // Cache app context from EditModeCacheService (fork feature)
+                        await MainActor.run {
+                            self.cacheEditModeAppContext(capturedAppName: capturedAppName)
+                        }
+
+                        guard !Task.isCancelled else { return }
+
+                        let shouldCaptureClipboard = await MainActor.run {
+                            enhancementService.useClipboardContext
+                        }
+                        if shouldCaptureClipboard {
+                            await MainActor.run {
+                                enhancementService.captureClipboardContext()
+                            }
+                        }
+
+                        guard !Task.isCancelled else { return }
+
+                        let shouldCaptureScreen = await MainActor.run {
+                            enhancementService.useScreenCaptureContext
+                        }
+                        if shouldCaptureScreen {
+                            await enhancementService.captureScreenContext()
+                        }
+                    }
                 }
+
+            } catch {
+                logger.error("❌ Failed to start recording: \(error.localizedDescription, privacy: .public)")
+                NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
+                logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")
+                await recorderUIManager?.dismissMiniRecorder()
+                recordedFile = nil
             }
         }
-    }
-
-    private func requestRecordPermission(response: @escaping (Bool) -> Void) {
-        response(true)
     }
 
     // MARK: - Pipeline Dispatch
