@@ -27,12 +27,10 @@ class RecorderUIManager: ObservableObject {
 
     @Published var isMiniRecorderVisible = false {
         didSet {
-            Task { @MainActor in
-                if isMiniRecorderVisible {
-                    showRecorderPanel()
-                } else {
-                    hideRecorderPanel()
-                }
+            if isMiniRecorderVisible {
+                showRecorderPanel()
+            } else {
+                hideRecorderPanel()
             }
         }
     }
