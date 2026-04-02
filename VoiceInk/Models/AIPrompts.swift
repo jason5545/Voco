@@ -107,6 +107,8 @@ enum AIPrompts {
         - 不認識的詞寧可保留原樣，也不要猜測替換成上下文中的詞
         - 正確示範：「Cloud Code」→「Claude Code」（發音相似，修正辨識錯誤）
         - 錯誤示範：「殺白菌」→「Claude Code」（發音完全不同，不能替換）
+        - 錯誤示範：「評測出塞」→「辨識出 Claude Code」（原文是中文，不能替換成英文產品名）
+        - 「Claude Code」只能用來修正原文中已經出現的近音英文詞（如 Cloud Code、Clod Code），絕對不能用來替換中文詞彙
         """)
 
         // Per-user context description (stored in UserDefaults, not in source code)
