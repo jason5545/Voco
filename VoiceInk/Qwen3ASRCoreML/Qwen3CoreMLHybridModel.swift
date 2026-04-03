@@ -118,7 +118,8 @@ class Qwen3CoreMLHybridModel {
                 avgLogProb: remapped.avgLogProb,
                 tokenCount: remapped.tokenCount,
                 detectedLanguage: detectedLang,
-                uncertainWords: remapped.uncertainWords
+                uncertainWords: remapped.uncertainWords,
+                wordConfidences: remapped.wordConfidences
             )
         }
 

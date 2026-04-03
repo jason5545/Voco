@@ -112,12 +112,14 @@ actor Qwen3CoreMLEngine {
             : 0.0
         let allUncertainWords = chunkResults.flatMap { $0.uncertainWords }
         let mergedUncertainWords = Array(allUncertainWords.sorted { $0.logProb < $1.logProb }.prefix(8))
+        let mergedWordConfidences = chunkResults.flatMap { $0.wordConfidences }
         return Qwen3ASRModel.TranscriptionResult(
             text: mergedText,
             avgLogProb: weightedLogProb,
             tokenCount: totalTokens,
             detectedLanguage: chunkResults.first?.detectedLanguage,
-            uncertainWords: mergedUncertainWords
+            uncertainWords: mergedUncertainWords,
+            wordConfidences: mergedWordConfidences
         )
     }
 

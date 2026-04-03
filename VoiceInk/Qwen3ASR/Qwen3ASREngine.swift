@@ -50,6 +50,8 @@ actor Qwen3ASREngine {
         self.hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model loaded successfully")
 
+        MetalBudget.pinMemory()
+
         try ensureWarmup(using: newModel, modelId: modelId, reason: "loadModel(new)")
     }
 
@@ -128,7 +130,8 @@ actor Qwen3ASREngine {
         // Merge uncertain words from all chunks, keep top 8 by lowest logProb
         let allUncertainWords = chunkResults.flatMap { $0.uncertainWords }
         let mergedUncertainWords = Array(allUncertainWords.sorted { $0.logProb < $1.logProb }.prefix(8))
-        return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens, detectedLanguage: chunkResults.first?.detectedLanguage, uncertainWords: mergedUncertainWords)
+        let mergedWordConfidences = chunkResults.flatMap { $0.wordConfidences }
+        return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens, detectedLanguage: chunkResults.first?.detectedLanguage, uncertainWords: mergedUncertainWords, wordConfidences: mergedWordConfidences)
     }
 
     /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
@@ -168,6 +171,7 @@ actor Qwen3ASREngine {
         model = nil
         loadedModelId = nil
         hasCompletedWarmup = false
+        MetalBudget.unpinMemory()
         Memory.clearCache()
         Self.logger.info("Qwen3-ASR model unloaded, GPU cache cleared")
     }

@@ -31,6 +31,13 @@ struct UncertainWord {
     let logProb: Double    // 該詞彙的平均 logProb
 }
 
+/// A word with its confidence score (0.0–1.0), covering ALL words in the transcription
+struct WordConfidence {
+    let word: String
+    /// Confidence score derived from exp(mean token log-probability), clamped to 0.0–1.0
+    let confidence: Float
+}
+
 /// Main Qwen3-ASR model for speech recognition
 class Qwen3ASRModel {
     struct TranscriptionResult {
@@ -39,6 +46,7 @@ class Qwen3ASRModel {
         let tokenCount: Int
         let detectedLanguage: String?  // auto 模式偵測到的語言（如 "Japanese"），手動指定時為 nil
         let uncertainWords: [UncertainWord]
+        let wordConfidences: [WordConfidence]
     }
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
@@ -160,7 +168,8 @@ class Qwen3ASRModel {
                 avgLogProb: result.avgLogProb,
                 tokenCount: result.tokenCount,
                 detectedLanguage: detectedLang,
-                uncertainWords: result.uncertainWords
+                uncertainWords: result.uncertainWords,
+                wordConfidences: result.wordConfidences
             )
             if let detectedLang,
                let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
@@ -190,7 +199,8 @@ class Qwen3ASRModel {
                         avgLogProb: remapped.avgLogProb,
                         tokenCount: remapped.tokenCount,
                         detectedLanguage: detectedLang,
-                        uncertainWords: remapped.uncertainWords
+                        uncertainWords: remapped.uncertainWords,
+                        wordConfidences: remapped.wordConfidences
                     )
                 } else {
                     Self.logger.warning("Code-switch remap rejected (CJK \(originalCJK)→\(remappedCJK), Latin \(originalLatin)→\(remappedLatin), len \(result.text.count)→\(remapped.text.count)), using original")
@@ -269,9 +279,8 @@ class Qwen3ASRModel {
         var totalLogProb: Double = 0.0
         var logProbTokenCount: Int = 0
 
-        // Low-confidence token tracking
-        let uncertaintyThreshold: Double = -1.0
-        var tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
+        // Collect ALL token logProbs for per-word confidence scoring
+        var allTokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
 
         var (hiddenStates, newCache) = try textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
@@ -287,9 +296,7 @@ class Qwen3ASRModel {
             let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
             totalLogProb += tokenLogProb
             logProbTokenCount += 1
-            if tokenLogProb < uncertaintyThreshold {
-                tokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
-            }
+            allTokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
         }
         generatedTokens.append(nextToken)
 
@@ -311,9 +318,7 @@ class Qwen3ASRModel {
                 let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
                 totalLogProb += tokenLogProb
                 logProbTokenCount += 1
-                if tokenLogProb < uncertaintyThreshold {
-                    tokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
-                }
+                allTokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
             }
             generatedTokens.append(nextToken)
 
@@ -337,56 +342,77 @@ class Qwen3ASRModel {
                 avgLogProb: avgLogProb,
                 tokenCount: logProbTokenCount,
                 detectedLanguage: nil,
-                uncertainWords: []
+                uncertainWords: [],
+                wordConfidences: []
             )
         }
 
         // All generated tokens are transcription text (no prefix to strip)
         // since <asr_text> is always in the input prompt.
         let filtered = generatedTokens.filter { $0 != Int32(tokens.eosTokenId) }
-        let uncertainWords = buildUncertainWords(
-            tokenLogProbs: tokenLogProbs,
+        let decodedTokens = decodeAllTokens(
+            allTokenLogProbs: allTokenLogProbs,
             textTokens: filtered,
             tokenizer: tokenizer
         )
+        let uncertainWords = buildUncertainWords(decodedTokens: decodedTokens)
+        let wordConfidences = buildAllWordConfidences(decodedTokens: decodedTokens)
         return TranscriptionResult(
             text: tokenizer.decode(tokens: filtered.map { Int($0) })
                 .trimmingCharacters(in: .whitespaces),
             avgLogProb: avgLogProb,
             tokenCount: logProbTokenCount,
             detectedLanguage: nil,  // Language detection done by caller via NLLanguageRecognizer
-            uncertainWords: uncertainWords
+            uncertainWords: uncertainWords,
+            wordConfidences: wordConfidences
         )
     }
 
     // MARK: - Uncertain Word Grouping
 
-    /// Build UncertainWord list by grouping adjacent low-confidence tokens
-    func buildUncertainWords(
-        tokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)],
+    private static let uncertaintyThreshold: Double = -1.0
+
+    private struct DecodedToken {
+        let index: Int
+        let text: String  // decoded text with ▁ prefix stripped
+        let logProb: Double
+        let startsNewWord: Bool  // SentencePiece ▁ boundary
+    }
+
+    /// Decode all tokens once, building a shared representation for both
+    /// uncertain word detection and per-word confidence scoring.
+    private func decodeAllTokens(
+        allTokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)],
         textTokens: [Int32],
         tokenizer: Qwen3Tokenizer
-    ) -> [UncertainWord] {
-        guard !tokenLogProbs.isEmpty, !textTokens.isEmpty else { return [] }
+    ) -> [DecodedToken] {
+        var logProbByIndex: [Int: Double] = [:]
+        logProbByIndex.reserveCapacity(allTokenLogProbs.count)
+        for entry in allTokenLogProbs {
+            logProbByIndex[entry.index] = entry.logProb
+        }
 
-        // Build decoded text for each text token
-        let tokenTexts: [(index: Int, text: String, logProb: Double?)] = textTokens.enumerated().map { (i, tokenId) in
+        return textTokens.enumerated().map { (i, tokenId) in
             let decoded = tokenizer.decode(tokens: [Int(tokenId)])
-            let lp = tokenLogProbs.first(where: { $0.index == i })?.logProb
-            return (i, decoded, lp)
+            let startsNewWord = decoded.hasPrefix("\u{2581}")
+            let text = startsNewWord ? String(decoded.dropFirst()) : decoded
+            return DecodedToken(
+                index: i,
+                text: text,
+                logProb: logProbByIndex[i] ?? 0.0,
+                startsNewWord: startsNewWord
+            )
         }
+    }
 
-        // Collect only low-confidence tokens
-        let lowConfTokens = tokenTexts.compactMap { entry -> (index: Int, text: String, logProb: Double)? in
-            guard let lp = entry.logProb else { return nil }
-            return (entry.index, entry.text, lp)
-        }
-
+    /// Build UncertainWord list by grouping adjacent low-confidence tokens
+    private func buildUncertainWords(decodedTokens: [DecodedToken]) -> [UncertainWord] {
+        let lowConfTokens = decodedTokens.filter { $0.logProb < Self.uncertaintyThreshold }
         guard !lowConfTokens.isEmpty else { return [] }
 
         // Group adjacent low-confidence tokens
-        var groups: [[(index: Int, text: String, logProb: Double)]] = []
-        var currentGroup: [(index: Int, text: String, logProb: Double)] = []
+        var groups: [[DecodedToken]] = []
+        var currentGroup: [DecodedToken] = []
 
         for token in lowConfTokens {
             if let last = currentGroup.last {
@@ -411,17 +437,45 @@ class Qwen3ASRModel {
             let trimmed = mergedText.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { continue }
 
-            // CJK: max 4 chars per group
             let cjkCount = trimmed.unicodeScalars.filter {
                 (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
             }.count
-            if cjkCount > 4 { continue }  // Skip overly long groups
+            if cjkCount > 4 { continue }
 
             let avgLogProb = group.map { $0.logProb }.reduce(0, +) / Double(group.count)
             words.append(UncertainWord(text: trimmed, logProb: avgLogProb))
         }
 
-        // Sort by logProb (lowest first) and take top 8
         return Array(words.sorted { $0.logProb < $1.logProb }.prefix(8))
+    }
+
+    // MARK: - Per-Word Confidence
+
+    /// Build confidence scores for ALL words by grouping tokens at SentencePiece boundaries.
+    private func buildAllWordConfidences(decodedTokens: [DecodedToken]) -> [WordConfidence] {
+        guard !decodedTokens.isEmpty else { return [] }
+
+        var words: [WordConfidence] = []
+        var currentWord = ""
+        var currentLogProbs: [Double] = []
+
+        for token in decodedTokens {
+            if token.startsNewWord && !currentWord.isEmpty {
+                let meanLP = currentLogProbs.reduce(0, +) / Double(currentLogProbs.count)
+                words.append(WordConfidence(word: currentWord, confidence: min(1.0, Float(exp(meanLP)))))
+                currentWord = ""
+                currentLogProbs = []
+            }
+
+            currentWord += token.text
+            currentLogProbs.append(token.logProb)
+        }
+
+        if !currentWord.isEmpty {
+            let meanLP = currentLogProbs.reduce(0, +) / Double(currentLogProbs.count)
+            words.append(WordConfidence(word: currentWord, confidence: min(1.0, Float(exp(meanLP)))))
+        }
+
+        return words
     }
 }

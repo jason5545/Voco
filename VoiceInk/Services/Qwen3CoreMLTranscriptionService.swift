@@ -21,6 +21,9 @@ class Qwen3CoreMLTranscriptionService: TranscriptionService {
     /// Low-confidence words from the last transcription (for LLM prompt injection)
     var lastUncertainWords: [UncertainWord] = []
 
+    /// Per-word confidence scores from the last transcription (for post-processing routing)
+    var lastWordConfidences: [WordConfidence] = []
+
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         guard let qwen3CoreMLModel = model as? Qwen3CoreMLModel else {
             throw Qwen3ServiceError.invalidModel
@@ -44,9 +47,11 @@ class Qwen3CoreMLTranscriptionService: TranscriptionService {
         self.lastAvgLogProb = result.avgLogProb
         self.lastDetectedLanguage = result.detectedLanguage
         self.lastUncertainWords = result.uncertainWords
+        self.lastWordConfidences = result.wordConfidences
         await MainActor.run {
             ChinesePostProcessingService.shared.lastAvgLogProb = result.avgLogProb
             ChinesePostProcessingService.shared.lastUncertainWords = result.uncertainWords
+            ChinesePostProcessingService.shared.lastWordConfidences = result.wordConfidences
         }
 
         logger.info("Qwen3 CoreML transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")

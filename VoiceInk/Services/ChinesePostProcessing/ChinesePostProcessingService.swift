@@ -40,6 +40,7 @@ class ChinesePostProcessingService: ObservableObject {
     var lastModelProvider: ModelProvider?
     var lastAudioDuration: Double = 0.0
     var lastUncertainWords: [UncertainWord] = []
+    var lastWordConfidences: [WordConfidence] = []
 
     // MARK: - Settings (UserDefaults backed)
 
@@ -260,6 +261,11 @@ class ChinesePostProcessingService: ObservableObject {
 
     // MARK: - Confidence-Based LLM Routing
 
+    // Per-word confidence thresholds for LLM routing
+    private static let wordLowConfidenceThreshold: Float = 0.5
+    private static let wordHighConfidenceThreshold: Float = 0.8
+    private static let lowConfidenceRatioLimit: Double = 0.3
+
     /// Determine if LLM enhancement should be skipped based on confidence metrics
     func shouldSkipLLMEnhancement(text: String, repetitionInfo: RepetitionDetector.RepetitionInfo? = nil) -> Bool {
         guard isConfidenceRoutingEnabled else {
@@ -318,7 +324,22 @@ class ChinesePostProcessingService: ObservableObject {
                 return true
             }
         case .qwen3, .qwen3CoreML:
-            // Qwen3: use logprob when available, fallback to text heuristic
+            // Qwen3: use per-word confidence when available, then logprob, then text heuristic
+            if !lastWordConfidences.isEmpty {
+                let lowConfWords = lastWordConfidences.filter { $0.confidence < Self.wordLowConfidenceThreshold }
+                let lowConfRatio = Double(lowConfWords.count) / Double(lastWordConfidences.count)
+                let allHighConf = lastWordConfidences.allSatisfy { $0.confidence > Self.wordHighConfidenceThreshold }
+
+                if lowConfRatio > Self.lowConfidenceRatioLimit {
+                    let lowConfList = lowConfWords.prefix(5).map { "\($0.word)(\(String(format: "%.2f", $0.confidence)))" }.joined(separator: ", ")
+                    Self.debugLog("FORCE LLM: Qwen3 high low-confidence ratio (\(String(format: "%.0f%%", lowConfRatio * 100)), \(lowConfWords.count)/\(lastWordConfidences.count)) lowConf=[\(lowConfList)] | text(\(text.count)): \(text)")
+                    return false
+                }
+                if allHighConf && lastAvgLogProb > logProbThreshold {
+                    Self.debugLog("SKIP: Qwen3 all words high confidence (\(lastWordConfidences.count) words all >0.8, avgLogProb=\(String(format: "%.3f", lastAvgLogProb))) | text(\(text.count)): \(text)")
+                    return true
+                }
+            }
             if lastAvgLogProb != 0.0 {
                 // Has logprob data → use it (same logic as Whisper)
                 if lastAvgLogProb > logProbThreshold {
