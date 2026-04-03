@@ -537,7 +537,7 @@ class TranscriptionPipeline {
 
                 let powerMode = PowerModeManager.shared
                 if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.autoSendKey.isEnabled {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         CursorPaster.performAutoSend(activeConfig.autoSendKey)
                     }
                 }
