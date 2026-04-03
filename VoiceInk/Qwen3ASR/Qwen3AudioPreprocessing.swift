@@ -1,8 +1,12 @@
 // Qwen3AudioPreprocessing.swift
 // Adapted from qwen3-asr-swift AudioPreprocessing.swift
 // Fixed: fatalError → throws, class renamed to avoid whisper.cpp collision
-// Synced: 512-point FFT (257 bins) from Ivan upstream — matches model training preprocessing
-// [AI-Claude: 2025-02-18] [AI-Claude: 2026-03-30]
+// Fixed: Use exact 400-point DFT (201 bins) to match HuggingFace preprocessor_config.json (n_fft=400)
+// Note: Ivan upstream zero-pads to 512 for vDSP_fft_zrip compatibility, but the model's
+//       preprocessor_config.json specifies n_fft=400. Python mlx_audio uses np.fft.rfft(400)
+//       producing 201 bins. Zero-padding to 512 (257 bins) changes mel filterbank mapping
+//       and causes measurably different (worse) transcription results.
+// [AI-Claude: 2025-02-18] [AI-Claude: 2026-03-22] [AI-Claude: 2026-04-03]
 
 import Foundation
 import Accelerate
@@ -31,27 +35,39 @@ class Qwen3FeatureExtractor {
     private var melFilterbank: [Float]?
     private var hannWindow: [Float]
 
-    // Power-of-2 FFT: zero-pad nFFT=400 to paddedFFT=512 for vDSP compatibility
-    private let paddedFFT: Int = 512
-    private let log2PaddedFFT: vDSP_Length = 9  // log2(512) = 9
-    private var fftSetup: FFTSetup
+    // Exact 400-point DFT via precomputed twiddle matrices and vDSP_mmul.
+    // vDSP_fft_zrip requires power-of-2 lengths, so the old code zero-padded
+    // nFFT=400 → 512, producing 257 bins instead of 201. This caused mel
+    // spectrograms to diverge from the HuggingFace WhisperFeatureExtractor
+    // (which uses a true 400-point FFT with 201 bins), leading to different
+    // transcription results from the same model weights.
+    private let nBins: Int  // nFFT/2 + 1 = 201
+    private var dftCosMatrix: [Float]  // (nFFT × nBins) row-major: cos(2πkn/N)
+    private var dftSinMatrix: [Float]  // (nFFT × nBins) row-major: -sin(2πkn/N)
 
     init() throws {
+        nBins = nFFT / 2 + 1  // 201
+
         hannWindow = [Float](repeating: 0, count: nFFT)
         for i in 0..<nFFT {
             hannWindow[i] = 0.5 * (1.0 - cos(2.0 * Float.pi * Float(i) / Float(nFFT)))
         }
 
-        guard let setup = vDSP_create_fftsetup(9, FFTRadix(kFFTRadix2)) else {
-            throw Qwen3PreprocessingError.melFilterbankNotInitialized
+        // Precompute DFT twiddle factor matrices for exact 400-point DFT.
+        // X[k] = Σ x[n] * exp(-j2πkn/N) = Σ x[n] * (cos(2πkn/N) - j·sin(2πkn/N))
+        // Layout: dftCosMatrix[n * nBins + k] for efficient (nFrames,nFFT)×(nFFT,nBins) multiply.
+        dftCosMatrix = [Float](repeating: 0, count: nFFT * nBins)
+        dftSinMatrix = [Float](repeating: 0, count: nFFT * nBins)
+        let twoPiOverN = 2.0 * Float.pi / Float(nFFT)
+        for k in 0..<nBins {
+            for n in 0..<nFFT {
+                let angle = twoPiOverN * Float(k) * Float(n)
+                dftCosMatrix[n * nBins + k] = cos(angle)
+                dftSinMatrix[n * nBins + k] = -sin(angle)
+            }
         }
-        fftSetup = setup
 
         setupMelFilterbank()
-    }
-
-    deinit {
-        vDSP_destroy_fftsetup(fftSetup)
     }
 
     private func setupMelFilterbank() {
@@ -78,13 +94,11 @@ class Qwen3FeatureExtractor {
             }
         }
 
-        // Use paddedFFT for bin count since we zero-pad to 512 for FFT
-        let nBins = paddedFFT / 2 + 1  // 257 for paddedFFT=512
-
-        // FFT bin frequencies: k * fs / paddedFFT
+        // Use nFFT-based frequency bins (201 bins at 40 Hz spacing)
+        // to match HuggingFace WhisperFeatureExtractor (preprocessor_config.json: n_fft=400)
         var fftFreqs = [Float](repeating: 0, count: nBins)
         for i in 0..<nBins {
-            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(paddedFFT)
+            fftFreqs[i] = Float(i) * Float(sampleRate) / Float(nFFT)
         }
 
         let melMin = hzToMel(fMin)
@@ -132,9 +146,6 @@ class Qwen3FeatureExtractor {
     }
 
     func extractFeatures(_ audio: [Float]) throws -> MLXArray {
-        let nBins = paddedFFT / 2 + 1  // 257 bins for 512-point FFT
-        let halfPadded = paddedFFT / 2  // 256
-
         let padLength = nFFT / 2
         var paddedAudio = [Float](repeating: 0, count: padLength + audio.count + padLength)
 
@@ -152,49 +163,39 @@ class Qwen3FeatureExtractor {
 
         let nFrames = (paddedAudio.count - nFFT) / hopLength + 1
 
-        // Accelerate FFT-based STFT using vDSP_fft_zrip
-        // Zero-pad nFFT=400 samples to paddedFFT=512 for power-of-2 FFT
-        var splitReal = [Float](repeating: 0, count: halfPadded)
-        var splitImag = [Float](repeating: 0, count: halfPadded)
-        var paddedFrame = [Float](repeating: 0, count: paddedFFT)
-
-        var magnitude = [Float](repeating: 0, count: nFrames * nBins)
-
-        for frame in 0..<nFrames {
-            let start = frame * hopLength
-
-            paddedAudio.withUnsafeBufferPointer { buf in
-                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &paddedFrame, 1, vDSP_Length(nFFT))
-            }
-            for i in nFFT..<paddedFFT {
-                paddedFrame[i] = 0
-            }
-
-            for i in 0..<halfPadded {
-                splitReal[i] = paddedFrame[2 * i]
-                splitImag[i] = paddedFrame[2 * i + 1]
-            }
-
-            splitReal.withUnsafeMutableBufferPointer { realBuf in
-                splitImag.withUnsafeMutableBufferPointer { imagBuf in
-                    var splitComplex = DSPSplitComplex(
-                        realp: realBuf.baseAddress!,
-                        imagp: imagBuf.baseAddress!)
-                    vDSP_fft_zrip(fftSetup, &splitComplex, 1, log2PaddedFFT, FFTDirection(kFFTDirection_Forward))
+        // Build windowed frames matrix: (nFrames, nFFT)
+        var windowedFrames = [Float](repeating: 0, count: nFrames * nFFT)
+        paddedAudio.withUnsafeBufferPointer { buf in
+            for frame in 0..<nFrames {
+                let start = frame * hopLength
+                let destOffset = frame * nFFT
+                windowedFrames.withUnsafeMutableBufferPointer { dest in
+                    vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1,
+                              dest.baseAddress! + destOffset, 1, vDSP_Length(nFFT))
                 }
-            }
-
-            let baseIdx = frame * nBins
-            // DC component
-            magnitude[baseIdx] = splitReal[0] * splitReal[0]
-            // Nyquist component
-            magnitude[baseIdx + halfPadded] = splitImag[0] * splitImag[0]
-            // Bins 1 to N/2-1
-            for k in 1..<halfPadded {
-                magnitude[baseIdx + k] = splitReal[k] * splitReal[k] + splitImag[k] * splitImag[k]
             }
         }
 
+        // Exact 400-point DFT via batched matrix multiply:
+        // realParts = windowedFrames × dftCosMatrix  → (nFrames, nBins)
+        // imagParts = windowedFrames × dftSinMatrix  → (nFrames, nBins)
+        let totalBins = nFrames * nBins
+        var realParts = [Float](repeating: 0, count: totalBins)
+        var imagParts = [Float](repeating: 0, count: totalBins)
+
+        vDSP_mmul(windowedFrames, 1, dftCosMatrix, 1, &realParts, 1,
+                  vDSP_Length(nFrames), vDSP_Length(nBins), vDSP_Length(nFFT))
+        vDSP_mmul(windowedFrames, 1, dftSinMatrix, 1, &imagParts, 1,
+                  vDSP_Length(nFrames), vDSP_Length(nBins), vDSP_Length(nFFT))
+
+        // Power spectrum: magnitude[i] = real[i]² + imag[i]²
+        var magnitude = [Float](repeating: 0, count: totalBins)
+        vDSP_vsq(realParts, 1, &magnitude, 1, vDSP_Length(totalBins))
+        var imagSq = [Float](repeating: 0, count: totalBins)
+        vDSP_vsq(imagParts, 1, &imagSq, 1, vDSP_Length(totalBins))
+        vDSP_vadd(magnitude, 1, imagSq, 1, &magnitude, 1, vDSP_Length(totalBins))
+
+        // Apply mel filterbank: melSpec = magnitude × filterbankT
         guard let filterbank = melFilterbank else {
             throw Qwen3PreprocessingError.melFilterbankNotInitialized
         }
@@ -224,7 +225,7 @@ class Qwen3FeatureExtractor {
         var offset: Float = 1.0
         vDSP_vsmsa(melSpec, 1, &scale, &offset, &melSpec, 1, vDSP_Length(count))
 
-        // Trim last frame (matches Python: log_spec[:, :-1])
+        // Trim last frame (matches Python WhisperFeatureExtractor: log_spec[:, :-1])
         let trimmedFrames = nFrames - 1
         let trimmedMelSpec = Array(melSpec.prefix(trimmedFrames * nMels))
 
