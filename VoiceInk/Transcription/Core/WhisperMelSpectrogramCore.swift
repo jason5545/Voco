@@ -28,7 +28,7 @@ class WhisperMelSpectrogramCore {
     /// Whisper processes 30-second chunks (or pads to 30s)
     static let chunkSamples = 16000 * 30  // 480,000 samples = 30 seconds
 
-    private var melFilterbank: [Float]  // [nMels x nBins] row-major
+    private var melFilterbank: [Float]  // [nBins x nMels] row-major, ready for vDSP_mmul
     private var hannWindow: [Float]
     // Precomputed DFT basis matrices for 400-point DFT via matrix-vector multiply.
     // Whisper models are trained with 400-point FFT (201 bins); zero-padding to 512
@@ -62,7 +62,7 @@ class WhisperMelSpectrogramCore {
         )
     }
 
-    /// Build mel filterbank matrix [nMels x nBins]
+    /// Build mel filterbank matrix [nBins x nMels]
     private static func buildMelFilterbank(nMels: Int, nFFT: Int, sampleRate: Int) -> [Float] {
         let nBins = nFFT / 2 + 1
         let fMin: Float = 0.0
@@ -98,7 +98,6 @@ class WhisperMelSpectrogramCore {
             filterDiff[i] = filterFreqs[i + 1] - filterFreqs[i]
         }
 
-        // Build filterbank [nBins x nMels] then transpose
         var filterbank = [Float](repeating: 0, count: nBins * nMels)
         for bin in 0..<nBins {
             let fftFreq = fftFreqs[bin]
@@ -117,14 +116,8 @@ class WhisperMelSpectrogramCore {
             }
         }
 
-        // Transpose to [nMels x nBins]
-        var transposed = [Float](repeating: 0, count: nMels * nBins)
-        for mel in 0..<nMels {
-            for bin in 0..<nBins {
-                transposed[mel * nBins + bin] = filterbank[bin * nMels + mel]
-            }
-        }
-        return transposed
+        // filterbank is already [nBins x nMels] row-major — the layout vDSP_mmul needs
+        return filterbank
     }
 
     /// Process audio samples into 30-second mel spectrogram
@@ -176,29 +169,31 @@ class WhisperMelSpectrogramCore {
         var imagPart = [Float](repeating: 0, count: nBins)
         var magnitude = [Float](repeating: 0, count: nFrames * nBins)
 
-        for frame in 0..<nFrames {
-            let start = frame * hopLength
-            paddedAudio.withUnsafeBufferPointer { buf in
-                vDSP_vmul(buf.baseAddress! + start, 1, hannWindow, 1, &windowedFrame, 1, vDSP_Length(nFFT))
-            }
+        paddedAudio.withUnsafeBufferPointer { src in
+            magnitude.withUnsafeMutableBufferPointer { mag in
+                for frame in 0..<nFrames {
+                    let start = frame * hopLength
+                    vDSP_vmul(src.baseAddress! + start, 1, hannWindow, 1,
+                              &windowedFrame, 1, vDSP_Length(nFFT))
 
-            // 400-point DFT via matrix-vector multiply
-            vDSP_mmul(cosBasis, 1, windowedFrame, 1, &realPart, 1,
-                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
-            vDSP_mmul(sinBasis, 1, windowedFrame, 1, &imagPart, 1,
-                      vDSP_Length(nBins), 1, vDSP_Length(nFFT))
+                    // 400-point DFT via matrix-vector multiply
+                    vDSP_mmul(cosBasis, 1, windowedFrame, 1, &realPart, 1,
+                              vDSP_Length(nBins), 1, vDSP_Length(nFFT))
+                    vDSP_mmul(sinBasis, 1, windowedFrame, 1, &imagPart, 1,
+                              vDSP_Length(nBins), 1, vDSP_Length(nFFT))
 
-            let baseIdx = frame * nBins
-            for k in 0..<nBins {
-                magnitude[baseIdx + k] = realPart[k] * realPart[k] + imagPart[k] * imagPart[k]
+                    // Power spectrum: real² + imag² (square in-place, safe since next frame overwrites)
+                    vDSP_vsq(realPart, 1, &realPart, 1, vDSP_Length(nBins))
+                    vDSP_vsq(imagPart, 1, &imagPart, 1, vDSP_Length(nBins))
+                    let baseIdx = frame * nBins
+                    vDSP_vadd(realPart, 1, imagPart, 1, mag.baseAddress! + baseIdx, 1, vDSP_Length(nBins))
+                }
             }
         }
 
         // Apply mel filterbank: [nFrames x nBins] @ [nBins x nMels] = [nFrames x nMels]
         var melSpec = [Float](repeating: 0, count: nFrames * nMels)
-        var filterbankT = [Float](repeating: 0, count: nBins * nMels)
-        vDSP_mtrans(melFilterbank, 1, &filterbankT, 1, vDSP_Length(nBins), vDSP_Length(nMels))
-        vDSP_mmul(magnitude, 1, filterbankT, 1, &melSpec, 1,
+        vDSP_mmul(magnitude, 1, melFilterbank, 1, &melSpec, 1,
                   vDSP_Length(nFrames), vDSP_Length(nMels), vDSP_Length(nBins))
 
         // Log mel: log10(max(mel, 1e-10))
