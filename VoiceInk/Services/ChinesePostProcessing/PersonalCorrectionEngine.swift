@@ -153,6 +153,34 @@ final class PersonalCorrectionEngine {
             ))
         }
 
+        // Resolve bidirectional conflicts: if both A→B and B→A exist, keep only the higher-count one.
+        // This prevents circular corruption where the pipeline creates A→B and LLM reverts B→A,
+        // causing both directions to be mined as rules.
+        var ruleMap: [String: PersonalRule] = [:]
+        for rule in newRules {
+            ruleMap["\(rule.original)→\(rule.corrected)"] = rule
+        }
+        var discarded: Set<String> = []
+        for rule in newRules {
+            let forwardKey = "\(rule.original)→\(rule.corrected)"
+            let reverseKey = "\(rule.corrected)→\(rule.original)"
+            guard !discarded.contains(forwardKey) else { continue }
+            if let reverse = ruleMap[reverseKey] {
+                // Keep the one with higher count, discard the other
+                if rule.count >= reverse.count {
+                    discarded.insert(reverseKey)
+                    logger.info("Conflict: \(forwardKey)(\(rule.count)x) wins over \(reverseKey)(\(reverse.count)x)")
+                } else {
+                    discarded.insert(forwardKey)
+                    logger.info("Conflict: \(reverseKey)(\(reverse.count)x) wins over \(forwardKey)(\(rule.count)x)")
+                }
+            }
+        }
+        if !discarded.isEmpty {
+            newRules.removeAll { discarded.contains("\($0.original)→\($0.corrected)") }
+            logger.info("Resolved \(discarded.count) bidirectional conflicts")
+        }
+
         // Sort by count descending
         newRules.sort { $0.count > $1.count }
 
