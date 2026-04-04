@@ -87,7 +87,7 @@ actor Qwen3ASREngine {
 
         // Audio within 20 minutes: single pass
         if samples.count <= Self.maxSamplesPerChunk {
-            let result = try model.transcribe(audio: samples, sampleRate: 16000, language: lang, prompt: prompt)
+            let result = try model.transcribe(audio: samples, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
             Memory.clearCache()
             return result
         }
@@ -102,7 +102,7 @@ actor Qwen3ASREngine {
             if remaining <= Self.maxSamplesPerChunk {
                 // Last chunk: take everything
                 let chunk = Array(samples[offset...])
-                let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+                let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
                 Memory.clearCache()
                 if !result.text.isEmpty { chunkResults.append(result) }
                 break
@@ -112,7 +112,7 @@ actor Qwen3ASREngine {
             let cutPoint = Self.findSilenceCutPoint(in: samples, targetCut: offset + Self.maxSamplesPerChunk)
             let chunk = Array(samples[offset..<cutPoint])
             Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")
-            let result = try model.transcribe(audio: chunk, sampleRate: 16000, language: lang, prompt: prompt)
+            let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
             Memory.clearCache()
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint
@@ -188,7 +188,7 @@ actor Qwen3ASREngine {
         for attempt in 1...maxAttempts {
             do {
                 Self.logger.info("Running Qwen3 warmup inference (\(reason), attempt \(attempt)/\(maxAttempts))…")
-                let _ = try model.transcribe(audio: warmupSamples, sampleRate: 16000, language: nil)
+                let _ = try model.transcribe(audio: warmupSamples, sampleRate: Self.sampleRate, language: nil)
                 // Clear GPU buffer cache left by silence inference so the first real
                 // transcription starts with clean state (prevents garbage output).
                 Memory.clearCache()

@@ -119,10 +119,9 @@ class Qwen3ASRModel {
         try Qwen3WeightLoader.loadAudioEncoderWeights(into: audioEncoder, from: directory)
 
         Self.logger.info("Loading text decoder weights...")
-        self.textDecoder = Qwen3QuantizedTextModel(config: textConfig)
-        if let textDecoder = self.textDecoder {
-            try Qwen3WeightLoader.loadTextDecoderWeights(into: textDecoder, from: directory)
-        }
+        let decoder = Qwen3QuantizedTextModel(config: textConfig)
+        try Qwen3WeightLoader.loadTextDecoderWeights(into: decoder, from: directory)
+        self.textDecoder = decoder
 
         Self.logger.info("Model loaded successfully")
     }
@@ -274,13 +273,20 @@ class Qwen3ASRModel {
         var generatedTokens: [Int32] = []
         let evalInterval = 50  // Force MLX evaluation every N tokens to prevent computation graph accumulation
 
-        // Per-token logprob tracking — <asr_text> is always in inputIds,
-        // so all generated tokens are text tokens; start counting immediately.
         var totalLogProb: Double = 0.0
         var logProbTokenCount: Int = 0
-
-        // Collect ALL token logProbs for per-word confidence scoring
         var allTokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
+
+        // Extract log-probability for a token using logSumExp (avoids full softmax over 152K vocab)
+        func collectLogProb(from logits: MLXArray, token: Int32) {
+            let flatLogits = logits.reshaped(-1)
+            let tokenLogit = flatLogits[Int(token)].item(Float.self)
+            let lse = logSumExp(flatLogits).item(Float.self)
+            let tokenLogProb = Double(tokenLogit - lse)
+            totalLogProb += tokenLogProb
+            logProbTokenCount += 1
+            allTokenLogProbs.append((index: logProbTokenCount - 1, tokenId: token, logProb: tokenLogProb))
+        }
 
         var (hiddenStates, newCache) = try textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
@@ -292,11 +298,7 @@ class Qwen3ASRModel {
         var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
         if nextToken != Int32(tokens.eosTokenId) {
-            let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
-            let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
-            totalLogProb += tokenLogProb
-            logProbTokenCount += 1
-            allTokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
+            collectLogProb(from: logits, token: nextToken)
         }
         generatedTokens.append(nextToken)
 
@@ -314,11 +316,7 @@ class Qwen3ASRModel {
             nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
 
             if nextToken != Int32(tokens.eosTokenId) {
-                let tokenProb = softmax(logits, axis: -1).reshaped(-1)[Int(nextToken)].item(Float.self)
-                let tokenLogProb = log(Double(max(tokenProb, 1e-30)))
-                totalLogProb += tokenLogProb
-                logProbTokenCount += 1
-                allTokenLogProbs.append((index: logProbTokenCount - 1, tokenId: nextToken, logProb: tokenLogProb))
+                collectLogProb(from: logits, token: nextToken)
             }
             generatedTokens.append(nextToken)
 
@@ -437,10 +435,7 @@ class Qwen3ASRModel {
             let trimmed = mergedText.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { continue }
 
-            let cjkCount = trimmed.unicodeScalars.filter {
-                (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
-            }.count
-            if cjkCount > 4 { continue }
+            if Self.cjkCount(in: trimmed) > 4 { continue }
 
             let avgLogProb = group.map { $0.logProb }.reduce(0, +) / Double(group.count)
             words.append(UncertainWord(text: trimmed, logProb: avgLogProb))

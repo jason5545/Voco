@@ -108,8 +108,11 @@ class Qwen3QuantizedTextAttention: Module {
             cachedValues = concatenated([prevValues, values], axis: 2)
         }
 
-        // Create causal mask inside attention (matches Python reference)
-        let mask = createCausalMask(queryLen: seqLen, offset: offset, dtype: queries.dtype)
+        // Single-token queries (autoregressive step) need no causal mask —
+        // the lone query can attend to all cached keys; masking is all-zeros.
+        let mask: MLXArray? = seqLen > 1
+            ? createCausalMask(queryLen: seqLen, offset: offset, dtype: queries.dtype)
+            : nil
 
         let attnOutput = MLXFast.scaledDotProductAttention(
             queries: queries, keys: cachedKeys, values: cachedValues,

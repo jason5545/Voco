@@ -73,33 +73,7 @@ enum Qwen3WeightLoader {
         into audioEncoder: Qwen3AudioEncoder,
         from directory: URL
     ) throws {
-        let fileManager = FileManager.default
-        let contents = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        let safetensorFiles = contents.filter { $0.pathExtension == "safetensors" }
-
-        guard !safetensorFiles.isEmpty else {
-            throw Qwen3WeightLoadingError.noWeightsFound(directory)
-        }
-
-        logger.info("Found \(safetensorFiles.count) safetensor files")
-
-        var allWeights: [String: MLXArray] = [:]
-        for file in safetensorFiles {
-            logger.debug("Loading: \(file.lastPathComponent)")
-            let weights = try loadSafetensors(url: file)
-            allWeights.merge(weights) { _, new in new }
-        }
-
-        logger.info("Loaded \(allWeights.count) weight tensors from files")
-
-        var audioTowerWeights: [String: MLXArray] = [:]
-        for (key, value) in allWeights {
-            if key.hasPrefix("audio_tower.") {
-                let strippedKey = String(key.dropFirst("audio_tower.".count))
-                audioTowerWeights[strippedKey] = value
-            }
-        }
-
+        let audioTowerWeights = try loadAllSafetensors(from: directory, prefix: "audio_tower.", stripPrefix: true)
         logger.info("Found \(audioTowerWeights.count) audio_tower weights")
 
         applyConv2dWeights(to: audioEncoder.conv2d1, prefix: "conv2d1", from: audioTowerWeights)
@@ -126,28 +100,7 @@ enum Qwen3WeightLoader {
         into textModel: Qwen3QuantizedTextModel,
         from directory: URL
     ) throws {
-        let fileManager = FileManager.default
-        let contents = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        let safetensorFiles = contents.filter { $0.pathExtension == "safetensors" }
-
-        guard !safetensorFiles.isEmpty else {
-            throw Qwen3WeightLoadingError.noWeightsFound(directory)
-        }
-
-        var allWeights: [String: MLXArray] = [:]
-        for file in safetensorFiles {
-            let weights = try loadSafetensors(url: file)
-            allWeights.merge(weights) { _, new in new }
-        }
-
-        var textWeights: [String: MLXArray] = [:]
-        for (key, value) in allWeights {
-            if key.hasPrefix("model.") {
-                let strippedKey = String(key.dropFirst("model.".count))
-                textWeights[strippedKey] = value
-            }
-        }
-
+        let textWeights = try loadAllSafetensors(from: directory, prefix: "model.", stripPrefix: true)
         logger.info("Found \(textWeights.count) text decoder weights")
 
         applyQuantizedEmbeddingWeights(
