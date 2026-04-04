@@ -34,13 +34,7 @@ final class HomophoneCorrectionEngine {
     private let slidingWindowMinCandidateFreq: Int = 1000
 
     /// Common function words to skip (too short, too common, not worth checking).
-    private static let skipChars: Set<Character> = [
-        "的", "了", "嗎", "呢", "吧", "啊", "哦", "喔", "嗯", "呀",
-        "是", "在", "有", "和", "也", "都", "就", "不", "我", "你",
-        "他", "她", "它", "們", "這", "那", "個", "把", "被", "讓",
-        "會", "能", "可", "要", "得", "地", "著", "過", "到", "從",
-        "與", "及", "或", "而", "但", "因", "為", "所", "以", "如",
-    ]
+    private static let skipChars = correctionSkipChars
 
     // MARK: - Main Entry Point
 
@@ -80,7 +74,7 @@ final class HomophoneCorrectionEngine {
 
             if let best = findBestCandidate(for: seg.word, at: offset, in: text, leftContext: leftContext, rightContext: rightContext, isFromSlidingWindow: seg.isFromSlidingWindow) {
                 // Replace the specific occurrence at the known range
-                if let range = findRange(of: seg.word, in: result, near: seg.approximateOffset) {
+                if let range = correctionFindRange(of: seg.word, in: result, near: seg.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
                     corrections.append(.init(
                         original: seg.word,
@@ -98,23 +92,8 @@ final class HomophoneCorrectionEngine {
 
     // MARK: - Step 1: Tokenization
 
-    private struct Segment {
-        let word: String
-        let range: Range<String.Index>
-    }
-
-    private func tokenize(_ text: String) -> [Segment] {
-        let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = text
-        tokenizer.setLanguage(.traditionalChinese)
-
-        var segments: [Segment] = []
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            let word = String(text[range])
-            segments.append(Segment(word: word, range: range))
-            return true
-        }
-        return segments
+    private func tokenize(_ text: String) -> [CorrectionSegment] {
+        correctionTokenize(text)
     }
 
     // MARK: - Step 2: Suspicious Detection
@@ -126,7 +105,7 @@ final class HomophoneCorrectionEngine {
         let isFromSlidingWindow: Bool
     }
 
-    private func findSuspicious(_ segments: [Segment]) -> [SuspiciousWord] {
+    private func findSuspicious(_ segments: [CorrectionSegment]) -> [SuspiciousWord] {
         var suspicious: [SuspiciousWord] = []
         var charOffset = 0
         let textChars = Array(segments.map(\.word).joined())
@@ -137,7 +116,7 @@ final class HomophoneCorrectionEngine {
             let word = seg.word
 
             // Skip non-CJK content
-            guard isCJK(word) else { continue }
+            guard word.first?.isCJK == true else { continue }
 
             // Skip single function words
             if word.count == 1, let c = word.first, Self.skipChars.contains(c) {
@@ -171,11 +150,11 @@ final class HomophoneCorrectionEngine {
 
             if isSuspicious && word.count == 1 {
                 // Check: does this char form a known word with its neighbors?
-                if charOffset > 0, isCJK(String(textChars[charOffset - 1])) {
+                if charOffset > 0, textChars[charOffset - 1].isCJK {
                     let leftWord = String(textChars[charOffset - 1]) + word
                     if db.frequency(of: leftWord) > 0 { isSuspicious = false }
                 }
-                if isSuspicious, charOffset + 1 < textChars.count, isCJK(String(textChars[charOffset + 1])) {
+                if isSuspicious, charOffset + 1 < textChars.count, textChars[charOffset + 1].isCJK {
                     let rightWord = word + String(textChars[charOffset + 1])
                     if db.frequency(of: rightWord) > 0 { isSuspicious = false }
                 }
@@ -187,23 +166,22 @@ final class HomophoneCorrectionEngine {
         }
 
         // Also try sliding window for 2-char combinations that the tokenizer split into singles
-        let slidingWindowCandidates = findSlidingWindowSuspicious(segments)
+        let slidingWindowCandidates = findSlidingWindowSuspicious(segments, textChars: textChars)
         suspicious.append(contentsOf: slidingWindowCandidates)
 
         return suspicious
     }
 
     /// Find suspicious 2-char sequences from adjacent single-char tokens.
-    private func findSlidingWindowSuspicious(_ segments: [Segment]) -> [SuspiciousWord] {
+    private func findSlidingWindowSuspicious(_ segments: [CorrectionSegment], textChars allChars: [Character]) -> [SuspiciousWord] {
         var result: [SuspiciousWord] = []
         var charOffset = 0
-        let allChars = Array(segments.map(\.word).joined())
 
         for i in 0..<segments.count {
             defer { charOffset += segments[i].word.count }
 
-            guard segments[i].word.count == 1, isCJK(segments[i].word) else { continue }
-            guard i + 1 < segments.count, segments[i + 1].word.count == 1, isCJK(segments[i + 1].word) else { continue }
+            guard segments[i].word.count == 1, segments[i].word.first?.isCJK == true else { continue }
+            guard i + 1 < segments.count, segments[i + 1].word.count == 1, segments[i + 1].word.first?.isCJK == true else { continue }
 
             // Skip if either char is a function word
             if let c1 = segments[i].word.first, Self.skipChars.contains(c1) { continue }
@@ -217,13 +195,13 @@ final class HomophoneCorrectionEngine {
                 // Neighbor word guard: check outer neighbors form known words
                 var skip = false
                 // char1's left neighbor + char1
-                if charOffset > 0, isCJK(String(allChars[charOffset - 1])) {
+                if charOffset > 0, allChars[charOffset - 1].isCJK {
                     let leftPair = String(allChars[charOffset - 1]) + segments[i].word
                     if db.frequency(of: leftPair) > 0 { skip = true }
                 }
                 // char2 + char2's right neighbor
                 let nextOffset = charOffset + 2
-                if !skip, nextOffset < allChars.count, isCJK(String(allChars[nextOffset])) {
+                if !skip, nextOffset < allChars.count, allChars[nextOffset].isCJK {
                     let rightPair = segments[i + 1].word + String(allChars[nextOffset])
                     if db.frequency(of: rightPair) > 0 { skip = true }
                 }
@@ -373,33 +351,6 @@ final class HomophoneCorrectionEngine {
         return score
     }
 
-    // MARK: - Step 5: Apply Corrections
-
-    /// Find the range of `word` in `text`, preferring occurrence near `approximateOffset`.
-    private func findRange(of word: String, in text: String, near offset: Int) -> Range<String.Index>? {
-        var bestRange: Range<String.Index>?
-        var bestDistance = Int.max
-        var searchStart = text.startIndex
-
-        while let range = text.range(of: word, range: searchStart..<text.endIndex) {
-            let rangeOffset = text.distance(from: text.startIndex, to: range.lowerBound)
-            let distance = abs(rangeOffset - offset)
-            if distance < bestDistance {
-                bestDistance = distance
-                bestRange = range
-            }
-            searchStart = range.upperBound
-        }
-        return bestRange
-    }
-
-    // MARK: - Helpers
-
-    private func isCJK(_ text: String) -> Bool {
-        guard let scalar = text.unicodeScalars.first else { return false }
-        let v = scalar.value
-        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
-    }
 }
 
 // MARK: - CorrectionEngine Conformance

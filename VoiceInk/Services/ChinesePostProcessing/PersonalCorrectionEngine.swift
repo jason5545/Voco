@@ -30,14 +30,7 @@ final class PersonalCorrectionEngine {
     private let lastMinedCountKey = "PersonalCorrectionLastMinedCount"
 
     /// Common function words to skip
-    private static let skipChars: Set<Character> = [
-        "的", "了", "嗎", "呢", "吧", "啊", "哦", "喔", "嗯", "呀",
-        "是", "在", "有", "和", "也", "都", "就", "不", "我", "你",
-        "他", "她", "它", "們", "這", "那", "個", "把", "被", "讓",
-        "會", "能", "可", "要", "得", "地", "著", "過", "到", "從",
-        "與", "及", "或", "而", "但", "因", "為", "所", "以", "如",
-        "跟", "更", "再", "很", "才",
-    ]
+    private static let skipChars = correctionSkipChars
 
     // MARK: - State
 
@@ -51,8 +44,12 @@ final class PersonalCorrectionEngine {
     private var rules: [PersonalRule] = []
     private var isLoaded = false
     private var isLoading = false
+    private var lastRemineCheck: CFAbsoluteTime = 0
     private let loadLock = NSLock()
     private let mineQueue = DispatchQueue(label: "com.jasonchien.Voco.personalCorrection", qos: .utility)
+
+    /// Minimum seconds between re-mine checks (avoids opening SQLite on every correct() call)
+    private let remineCheckInterval: CFAbsoluteTime = 60
 
     // MARK: - Public API
 
@@ -66,7 +63,11 @@ final class PersonalCorrectionEngine {
         guard !currentlyLoading else { return }
 
         if alreadyLoaded {
-            // Check if re-mining is needed
+            // Throttle re-mine checks to avoid opening SQLite on every correct() call
+            let now = CFAbsoluteTimeGetCurrent()
+            guard now - lastRemineCheck >= remineCheckInterval else { return }
+            lastRemineCheck = now
+
             let lastCount = UserDefaults.standard.integer(forKey: lastMinedCountKey)
             let currentCount = countTranscriptions()
             guard currentCount - lastCount >= remineThreshold else { return }
@@ -230,7 +231,7 @@ final class PersonalCorrectionEngine {
                 let origSeg = String(a[ai..<aPos])
                 let enhSeg = String(b[bi..<bPos])
                 if !origSeg.isEmpty, !enhSeg.isEmpty,
-                   origSeg.contains(where: isCJK), enhSeg.contains(where: isCJK) {
+                   origSeg.contains(where: \.isCJK), enhSeg.contains(where: \.isCJK) {
                     replacements.append((origSeg, enhSeg))
                 }
             }
@@ -243,7 +244,7 @@ final class PersonalCorrectionEngine {
             let origSeg = String(a[ai...])
             let enhSeg = String(b[bi...])
             if !origSeg.isEmpty, !enhSeg.isEmpty,
-               origSeg.contains(where: isCJK), enhSeg.contains(where: isCJK) {
+               origSeg.contains(where: \.isCJK), enhSeg.contains(where: \.isCJK) {
                 replacements.append((origSeg, enhSeg))
             }
         }
@@ -320,7 +321,7 @@ final class PersonalCorrectionEngine {
     /// Get toneless pinyin string for CJK characters.
     private func pinyinString(_ text: String) -> String {
         var parts: [String] = []
-        for ch in text where isCJK(ch) {
+        for ch in text where ch.isCJK {
             if let pinyins = db.charToPinyin[ch], let first = pinyins.first {
                 parts.append(PinyinDatabase.stripTone(first))
             }
@@ -356,7 +357,7 @@ final class PersonalCorrectionEngine {
         let wrongChars = Array(rule.original)
         let needsBoundaryCheck = wrongChars.count <= 2
             && db.isLoaded
-            && wrongChars.allSatisfy(isCJK)
+            && wrongChars.allSatisfy(\.isCJK)
 
         guard needsBoundaryCheck else {
             return text.replacingOccurrences(of: rule.original, with: rule.corrected)
@@ -378,7 +379,7 @@ final class PersonalCorrectionEngine {
             // Right boundary check
             if matchEnd < currentChars.count {
                 let nextChar = currentChars[matchEnd]
-                if isCJK(nextChar) {
+                if nextChar.isCJK {
                     let rightPair = String(wrongChars.last!) + String(nextChar)
                     if db.frequency(of: rightPair) > 0 { continue }
                 }
@@ -387,7 +388,7 @@ final class PersonalCorrectionEngine {
             // Left boundary check
             if matchStart > 0 {
                 let prevChar = currentChars[matchStart - 1]
-                if isCJK(prevChar) {
+                if prevChar.isCJK {
                     let leftPair = String(prevChar) + String(wrongChars.first!)
                     if db.frequency(of: leftPair) > 0 { continue }
                 }
@@ -399,13 +400,6 @@ final class PersonalCorrectionEngine {
         return result
     }
 
-    // MARK: - Helpers
-
-    private func isCJK(_ char: Character) -> Bool {
-        guard let scalar = char.unicodeScalars.first else { return false }
-        let v = scalar.value
-        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
-    }
 }
 
 // MARK: - CorrectionEngine Conformance
@@ -431,7 +425,7 @@ extension PersonalCorrectionEngine: CorrectionEngine {
 
         for rule in currentRules {
             guard result.contains(rule.original) else { continue }
-            if CorrectionProtectionList.shared.containsSubstring(in: rule.original) { continue }
+            if CorrectionProtectionList.shared.contains(rule.original) { continue }
 
             let replaced = applyRule(result, rule: rule)
             if replaced != result {

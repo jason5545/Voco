@@ -50,13 +50,7 @@ final class NasalCorrectionEngine {
     private let maxWordLength = 4
 
     /// Common function words to skip.
-    private static let skipChars: Set<Character> = [
-        "的", "了", "嗎", "呢", "吧", "啊", "哦", "喔", "嗯", "呀",
-        "是", "在", "有", "和", "也", "都", "就", "不", "我", "你",
-        "他", "她", "它", "們", "這", "那", "個", "把", "被", "讓",
-        "會", "能", "可", "要", "得", "地", "著", "過", "到", "從",
-        "與", "及", "或", "而", "但", "因", "為", "所", "以", "如",
-    ]
+    private static let skipChars = correctionSkipChars
 
     // MARK: - Main Entry Point
 
@@ -85,7 +79,7 @@ final class NasalCorrectionEngine {
             let word = seg.word
 
             // Skip non-CJK
-            guard isCJK(word) else { continue }
+            guard word.first?.isCJK == true else { continue }
 
             // Skip single function words
             if word.count == 1, let c = word.first, Self.skipChars.contains(c) { continue }
@@ -108,7 +102,7 @@ final class NasalCorrectionEngine {
             let rightContext: Character? = rightEnd < textChars.count ? textChars[rightEnd] : nil
 
             if let best = findBestNasalCandidate(for: candidate.word, at: candidate.approximateOffset, in: text, leftContext: leftContext, rightContext: rightContext) {
-                if let range = findRange(of: candidate.word, in: result, near: candidate.approximateOffset) {
+                if let range = correctionFindRange(of: candidate.word, in: result, near: candidate.approximateOffset) {
                     result = result.replacingCharacters(in: range, with: best.candidate)
                     corrections.append(.init(
                         original: candidate.word,
@@ -126,23 +120,8 @@ final class NasalCorrectionEngine {
 
     // MARK: - Tokenization
 
-    private struct Segment {
-        let word: String
-        let range: Range<String.Index>
-    }
-
-    private func tokenize(_ text: String) -> [Segment] {
-        let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = text
-        tokenizer.setLanguage(.traditionalChinese)
-
-        var segments: [Segment] = []
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            let word = String(text[range])
-            segments.append(Segment(word: word, range: range))
-            return true
-        }
-        return segments
+    private func tokenize(_ text: String) -> [CorrectionSegment] {
+        correctionTokenize(text)
     }
 
     // MARK: - Candidate Types
@@ -250,31 +229,6 @@ final class NasalCorrectionEngine {
         return score
     }
 
-    // MARK: - Helpers
-
-    /// Find the range of `word` in `text`, preferring occurrence near `approximateOffset`.
-    private func findRange(of word: String, in text: String, near offset: Int) -> Range<String.Index>? {
-        var bestRange: Range<String.Index>?
-        var bestDistance = Int.max
-        var searchStart = text.startIndex
-
-        while let range = text.range(of: word, range: searchStart..<text.endIndex) {
-            let rangeOffset = text.distance(from: text.startIndex, to: range.lowerBound)
-            let distance = abs(rangeOffset - offset)
-            if distance < bestDistance {
-                bestDistance = distance
-                bestRange = range
-            }
-            searchStart = range.upperBound
-        }
-        return bestRange
-    }
-
-    private func isCJK(_ text: String) -> Bool {
-        guard let scalar = text.unicodeScalars.first else { return false }
-        let v = scalar.value
-        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
-    }
 }
 
 // MARK: - CorrectionEngine Conformance

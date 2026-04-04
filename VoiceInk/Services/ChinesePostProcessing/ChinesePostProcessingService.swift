@@ -379,8 +379,13 @@ class ChinesePostProcessingService: ObservableObject {
         return dir.appendingPathComponent("confidence-routing.log")
     }()
 
+    private static let debugLogFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
+
     static func debugLog(_ message: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = debugLogFormatter.string(from: Date())
         let entry = "[\(timestamp)] \(message)\n"
         if let data = entry.data(using: .utf8) {
             if FileManager.default.fileExists(atPath: debugLogURL.path) {

@@ -151,17 +151,9 @@ final class ContextAwareInsertionService {
 
 // MARK: - Character Extensions
 
-extension Character {
-    var isCJK: Bool {
-        guard let scalar = unicodeScalars.first else { return false }
-        let v = scalar.value
-        return (0x4E00...0x9FFF).contains(v)       // CJK Unified Ideographs
-            || (0x3400...0x4DBF).contains(v)       // CJK Extension A
-            || (0x20000...0x2A6DF).contains(v)     // CJK Extension B
-            || (0xF900...0xFAFF).contains(v)       // CJK Compatibility Ideographs
-            || (0x2F800...0x2FA1F).contains(v)     // CJK Compatibility Supplement
-    }
+// Character.isCJK is defined in CorrectionEngine.swift
 
+extension Character {
     var isCJKPunctuation: Bool {
         let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "（", "）", "《", "》", "【", "】", "〈", "〉"]
         return cjkPunct.contains(self)

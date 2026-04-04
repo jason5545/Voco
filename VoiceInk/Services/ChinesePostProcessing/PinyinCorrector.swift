@@ -200,7 +200,7 @@ class PinyinCorrector {
         let wrongChars = Array(rule.wrong)
         let needsBoundaryCheck = wrongChars.count <= 2
             && db.isLoaded
-            && wrongChars.allSatisfy { isCJK($0) }
+            && wrongChars.allSatisfy(\.isCJK)
 
         guard needsBoundaryCheck else {
             return text.replacingOccurrences(of: rule.wrong, with: rule.correct)
@@ -223,7 +223,7 @@ class PinyinCorrector {
             // Check right boundary: last char of wrong + next char
             if matchEnd < currentChars.count {
                 let nextChar = currentChars[matchEnd]
-                if isCJK(nextChar) {
+                if nextChar.isCJK {
                     let rightPair = String(wrongChars.last!) + String(nextChar)
                     if db.frequency(of: rightPair) > 0 {
                         continue // skip this match
@@ -234,7 +234,7 @@ class PinyinCorrector {
             // Check left boundary: previous char + first char of wrong
             if matchStart > 0 {
                 let prevChar = currentChars[matchStart - 1]
-                if isCJK(prevChar) {
+                if prevChar.isCJK {
                     let leftPair = String(prevChar) + String(wrongChars.first!)
                     if db.frequency(of: leftPair) > 0 {
                         continue // skip this match
@@ -246,12 +246,6 @@ class PinyinCorrector {
         }
 
         return result
-    }
-
-    private func isCJK(_ char: Character) -> Bool {
-        guard let scalar = char.unicodeScalars.first else { return false }
-        let v = scalar.value
-        return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
     }
 
     /// Current utterance gets priority. Cached context needs stronger evidence
