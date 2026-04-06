@@ -9,8 +9,8 @@ enum AIPrompts {
     3. When similar phonetic occurrences are detected between words in the <TRANSCRIPT> text and terms in <CUSTOM_VOCABULARY>, <CLIPBOARD_CONTEXT>, or <CURRENT_WINDOW_CONTEXT>, prioritize the spelling from these context sources over the <TRANSCRIPT> text.
     3a. CRITICAL: Only replace a transcript word with a context term if they sound phonetically similar.
         Do NOT replace words based solely on topic association.
-        CORRECT: "Cloud Code" → "Claude Code" (similar sound)
-        INCORRECT: "殺白菌" → "Claude Code" (completely different sound — keep original)
+        CORRECT: "no JS" → "Node.js" (similar sound, fixing ASR mishearing)
+        INCORRECT: "殺白菌" → "Node.js" (completely different sound — keep original)
     4. If <ACTIVE_APPLICATION> is provided, adapt your writing style to match the application context (e.g., casual for messaging apps, professional for email, technical for code editors).
     5. Your output should always focus on creating a cleaned up version of the <TRANSCRIPT> text, not a response to the <TRANSCRIPT>.
 
@@ -95,20 +95,24 @@ enum AIPrompts {
         }
 
         parts.append("""
+        禁止行為（最高優先）：
+        - 禁止將中文詞彙替換為原文中不存在的英文產品名或品牌名
+        - 若原文中沒有出現任何近音英文詞，輸出中不得出現原文沒有的英文詞
+        - 上下文（KNOWN_ASR_ERRORS、CUSTOM_VOCABULARY）提供的詞彙只適用於原文已存在的近音錯誤，不可強行注入
+
         英文術語保留原則（重要！）：
         - 當轉錄文字中出現英文技術術語、產品名稱、縮寫時，保留英文原文，不要翻譯成中文
         - 例如：「edge case」不要改成「邊緣案例」、「async/await」不要改成「非同步/等待」
-        - 例如：「Cloud Code」→「Claude Code」是修正辨識錯誤，不是翻譯
         - 中文句子中夾雜的英文詞彙是正常的 code-switching，保持原樣
 
         上下文替換限制（非常重要）：
         - 上下文僅供判斷領域和消歧義，不能強行替換不相似的詞
         - 只有在轉錄詞與上下文詞「發音相似」時才能替換
         - 不認識的詞寧可保留原樣，也不要猜測替換成上下文中的詞
-        - 正確示範：「Cloud Code」→「Claude Code」（發音相似，修正辨識錯誤）
-        - 錯誤示範：「殺白菌」→「Claude Code」（發音完全不同，不能替換）
-        - 錯誤示範：「評測出塞」→「辨識出 Claude Code」（原文是中文，不能替換成英文產品名）
-        - 「Claude Code」只能用來修正原文中已經出現的近音英文詞（如 Cloud Code、Clod Code），絕對不能用來替換中文詞彙
+        - 正確示範：「Git hab」→「GitHub」（發音相似，修正辨識錯誤）
+        - 錯誤示範：「殺白菌」→「GitHub」（發音完全不同，不能替換）
+        - 錯誤示範：「評測出塞」→「辨識出 JavaScript」（原文是中文，不能替換成英文產品名）
+        - 英文產品名只能用來修正原文中已經出現的近音英文詞，絕對不能用來替換中文詞彙
         """)
 
         // Per-user context description (stored in UserDefaults, not in source code)

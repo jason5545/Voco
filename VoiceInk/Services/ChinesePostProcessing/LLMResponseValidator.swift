@@ -110,7 +110,7 @@ class LLMResponseValidator {
             wordReplacements: wordReplacements,
             customVocabulary: customVocabulary
         )
-        if crossScriptViolations > 1 {
+        if crossScriptViolations > 0 {
             reasons.append("cross-script-substitution:\(crossScriptViolations) violations")
         }
 

@@ -594,7 +594,7 @@ class ChinesePostProcessingService: ObservableObject {
             return true
         }
 
-        if text.localizedCaseInsensitiveContains("Chat GPT") || text.localizedCaseInsensitiveContains("Cloud Code") {
+        if text.localizedCaseInsensitiveContains("Chat GPT") {
             return true
         }
 
