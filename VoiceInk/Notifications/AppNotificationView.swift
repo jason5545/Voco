@@ -6,20 +6,18 @@ struct AppNotificationView: View {
     let duration: TimeInterval
     let onClose: () -> Void
     let onTap: (() -> Void)?
-    let actionTitle: String?
-    let onAction: (() -> Void)?
+    var actionButton: (label: String, action: () -> Void)? = nil
 
     @State private var progress: Double = 1.0
     @State private var timer: Timer?
 
-    init(title: String, type: NotificationType, duration: TimeInterval, onClose: @escaping () -> Void, onTap: (() -> Void)? = nil, actionTitle: String? = nil, onAction: (() -> Void)? = nil) {
+    init(title: String, type: NotificationType, duration: TimeInterval, onClose: @escaping () -> Void, onTap: (() -> Void)? = nil, actionButton: (label: String, action: () -> Void)? = nil) {
         self.title = title
         self.type = type
         self.duration = duration
         self.onClose = onClose
         self.onTap = onTap
-        self.actionTitle = actionTitle
-        self.onAction = onAction
+        self.actionButton = actionButton
     }
 
     enum NotificationType {
@@ -66,18 +64,18 @@ struct AppNotificationView: View {
                 
                 Spacer()
 
-                if let actionTitle = actionTitle, let onAction = onAction {
+                if let actionButton {
                     Button(action: {
-                        onAction()
+                        actionButton.action()
                         onClose()
                     }) {
-                        Text(actionTitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.9))
+                        Text(actionButton.label)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(type.iconColor)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.white.opacity(0.15))
-                            .cornerRadius(6)
+                            .background(type.iconColor.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(PlainButtonStyle())
                 }

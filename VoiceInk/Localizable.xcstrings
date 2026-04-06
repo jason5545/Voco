@@ -6290,7 +6290,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤銷"
+            "value": "復原"
           }
         }
       }
@@ -6300,7 +6300,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已撤銷"
+            "value": "已復原"
           }
         }
       }
@@ -6701,6 +6701,286 @@
           "stringUnit": {
             "state": "translated",
             "value": "未選擇 AI 模型"
+          }
+        }
+      }
+    },
+    "Drop audio or video files here": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將音訊或影片檔案拖放到這裡"
+          }
+        }
+      }
+    },
+    "Choose Files": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇檔案"
+          }
+        }
+      }
+    },
+    "Supports WAV, MP3, M4A, AIFF, MP4, MOV, AAC, FLAC, CAF, AMR, OGG, OPUS, 3GP": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援 WAV、MP3、M4A、AIFF、MP4、MOV、AAC、FLAC、CAF、AMR、OGG、OPUS、3GP"
+          }
+        }
+      }
+    },
+    "Drop files anywhere to add more": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖放檔案至任何位置以新增更多"
+          }
+        }
+      }
+    },
+    "Add files": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增檔案"
+          }
+        }
+      }
+    },
+    "Cancel transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消轉錄"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        }
+      }
+    },
+    "Clear all items": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除所有項目"
+          }
+        }
+      }
+    },
+    "Drop to add files": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖放以新增檔案"
+          }
+        }
+      }
+    },
+    "Waiting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中"
+          }
+        }
+      }
+    },
+    "Playback speed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放速度"
+          }
+        }
+      }
+    },
+    "Re-enhance with selected prompt": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用所選提示詞重新增強"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取代"
+          }
+        }
+      }
+    },
+    "With": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為"
+          }
+        }
+      }
+    },
+    "Auto Learn Vocabulary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動學習詞彙"
+          }
+        }
+      }
+    },
+    "Auto Learn": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動學習"
+          }
+        }
+      }
+    },
+    "Quick Add to Dictionary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速新增至字典"
+          }
+        }
+      }
+    },
+    "Dictionary settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字典設定"
+          }
+        }
+      }
+    },
+    "Automatically adds corrected words to your vocabulary when you edit a transcription after pasting. This feature is experimental and may not work perfectly.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當您在貼上轉錄結果後進行編輯時，會自動將修正後的詞彙新增至詞彙庫。此功能為實驗性功能，可能無法完美運作。"
+          }
+        }
+      }
+    },
+    "Loading model...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入模型中…"
+          }
+        }
+      }
+    },
+    "Processing audio...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "處理音訊中…"
+          }
+        }
+      }
+    },
+    "Transcribing...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄中…"
+          }
+        }
+      }
+    },
+    "Enhancing...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強中…"
+          }
+        }
+      }
+    },
+    "Re-enhancement successful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新增強成功"
+          }
+        }
+      }
+    },
+    "Re-enhancement failed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新增強失敗"
+          }
+        }
+      }
+    },
+    "Added \"%@\" to Vocabulary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已新增「%@」至詞彙"
+          }
+        }
+      }
+    },
+    "Added %lld words to Vocabulary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已新增 %lld 個詞彙"
           }
         }
       }

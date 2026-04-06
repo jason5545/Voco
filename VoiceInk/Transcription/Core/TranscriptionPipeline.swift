@@ -201,7 +201,7 @@ class TranscriptionPipeline {
             let isSkipShortEnhancementEnabled = UserDefaults.standard.bool(forKey: "SkipShortEnhancement")
             let savedThreshold = UserDefaults.standard.integer(forKey: "ShortEnhancementWordThreshold")
             let shortEnhancementWordThreshold = savedThreshold > 0 ? savedThreshold : 3
-            let shortSkip = isSkipShortEnhancementEnabled && WordCounter.count(in: text) <= shortEnhancementWordThreshold
+            let shortSkip = isSkipShortEnhancementEnabled && WordCounter.count(in: text) <= shortEnhancementWordThreshold && !(promptDetectionResult?.shouldEnableAI == true)
 
             let shouldSkipEnhancement = confidenceSkip || shortSkip
             ChinesePostProcessingService.debugLog("PIPELINE: shouldSkip=\(shouldSkipEnhancement) (confidence=\(confidenceSkip), short=\(shortSkip)), ppNeedsLLM=\(ppNeedsLLM), postProcessorEnabled=\(postProcessor.isEnabled), enhancementEnabled=\(enhancementService?.isEnhancementEnabled ?? false), isConfigured=\(enhancementService?.isConfigured ?? false) | text(\(text.count)): \(text)")
@@ -533,7 +533,14 @@ class TranscriptionPipeline {
             textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService, capturedAppPID: capturedAppPID)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                CursorPaster.pasteAtCursor(textToPaste)
+                // Capture element while target field still has focus, before Cmd+V fires
+                let autoLearn = AutoLearnVocabularyService.shared
+                if let element = autoLearn.captureFocusedElement() {
+                    autoLearn.prepareMonitoring(pastedText: textToPaste, element: element, modelContext: self.modelContext)
+                }
+
+                let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
+                CursorPaster.pasteAtCursor(textToPaste + (appendSpace ? " " : ""))
 
                 let powerMode = PowerModeManager.shared
                 if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.autoSendKey.isEnabled {
@@ -551,5 +558,8 @@ class TranscriptionPipeline {
         }
 
         await onDismiss()
+
+        // Start monitoring only after recorder is fully dismissed — no race with focus changes from our own UI
+        AutoLearnVocabularyService.shared.beginMonitoring()
     }
 }

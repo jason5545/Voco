@@ -124,6 +124,10 @@ class Recorder: NSObject, ObservableObject {
             recorder = coreAudioRecorder
             StartupTracer.checkpoint("Recorder.CoreAudioRecorder_created")
 
+            audioRestorationTask?.cancel()
+            audioRestorationTask = nil
+            _ = await mediaController.muteSystemAudio()
+
             // Offload initialization to background thread to avoid hotkey lag.
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 audioSetupQueue.async {
@@ -138,13 +142,9 @@ class Recorder: NSObject, ObservableObject {
             StartupTracer.checkpoint("Recorder.CoreAudioRecorder_started")
             logger.notice("startRecording: CoreAudioRecorder started successfully")
 
-            audioRestorationTask?.cancel()
-            audioRestorationTask = nil
-
             Task { [weak self] in
                 guard let self = self else { return }
                 await self.playbackController.pauseMedia()
-                _ = await self.mediaController.muteSystemAudio()
             }
 
             audioMeterUpdateTimer?.cancel()

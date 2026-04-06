@@ -38,7 +38,7 @@ struct TranscriptionDetailView: View {
                 VStack(spacing: 0) {
                     Divider()
 
-                    AudioPlayerView(url: url)
+                    AudioPlayerView(url: url, transcription: transcription)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
