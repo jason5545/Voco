@@ -124,7 +124,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
             StartupTracer.checkpoint("toggleRecord_start_branch")
             logger.notice("toggleRecord: entering start-recording branch")
             guard transcriptionModelManager.currentTranscriptionModel != nil else {
-                NotificationManager.shared.showNotification(title: "No AI Model Selected", type: .error)
+                NotificationManager.shared.showNotification(title: String(localized: "No AI Model Selected"), type: .error)
                 return
             }
             shouldCancelRecording = false
@@ -254,7 +254,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
             } catch {
                 logger.error("❌ Failed to start recording: \(error.localizedDescription, privacy: .public)")
-                NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
+                NotificationManager.shared.showNotification(title: String(localized: "Recording failed to start"), type: .error)
                 logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")
                 await recorderUIManager?.dismissMiniRecorder()
                 recordedFile = nil

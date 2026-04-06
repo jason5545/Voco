@@ -6624,6 +6624,86 @@
           }
         }
       }
+    },
+    "Timeout duration": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逾時時間"
+          }
+        }
+      }
+    },
+    "On timeout": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逾時處理"
+          }
+        }
+      }
+    },
+    "Request Timeout": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請求逾時"
+          }
+        }
+      }
+    },
+    "Fail immediately": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即失敗"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試"
+          }
+        }
+      }
+    },
+    "%lld seconds": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒"
+          }
+        }
+      }
+    },
+    "Set how long to wait for the AI provider to respond. If no response is received within this duration, you can either fail immediately and paste the original transcription, or retry the request (up to 3 attempts).": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定等待 AI 供應商回應的時間。若在此期間未收到回應，可選擇立即失敗並貼上原始轉錄文字，或重試請求（最多 3 次）。"
+          }
+        }
+      }
+    },
+    "No AI Model Selected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未選擇 AI 模型"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

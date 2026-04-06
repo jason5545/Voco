@@ -432,7 +432,7 @@ class TranscriptionPipeline {
                     transcription.enhancedText = "Enhancement failed: \(error)"
                     await MainActor.run {
                         NotificationManager.shared.showNotification(
-                            title: "Enhancement failed",
+                            title: String(localized: "Enhancement failed"),
                             type: .warning
                         )
                     }
