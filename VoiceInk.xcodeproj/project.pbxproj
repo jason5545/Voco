@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		E11BBA4E2E5DC555000AB839 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = E11BBA4D2E5DC555000AB839 /* FluidAudio */; };
 		E1342C1F2EB4844800CED8A2 /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E1342C1E2EB4844800CED8A2 /* Atomics */; };
-		E1438ED22F3F3D5E00DBE2A1 /* LLMkit in Frameworks */ = {isa = PBXBuildFile; productRef = E1438ED12F3F3D5E00DBE2A1 /* LLMkit */; };
+		E15433AB2F86A73C0083437A /* LLMkit in Frameworks */ = {isa = PBXBuildFile; productRef = E15433AA2F86A73C0083437A /* LLMkit */; };
 		E161D4A12F41ECB90086F83D /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E161D4A02F41ECB90086F83D /* CloudKit.framework */; };
 		E1A261122CC143AC00B233D1 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = E1A261112CC143AC00B233D1 /* KeyboardShortcuts */; };
 		E1ADD45A2CC5352A00303ECB /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = E1ADD4592CC5352A00303ECB /* LaunchAtLogin */; };
@@ -221,10 +221,10 @@
 				E1ECEC162E44591300DFFBA8 /* Zip in Frameworks */,
 				E1ADD45A2CC5352A00303ECB /* LaunchAtLogin in Frameworks */,
 				E11BBA4E2E5DC555000AB839 /* FluidAudio in Frameworks */,
-				E1438ED22F3F3D5E00DBE2A1 /* LLMkit in Frameworks */,
 				E1D7EF992E35E16C00640029 /* MediaRemoteAdapter in Frameworks */,
 				E161D4A12F41ECB90086F83D /* CloudKit.framework in Frameworks */,
 				E1ADD45F2CC544F100303ECB /* Sparkle in Frameworks */,
+				E15433AB2F86A73C0083437A /* LLMkit in Frameworks */,
 				E1F1037B2EF85FC700A4FF94 /* SelectedTextKit in Frameworks */,
 				E1A261122CC143AC00B233D1 /* KeyboardShortcuts in Frameworks */,
 				RN01E5A82F1D200000000001 /* CRNNoise in Frameworks */,
@@ -336,7 +336,7 @@
 				E1Q3A0032F0000000000A003 /* MLXNN */,
 				E1Q3A0042F0000000000A004 /* MLXFast */,
 				RN01E5A82F1D200000000002 /* CRNNoise */,
-				E1438ED12F3F3D5E00DBE2A1 /* LLMkit */,
+				E15433AA2F86A73C0083437A /* LLMkit */,
 				OC01CC022F4E000000000002 /* OpenCC */,
 			);
 			productName = VoiceInk;
@@ -489,7 +489,7 @@
 				E1F103792EF85FC700A4FF94 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */,
 				RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */,
-				E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */,
+				E15433A92F86A73C0083437A /* XCRemoteSwiftPackageReference "LLMkit" */,
 				OC01CC032F4E000000000003 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -730,7 +730,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 172;
+				CURRENT_PROJECT_VERSION = 173;
 				DEVELOPMENT_ASSET_PATHS = "\"VoiceInk/Preview Content\"";
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -745,7 +745,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.72;
+				MARKETING_VERSION = 1.73;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
 				PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
@@ -764,7 +764,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 172;
+				CURRENT_PROJECT_VERSION = 173;
 				DEVELOPMENT_ASSET_PATHS = "\"VoiceInk/Preview Content\"";
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -779,7 +779,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.72;
+				MARKETING_VERSION = 1.73;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
 				PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
@@ -1053,7 +1053,7 @@
 				minimumVersion = 1.3.0;
 			};
 		};
-		E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */ = {
+		E15433A92F86A73C0083437A /* XCRemoteSwiftPackageReference "LLMkit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Beingpax/LLMkit.git";
 			requirement = {
@@ -1138,9 +1138,9 @@
 			package = E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */;
 			productName = Atomics;
 		};
-		E1438ED12F3F3D5E00DBE2A1 /* LLMkit */ = {
+		E15433AA2F86A73C0083437A /* LLMkit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E1438ED02F3F3D5E00DBE2A1 /* XCRemoteSwiftPackageReference "LLMkit" */;
+			package = E15433A92F86A73C0083437A /* XCRemoteSwiftPackageReference "LLMkit" */;
 			productName = LLMkit;
 		};
 		E1A261112CC143AC00B233D1 /* KeyboardShortcuts */ = {

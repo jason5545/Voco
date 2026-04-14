@@ -429,10 +429,12 @@ class TranscriptionPipeline {
                     transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
                     transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
                 } catch {
-                    transcription.enhancedText = "Enhancement failed: \(error)"
+                    let errorDescription = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    transcription.enhancedText = "Enhancement failed: \(errorDescription)"
+                    let shortReason = String(errorDescription.prefix(80))
                     await MainActor.run {
                         NotificationManager.shared.showNotification(
-                            title: String(localized: "Enhancement failed"),
+                        title: String(localized: "Enhancement failed: \(shortReason)"),
                             type: .warning
                         )
                     }

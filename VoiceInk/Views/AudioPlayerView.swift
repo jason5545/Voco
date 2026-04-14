@@ -372,6 +372,7 @@ private enum BannerState: Equatable {
 struct AudioPlayerView: View {
     let url: URL
     let transcription: Transcription?
+    var onInfoTap: (() -> Void)?
     @StateObject private var playerManager = AudioPlayerManager()
     @State private var isHovering = false
     @State private var isRetranscribing = false
@@ -427,17 +428,6 @@ struct AudioPlayerView: View {
                     .help("Playback speed")
 
                     CircleIconButton(
-                        icon: playerManager.isPlaying ? "pause.fill" : "play.fill",
-                        action: { playerManager.isPlaying ? playerManager.pause() : playerManager.play() }
-                    )
-                    .scaleEffect(isHovering ? 1.05 : 1.0)
-                    .onHover { hovering in
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            isHovering = hovering
-                        }
-                    }
-
-                    CircleIconButton(
                         icon: enhancementService.activePrompt?.icon ?? "sparkles",
                         action: { showPromptPopover.toggle() }
                     )
@@ -446,6 +436,17 @@ struct AudioPlayerView: View {
                     .popover(isPresented: $showPromptPopover, arrowEdge: .bottom) {
                         EnhancementPromptPopover()
                             .environmentObject(enhancementService)
+                    }
+
+                    CircleIconButton(
+                        icon: playerManager.isPlaying ? "pause.fill" : "play.fill",
+                        action: { playerManager.isPlaying ? playerManager.pause() : playerManager.play() }
+                    )
+                    .scaleEffect(isHovering ? 1.05 : 1.0)
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isHovering = hovering
+                        }
                     }
 
                     AsyncCircleButton(
@@ -467,6 +468,11 @@ struct AudioPlayerView: View {
                         .disabled(isOperationInProgress || !enhancementService.isEnhancementEnabled || !enhancementService.isConfigured)
                         .opacity(enhancementService.isEnhancementEnabled && enhancementService.isConfigured ? 1.0 : 0.4)
                         .help("Re-enhance with selected prompt")
+                    }
+
+                    if let onInfoTap {
+                        CircleIconButton(icon: "info.circle", action: onInfoTap)
+                            .help("View details")
                     }
                 }
 
@@ -586,4 +592,5 @@ struct AudioPlayerView: View {
             }
         }
     }
-} 
+}
+

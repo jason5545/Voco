@@ -119,25 +119,11 @@ struct ContentView: View {
 
                 ForEach(visibleViewTypes) { viewType in
                     Section {
-                        if viewType == .history {
-                            Button(action: {
-                                HistoryWindowController.shared.showHistoryWindow(
-                                    modelContainer: modelContext.container,
-                                    engine: engine
-                                )
-                            }) {
-                                SidebarItemView(viewType: viewType)
-                            }
-                            .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                            .listRowSeparator(.hidden)
-                        } else {
-                            NavigationLink(value: viewType) {
-                                SidebarItemView(viewType: viewType)
-                            }
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                            .listRowSeparator(.hidden)
+                        NavigationLink(value: viewType) {
+                            SidebarItemView(viewType: viewType)
                         }
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowSeparator(.hidden)
                     }
                 }
             }
@@ -174,10 +160,7 @@ struct ContentView: View {
                 case "Voco Pro":
                     selectedView = .license
                 case "History":
-                    HistoryWindowController.shared.showHistoryWindow(
-                        modelContainer: modelContext.container,
-                        engine: engine
-                    )
+                    selectedView = .history
                 case "Permissions":
                     selectedView = .permissions
                 case "Enhancement":
@@ -205,8 +188,7 @@ struct ContentView: View {
         case .transcribeAudio:
             AudioTranscribeView()
         case .history:
-            Text("History")
-                .foregroundColor(.secondary)
+            InlineHistoryView()
         case .audioInput:
             AudioInputSettingsView()
         case .dictionary:

@@ -4,7 +4,7 @@ import AppKit
 struct ModelCardRowView: View {
     let model: any TranscriptionModel
     let engine: VoiceInkEngine
-    let parakeetModelManager: ParakeetModelManager
+    let fluidAudioModelManager: FluidAudioModelManager
     let transcriptionModelManager: TranscriptionModelManager
     let isDownloaded: Bool
     let isCurrent: Bool
@@ -43,11 +43,11 @@ struct ModelCardRowView: View {
                         setDefaultAction: setDefaultAction
                     )
                 }
-            case .parakeet:
-                if let parakeetModel = model as? ParakeetModel {
-                    ParakeetModelCardRowView(
-                        model: parakeetModel,
-                        parakeetModelManager: parakeetModelManager,
+            case .fluidAudio:
+                if let fluidAudioModel = model as? FluidAudioModel {
+                    FluidAudioModelCardRowView(
+                        model: fluidAudioModel,
+                        fluidAudioModelManager: fluidAudioModelManager,
                         transcriptionModelManager: transcriptionModelManager
                     )
                 }
@@ -90,7 +90,7 @@ struct ModelCardRowView: View {
                         transcriptionModelManager: transcriptionModelManager
                     )
                 }
-            case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox:
+            case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox, .speechmatics:
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(
                         model: cloudModel,

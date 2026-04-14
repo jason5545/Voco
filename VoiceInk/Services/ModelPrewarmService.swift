@@ -180,7 +180,7 @@ final class ModelPrewarmService: ObservableObject {
         }
 
         switch model.provider {
-        case .local, .parakeet, .whisperMLX, .qwen3, .qwen3CoreML:
+        case .local, .fluidAudio, .whisperMLX, .qwen3, .qwen3CoreML:
             return true
         default:
             logger.notice("Skipping prewarm - cloud models don't need it")

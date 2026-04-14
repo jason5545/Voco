@@ -209,46 +209,27 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                     await self.logger.error("❌ Model loading failed: \(error.localizedDescription, privacy: .public)")
                                 }
                             }
-                        case .parakeet:
-                            if let parakeetModel = model as? ParakeetModel {
-                                try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
+                        case .fluidAudio:
+                            if let fluidAudioModel = model as? FluidAudioModel {
+                                try? await self.serviceRegistry.fluidAudioTranscriptionService.loadModel(for: fluidAudioModel)
                             }
                         case .whisperMLX:
                             if let mlxModel = model as? WhisperMLXModel {
                                 try? await self.serviceRegistry.whisperMLXTranscriptionService.preloadModel(for: mlxModel)
                             }
                         case .qwen3, .qwen3CoreML:
-                            break // Qwen3 loads on demand during transcription
+                            break
                         default:
                             break
                         }
                     }
 
                     if let enhancementService = await self.enhancementService {
-                        // Cache app context from EditModeCacheService (fork feature)
                         await MainActor.run {
                             self.cacheEditModeAppContext(capturedAppName: capturedAppName)
+                            enhancementService.captureClipboardContext()
                         }
-
-                        guard !Task.isCancelled else { return }
-
-                        let shouldCaptureClipboard = await MainActor.run {
-                            enhancementService.useClipboardContext
-                        }
-                        if shouldCaptureClipboard {
-                            await MainActor.run {
-                                enhancementService.captureClipboardContext()
-                            }
-                        }
-
-                        guard !Task.isCancelled else { return }
-
-                        let shouldCaptureScreen = await MainActor.run {
-                            enhancementService.useScreenCaptureContext
-                        }
-                        if shouldCaptureScreen {
-                            await enhancementService.captureScreenContext()
-                        }
+                        await enhancementService.captureScreenContext()
                     }
                 }
 

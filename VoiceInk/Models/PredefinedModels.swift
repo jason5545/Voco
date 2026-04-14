@@ -1,6 +1,6 @@
 import Foundation
- 
- enum PredefinedModels {
+
+enum PredefinedModels {
     static func getLanguageDictionary(isMultilingual: Bool, provider: ModelProvider = .local) -> [String: String] {
         if !isMultilingual {
             return ["en": "English"]
@@ -13,6 +13,20 @@ import Foundation
             // Qwen3-ASR supports all languages (30+ languages + auto-detect)
             if provider == .qwen3 || provider == .qwen3CoreML {
                 return allLanguages
+            }
+            // For Speechmatics, return only supported languages
+            if provider == .speechmatics {
+                let speechmaticsSupportedCodes = [
+                    "ar", "ba", "eu", "be", "bn", "bg", "yue", "ca", "hr", "cs", "da",
+                    "nl", "en", "et", "fi", "fr", "gl", "de", "el", "he", "hi",
+                    "hu", "id", "it", "ja", "ko", "lv", "lt", "ms", "mt", "mr",
+                    "mn", "no", "fa", "pl", "pt", "ro", "ru", "sk", "sl", "es",
+                    "sw", "sv", "tl", "ta", "th", "tr", "uk", "ur", "vi", "cy",
+                    "zh"
+                ]
+                var filtered = allLanguages.filter { speechmaticsSupportedCodes.contains($0.key) }
+                filtered["auto"] = "Auto-detect"
+                return filtered
             }
             // For Soniox, return only the 60 languages supported by stt-async-v4
             if provider == .soniox {
@@ -157,7 +171,7 @@ import Foundation
         ),
         
         // Parakeet Models
-        ParakeetModel(
+        FluidAudioModel(
             name: "parakeet-tdt-0.6b-v2",
             displayName: "Parakeet V2",
             description: "NVIDIA's Parakeet V2 model optimized for lightning-fast English-only transcription",
@@ -165,9 +179,9 @@ import Foundation
             speed: 0.99,
             accuracy: 0.94,
             ramUsage: 0.8,
-            supportedLanguages: getLanguageDictionary(isMultilingual: false, provider: .parakeet)
+            supportedLanguages: getLanguageDictionary(isMultilingual: false, provider: .fluidAudio)
         ),
-        ParakeetModel(
+        FluidAudioModel(
             name: "parakeet-tdt-0.6b-v3",
             displayName: "Parakeet V3",
             description: "NVIDIA's Parakeet V3 model with multilingual support across English and 25 European languages",
@@ -175,7 +189,7 @@ import Foundation
             speed: 0.99,
             accuracy: 0.94,
             ramUsage: 0.8,
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .parakeet)
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .fluidAudio)
         ),
 
         // Qwen3-ASR Models
@@ -483,110 +497,122 @@ import Foundation
             accuracy: 0.97,
             isMultilingual: true,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .soniox)
+        ),
+
+        // Speechmatics Models
+        CloudModel(
+            name: "speechmatics-enhanced",
+            displayName: "Speechmatics Realtime",
+            description: "Speechmatics enhanced accuracy transcription with real-time streaming and 50+ language support",
+            provider: .speechmatics,
+            speed: 0.99,
+            accuracy: 0.98,
+            isMultilingual: true,
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .speechmatics)
         )
-     ]
- 
-     static let allLanguages = [
-         "auto": "Auto-detect",
-         "af": "Afrikaans",
-         "am": "Amharic",
-         "ar": "Arabic",
-         "as": "Assamese",
-         "az": "Azerbaijani",
-         "ba": "Bashkir",
-         "be": "Belarusian",
-         "bg": "Bulgarian",
-         "bn": "Bengali",
-         "bo": "Tibetan",
-         "br": "Breton",
-         "bs": "Bosnian",
-         "ca": "Catalan",
-         "cs": "Czech",
-         "cy": "Welsh",
-         "da": "Danish",
-         "de": "German",
-         "el": "Greek",
-         "en": "English",
-         "es": "Spanish",
-         "et": "Estonian",
-         "eu": "Basque",
-         "fa": "Persian",
-         "fi": "Finnish",
-         "fo": "Faroese",
-         "fr": "French",
-         "gl": "Galician",
-         "gu": "Gujarati",
-         "ha": "Hausa",
-         "haw": "Hawaiian",
-         "he": "Hebrew",
-         "hi": "Hindi",
-         "hr": "Croatian",
-         "ht": "Haitian Creole",
-         "hu": "Hungarian",
-         "hy": "Armenian",
-         "id": "Indonesian",
-         "is": "Icelandic",
-         "it": "Italian",
-         "ja": "Japanese",
-         "jw": "Javanese",
-         "ka": "Georgian",
-         "kk": "Kazakh",
-         "km": "Khmer",
-         "kn": "Kannada",
-         "ko": "Korean",
-         "la": "Latin",
-         "lb": "Luxembourgish",
-         "ln": "Lingala",
-         "lo": "Lao",
-         "lt": "Lithuanian",
-         "lv": "Latvian",
-         "mg": "Malagasy",
-         "mi": "Maori",
-         "mk": "Macedonian",
-         "ml": "Malayalam",
-         "mn": "Mongolian",
-         "mr": "Marathi",
-         "ms": "Malay",
-         "mt": "Maltese",
-         "my": "Myanmar",
-         "ne": "Nepali",
-         "nl": "Dutch",
-         "nn": "Norwegian Nynorsk",
-         "no": "Norwegian",
-         "oc": "Occitan",
-         "pa": "Punjabi",
-         "pl": "Polish",
-         "ps": "Pashto",
-         "pt": "Portuguese",
-         "ro": "Romanian",
-         "ru": "Russian",
-         "sa": "Sanskrit",
-         "sd": "Sindhi",
-         "si": "Sinhala",
-         "sk": "Slovak",
-         "sl": "Slovenian",
-         "sn": "Shona",
-         "so": "Somali",
-         "sq": "Albanian",
-         "sr": "Serbian",
-         "su": "Sundanese",
-         "sv": "Swedish",
-         "sw": "Swahili",
-         "ta": "Tamil",
-         "te": "Telugu",
-         "tg": "Tajik",
-         "th": "Thai",
-         "tk": "Turkmen",
-         "tl": "Tagalog",
-         "tr": "Turkish",
-         "tt": "Tatar",
-         "uk": "Ukrainian",
-         "ur": "Urdu",
-         "uz": "Uzbek",
-         "vi": "Vietnamese",
-         "yi": "Yiddish",
-         "yo": "Yoruba",
-         "yue": "Cantonese",
-         "zh": "Chinese",
-     ]
- }
+    ]
+    
+    static let allLanguages = [
+        "auto": "Auto-detect",
+        "af": "Afrikaans",
+        "am": "Amharic",
+        "ar": "Arabic",
+        "as": "Assamese",
+        "az": "Azerbaijani",
+        "ba": "Bashkir",
+        "be": "Belarusian",
+        "bg": "Bulgarian",
+        "bn": "Bengali",
+        "bo": "Tibetan",
+        "br": "Breton",
+        "bs": "Bosnian",
+        "ca": "Catalan",
+        "cs": "Czech",
+        "cy": "Welsh",
+        "da": "Danish",
+        "de": "German",
+        "el": "Greek",
+        "en": "English",
+        "es": "Spanish",
+        "et": "Estonian",
+        "eu": "Basque",
+        "fa": "Persian",
+        "fi": "Finnish",
+        "fo": "Faroese",
+        "fr": "French",
+        "gl": "Galician",
+        "gu": "Gujarati",
+        "ha": "Hausa",
+        "haw": "Hawaiian",
+        "he": "Hebrew",
+        "hi": "Hindi",
+        "hr": "Croatian",
+        "ht": "Haitian Creole",
+        "hu": "Hungarian",
+        "hy": "Armenian",
+        "id": "Indonesian",
+        "is": "Icelandic",
+        "it": "Italian",
+        "ja": "Japanese",
+        "jw": "Javanese",
+        "ka": "Georgian",
+        "kk": "Kazakh",
+        "km": "Khmer",
+        "kn": "Kannada",
+        "ko": "Korean",
+        "la": "Latin",
+        "lb": "Luxembourgish",
+        "ln": "Lingala",
+        "lo": "Lao",
+        "lt": "Lithuanian",
+        "lv": "Latvian",
+        "mg": "Malagasy",
+        "mi": "Maori",
+        "mk": "Macedonian",
+        "ml": "Malayalam",
+        "mn": "Mongolian",
+        "mr": "Marathi",
+        "ms": "Malay",
+        "mt": "Maltese",
+        "my": "Myanmar",
+        "ne": "Nepali",
+        "nl": "Dutch",
+        "nn": "Norwegian Nynorsk",
+        "no": "Norwegian",
+        "oc": "Occitan",
+        "pa": "Punjabi",
+        "pl": "Polish",
+        "ps": "Pashto",
+        "pt": "Portuguese",
+        "ro": "Romanian",
+        "ru": "Russian",
+        "sa": "Sanskrit",
+        "sd": "Sindhi",
+        "si": "Sinhala",
+        "sk": "Slovak",
+        "sl": "Slovenian",
+        "sn": "Shona",
+        "so": "Somali",
+        "sq": "Albanian",
+        "sr": "Serbian",
+        "su": "Sundanese",
+        "sv": "Swedish",
+        "sw": "Swahili",
+        "ta": "Tamil",
+        "te": "Telugu",
+        "tg": "Tajik",
+        "th": "Thai",
+        "tk": "Turkmen",
+        "tl": "Tagalog",
+        "tr": "Turkish",
+        "tt": "Tatar",
+        "uk": "Ukrainian",
+        "ur": "Urdu",
+        "uz": "Uzbek",
+        "vi": "Vietnamese",
+        "yi": "Yiddish",
+        "yo": "Yoruba",
+        "yue": "Cantonese",
+        "zh": "Chinese",
+    ]
+}
