@@ -156,7 +156,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 self.logger.notice("toggleRecord: audio hardware started successfully")
 
                                 guard self.recorderUIManager?.isMiniRecorderVisible ?? false, !self.shouldCancelRecording else {
-                                    self.recorder.stopRecording()
+                                    await self.recorder.stopRecording()
                                     self.recordedFile = nil
                                     self.recordingState = .idle
                                     return

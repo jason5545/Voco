@@ -5,9 +5,21 @@
 import Foundation
 import os
 
-enum Qwen3ServiceError: Error {
+enum Qwen3ServiceError: Error, LocalizedError {
     case invalidModel
     case invalidAudioData
+    case emptyAudioData
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidModel:
+            return "Invalid Qwen3 model."
+        case .invalidAudioData:
+            return "Invalid audio data."
+        case .emptyAudioData:
+            return "No audio samples were captured."
+        }
+    }
 }
 
 /// Read Int16 PCM samples from a WAV file, correctly parsing chunk structure.
@@ -48,6 +60,12 @@ func readWAVSamples(from url: URL) throws -> [Float] {
     }
 
     guard let offset = dataOffset, let size = dataSize, offset + size <= data.count else {
+        throw Qwen3ServiceError.invalidAudioData
+    }
+    guard size > 0 else {
+        throw Qwen3ServiceError.emptyAudioData
+    }
+    guard size >= 2, size.isMultiple(of: 2) else {
         throw Qwen3ServiceError.invalidAudioData
     }
 

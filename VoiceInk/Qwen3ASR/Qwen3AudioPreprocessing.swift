@@ -14,11 +14,14 @@ import MLX
 
 enum Qwen3PreprocessingError: Error, LocalizedError {
     case melFilterbankNotInitialized
+    case emptyAudioInput
 
     var errorDescription: String? {
         switch self {
         case .melFilterbankNotInitialized:
             return "Mel filterbank not initialized"
+        case .emptyAudioInput:
+            return "No audio samples were captured"
         }
     }
 }
@@ -140,6 +143,10 @@ class Qwen3FeatureExtractor {
     }
 
     func extractFeatures(_ audio: [Float]) throws -> MLXArray {
+        guard !audio.isEmpty else {
+            throw Qwen3PreprocessingError.emptyAudioInput
+        }
+
         let padLength = nFFT / 2
         var paddedAudio = [Float](repeating: 0, count: padLength + audio.count + padLength)
 
