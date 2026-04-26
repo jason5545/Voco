@@ -3,19 +3,19 @@
     <channel>
         <title>Voco</title>
         <item>
-            <title>1.73</title>
+            <title>1.74</title>
             <description><![CDATA[
-                <h3>What's New in v1.73</h3>
+                <h3>What's New in v1.74</h3>
                 <ul>
-                    <li>Sync with upstream v1.73: Speechmatics, LocalCLI, InlineHistory, FluidAudio streaming, audio file queue</li>
+                    <li>Sync with upstream v1.74: xAI Grok STT, per-model streaming toggle, custom enhancement shortcut, recording/paste timing fixes</li>
                     <li>All fork features preserved (Qwen3-ASR, WhisperMLX, WhisperCoreML, Chinese Post-Processing, Edit Mode)</li>
                 </ul>
             ]]></description>
-            <pubDate>Tue, 14 Apr 2026 12:00:00 +0800</pubDate>
-            <sparkle:version>173</sparkle:version>
-            <sparkle:shortVersionString>1.73</sparkle:shortVersionString>
+            <pubDate>Sun, 26 Apr 2026 12:00:00 +0800</pubDate>
+            <sparkle:version>174</sparkle:version>
+            <sparkle:shortVersionString>1.74</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.73/Voco-1.73.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
+            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.74/Voco-1.74.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
         </item>
     </channel>
 </rss>

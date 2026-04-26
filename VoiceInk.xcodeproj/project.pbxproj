@@ -41,8 +41,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppIdentifiers.swift,
-				"Transcription/Core/WhisperTokens.swift",
-				"Transcription/Core/WhisperMelSpectrogramCore.swift",
+					"Transcription/Engine/WhisperTokens.swift",
+					"Transcription/Engine/WhisperMelSpectrogramCore.swift",
 				"WhisperMLX/WhisperTokenizer.swift",
 				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
 				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
@@ -71,7 +71,6 @@
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
 				"Models/TranscriptionModel.swift",
-				"Models/PredefinedModels.swift",
 				"Resources/ChineseCorrection/char_pinyin.json",
 				"Resources/ChineseCorrection/pinyin_chars.json",
 				"Resources/ChineseCorrection/word_freq.tsv",
@@ -91,13 +90,12 @@
 			membershipExceptions = (
 				AppIdentifiers.swift,
 				"Models/TranscriptionModel.swift",
-				"Models/PredefinedModels.swift",
 				"Models/AIPrompts.swift",
 				"Models/PredefinedPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
-				"Transcription/Core/WhisperTokens.swift",
-				"Transcription/Core/WhisperMelSpectrogramCore.swift",
+					"Transcription/Engine/WhisperTokens.swift",
+					"Transcription/Engine/WhisperMelSpectrogramCore.swift",
 				"WhisperMLX/WhisperTokenizer.swift",
 				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
 				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
@@ -730,7 +728,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 173;
+				CURRENT_PROJECT_VERSION = 174;
 				DEVELOPMENT_ASSET_PATHS = "\"VoiceInk/Preview Content\"";
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -745,9 +743,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.73;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
-				PRODUCT_NAME = Voco;
+					MARKETING_VERSION = 1.74;
+					PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
+					PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -764,7 +762,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 173;
+				CURRENT_PROJECT_VERSION = 174;
 				DEVELOPMENT_ASSET_PATHS = "\"VoiceInk/Preview Content\"";
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -779,9 +777,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-				MARKETING_VERSION = 1.73;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
-				PRODUCT_NAME = Voco;
+					MARKETING_VERSION = 1.74;
+					PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
+					PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -799,10 +797,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.VocoTests;
-				PRODUCT_NAME = Voco;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VoiceInk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VoiceInk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Voco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voco";
 			};
 			name = Debug;
 		};
@@ -817,10 +815,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.VocoTests;
-				PRODUCT_NAME = Voco;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VoiceInk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VoiceInk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Voco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voco";
 			};
 			name = Release;
 		};
@@ -833,7 +831,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.VocoUITests;
-				PRODUCT_NAME = Voco;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = VoiceInk;
@@ -849,7 +847,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.VocoUITests;
-				PRODUCT_NAME = Voco;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = VoiceInk;
@@ -1087,7 +1085,7 @@
 		};
 		E1D7EF972E35E16C00640029 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ejbills/mediaremote-adapter";
+			repositoryURL = "https://github.com/Beingpax/mediaremote-adapter";
 			requirement = {
 				branch = master;
 				kind = branch;

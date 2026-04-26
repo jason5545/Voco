@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import VoiceInk
+@testable import Voco
 
 @MainActor
 struct ModelPrewarmServiceTests {
@@ -45,13 +45,13 @@ private final class PrewarmTestFixture {
         try FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true)
 
         let whisperModelManager = WhisperModelManager(modelsDirectory: modelsDirectory)
-        let parakeetModelManager = ParakeetModelManager()
+        let fluidAudioModelManager = FluidAudioModelManager()
         let transcriptionModelManager = TranscriptionModelManager(
             whisperModelManager: whisperModelManager,
-            parakeetModelManager: parakeetModelManager
+            fluidAudioModelManager: fluidAudioModelManager
         )
         transcriptionModelManager.currentTranscriptionModel = try #require(
-            PredefinedModels.models.first(where: { $0.provider == .whisperMLX })
+            TranscriptionModelRegistry.models.first(where: { $0.provider == .whisperMLX })
         )
         self.transcriptionModelManager = transcriptionModelManager
 

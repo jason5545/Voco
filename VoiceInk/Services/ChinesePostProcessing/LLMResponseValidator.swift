@@ -35,7 +35,7 @@ class LLMResponseValidator {
 
     /// Short utterances should only receive very small content edits.
     private let shortContentLengthThreshold = 8
-    private let shortContentEditBudget = 2
+    private let shortContentEditBudget = 1
 
     /// Medium utterances can change more, but not drift into a rewrite.
     private let mediumContentLengthThreshold = 24

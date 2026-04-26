@@ -308,7 +308,7 @@ class ChinesePostProcessingService: ObservableObject {
 
         // Provider-specific confidence check
         switch lastModelProvider {
-        case .local, .whisperMLX, .whisperCoreML:
+        case .whisper, .whisperMLX, .whisperCoreML:
             // Whisper (cpp, MLX, or CoreML): force LLM for long CJK text
             let whisperCJKCount = text.unicodeScalars.filter {
                 (0x4E00...0x9FFF).contains($0.value) ||

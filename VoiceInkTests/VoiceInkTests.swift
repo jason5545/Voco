@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import VoiceInk
+@testable import Voco
 
 struct VoiceInkTests {
 
@@ -53,14 +53,16 @@ struct VoiceInkTests {
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
         var state = EditModePollingState()
 
-        let firstGeneration = try #require(state.startPolling())
+        let firstGenerationResult = state.startPolling()
+        let firstGeneration = try #require(firstGenerationResult)
         #expect(state.beginNextRefresh() == firstGeneration)
         #expect(state.enqueueRefresh() == .queuedBehindInFlight)
 
         state.stopPolling()
         #expect(state.shouldApplyResult(for: firstGeneration) == false)
 
-        let secondGeneration = try #require(state.startPolling())
+        let secondGenerationResult = state.startPolling()
+        let secondGeneration = try #require(secondGenerationResult)
         #expect(secondGeneration > firstGeneration)
         #expect(state.enqueueRefresh() == .coalesced)
 
@@ -73,7 +75,8 @@ struct VoiceInkTests {
 
         #expect(state.enqueueRefresh() == .ignoredStopped)
 
-        let generation = try #require(state.startPolling())
+        let generationResult = state.startPolling()
+        let generation = try #require(generationResult)
         #expect(state.shouldContinuePolling(expectedGeneration: generation) == true)
 
         state.stopPolling()

@@ -11,6 +11,7 @@ struct ModelSettingsView: View {
     @AppStorage("PrewarmModelOnWake") private var prewarmModelOnWake = true
     @AppStorage("KeepModelAlive") private var keepModelAlive = false
     @AppStorage("KeepModelAliveOnBattery") private var keepModelAliveOnBattery = false
+    @AppStorage("showLiveTextPreview") private var showLiveTextPreview = true
     @State private var customPrompt: String = ""
     @State private var isEditing: Bool = false
 
@@ -121,6 +122,14 @@ struct ModelSettingsView: View {
                         .padding(.leading, 40)
                     }
                 }
+
+                Toggle(isOn: $showLiveTextPreview) {
+                    HStack(spacing: 4) {
+                        Text("Show Live Text Preview")
+                        InfoTip("Displays the live transcript preview in the recorder while speaking. Only applies when using real-time streaming models.")
+                    }
+                }
+                .toggleStyle(.switch)
             } header: {
                 Text("Transcription")
             }

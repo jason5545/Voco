@@ -18,7 +18,7 @@ struct ModelManagementView: View {
     @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @State private var customModelToEdit: CustomCloudModel?
     @StateObject private var aiService = AIService()
-    @StateObject private var customModelManager = CustomModelManager.shared
+    @StateObject private var customModelManager = CustomCloudModelManager.shared
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @Environment(\.modelContext) private var modelContext
     @StateObject private var whisperPrompt = WhisperPrompt()
@@ -168,11 +168,11 @@ struct ModelManagementView: View {
             
             VStack(spacing: 12) {
                     ForEach(filteredModels, id: \.id) { model in
-                        let isWarming = (model as? LocalModel).map { localModel in
-                            warmupCoordinator.isWarming(modelNamed: localModel.name)
+                        let isWarming = (model as? WhisperModel).map { whisperModel in
+                            warmupCoordinator.isWarming(modelNamed: whisperModel.name)
                         } ?? false
 
-                        ModelCardRowView(
+                        ModelCardView(
                             model: model,
                             engine: engine,
                             fluidAudioModelManager: fluidAudioModelManager,
@@ -208,8 +208,8 @@ struct ModelManagementView: View {
                                 }
                             },
                             downloadAction: {
-                                if let localModel = model as? LocalModel {
-                                    Task { await whisperModelManager.downloadModel(localModel) }
+                                if let whisperModel = model as? WhisperModel {
+                                    Task { await whisperModelManager.downloadModel(whisperModel) }
                                 }
                             },
                             editAction: model.provider == .custom ? { customModel in
@@ -318,10 +318,17 @@ struct ModelManagementView: View {
                 return index1 < index2
             }
         case .local:
-            return transcriptionModelManager.allAvailableModels.filter { $0.provider == .local || $0.provider == .nativeApple || $0.provider == .fluidAudio || $0.provider == .qwen3 || $0.provider == .qwen3CoreML || $0.provider == .whisperMLX }
+            return transcriptionModelManager.allAvailableModels.filter {
+                $0.provider == .whisper ||
+                $0.provider == .nativeApple ||
+                $0.provider == .fluidAudio ||
+                $0.provider == .qwen3 ||
+                $0.provider == .qwen3CoreML ||
+                $0.provider == .whisperMLX ||
+                $0.provider == .whisperCoreML
+            }
         case .cloud:
-            let cloudProviders: [ModelProvider] = [.groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox, .speechmatics]
-            return transcriptionModelManager.allAvailableModels.filter { cloudProviders.contains($0.provider) }
+            return transcriptionModelManager.allAvailableModels.filter { CloudProviderRegistry.provider(for: $0.provider) != nil }
         case .custom:
             return transcriptionModelManager.allAvailableModels.filter { $0.provider == .custom }
         }
@@ -337,7 +344,7 @@ struct ModelManagementView: View {
         panel.title = "Select a Whisper ggml .bin model"
         if panel.runModal() == .OK, let url = panel.url {
             Task { @MainActor in
-                await whisperModelManager.importLocalModel(from: url)
+                await whisperModelManager.importWhisperModel(from: url)
             }
         }
     }
