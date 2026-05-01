@@ -76,20 +76,45 @@ class TranscriptionModelManager: ObservableObject {
         }
     }
 
+    func isAvailableOnCurrentOS(_ model: any TranscriptionModel) -> Bool {
+        switch model.provider {
+        case .nativeApple:
+            if #available(macOS 26, *) { return true } else { return false }
+        default:
+            return true
+        }
+    }
+
     // MARK: - Model loading from UserDefaults
 
     func loadCurrentTranscriptionModel() {
         if let savedModelName = UserDefaults.standard.string(forKey: "CurrentTranscriptionModel"),
            let savedModel = allAvailableModels.first(where: { $0.name == savedModelName }) {
+            guard isAvailableOnCurrentOS(savedModel) else {
+                UserDefaults.standard.removeObject(forKey: "CurrentTranscriptionModel")
+                currentTranscriptionModel = nil
+                return
+            }
+
             currentTranscriptionModel = savedModel
+            ensureSelectedLanguageIsSupported(by: savedModel)
         }
     }
 
     // MARK: - Set default model
 
     func setDefaultTranscriptionModel(_ model: any TranscriptionModel) {
+        guard isAvailableOnCurrentOS(model) else {
+            NotificationManager.shared.showNotification(
+                title: "\(model.displayName) requires macOS 26 or later",
+                type: .error
+            )
+            return
+        }
+
         self.currentTranscriptionModel = model
         UserDefaults.standard.set(model.name, forKey: "CurrentTranscriptionModel")
+        ensureSelectedLanguageIsSupported(by: model)
 
         if model.provider != .whisper {
             whisperModelManager?.loadedWhisperModel = nil
@@ -98,6 +123,16 @@ class TranscriptionModelManager: ObservableObject {
 
         NotificationCenter.default.post(name: .didChangeModel, object: nil, userInfo: ["modelName": model.name])
         NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
+    }
+
+    private func ensureSelectedLanguageIsSupported(by model: any TranscriptionModel) {
+        let currentLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage")
+        let compatibleLanguage = TranscriptionLanguageSupport.validLanguageOrFallback(currentLanguage, for: model)
+
+        if currentLanguage != compatibleLanguage {
+            UserDefaults.standard.set(compatibleLanguage, forKey: "SelectedLanguage")
+            NotificationCenter.default.post(name: .languageDidChange, object: nil)
+        }
     }
 
     // MARK: - Refresh all available models

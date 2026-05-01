@@ -14,6 +14,8 @@ struct LanguageSelectionView: View {
     @ObservedObject var whisperPrompt: WhisperPrompt
 
     private func updateLanguage(_ language: String) {
+        guard selectedLanguage != language else { return }
+
         // Update UI state - the UserDefaults updating is now automatic with @AppStorage
         selectedLanguage = language
 
@@ -40,25 +42,59 @@ struct LanguageSelectionView: View {
         return provider == .fluidAudio || provider == .gemini
     }
 
-    // Function to get current model's supported languages
-    private func getCurrentModelLanguages() -> [String: String] {
+    private func isNativeAppleModelSelected() -> Bool {
+        transcriptionModelManager.currentTranscriptionModel?.provider == .nativeApple
+    }
+
+    private func availableLanguagesForCurrentModel() -> [String: String] {
         guard let currentModel = transcriptionModelManager.currentTranscriptionModel else {
             return ["en": "English"] // Default to English if no model found
         }
-        return currentModel.supportedLanguages
+        return TranscriptionLanguageSupport.languages(for: currentModel)
+    }
+
+    private func useCompatibleLanguageForCurrentModel() {
+        guard let currentModel = transcriptionModelManager.currentTranscriptionModel else { return }
+        updateLanguage(TranscriptionLanguageSupport.validLanguageOrFallback(selectedLanguage, for: currentModel))
     }
 
     // Get the display name of the current language
     private func currentLanguageDisplayName() -> String {
-        return getCurrentModelLanguages()[selectedLanguage] ?? "Unknown"
+        return availableLanguagesForCurrentModel()[selectedLanguage] ?? "Unknown"
+    }
+
+    private var selectedLanguageBinding: Binding<String> {
+        Binding(
+            get: { selectedLanguage },
+            set: { updateLanguage($0) }
+        )
+    }
+
+    private var nativeAppleAssetControl: some View {
+        NativeAppleLanguageAssetControl(
+            localeIdentifier: selectedLanguage,
+            isVisible: true
+        )
+        .layoutPriority(1)
     }
 
     var body: some View {
-        switch displayMode {
-        case .full:
-            fullView
-        case .menuItem:
-            menuItemView
+        Group {
+            switch displayMode {
+            case .full:
+                fullView
+            case .menuItem:
+                menuItemView
+            }
+        }
+        .onAppear {
+            useCompatibleLanguageForCurrentModel()
+        }
+        .onChange(of: transcriptionModelManager.currentTranscriptionModel?.name) { _, _ in
+            useCompatibleLanguageForCurrentModel()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .AppSettingsDidChange)) { _ in
+            useCompatibleLanguageForCurrentModel()
         }
     }
 
@@ -93,20 +129,24 @@ struct LanguageSelectionView: View {
                     .disabled(true)
                 } else if isMultilingualModel() {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("Select Language", selection: $selectedLanguage) {
-                            ForEach(
-                                currentModel.supportedLanguages.sorted(by: {
-                                    if $0.key == "auto" { return true }
-                                    if $1.key == "auto" { return false }
-                                    return $0.value < $1.value
-                                }), id: \.key
-                            ) { key, value in
-                                Text(value).tag(key)
+                        HStack(spacing: 8) {
+                            Picker("Select Language", selection: selectedLanguageBinding) {
+                                ForEach(
+                                    availableLanguagesForCurrentModel().sorted(by: {
+                                        if $0.key == "auto" { return true }
+                                        if $1.key == "auto" { return false }
+                                        return $0.value < $1.value
+                                    }), id: \.key
+                                ) { key, value in
+                                    Text(value).tag(key)
+                                }
                             }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                        .onChange(of: selectedLanguage) { oldValue, newValue in
-                            updateLanguage(newValue)
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(maxWidth: isNativeAppleModelSelected() ? 280 : .infinity, alignment: .leading)
+
+                            if isNativeAppleModelSelected() {
+                                nativeAppleAssetControl
+                            }
                         }
 
                         Text("Current model: \(currentModel.displayName)")
@@ -165,30 +205,36 @@ struct LanguageSelectionView: View {
                 }
                 .disabled(true)
             } else if isMultilingualModel() {
-                Menu {
-                    ForEach(
-                        getCurrentModelLanguages().sorted(by: {
-                            if $0.key == "auto" { return true }
-                            if $1.key == "auto" { return false }
-                            return $0.value < $1.value
-                        }), id: \.key
-                    ) { key, value in
-                        Button {
-                            updateLanguage(key)
-                        } label: {
-                            HStack {
-                                Text(value)
-                                if selectedLanguage == key {
-                                    Image(systemName: "checkmark")
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(
+                            availableLanguagesForCurrentModel().sorted(by: {
+                                if $0.key == "auto" { return true }
+                                if $1.key == "auto" { return false }
+                                return $0.value < $1.value
+                            }), id: \.key
+                        ) { key, value in
+                            Button {
+                                updateLanguage(key)
+                            } label: {
+                                HStack {
+                                    Text(value)
+                                    if selectedLanguage == key {
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
+                    } label: {
+                        HStack {
+                            Text("Language: \(currentLanguageDisplayName())")
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 10))
+                        }
                     }
-                } label: {
-                    HStack {
-                        Text("Language: \(currentLanguageDisplayName())")
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 10))
+
+                    if isNativeAppleModelSelected() {
+                        nativeAppleAssetControl
                     }
                 }
             } else {

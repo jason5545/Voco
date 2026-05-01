@@ -4,7 +4,11 @@ import SwiftUI
 
 private final class AudioPlayerCompletionDelegate: NSObject, AVAudioPlayerDelegate {
     private let onFinished: () -> Void
-    init(_ onFinished: @escaping () -> Void) { self.onFinished = onFinished }
+
+    init(_ onFinished: @escaping () -> Void) {
+        self.onFinished = onFinished
+    }
+
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         DispatchQueue.main.async { self.onFinished() }
     }
@@ -97,10 +101,12 @@ class SoundManager: ObservableObject {
             onFinished?()
             return
         }
+
         guard let player = customStartSound ?? startSound else {
             onFinished?()
             return
         }
+
         player.volume = 0.4
         if let onFinished {
             let delegate = AudioPlayerCompletionDelegate(onFinished)
@@ -137,4 +143,4 @@ class SoundManager: ObservableObject {
             isSoundFeedbackEnabled = newValue
         }
     }
-} 
+}

@@ -3,7 +3,11 @@ import os
 
 struct TranscriptionOutputFilter {
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionOutputFilter")
-    
+
+    private static let removePunctuationKey = "RemovePunctuation"
+    private static let lowercaseTranscriptionKey = "LowercaseTranscription"
+    private static let apostropheLikeCharacters = CharacterSet(charactersIn: "'\u{2019}\u{2018}\u{02BC}\u{FF07}")
+
     private static let hallucinationPatterns = [
         #"\[.*?\]"#,     // []
         #"\(.*?\)"#,     // ()
@@ -52,4 +56,50 @@ struct TranscriptionOutputFilter {
 
         return filteredText
     }
-} 
+
+    static func applyUserCleanupPreferences(_ text: String) -> String {
+        let shouldRemovePunctuation = UserDefaults.standard.bool(forKey: removePunctuationKey)
+        let shouldLowercase = UserDefaults.standard.bool(forKey: lowercaseTranscriptionKey)
+
+        guard shouldRemovePunctuation || shouldLowercase else {
+            return text
+        }
+
+        var cleanedText = text
+        if shouldRemovePunctuation {
+            cleanedText = removePunctuation(from: cleanedText)
+        }
+        if shouldLowercase {
+            cleanedText = cleanedText.lowercased()
+        }
+
+        return cleanedText
+    }
+
+    static func removePunctuation(from text: String) -> String {
+        guard !text.isEmpty else { return text }
+
+        let punctuationSeparators = CharacterSet.punctuationCharacters.subtracting(apostropheLikeCharacters)
+        let cleanedScalars = text.unicodeScalars.map { scalar -> String in
+            if apostropheLikeCharacters.contains(scalar) {
+                return ""
+            }
+
+            if punctuationSeparators.contains(scalar) {
+                return " "
+            }
+
+            return String(scalar)
+        }
+
+        return normalizeWhitespace(cleanedScalars.joined())
+    }
+
+    private static func normalizeWhitespace(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: #"[^\S\r\n]{2,}"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"[ \t]+\n"#, with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: #"\n[ \t]+"#, with: "\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

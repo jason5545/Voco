@@ -9,6 +9,9 @@ struct ApplicationState: Codable {
     var selectedAIModel: String?
     var selectedLanguage: String?
     var transcriptionModelName: String?
+    var isTextFormattingEnabled: Bool?
+    var removePunctuation: Bool?
+    var lowercaseTranscription: Bool?
 }
 
 struct PowerModeSession: Codable {
@@ -51,7 +54,10 @@ class PowerModeSessionManager {
                 selectedAIProvider: enhancementService.getAIService()?.selectedProvider.rawValue,
                 selectedAIModel: enhancementService.getAIService()?.currentModel,
                 selectedLanguage: UserDefaults.standard.string(forKey: "SelectedLanguage"),
-                transcriptionModelName: stateProvider.currentTranscriptionModel?.name
+                transcriptionModelName: stateProvider.currentTranscriptionModel?.name,
+                isTextFormattingEnabled: UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled"),
+                removePunctuation: UserDefaults.standard.bool(forKey: "RemovePunctuation"),
+                lowercaseTranscription: UserDefaults.standard.bool(forKey: "LowercaseTranscription")
             )
 
             let newSession = PowerModeSession(
@@ -100,7 +106,10 @@ class PowerModeSessionManager {
             selectedAIProvider: enhancementService.getAIService()?.selectedProvider.rawValue,
             selectedAIModel: enhancementService.getAIService()?.currentModel,
             selectedLanguage: UserDefaults.standard.string(forKey: "SelectedLanguage"),
-            transcriptionModelName: stateProvider.currentTranscriptionModel?.name
+            transcriptionModelName: stateProvider.currentTranscriptionModel?.name,
+            isTextFormattingEnabled: UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled"),
+            removePunctuation: UserDefaults.standard.bool(forKey: "RemovePunctuation"),
+            lowercaseTranscription: UserDefaults.standard.bool(forKey: "LowercaseTranscription")
         )
 
         session.originalState = updatedState
@@ -130,16 +139,19 @@ class PowerModeSessionManager {
                 }
             }
 
-            if let language = config.selectedLanguage {
-                UserDefaults.standard.set(language, forKey: "SelectedLanguage")
-                NotificationCenter.default.post(name: .languageDidChange, object: nil)
-            }
+            UserDefaults.standard.set(config.isTextFormattingEnabled, forKey: "IsTextFormattingEnabled")
+            UserDefaults.standard.set(config.removePunctuation, forKey: "RemovePunctuation")
+            UserDefaults.standard.set(config.lowercaseTranscription, forKey: "LowercaseTranscription")
         }
 
         if let modelName = config.selectedTranscriptionModelName,
            let selectedModel = await stateProvider.allAvailableModels.first(where: { $0.name == modelName }),
            stateProvider.currentTranscriptionModel?.name != modelName {
             await handleModelChange(to: selectedModel)
+        }
+
+        if let language = config.selectedLanguage {
+            applyCompatibleLanguage(language, preferredModelName: config.selectedTranscriptionModelName)
         }
 
         await MainActor.run {
@@ -165,9 +177,14 @@ class PowerModeSessionManager {
                 }
             }
 
-            if let language = state.selectedLanguage {
-                UserDefaults.standard.set(language, forKey: "SelectedLanguage")
-                NotificationCenter.default.post(name: .languageDidChange, object: nil)
+            if let isTextFormattingEnabled = state.isTextFormattingEnabled {
+                UserDefaults.standard.set(isTextFormattingEnabled, forKey: "IsTextFormattingEnabled")
+            }
+            if let removePunctuation = state.removePunctuation {
+                UserDefaults.standard.set(removePunctuation, forKey: "RemovePunctuation")
+            }
+            if let lowercaseTranscription = state.lowercaseTranscription {
+                UserDefaults.standard.set(lowercaseTranscription, forKey: "LowercaseTranscription")
             }
         }
 
@@ -176,6 +193,27 @@ class PowerModeSessionManager {
            stateProvider.currentTranscriptionModel?.name != modelName {
             await handleModelChange(to: selectedModel)
         }
+
+        if let language = state.selectedLanguage {
+            applyCompatibleLanguage(language, preferredModelName: state.transcriptionModelName)
+        }
+    }
+
+    private func applyCompatibleLanguage(_ language: String, preferredModelName: String?) {
+        guard let model = model(named: preferredModelName) ?? stateProvider?.currentTranscriptionModel else {
+            UserDefaults.standard.set(language, forKey: "SelectedLanguage")
+            NotificationCenter.default.post(name: .languageDidChange, object: nil)
+            return
+        }
+
+        let compatibleLanguage = TranscriptionLanguageSupport.validLanguageOrFallback(language, for: model)
+        UserDefaults.standard.set(compatibleLanguage, forKey: "SelectedLanguage")
+        NotificationCenter.default.post(name: .languageDidChange, object: nil)
+    }
+
+    private func model(named modelName: String?) -> (any TranscriptionModel)? {
+        guard let modelName else { return nil }
+        return stateProvider?.allAvailableModels.first { $0.name == modelName }
     }
 
     private func handleModelChange(to newModel: any TranscriptionModel) async {

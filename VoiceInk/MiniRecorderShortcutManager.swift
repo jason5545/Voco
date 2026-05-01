@@ -57,7 +57,7 @@ class MiniRecorderShortcutManager: ObservableObject {
                     activateEscapeShortcut()
                     activateCancelShortcut()
                     setupPromptShortcuts()
-                    setupPowerModeShortcuts()
+                    refreshPowerModeShortcuts()
                 } else {
                     KeyboardShortcuts.disable(.toggleEnhancement)
                     deactivateEscapeShortcut()
@@ -67,6 +67,15 @@ class MiniRecorderShortcutManager: ObservableObject {
                 }
             }
         }
+    }
+
+    private var canUsePowerModeShortcuts: Bool {
+        UserDefaults.standard.bool(forKey: "powerModeUIFlag") &&
+            !PowerModeManager.shared.enabledConfigurations.isEmpty
+    }
+
+    private func refreshPowerModeShortcuts() {
+        canUsePowerModeShortcuts ? setupPowerModeShortcuts() : removePowerModeShortcuts()
     }
     
     // ESC double-tap cancel is disabled — use double-tap hotkey or custom cancel shortcut instead.
@@ -117,6 +126,11 @@ class MiniRecorderShortcutManager: ObservableObject {
     }
     
     private func setupPowerModeShortcuts() {
+        guard canUsePowerModeShortcuts else {
+            removePowerModeShortcuts()
+            return
+        }
+
         KeyboardShortcuts.setShortcut(.init(.one, modifiers: .option), for: .selectPowerMode1)
         KeyboardShortcuts.setShortcut(.init(.two, modifiers: .option), for: .selectPowerMode2)
         KeyboardShortcuts.setShortcut(.init(.three, modifiers: .option), for: .selectPowerMode3)
@@ -127,7 +141,7 @@ class MiniRecorderShortcutManager: ObservableObject {
         KeyboardShortcuts.setShortcut(.init(.eight, modifiers: .option), for: .selectPowerMode8)
         KeyboardShortcuts.setShortcut(.init(.nine, modifiers: .option), for: .selectPowerMode9)
         KeyboardShortcuts.setShortcut(.init(.zero, modifiers: .option), for: .selectPowerMode10)
-        
+
         // Setup handlers
         setupPowerModeHandler(for: .selectPowerMode1, index: 0)
         setupPowerModeHandler(for: .selectPowerMode2, index: 1)
@@ -145,18 +159,17 @@ class MiniRecorderShortcutManager: ObservableObject {
         KeyboardShortcuts.onKeyDown(for: shortcutName) { [weak self] in
             Task { @MainActor in
                 guard let self = self,
-                      await self.recorderUIManager.isMiniRecorderVisible else { return }
-                
+                      await self.recorderUIManager.isMiniRecorderVisible,
+                      self.canUsePowerModeShortcuts else { return }
+
                 let powerModeManager = PowerModeManager.shared
-                
-                if !powerModeManager.enabledConfigurations.isEmpty {
-                    let availableConfigurations = powerModeManager.enabledConfigurations
-                    if index < availableConfigurations.count {
-                        let selectedConfig = availableConfigurations[index]
-                        powerModeManager.setActiveConfiguration(selectedConfig)
-                        await PowerModeSessionManager.shared.beginSession(with: selectedConfig)
-                    }
-                }
+                let availableConfigurations = powerModeManager.enabledConfigurations
+
+                guard index < availableConfigurations.count else { return }
+
+                let selectedConfig = availableConfigurations[index]
+                powerModeManager.setActiveConfiguration(selectedConfig)
+                await PowerModeSessionManager.shared.beginSession(with: selectedConfig)
             }
         }
     }
@@ -242,4 +255,4 @@ class MiniRecorderShortcutManager: ObservableObject {
             removePowerModeShortcuts()
         }
     }
-} 
+}

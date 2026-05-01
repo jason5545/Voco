@@ -186,7 +186,7 @@ final class AutoLearnVocabularyService {
                     .map { $0.lowercased() }
                     .contains(replWord.lowercased())
             }
-            if let closest = candidates.min(by: { abs($0.position - correctedPosition) < abs($1.position - correctedPosition) }) {
+            if let closest = closestEntity(to: correctedPosition, in: candidates) {
                 wordsToAdd.append(closest.name)
             }
         }
@@ -268,5 +268,16 @@ final class AutoLearnVocabularyService {
             return true
         }
         return entities
+    }
+
+    private func closestEntity(
+        to correctedPosition: Int,
+        in candidates: [(name: String, position: Int)]
+    ) -> (name: String, position: Int)? {
+        candidates.min { lhs, rhs in
+            let lhsDistance = abs(lhs.position - correctedPosition)
+            let rhsDistance = abs(rhs.position - correctedPosition)
+            return lhsDistance < rhsDistance
+        }
     }
 }

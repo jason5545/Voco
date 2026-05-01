@@ -66,7 +66,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Power Mode"
+            "value": "強力模式"
           }
         }
       }
@@ -1046,7 +1046,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "每次錄音結束後，將偏好設定復原為啟動 Power Mode 前的設定。"
+            "value": "每次錄音結束後，將偏好設定復原為啟動強力模式前的設定。"
           }
         }
       }
@@ -1056,7 +1056,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請先停用或移除您的 Power Mode。"
+            "value": "請先停用或移除強力模式。"
           }
         }
       }
@@ -1066,7 +1066,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Power Mode 仍在運作中"
+            "value": "強力模式仍在運作中"
           }
         }
       }
@@ -1916,7 +1916,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Power Mode"
+            "value": "強力模式"
           }
         }
       }
@@ -1936,7 +1936,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增 Power Mode"
+            "value": "新增強力模式"
           }
         }
       }
@@ -1956,7 +1956,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚無 Power Mode"
+            "value": "尚無強力模式"
           }
         }
       }
@@ -1966,7 +1966,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "選取 Power Mode"
+            "value": "選取強力模式"
           }
         }
       }
@@ -1976,7 +1976,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒有可用的 Power Mode"
+            "value": "沒有可用的強力模式"
           }
         }
       }
@@ -1986,7 +1986,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒有 Power Mode"
+            "value": "沒有強力模式"
           }
         }
       }
@@ -1996,7 +1996,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "為不同情境新增自訂 Power Mode"
+            "value": "為不同情境新增自訂強力模式"
           }
         }
       }
@@ -3796,7 +3796,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯出或匯入所有設定、提示詞、Power Mode、字典和自訂模型。"
+            "value": "匯出或匯入所有設定、提示詞、強力模式、字典和自訂模型。"
           }
         }
       }
@@ -4546,7 +4546,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增 Power Mode"
+            "value": "新增強力模式"
           }
         }
       }
@@ -4623,7 +4623,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "指派獨特的鍵盤快速鍵以立即啟動此 Power Mode 並開始錄音。"
+            "value": "指派專屬鍵盤快速鍵，立即啟動此強力模式並開始錄音。"
           }
         }
       }
@@ -4700,7 +4700,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法儲存 Power Mode"
+            "value": "無法儲存強力模式"
           }
         }
       }
@@ -4821,7 +4821,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "當找不到符合的特定 App 或網站時，會使用預設 Power Mode。"
+            "value": "當找不到符合的特定 App 或網站時，會使用預設強力模式。"
           }
         }
       }
@@ -4854,7 +4854,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪除 Power Mode？"
+            "value": "刪除強力模式？"
           }
         }
       }
@@ -5337,7 +5337,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Power Mode 名稱不可為空。"
+            "value": "強力模式名稱不可為空。"
           }
         }
       }
@@ -6008,7 +6008,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "建立第一個 Power Mode，根據您使用的 App 或網站自動化 Voco 工作流程"
+            "value": "建立第一個強力模式，根據您使用的 App 或網站自動化 Voco 工作流程"
           }
         }
       }
@@ -6530,7 +6530,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "編輯 Power Mode"
+            "value": "編輯強力模式"
           }
         }
       }
@@ -6981,6 +6981,246 @@
           "stringUnit": {
             "state": "translated",
             "value": "已新增 %lld 個詞彙"
+          }
+        }
+      }
+    },
+    "Add custom Power Modes for different scenarios": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為不同情境新增自訂強力模式"
+          }
+        }
+      }
+    },
+    "When no specific app or website matches, the default Power Mode is used.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當找不到符合的特定 App 或網站時，會使用預設強力模式。"
+          }
+        }
+      }
+    },
+    "Create your first Power Mode to automate Voco workflows based on the apps or websites you use": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立第一個強力模式，根據您使用的 App 或網站自動化 Voco 工作流程"
+          }
+        }
+      }
+    },
+    "Model Performance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型效能"
+          }
+        }
+      }
+    },
+    "Last 7 Days": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 7 天"
+          }
+        }
+      }
+    },
+    "Last 30 Days": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 30 天"
+          }
+        }
+      }
+    },
+    "This Year": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今年"
+          }
+        }
+      }
+    },
+    "All Time": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部時間"
+          }
+        }
+      }
+    },
+    "No data for this period": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此期間沒有資料"
+          }
+        }
+      }
+    },
+    "%lld sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次工作階段"
+          }
+        }
+      }
+    },
+    "Avg. Processing": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均處理"
+          }
+        }
+      }
+    },
+    "Slower than Real-time": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "慢於即時"
+          }
+        }
+      }
+    },
+    "Real-time": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時"
+          }
+        }
+      }
+    },
+    "This model only supports real-time streaming": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此模型僅支援即時串流"
+          }
+        }
+      }
+    },
+    "Live streaming enabled — click to switch to batch": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已啟用即時串流，點一下切換為批次模式"
+          }
+        }
+      }
+    },
+    "Batch mode — click to enable live streaming": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "批次模式，點一下啟用即時串流"
+          }
+        }
+      }
+    },
+    "Checking Apple Speech language download status.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在檢查 Apple 語音語言下載狀態。"
+          }
+        }
+      }
+    },
+    "Download this Apple Speech language before transcribing.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄前請先下載此 Apple 語音語言。"
+          }
+        }
+      }
+    },
+    "Download Apple Speech language": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載 Apple 語音語言"
+          }
+        }
+      }
+    },
+    "Downloading Apple Speech language.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載 Apple 語音語言。"
+          }
+        }
+      }
+    },
+    "This language is not supported by Apple Speech.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 語音不支援此語言。"
+          }
+        }
+      }
+    },
+    "Apple Speech asset management is not available on this system.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此系統無法使用 Apple 語音資源管理。"
+          }
+        }
+      }
+    },
+    "Retry downloading this Apple Speech language. %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新嘗試下載此 Apple 語音語言。%@"
+          }
+        }
+      }
+    },
+    "Retry Apple Speech language download": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試 Apple 語音語言下載"
           }
         }
       }

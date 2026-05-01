@@ -4,6 +4,8 @@ struct ModelSettingsView: View {
     @ObservedObject var whisperPrompt: WhisperPrompt
     @AppStorage("SelectedLanguage") private var selectedLanguage: String = "en"
     @AppStorage("IsTextFormattingEnabled") private var isTextFormattingEnabled = true
+    @AppStorage("RemovePunctuation") private var removePunctuation = false
+    @AppStorage("LowercaseTranscription") private var lowercaseTranscription = false
     @AppStorage("IsVADEnabled") private var isVADEnabled = true
     @AppStorage("AppendTrailingSpace") private var appendTrailingSpace = true
     @AppStorage("ContextAwareInsertionEnabled") private var contextAwareInsertionEnabled = false
@@ -53,8 +55,11 @@ struct ModelSettingsView: View {
             }
 
             Section {
-                Toggle(isOn: $appendTrailingSpace) {
-                    Text("Add Space After Paste")
+                Toggle(isOn: $isTextFormattingEnabled) {
+                    HStack(spacing: 4) {
+                        Text("Paragraph breaks")
+                        InfoTip("Apply intelligent text formatting to break large block of text into paragraphs.")
+                    }
                 }
                 .toggleStyle(.switch)
 
@@ -79,8 +84,30 @@ struct ModelSettingsView: View {
 
                 Toggle(isOn: $isTextFormattingEnabled) {
                     HStack(spacing: 4) {
-                        Text("Automatic text formatting")
-                        InfoTip("Apply intelligent text formatting to break large block of text into paragraphs.")
+                        Text("Remove punctuation")
+                        InfoTip("Remove punctuation marks from transcription output.")
+                    }
+                }
+                .toggleStyle(.switch)
+
+                Toggle(isOn: $lowercaseTranscription) {
+                    HStack(spacing: 4) {
+                        Text("Lowercase output")
+                        InfoTip("Convert transcription output to lowercase.")
+                    }
+                }
+                .toggleStyle(.switch)
+
+                FillerWordsSettingsView()
+            } header: {
+                Text("Transcript Formatting")
+            }
+
+            Section {
+                Toggle(isOn: $appendTrailingSpace) {
+                    HStack(spacing: 4) {
+                        Text("Add Space After Paste")
+                        InfoTip("Add a trailing space after pasted transcription output.")
                     }
                 }
                 .toggleStyle(.switch)
@@ -131,11 +158,7 @@ struct ModelSettingsView: View {
                 }
                 .toggleStyle(.switch)
             } header: {
-                Text("Transcription")
-            }
-
-            Section {
-                FillerWordsSettingsView()
+                Text("Advanced")
             }
         }
         .formStyle(.grouped)

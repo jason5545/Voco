@@ -18,6 +18,9 @@ struct ConfigurationView: View {
     @State private var selectedPromptId: UUID?
     @State private var selectedTranscriptionModelName: String?
     @State private var selectedLanguage: String?
+    @State private var isTextFormattingEnabled = false
+    @State private var removePunctuation = false
+    @State private var lowercaseTranscription = false
     @State private var installedApps: [(url: URL, name: String, bundleId: String, icon: NSImage)] = []
     @State private var searchText = ""
     @State private var validationErrors: [PowerModeValidationError] = []
@@ -32,6 +35,7 @@ struct ConfigurationView: View {
     @State private var isDefault = false
     @State private var isShowingDeleteConfirmation = false
     @State private var powerModeConfigId: UUID = UUID()
+    @State private var isTranscriptFormattingExpanded = false
 
     private var effectiveModelName: String? {
         selectedTranscriptionModelName ?? transcriptionModelManager.currentTranscriptionModel?.name
@@ -54,6 +58,17 @@ struct ConfigurationView: View {
         return model.provider == .fluidAudio || model.provider == .gemini
     }
 
+    private func availableLanguages(for model: any TranscriptionModel) -> [String: String] {
+        TranscriptionLanguageSupport.languages(for: model)
+    }
+
+    private func useCompatibleLanguage(for model: any TranscriptionModel) {
+        selectedLanguage = TranscriptionLanguageSupport.validLanguageOrFallback(
+            selectedLanguage ?? UserDefaults.standard.string(forKey: "SelectedLanguage"),
+            for: model
+        )
+    }
+
     init(mode: ConfigurationMode, powerModeManager: PowerModeManager, onDismiss: @escaping () -> Void) {
         self.mode = mode
         self.powerModeManager = powerModeManager
@@ -67,6 +82,9 @@ struct ConfigurationView: View {
             _selectedPromptId = State(initialValue: nil)
             _selectedTranscriptionModelName = State(initialValue: nil)
             _selectedLanguage = State(initialValue: nil)
+            _isTextFormattingEnabled = State(initialValue: false)
+            _removePunctuation = State(initialValue: false)
+            _lowercaseTranscription = State(initialValue: false)
             _configName = State(initialValue: "")
             _selectedEmoji = State(initialValue: "✏️")
             _useScreenCapture = State(initialValue: false)
@@ -75,6 +93,7 @@ struct ConfigurationView: View {
             // Use UserDefaults directly since EnvironmentObjects aren't available in init
             _selectedAIProvider = State(initialValue: UserDefaults.standard.string(forKey: "selectedAIProvider"))
             _selectedAIModel = State(initialValue: nil)
+            _isTranscriptFormattingExpanded = State(initialValue: false)
         case .edit(let config):
             // Fetch latest version in case config was modified elsewhere
             let latestConfig = powerModeManager.getConfiguration(with: config.id) ?? config
@@ -83,6 +102,9 @@ struct ConfigurationView: View {
             _selectedPromptId = State(initialValue: latestConfig.selectedPrompt.flatMap { UUID(uuidString: $0) })
             _selectedTranscriptionModelName = State(initialValue: latestConfig.selectedTranscriptionModelName)
             _selectedLanguage = State(initialValue: latestConfig.selectedLanguage)
+            _isTextFormattingEnabled = State(initialValue: latestConfig.isTextFormattingEnabled)
+            _removePunctuation = State(initialValue: latestConfig.removePunctuation)
+            _lowercaseTranscription = State(initialValue: latestConfig.lowercaseTranscription)
             _configName = State(initialValue: latestConfig.name)
             _selectedEmoji = State(initialValue: latestConfig.emoji)
             _selectedAppConfigs = State(initialValue: latestConfig.appConfigs ?? [])
@@ -92,6 +114,7 @@ struct ConfigurationView: View {
             _isDefault = State(initialValue: latestConfig.isDefault)
             _selectedAIProvider = State(initialValue: latestConfig.selectedAIProvider)
             _selectedAIModel = State(initialValue: latestConfig.selectedAIModel)
+            _isTranscriptFormattingExpanded = State(initialValue: latestConfig.isTextFormattingEnabled || latestConfig.removePunctuation || latestConfig.lowercaseTranscription)
         }
     }
 
@@ -275,11 +298,13 @@ struct ConfigurationView: View {
                             }
                         }
                         .onChange(of: selectedTranscriptionModelName) { _, newModelName in
-                            // Auto-set language to "auto" for models that only support auto-detection
                             if let modelName = newModelName ?? transcriptionModelManager.currentTranscriptionModel?.name,
-                               let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }),
-                               model.provider == .fluidAudio || model.provider == .gemini {
-                                selectedLanguage = "auto"
+                               let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }) {
+                                if model.provider == .fluidAudio || model.provider == .gemini {
+                                    selectedLanguage = "auto"
+                                } else {
+                                    useCompatibleLanguage(for: model)
+                                }
                             }
                         }
                     }
@@ -301,7 +326,7 @@ struct ConfigurationView: View {
                         )
 
                         Picker("Language", selection: languageBinding) {
-                            ForEach(modelInfo.supportedLanguages.sorted(by: {
+                            ForEach(availableLanguages(for: modelInfo).sorted(by: {
                                 if $0.key == "auto" { return true }
                                 if $1.key == "auto" { return false }
                                 return $0.value < $1.value
@@ -318,6 +343,48 @@ struct ConfigurationView: View {
                                     selectedLanguage = "en"
                                 }
                             }
+                    }
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isTranscriptFormattingExpanded.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("Transcript Formatting")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .rotationEffect(.degrees(isTranscriptFormattingExpanded ? 90 : 0))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isTranscriptFormattingExpanded {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle(isOn: $isTextFormattingEnabled) {
+                                HStack(spacing: 4) {
+                                    Text("Paragraph breaks")
+                                    InfoTip("Apply intelligent text formatting to break large block of text into paragraphs.")
+                                }
+                            }
+
+                            Toggle(isOn: $removePunctuation) {
+                                HStack(spacing: 4) {
+                                    Text("Remove punctuation")
+                                    InfoTip("Remove punctuation marks from transcription output.")
+                                }
+                            }
+
+                            Toggle(isOn: $lowercaseTranscription) {
+                                HStack(spacing: 4) {
+                                    Text("Lowercase output")
+                                    InfoTip("Convert transcription output to lowercase.")
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
                     }
                 }
 
@@ -491,6 +558,13 @@ struct ConfigurationView: View {
                     selectedPromptId = enhancementService.allPrompts.first?.id
                 }
 
+                if let selectedModelName = effectiveModelName,
+                   let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == selectedModelName }),
+                   model.provider != .fluidAudio,
+                   model.provider != .gemini {
+                    useCompatibleLanguage(for: model)
+                }
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isNameFieldFocused = true
                 }
@@ -556,6 +630,9 @@ struct ConfigurationView: View {
                 selectedTranscriptionModelName: selectedTranscriptionModelName,
                 selectedLanguage: selectedLanguage,
                 useScreenCapture: useScreenCapture,
+                isTextFormattingEnabled: isTextFormattingEnabled,
+                removePunctuation: removePunctuation,
+                lowercaseTranscription: lowercaseTranscription,
                 selectedAIProvider: selectedAIProvider,
                 selectedAIModel: selectedAIModel,
                 autoSendKey: autoSendKey,
@@ -570,6 +647,9 @@ struct ConfigurationView: View {
             updatedConfig.selectedPrompt = selectedPromptId?.uuidString
             updatedConfig.selectedTranscriptionModelName = selectedTranscriptionModelName
             updatedConfig.selectedLanguage = selectedLanguage
+            updatedConfig.isTextFormattingEnabled = isTextFormattingEnabled
+            updatedConfig.removePunctuation = removePunctuation
+            updatedConfig.lowercaseTranscription = lowercaseTranscription
             updatedConfig.appConfigs = selectedAppConfigs.isEmpty ? nil : selectedAppConfigs
             updatedConfig.urlConfigs = websiteConfigs.isEmpty ? nil : websiteConfigs
             updatedConfig.useScreenCapture = useScreenCapture
