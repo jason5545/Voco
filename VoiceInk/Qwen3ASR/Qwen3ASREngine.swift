@@ -63,7 +63,7 @@ actor Qwen3ASREngine {
     /// RMS analysis window: 0.5 seconds
     private static let rmsWindowSize = sampleRate / 2  // 0.5s at 16kHz
 
-    func transcribe(samples: [Float], language: String?, prompt: String? = nil) throws -> Qwen3ASRModel.TranscriptionResult {
+    func transcribe(samples: [Float], language: String?, prompt: String? = nil, decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions()) throws -> Qwen3ASRModel.TranscriptionResult {
         guard let model = model else {
             throw Qwen3ASRModelError.textDecoderNotLoaded
         }
@@ -87,7 +87,7 @@ actor Qwen3ASREngine {
 
         // Audio within 20 minutes: single pass
         if samples.count <= Self.maxSamplesPerChunk {
-            let result = try model.transcribe(audio: samples, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
+            let result = try model.transcribe(audio: samples, sampleRate: Self.sampleRate, language: lang, prompt: prompt, decodingOptions: decodingOptions)
             Memory.clearCache()
             return result
         }
@@ -102,7 +102,7 @@ actor Qwen3ASREngine {
             if remaining <= Self.maxSamplesPerChunk {
                 // Last chunk: take everything
                 let chunk = Array(samples[offset...])
-                let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
+                let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt, decodingOptions: decodingOptions)
                 Memory.clearCache()
                 if !result.text.isEmpty { chunkResults.append(result) }
                 break
@@ -112,7 +112,7 @@ actor Qwen3ASREngine {
             let cutPoint = Self.findSilenceCutPoint(in: samples, targetCut: offset + Self.maxSamplesPerChunk)
             let chunk = Array(samples[offset..<cutPoint])
             Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")
-            let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt)
+            let result = try model.transcribe(audio: chunk, sampleRate: Self.sampleRate, language: lang, prompt: prompt, decodingOptions: decodingOptions)
             Memory.clearCache()
             if !result.text.isEmpty { chunkResults.append(result) }
             offset = cutPoint

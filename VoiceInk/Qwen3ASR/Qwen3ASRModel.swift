@@ -132,7 +132,8 @@ class Qwen3ASRModel {
         sampleRate: Int = 16000,
         language: String? = nil,
         prompt: String? = nil,
-        maxTokens: Int? = nil
+        maxTokens: Int? = nil,
+        decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions()
     ) throws -> TranscriptionResult {
         // Scale maxTokens proportionally to audio duration (448 tokens per 30s baseline)
         let durationSeconds = Double(audio.count) / Double(sampleRate)
@@ -154,7 +155,8 @@ class Qwen3ASRModel {
             textDecoder: textDecoder,
             language: language,
             prompt: prompt,
-            maxTokens: effectiveMaxTokens
+            maxTokens: effectiveMaxTokens,
+            decodingOptions: decodingOptions
         )
 
         // Code-switch remap: detect language from output text using NLLanguageRecognizer.
@@ -179,7 +181,8 @@ class Qwen3ASRModel {
                     textDecoder: textDecoder,
                     language: remappedLang,
                     prompt: prompt,
-                    maxTokens: effectiveMaxTokens
+                    maxTokens: effectiveMaxTokens,
+                    decodingOptions: decodingOptions
                 )
                 // Guard against translation: require that the remapped result
                 // retains at least 70% of CJK characters AND actually gained Latin content.
@@ -212,12 +215,96 @@ class Qwen3ASRModel {
         return result
     }
 
+    /// Pick the next token from logits, optionally applying decoding
+    /// modifications (repetition penalty, no-repeat n-gram, temperature).
+    ///
+    /// Fast path: when all options are at their defaults the function
+    /// falls through to a single `argMax` on the GPU — zero extra cost.
+    private static func pickNextToken(
+        logits: MLXArray,
+        generatedSoFar: [Int32],
+        options: Qwen3DecodingOptions
+    ) -> Int32 {
+        // Fast path — pure greedy, no modifications.
+        if options.repetitionPenalty == 1.0,
+           options.noRepeatNgramSize == 0,
+           options.temperature == 0 {
+            return argMax(logits, axis: -1).squeezed().item(Int32.self)
+        }
+
+        // Pull logits to CPU for modification.
+        let flat = logits.squeezed().asType(.float32)
+        let vocabSize = flat.size
+        var scores: [Float] = flat.asArray(Float.self)
+
+        // Repetition penalty: divide logits for already-generated tokens.
+        if options.repetitionPenalty > 1.0 && !generatedSoFar.isEmpty {
+            let penalty = options.repetitionPenalty
+            for token in Set(generatedSoFar) {
+                let idx = Int(token)
+                guard idx >= 0, idx < vocabSize else { continue }
+                let v = scores[idx]
+                // Positive logits divide; negative logits multiply — matches
+                // HuggingFace's implementation so the penalty always reduces
+                // the probability of the repeated token.
+                scores[idx] = v > 0 ? v / penalty : v * penalty
+            }
+        }
+
+        // No-repeat-ngram: any next token whose emission would form a
+        // repeated n-gram of size N gets pushed to -infinity.
+        let n = options.noRepeatNgramSize
+        if n > 0 && generatedSoFar.count >= n {
+            let lastPrefix = Array(generatedSoFar.suffix(n - 1))
+            for i in 0...(generatedSoFar.count - n) {
+                let window = Array(generatedSoFar[i..<(i + n - 1)])
+                guard window == lastPrefix else { continue }
+                let forbidden = Int(generatedSoFar[i + n - 1])
+                if forbidden >= 0, forbidden < vocabSize {
+                    scores[forbidden] = -.infinity
+                }
+            }
+        }
+
+        // Temperature sampling via Gumbel-max trick:
+        // argmax(logits/T + Gumbel(0,1)) ~ categorical(softmax(logits/T)).
+        if options.temperature > 0 {
+            let t = options.temperature
+            for i in 0..<vocabSize {
+                let u = Float.random(in: 1e-6...1.0)
+                scores[i] = scores[i] / t - Float.log(-Float.log(u))
+            }
+            // Find argmax of modified scores
+            var bestIdx = 0
+            var bestScore = scores[0]
+            for i in 1..<vocabSize {
+                if scores[i] > bestScore {
+                    bestScore = scores[i]
+                    bestIdx = i
+                }
+            }
+            return Int32(bestIdx)
+        }
+
+        // Greedy with penalties applied
+        var bestIdx = 0
+        var bestScore = scores[0]
+        for i in 1..<vocabSize {
+            if scores[i] > bestScore {
+                bestScore = scores[i]
+                bestIdx = i
+            }
+        }
+        return Int32(bestIdx)
+    }
+
     func generateText(
         audioEmbeds: MLXArray,
         textDecoder: Qwen3QuantizedTextModel,
         language: String?,
         prompt: String? = nil,
-        maxTokens: Int
+        maxTokens: Int,
+        decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions()
     ) throws -> TranscriptionResult {
         let tokens = Qwen3ASRTokens.self
         let numAudioTokens = audioEmbeds.dim(1)
@@ -295,14 +382,19 @@ class Qwen3ASRModel {
         let lastHidden = hiddenStates[0..., (seqLen-1)..<seqLen, 0...]
         var logits = textDecoder.embedTokens.asLinear(lastHidden)
 
-        var nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
+        var nextToken = Self.pickNextToken(
+            logits: logits,
+            generatedSoFar: generatedTokens,
+            options: decodingOptions
+        )
 
         if nextToken != Int32(tokens.eosTokenId) {
             collectLogProb(from: logits, token: nextToken)
         }
         generatedTokens.append(nextToken)
 
-        for _ in 1..<maxTokens {
+        var tokenIndex = 1
+        while tokenIndex < maxTokens {
             if nextToken == Int32(tokens.eosTokenId) {
                 break
             }
@@ -313,7 +405,11 @@ class Qwen3ASRModel {
 
             let lastHiddenNext = hiddenStates[0..., (-1)..., .ellipsis]
             logits = textDecoder.embedTokens.asLinear(lastHiddenNext)
-            nextToken = argMax(logits, axis: -1).squeezed().item(Int32.self)
+            nextToken = Self.pickNextToken(
+                logits: logits,
+                generatedSoFar: generatedTokens,
+                options: decodingOptions
+            )
 
             if nextToken != Int32(tokens.eosTokenId) {
                 collectLogProb(from: logits, token: nextToken)
@@ -325,6 +421,7 @@ class Qwen3ASRModel {
             if generatedTokens.count % evalInterval == 0, let currentCache = cache {
                 eval(currentCache.map { [$0.0, $0.1] }.flatMap { $0 } + [logits])
             }
+            tokenIndex += 1
         }
 
         // Final eval to ensure all cache tensors are materialized before they go out of scope
