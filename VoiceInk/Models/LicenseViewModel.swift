@@ -176,7 +176,7 @@ class LicenseViewModel: ObservableObject {
         } catch {
             validationSuccess = false
             logger.error("🔑 Unexpected license error: \(error, privacy: .public)")
-            validationMessage = "An unexpected error occurred. Please try again or contact support at prakashjoshipax@gmail.com"
+            validationMessage = "An unexpected error occurred. Please try again or contact support at support@tryvoiceink.com"
         }
         
         isValidating = false

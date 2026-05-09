@@ -292,7 +292,7 @@ struct SettingsView: View {
             } header: {
                 Text("Backup")
             } footer: {
-                Text("Export or import all your settings, prompts, power modes, dictionary, and custom models.")
+                Text("Export all settings, or choose specific categories when importing a backup.")
             }
 
             // MARK: - Diagnostics

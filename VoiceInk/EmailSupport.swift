@@ -3,8 +3,10 @@ import SwiftUI
 import AppKit
 
 struct EmailSupport {
-    static func generateSupportEmailURL() -> URL? {
-        let subject = "Voco Support Request"
+    private static let supportEmailAddress = "prakashjoshipax@gmail.com"
+    private static let supportEmailSubject = "Voco Support Request"
+
+    static func generateSupportEmailBody() -> String {
         let systemInfo = SystemInfoService.shared.getSystemInfoString()
 
         let body = """
@@ -29,11 +31,15 @@ struct EmailSupport {
 
 
         """
-        
-        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        return body
+    }
+    
+    static func generateSupportEmailURL() -> URL? {
+        let body = generateSupportEmailBody()
+        let encodedSubject = supportEmailSubject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         
-        return URL(string: "mailto:prakashjoshipax@gmail.com?subject=\(encodedSubject)&body=\(encodedBody)")
+        return URL(string: "mailto:\(supportEmailAddress)?subject=\(encodedSubject)&body=\(encodedBody)")
     }
     
     static func openSupportEmail() {
