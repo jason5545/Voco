@@ -188,7 +188,10 @@ class ImportExportService {
             isExperimentalFeaturesEnabled: UserDefaults.standard.bool(forKey: "isExperimentalFeaturesEnabled"),
             restoreClipboardAfterPaste: UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"),
             clipboardRestoreDelay: UserDefaults.standard.double(forKey: "clipboardRestoreDelay"),
-            useAppleScriptPaste: UserDefaults.standard.bool(forKey: "useAppleScriptPaste")
+            useAppleScriptPaste: UserDefaults.standard.bool(forKey: "useAppleScriptPaste"),
+            correctionProtectedWords: UserDefaults.standard.stringArray(forKey: "CorrectionProtectionWords"),
+            llmCorrectionExamples: UserDefaults.standard.string(forKey: "llmCorrectionExamples"),
+            llmUserContext: UserDefaults.standard.string(forKey: "llmUserContext")
         )
 
         let exportedSettings = BackupFile(
