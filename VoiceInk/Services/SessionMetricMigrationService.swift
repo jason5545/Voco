@@ -8,17 +8,24 @@ final class SessionMetricMigrationService {
 
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SessionMetricMigrationService")
     private let completionKey = "HasCompletedStatsMigration"
+    private let backfillVersionKey = "SessionMetricBackfillVersion"
+    private let currentBackfillVersion = 1
     private(set) var isRunning = false
 
     private init() {}
 
     @discardableResult
     func runIfNeeded(modelContainer: ModelContainer) -> Task<Void, Never>? {
-        guard !UserDefaults.standard.bool(forKey: completionKey), !isRunning else { return nil }
+        let needsInitialMigration = !UserDefaults.standard.bool(forKey: completionKey)
+        let needsCurrentBackfill = UserDefaults.standard.integer(forKey: backfillVersionKey) < currentBackfillVersion
+
+        guard (needsInitialMigration || needsCurrentBackfill), !isRunning else { return nil }
         isRunning = true
 
         let logger = self.logger
         let completionKey = self.completionKey
+        let backfillVersionKey = self.backfillVersionKey
+        let currentBackfillVersion = self.currentBackfillVersion
 
         return Task.detached(priority: .utility) {
             let backgroundContext = ModelContext(modelContainer)
@@ -75,7 +82,8 @@ final class SessionMetricMigrationService {
                 }
 
                 UserDefaults.standard.set(true, forKey: completionKey)
-                logger.notice("Completed stats migration with \(insertedCount, privacy: .public) session metric(s)")
+                UserDefaults.standard.set(currentBackfillVersion, forKey: backfillVersionKey)
+                logger.notice("Completed stats migration/backfill with \(insertedCount, privacy: .public) session metric(s)")
             } catch {
                 logger.error("Stats migration failed: \(error.localizedDescription, privacy: .public)")
             }
