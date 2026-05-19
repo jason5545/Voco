@@ -61,6 +61,7 @@ class TranscriptionPipeline {
 
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
+        var didInsertSessionMetric = false
         let postProcessor = ChinesePostProcessingService.shared
 
         logger.notice("🔄 Starting transcription...")
@@ -507,13 +508,53 @@ class TranscriptionPipeline {
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
         }
 
-        try? modelContext.save()
-        NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+        func saveTranscriptionAndPostCompletion() {
+            if transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+                do {
+                    didInsertSessionMetric = try SessionMetricRecorder.recordRecorderSession(
+                        transcription: transcription,
+                        model: model,
+                        in: modelContext
+                    )
+                } catch {
+                    logger.error("Failed to record session metric: \(error.localizedDescription, privacy: .public)")
+                }
+            }
 
-        if shouldCancel() { await onCleanup(); return }
+            do {
+                try modelContext.save()
+                if didInsertSessionMetric {
+                    NotificationCenter.default.post(name: .sessionMetricsDidChange, object: nil)
+                }
+                NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+            } catch {
+                logger.error("Failed to save transcription: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        func restorePromptDetectionSettingsIfNeeded() async {
+            if let result = promptDetectionResult,
+               let enhancementService,
+               result.shouldEnableAI {
+                await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
+            }
+        }
+
+        if shouldCancel() {
+            await onCleanup()
+            saveTranscriptionAndPostCompletion()
+            return
+        }
 
         if var textToPaste = finalPastedText,
            transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+            if case .trialExpired = licenseViewModel.licenseState {
+                textToPaste = """
+                    Your trial has expired. Upgrade to Voco Pro at tryvoiceink.com/buy
+                    \n\(textToPaste)
+                    """
+            }
+
             // Enforce vocabulary casing as the final text processing step
             textToPaste = WordReplacementService.shared.enforceVocabularyCasing(
                 text: textToPaste, using: modelContext)
@@ -526,31 +567,33 @@ class TranscriptionPipeline {
             // === Context-Aware Insertion (fork feature) ===
             textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService, capturedAppPID: capturedAppPID)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-                // Capture element while target field still has focus, before Cmd+V fires
-                let autoLearn = AutoLearnVocabularyService.shared
-                if let element = autoLearn.captureFocusedElement() {
-                    autoLearn.prepareMonitoring(pastedText: textToPaste, element: element, modelContext: self.modelContext)
-                }
+            let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
+            let pastedText = textToPaste + (appendSpace ? " " : "")
+            let autoSendKey = PowerModeManager.shared.currentActiveConfiguration?.autoSendKey
 
-                SoundManager.shared.playStopSound()
-                CursorPaster.pasteAtCursor(textToPaste)
+            // Capture element while target field still has focus, before Cmd+V fires.
+            let autoLearn = AutoLearnVocabularyService.shared
+            if let element = autoLearn.captureFocusedElement() {
+                autoLearn.prepareMonitoring(pastedText: pastedText, element: element, modelContext: modelContext)
+            }
 
-                let powerMode = PowerModeManager.shared
-                if let activeConfig = powerMode.currentActiveConfiguration, activeConfig.autoSendKey.isEnabled {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        CursorPaster.performAutoSend(activeConfig.autoSendKey)
-                    }
+            CursorPaster.startPasteAtCursor(pastedText)
+            SoundManager.shared.playStopSound()
+            await restorePromptDetectionSettingsIfNeeded()
+
+            if let autoSendKey, autoSendKey.isEnabled {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    CursorPaster.performAutoSend(autoSendKey)
                 }
             }
+
+            await onDismiss()
+        } else {
+            await restorePromptDetectionSettingsIfNeeded()
+            await onDismiss()
         }
 
-        if let result = promptDetectionResult,
-           let enhancementService,
-           result.shouldEnableAI {
-            await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
-        }
-
-        await onDismiss()
+        saveTranscriptionAndPostCompletion()
     }
 }
