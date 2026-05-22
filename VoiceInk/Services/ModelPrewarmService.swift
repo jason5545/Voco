@@ -37,7 +37,7 @@ final class ModelPrewarmService: ObservableObject {
     init(
         transcriptionModelManager: TranscriptionModelManager,
         serviceRegistry: any ModelPrewarmTranscribing,
-        prewarmAudioURL: URL? = Bundle.main.url(forResource: "esc", withExtension: "wav"),
+        prewarmAudioURL: URL? = Bundle.main.url(forResource: "sound7", withExtension: "wav"),
         prewarmDelay: Duration = .seconds(3),
         observeWorkspaceNotifications: Bool = true,
         scheduleInitialPrewarm: Bool = true
@@ -141,7 +141,7 @@ final class ModelPrewarmService: ObservableObject {
         guard shouldPrewarm() else { return }
 
         guard let audioURL = prewarmAudioURL else {
-            logger.error("❌ Prewarm audio file (esc.wav) not found")
+            logger.error("❌ Prewarm audio file (sound7.wav) not found")
             return
         }
 

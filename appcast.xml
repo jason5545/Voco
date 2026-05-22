@@ -3,24 +3,21 @@
     <channel>
         <title>Voco</title>
         <item>
-            <title>1.77</title>
+            <title>1.78</title>
             <description><![CDATA[
-                <h3>What's New</h3>
+                <h3>What's New in v1.78</h3>
                 <ul>
-                    <li>⌨️ Added a better unified shortcut system</li>
-                    <li>🧹 Added punctuation cleanup mode</li>
-                    <li>☁️ Improved cloud transcription and AI enhancement handling</li>
-                    <li>📊 Stats are now stored separately from transcript history</li>
-                    <li>🎙️ Improved recording startup reliability</li>
-                    <li>🐛 Stability improvements and bug fixes</li>
+                    <li>🛠️ Fixed reserved shortcuts issue & paste reliability</li>
+                    <li>🔊 Updated sound options</li>
+                    <li>✨ Added Gemini 3.5 Flash model</li>
                     <li>All fork features preserved (Qwen3-ASR, WhisperMLX, WhisperCoreML, Chinese Post-Processing, Edit Mode)</li>
                 </ul>
             ]]></description>
-            <pubDate>Tue, 19 May 2026 12:00:00 +0800</pubDate>
-            <sparkle:version>177</sparkle:version>
-            <sparkle:shortVersionString>1.77</sparkle:shortVersionString>
+            <pubDate>Fri, 22 May 2026 00:00:00 +0800</pubDate>
+            <sparkle:version>178</sparkle:version>
+            <sparkle:shortVersionString>1.78</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.77/Voco-1.77.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
+            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.78/Voco-1.78.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
         </item>
     </channel>
 </rss>

@@ -37,7 +37,7 @@ class TranscriptionPipeline {
     ///   - editModeSelectedText: The selected text for Edit Mode replacement (fork feature).
     ///   - onStateChange: Called when the pipeline moves to a new recording state (e.g. `.enhancing`).
     ///   - shouldCancel: Returns true if the user requested cancellation.
-    ///   - onCleanup: Called when cancellation is detected to release model resources.
+    ///   - onCancel: Called when cancellation is detected to cancel active session state.
     ///   - onDismiss: Called at the end to dismiss the recorder panel.
     ///   - onEditModeComplete: Called when Edit Mode finishes, with optional dictionary suggestion.
     func run(
@@ -50,21 +50,59 @@ class TranscriptionPipeline {
         capturedAppPID: pid_t? = nil,
         onStateChange: @escaping (RecordingState) -> Void,
         shouldCancel: () -> Bool,
-        onCleanup: @escaping () async -> Void,
+        onCancel: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
         onEditModeComplete: ((WordSubstitution?) -> Void)? = nil
     ) async {
-        if shouldCancel() {
-            await onCleanup()
-            return
-        }
-
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
         var didInsertSessionMetric = false
         let postProcessor = ChinesePostProcessingService.shared
 
         logger.notice("🔄 Starting transcription...")
+
+        func restorePromptDetectionSettingsIfNeeded() async {
+            if let result = promptDetectionResult,
+               let enhancementService,
+               result.shouldEnableAI {
+                await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
+            }
+        }
+
+        func restorePromptDetectionSettingsAndDismiss(afterRestore: () -> Void = {}) async {
+            await restorePromptDetectionSettingsIfNeeded()
+            afterRestore()
+            await onDismiss()
+        }
+
+        func finishCanceledTranscription() async {
+            await onCancel()
+            await restorePromptDetectionSettingsIfNeeded()
+
+            let canceledDuration: TimeInterval?
+            if transcription.duration > 0 {
+                canceledDuration = nil
+            } else {
+                let duration = await AudioFileMetadata.duration(for: audioURL)
+                canceledDuration = duration > 0 ? duration : nil
+            }
+
+            transcription.markAsCanceledTranscription(
+                duration: canceledDuration,
+                modelName: transcription.transcriptionModelName ?? model.displayName
+            )
+
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("Failed to save canceled transcription: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        if shouldCancel() {
+            await finishCanceledTranscription()
+            return
+        }
 
         do {
             let transcriptionStart = Date()
@@ -84,7 +122,7 @@ class TranscriptionPipeline {
             let powerModeName = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.name : nil
             let powerModeEmoji = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.emoji : nil
 
-            if shouldCancel() { await onCleanup(); return }
+            if shouldCancel() { await finishCanceledTranscription(); return }
 
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -141,6 +179,12 @@ class TranscriptionPipeline {
                 logger.notice("📝 Skipping Chinese post-processing (detected language: \(detectedLanguage ?? "unknown", privacy: .public))")
             }
 
+            let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
+            if cleanedText != text {
+                logger.notice("📝 User cleanup preferences applied: \(cleanedText, privacy: .private)")
+            }
+            text = cleanedText
+
             let actualDuration = preAudioDuration
 
             transcription.text = text
@@ -160,7 +204,7 @@ class TranscriptionPipeline {
                     enhancementService: enhancementService,
                     onStateChange: onStateChange,
                     shouldCancel: shouldCancel,
-                    onCleanup: onCleanup,
+                    onCleanup: { await finishCanceledTranscription() },
                     onDismiss: onDismiss,
                     onEditModeComplete: onEditModeComplete
                 )
@@ -182,7 +226,7 @@ class TranscriptionPipeline {
 
             // === Prompt detection ===
             if let enhancementService, enhancementService.isConfigured {
-                let detectionResult = await promptDetectionService.analyzeText(text, with: enhancementService)
+                let detectionResult = promptDetectionService.analyzeText(text, with: enhancementService)
                 promptDetectionResult = detectionResult
                 await promptDetectionService.applyDetectionResult(detectionResult, to: enhancementService)
             }
@@ -203,7 +247,7 @@ class TranscriptionPipeline {
                let enhancementService,
                enhancementService.isEnhancementEnabled,
                enhancementService.isConfigured {
-                if shouldCancel() { await onCleanup(); return }
+                if shouldCancel() { await finishCanceledTranscription(); return }
 
                 onStateChange(.enhancing)
                 let textForAI = promptDetectionResult?.processedText ?? text
@@ -431,7 +475,7 @@ class TranscriptionPipeline {
                             type: .warning
                         )
                     }
-                    if shouldCancel() { await onCleanup(); return }
+                    if shouldCancel() { await finishCanceledTranscription(); return }
                 }
             } else if shouldSkipEnhancement {
                 logger.notice("📝 Skipping AI enhancement (confidence routing)")
@@ -504,6 +548,15 @@ class TranscriptionPipeline {
             let recoverySuggestion = (error as? LocalizedError)?.recoverySuggestion ?? ""
             let fullErrorText = recoverySuggestion.isEmpty ? errorDescription : "\(errorDescription) \(recoverySuggestion)"
 
+            if let nativeAppleError = error as? NativeAppleTranscriptionService.ServiceError,
+               case .assetDownloadRequired = nativeAppleError {
+                NotificationManager.shared.showNotification(
+                    title: errorDescription,
+                    type: .error,
+                    duration: 5.0
+                )
+            }
+
             transcription.text = "Transcription Failed: \(fullErrorText)"
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
         }
@@ -532,17 +585,8 @@ class TranscriptionPipeline {
             }
         }
 
-        func restorePromptDetectionSettingsIfNeeded() async {
-            if let result = promptDetectionResult,
-               let enhancementService,
-               result.shouldEnableAI {
-                await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
-            }
-        }
-
         if shouldCancel() {
-            await onCleanup()
-            saveTranscriptionAndPostCompletion()
+            await finishCanceledTranscription()
             return
         }
 
@@ -565,10 +609,7 @@ class TranscriptionPipeline {
             }
 
             // === Context-Aware Insertion (fork feature) ===
-            textToPaste = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService, capturedAppPID: capturedAppPID)
-
-            let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
-            let pastedText = textToPaste + (appendSpace ? " " : "")
+            let pastedText = await applyContextAwareInsertion(textToPaste, enhancementService: enhancementService, capturedAppPID: capturedAppPID)
             let autoSendKey = PowerModeManager.shared.currentActiveConfiguration?.autoSendKey
 
             // Capture element while target field still has focus, before Cmd+V fires.
@@ -577,21 +618,18 @@ class TranscriptionPipeline {
                 autoLearn.prepareMonitoring(pastedText: pastedText, element: element, modelContext: modelContext)
             }
 
-            CursorPaster.startPasteAtCursor(pastedText)
+            _ = await CursorPaster.startPasteAtCursor(pastedText).value
             SoundManager.shared.playStopSound()
-            await restorePromptDetectionSettingsIfNeeded()
-
-            if let autoSendKey, autoSendKey.isEnabled {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    CursorPaster.performAutoSend(autoSendKey)
+            await restorePromptDetectionSettingsAndDismiss {
+                if let autoSendKey, autoSendKey.isEnabled {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        CursorPaster.performAutoSend(autoSendKey)
+                    }
                 }
             }
-
-            await onDismiss()
         } else {
-            await restorePromptDetectionSettingsIfNeeded()
-            await onDismiss()
+            await restorePromptDetectionSettingsAndDismiss()
         }
 
         saveTranscriptionAndPostCompletion()

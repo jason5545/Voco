@@ -18,7 +18,11 @@ extension VoiceInkEngine {
         audioURL: URL,
         model: any TranscriptionModel,
         session: TranscriptionSession?,
-        capturedAppPID: pid_t? = nil
+        capturedAppPID: pid_t? = nil,
+        onStateChange: @escaping (RecordingState) -> Void,
+        shouldCancel: @escaping () -> Bool,
+        onCancel: @escaping () async -> Void,
+        onDismiss: @escaping () async -> Void
     ) async {
         let editMode = forkState.isEditMode
         let editSelectedText = forkState.editModeSelectedText
@@ -31,12 +35,12 @@ extension VoiceInkEngine {
             isEditMode: editMode,
             editModeSelectedText: editSelectedText,
             capturedAppPID: capturedAppPID,
-            onStateChange: { [weak self] state in self?.recordingState = state },
-            shouldCancel: { [weak self] in self?.shouldCancelRecording ?? false },
-            onCleanup: { [weak self] in await self?.cleanupResources() },
+            onStateChange: onStateChange,
+            shouldCancel: shouldCancel,
+            onCancel: onCancel,
             onDismiss: { [weak self] in
                 self?.forkState.clearEditMode()
-                await self?.recorderUIManager?.dismissMiniRecorder()
+                await onDismiss()
             },
             onEditModeComplete: { [weak self] substitution in
                 self?.forkState.pendingDictionaryEntry = substitution

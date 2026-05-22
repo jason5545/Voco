@@ -93,7 +93,8 @@ class RecorderUIManager: ObservableObject {
         logger.notice("toggleMiniRecorder called – visible=\(self.isMiniRecorderVisible, privacy: .public), state=\(String(describing: engine.recordingState), privacy: .public)")
 
         if isMiniRecorderVisible {
-            if engine.recordingState == .recording {
+            switch engine.recordingState {
+            case .recording:
                 if lastRecordingStopTime != nil {
                     // Second press while still recording — cancel, skip transcribing
                     logger.notice("toggleMiniRecorder: double-press cancel")
@@ -115,8 +116,13 @@ class RecorderUIManager: ObservableObject {
                         await engine.toggleRecord(powerModeId: powerModeId)
                     }
                 }
-            } else {
+            case .starting, .transcribing, .enhancing:
+                logger.notice("toggleMiniRecorder: cancelling active recorder work")
+                await cancelRecording()
+            case .idle, .busy:
+                logger.notice("toggleMiniRecorder: dismissing recorder UI")
                 lastRecordingStopTime = nil
+                await dismissMiniRecorder()
             }
         } else {
             StartupTracer.begin("hotkey_press")
@@ -138,31 +144,14 @@ class RecorderUIManager: ObservableObject {
     }
 
     func dismissMiniRecorder() async {
-        guard let engine = engine, let recorder = recorder else { return }
+        guard let engine = engine else { return }
         logger.notice("dismissMiniRecorder called – state=\(String(describing: engine.recordingState), privacy: .public)")
-
-        if engine.recordingState == .busy {
-            logger.notice("dismissMiniRecorder: early return, state is busy")
-            return
-        }
-
-        let wasRecording = engine.recordingState == .recording
-
-        await MainActor.run {
-            engine.recordingState = .busy
-        }
-
-        // Cancel and release any active streaming session to prevent resource leaks.
-        engine.currentSession?.cancel()
-        engine.currentSession = nil
-
-        if wasRecording {
-            await recorder.stopRecording()
-        }
 
         hideRecorderPanel()
 
         lastRecordingStopTime = nil
+        doublePressStopTask?.cancel()
+        doublePressStopTask = nil
 
         // Clear captured context when the recorder is dismissed
         if let enhancementService = engine.enhancementService {
@@ -181,17 +170,6 @@ class RecorderUIManager: ObservableObject {
 
         engine.scheduleModelResourceCleanup()
 
-        if !UserDefaults.standard.bool(forKey: "powerModePersistConfig") {
-            await PowerModeSessionManager.shared.endSession()
-            await MainActor.run {
-                PowerModeManager.shared.setActiveConfiguration(nil)
-            }
-        }
-
-        await MainActor.run {
-            engine.recordingState = .idle
-        }
-
         // Restart edit mode cache polling so next recording gets fresh AX state
         EditModeCacheService.shared.startPolling()
 
@@ -199,9 +177,9 @@ class RecorderUIManager: ObservableObject {
     }
 
     func resetOnLaunch() async {
-        guard let engine = engine, let recorder = recorder else { return }
+        guard let engine = engine else { return }
         logger.notice("Resetting recording state on launch")
-        await recorder.stopRecording()
+        await engine.resetRecordingSession()
         hideRecorderPanel()
         await MainActor.run {
             isMiniRecorderVisible = false
@@ -216,7 +194,6 @@ class RecorderUIManager: ObservableObject {
             engine.forkState.pendingDictionaryEntry = nil
             engine.recordingState = .idle
         }
-        await engine.cleanupResources()
     }
 
     func cancelRecording() async {
@@ -226,7 +203,7 @@ class RecorderUIManager: ObservableObject {
         doublePressStopTask?.cancel()
         doublePressStopTask = nil
         SoundManager.shared.playEscSound()
-        engine.shouldCancelRecording = true
+        await engine.cancelRecording()
         await dismissMiniRecorder()
         NotificationManager.shared.showNotification(
             title: String(localized: "Recording Cancelled"),
