@@ -74,5 +74,6 @@ enum AppDefaults {
         ])
 
         PunctuationCleanupMode.migrateLegacyUserDefaultIfNeeded()
+        PasteMethod.migrateLegacyUserDefaultIfNeeded()
     }
 }

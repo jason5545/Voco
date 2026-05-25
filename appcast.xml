@@ -3,21 +3,22 @@
     <channel>
         <title>Voco</title>
         <item>
-            <title>1.78</title>
+            <title>1.79</title>
             <description><![CDATA[
-                <h3>What's New in v1.78</h3>
+                <h3>What's New in v1.79</h3>
                 <ul>
-                    <li>🛠️ Fixed reserved shortcuts issue & paste reliability</li>
+                    <li>🛠️ Fixed AppleScript paste crash and paste reliability</li>
+                    <li>⌨️ Fixed accidental Fn shortcut triggers</li>
                     <li>🔊 Updated sound options</li>
                     <li>✨ Added Gemini 3.5 Flash model</li>
                     <li>All fork features preserved (Qwen3-ASR, WhisperMLX, WhisperCoreML, Chinese Post-Processing, Edit Mode)</li>
                 </ul>
             ]]></description>
-            <pubDate>Fri, 22 May 2026 00:00:00 +0800</pubDate>
-            <sparkle:version>178</sparkle:version>
-            <sparkle:shortVersionString>1.78</sparkle:shortVersionString>
+            <pubDate>Sat, 23 May 2026 20:23:30 +0545</pubDate>
+            <sparkle:version>179</sparkle:version>
+            <sparkle:shortVersionString>1.79</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.78/Voco-1.78.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
+            <enclosure url="https://github.com/jason5545/Voco/releases/download/v1.79/Voco-1.79.dmg" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
         </item>
     </channel>
 </rss>

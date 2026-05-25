@@ -101,6 +101,7 @@ struct GeneralBackup: Codable {
     let isExperimentalFeaturesEnabled: Bool?
     let restoreClipboardAfterPaste: Bool?
     let clipboardRestoreDelay: Double?
+    let pasteMethodRawValue: String?
     let useAppleScriptPaste: Bool?
 
     // Fork-specific: Chinese post-processing settings
