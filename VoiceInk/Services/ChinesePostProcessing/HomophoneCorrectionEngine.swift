@@ -64,7 +64,7 @@ final class HomophoneCorrectionEngine {
         // Process from end to start so indices remain valid
         for seg in suspicious.reversed() {
             // Skip protected words
-            if CorrectionProtectionList.shared.contains(seg.word) { continue }
+            if isProtected(seg.word, at: seg.approximateOffset, in: textChars) { continue }
 
             // Extract left/right context characters from original text
             let offset = seg.approximateOffset
@@ -127,7 +127,7 @@ final class HomophoneCorrectionEngine {
             if word.count > maxWordLength { continue }
 
             // Skip protected words
-            if CorrectionProtectionList.shared.contains(word) { continue }
+            if isProtected(word, at: charOffset, in: textChars) { continue }
 
             let freq = db.frequency(of: word)
 
@@ -212,6 +212,12 @@ final class HomophoneCorrectionEngine {
             }
         }
         return result
+    }
+
+    private func isProtected(_ word: String, at offset: Int, in chars: [Character]) -> Bool {
+        let protection = CorrectionProtectionList.shared
+        return protection.contains(word)
+            || protection.containsProtectedPhrase(in: chars, covering: offset, length: word.count)
     }
 
     // MARK: - Steps 3-4: Candidate Generation + Scoring

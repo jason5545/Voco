@@ -101,11 +101,22 @@ final class CorrectionProtectionList {
 
     private let key = "CorrectionProtectionWords"
     private let queue = DispatchQueue(label: "com.jasonchien.Voco.protectionList", attributes: .concurrent)
+    private let defaultWords: Set<String> = [
+        "到家",
+        "到家了",
+        "回家",
+        "在家",
+        "我家",
+        "大家",
+        "自家",
+        "M5 Max",
+        "M5 Max 128GB",
+    ]
     private var words: Set<String>
 
     private init() {
         let stored = UserDefaults.standard.stringArray(forKey: key) ?? []
-        self.words = Set(stored)
+        self.words = Set(stored).union(defaultWords)
     }
 
     /// Check if a word (or any substring of it) is protected.
@@ -118,6 +129,31 @@ final class CorrectionProtectionList {
         queue.sync {
             for w in words {
                 if text.contains(w) { return true }
+            }
+            return false
+        }
+    }
+
+    /// Check whether the word at a known offset sits inside a protected phrase.
+    func containsProtectedPhrase(in chars: [Character], covering offset: Int, length: Int, radius: Int = 2) -> Bool {
+        guard !chars.isEmpty, offset >= 0, length > 0, offset < chars.count else {
+            return false
+        }
+
+        let protectedStart = max(0, offset - radius)
+        let protectedEnd = min(chars.count, offset + length + radius)
+        let targetEnd = min(chars.count, offset + length)
+
+        return queue.sync {
+            for start in protectedStart...offset {
+                guard start < targetEnd else { continue }
+                for end in targetEnd...protectedEnd {
+                    guard start < end else { continue }
+                    let phrase = String(chars[start..<end])
+                    if words.contains(phrase) {
+                        return true
+                    }
+                }
             }
             return false
         }

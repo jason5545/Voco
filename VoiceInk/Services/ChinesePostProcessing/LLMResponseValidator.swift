@@ -42,6 +42,12 @@ class LLMResponseValidator {
     private let mediumContentEditRatioThreshold = 0.55
 
     private let listMarkers = ["第一", "第二", "第三", "首先", "其次", "最後", "1.", "2.", "3.", "（1）", "(1)"]
+    private let chineseDigitMap: [Character: Character] = [
+        "零": "0", "〇": "0", "○": "0",
+        "一": "1", "二": "2", "兩": "2", "两": "2",
+        "三": "3", "四": "4", "五": "5", "六": "6",
+        "七": "7", "八": "8", "九": "9",
+    ]
 
     private init() {}
 
@@ -81,12 +87,15 @@ class LLMResponseValidator {
         }
 
         let termsToPreserve = collectProtectedTerms(original: trimmedOriginal, extras: protectedTerms)
-        for term in termsToPreserve where containsEquivalent(term, in: trimmedOriginal) && !containsEquivalent(term, in: trimmedResponse) {
+        let allowedVariantTerms = protectedTerms + customVocabulary
+        for term in termsToPreserve where containsEquivalent(term, in: trimmedOriginal)
+            && !containsEquivalent(term, in: trimmedResponse)
+            && !containsAllowedTechnicalVariant(of: term, in: trimmedResponse, allowedTerms: allowedVariantTerms) {
             reasons.append("dropped-term:\(term)")
         }
 
-        let originalContent = normalizedContent(trimmedOriginal)
-        let responseContent = normalizedContent(trimmedResponse)
+        let originalContent = normalizedNumericContent(trimmedOriginal)
+        let responseContent = normalizedNumericContent(trimmedResponse)
         if !originalContent.isEmpty && responseContent.isEmpty {
             reasons.append("empty-content")
         }
@@ -183,6 +192,26 @@ class LLMResponseValidator {
         return normalizeEquivalentText(text).contains(normalizedTerm)
     }
 
+    private func containsAllowedTechnicalVariant(of term: String, in text: String, allowedTerms: [String]) -> Bool {
+        let normalizedTerm = normalizeEquivalentText(term)
+        let termWithoutDigits = normalizedTerm.filter { !$0.isNumber }
+
+        guard termWithoutDigits.count >= 2, normalizedTerm.contains(where: { $0.isLetter }) else {
+            return false
+        }
+
+        for allowedTerm in allowedTerms where containsEquivalent(allowedTerm, in: text) {
+            let normalizedAllowed = normalizeEquivalentText(allowedTerm)
+            let allowedWithoutDigits = normalizedAllowed.filter { !$0.isNumber }
+
+            if allowedWithoutDigits == termWithoutDigits, normalizedAllowed.count >= normalizedTerm.count {
+                return true
+            }
+        }
+
+        return false
+    }
+
     private func normalizeEquivalentText(_ text: String) -> String {
         let converted = OpenCCConverter.shared.convert(text).lowercased()
         return converted.filter { $0.isLetter || $0.isNumber }
@@ -213,7 +242,9 @@ class LLMResponseValidator {
                 (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value)
                     || (0x20000...0x2A6DF).contains($0.value)
             }
-            let isLatin = char.unicodeScalars.contains(where: { $0.isASCII && CharacterSet.letters.contains($0) })
+            let isLatin = char.unicodeScalars.contains(where: {
+                $0.isASCII && (CharacterSet.letters.contains($0) || CharacterSet.decimalDigits.contains($0))
+            })
 
             if isCJK {
                 if state != .cjk && !buffer.isEmpty {
@@ -257,6 +288,10 @@ class LLMResponseValidator {
         wordReplacements: [(original: String, replacement: String)],
         customVocabulary: [String]
     ) -> Int {
+        if normalizedNumericContent(original) == normalizedNumericContent(response) {
+            return 0
+        }
+
         let origSegments = segmentByScript(original)
         let respSegments = segmentByScript(response)
 
@@ -265,9 +300,11 @@ class LLMResponseValidator {
         let respCJKTexts = Set(respSegments.filter { $0.script == .cjk }.map { $0.text })
 
         // Find Latin segments present in response but not in original
-        let origLatinTexts = Set(origSegments.filter { $0.script == .latin }.map { $0.text.lowercased() })
+        let origLatinTexts = Set(origSegments.filter { $0.script == .latin }.map { normalizeLatinSegment($0.text) })
         let respLatinSegments = respSegments.filter { $0.script == .latin }
-        let newLatinSegments = respLatinSegments.filter { !origLatinTexts.contains($0.text.lowercased()) }
+        let newLatinSegments = respLatinSegments.filter {
+            !origLatinTexts.contains(normalizeLatinSegment($0.text))
+        }
 
         guard !newLatinSegments.isEmpty else { return 0 }
 
@@ -306,22 +343,23 @@ class LLMResponseValidator {
         }
 
         // Custom vocabulary as allowed Latin terms
-        let vocabLower = Set(customVocabulary.map { $0.lowercased() })
+        let normalizedVocabulary = Set(customVocabulary.map { normalizeLatinSegment($0) })
 
         var violations = 0
 
         for newLatin in newLatinSegments {
-            let latinLower = newLatin.text.lowercased().trimmingCharacters(in: .whitespaces)
+            let latinLower = normalizeLatinSegment(newLatin.text)
             guard !latinLower.isEmpty else { continue }
 
             // Check WordReplacement whitelist
             let whitelisted = whitelistPairs.contains { pair in
-                latinLower.contains(pair.latin.lowercased()) || pair.latin.lowercased().contains(latinLower)
+                let normalizedPair = normalizeLatinSegment(pair.latin)
+                return latinLower.contains(normalizedPair) || normalizedPair.contains(latinLower)
             }
             if whitelisted { continue }
 
             // Check CustomVocabulary whitelist
-            if vocabLower.contains(latinLower) { continue }
+            if normalizedVocabulary.contains(latinLower) { continue }
 
             // Check phonetic plausibility against removed CJK segments
             var phoneticallyPlausible = false
@@ -344,6 +382,57 @@ class LLMResponseValidator {
         }
 
         return violations
+    }
+
+    private func normalizeLatinSegment(_ text: String) -> String {
+        text.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
+    private func normalizedNumericContent(_ text: String) -> String {
+        let converted = OpenCCConverter.shared.convert(text).lowercased()
+        var result = ""
+        let chars = Array(converted)
+
+        for (index, char) in chars.enumerated() {
+            if let digit = chineseDigitMap[char], shouldNormalizeChineseDigit(char, at: index, in: chars) {
+                result.append(digit)
+            } else if isChineseNumericPoint(char, at: index, in: chars) {
+                continue
+            } else if char.isLetter || char.isNumber {
+                result.append(char)
+            }
+        }
+
+        return result
+    }
+
+    private func shouldNormalizeChineseDigit(_ char: Character, at index: Int, in chars: [Character]) -> Bool {
+        if char != "一" {
+            return true
+        }
+
+        guard index + 1 < chars.count else {
+            return true
+        }
+
+        let next = chars[index + 1]
+        let nonNumericMeasureWords: Set<Character> = ["個", "个", "下", "些", "種", "种"]
+        return !nonNumericMeasureWords.contains(next)
+    }
+
+    private func isChineseNumericPoint(_ char: Character, at index: Int, in chars: [Character]) -> Bool {
+        guard char == "點" || char == "点" else {
+            return false
+        }
+        guard index > 0, index + 1 < chars.count else {
+            return false
+        }
+
+        return isNumericLike(chars[index - 1]) && isNumericLike(chars[index + 1])
+    }
+
+    private func isNumericLike(_ char: Character) -> Bool {
+        chineseDigitMap[char] != nil || char.isNumber
     }
 
     /// Check if a CJK string and a Latin string are phonetically plausible substitutions.

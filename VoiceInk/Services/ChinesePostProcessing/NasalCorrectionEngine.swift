@@ -87,6 +87,8 @@ final class NasalCorrectionEngine {
             // Skip words too long
             if word.count > maxWordLength { continue }
 
+            if isProtected(word, at: charOffset, in: textChars) { continue }
+
             candidates.append(CandidateWord(word: word, approximateOffset: charOffset))
         }
 
@@ -213,6 +215,12 @@ final class NasalCorrectionEngine {
         }
 
         return best
+    }
+
+    private func isProtected(_ word: String, at offset: Int, in chars: [Character]) -> Bool {
+        let protection = CorrectionProtectionList.shared
+        return protection.contains(word)
+            || protection.containsProtectedPhrase(in: chars, covering: offset, length: word.count)
     }
 
     /// Compute bigram context score for a word given its surrounding characters.
