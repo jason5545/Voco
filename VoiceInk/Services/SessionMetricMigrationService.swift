@@ -9,7 +9,7 @@ final class SessionMetricMigrationService {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SessionMetricMigrationService")
     private let completionKey = "HasCompletedStatsMigration"
     private let backfillVersionKey = "SessionMetricBackfillVersion"
-    private let currentBackfillVersion = 9
+    private let currentBackfillVersion = 10
     private(set) var isRunning = false
 
     private init() {}
@@ -106,6 +106,12 @@ final class SessionMetricMigrationService {
                         selectedCandidate: transcription.selectedCandidate,
                         candidateSelectionSource: transcription.candidateSelectionSource,
                         userCorrectionDistance: transcription.userCorrectionDistance,
+                        correctionFeedbackCount: transcription.correctionFeedback.count,
+                        correctiveFeedbackCount: transcription.correctionFeedback.filter(\.isCorrectiveSignal).count,
+                        correctionFeedbackReasons: SessionMetric.correctionFeedbackReasons(from: transcription.correctionFeedback),
+                        styleGuardReasonCount: SessionMetric.styleGuardReasons(from: transcription.styleGuardReasons).count,
+                        styleGuardReasons: SessionMetric.styleGuardReasons(from: transcription.styleGuardReasons),
+                        styleGuardRejectedCharacterCount: transcription.styleGuardRejectedText?.count ?? 0,
                         sourceTranscriptionID: transcription.sourceTranscriptionID,
                         retranscriptionChangeCategory: transcription.retranscriptionAnalysis?.changeCategory.rawValue,
                         retranscriptionChangeRatio: transcription.retranscriptionAnalysis?.changeRatio,

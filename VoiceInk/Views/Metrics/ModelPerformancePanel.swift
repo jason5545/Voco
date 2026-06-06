@@ -209,6 +209,22 @@ private struct ModelPerformancePanelContent: View {
                 )
 
                 assistiveTile(
+                    icon: "text.badge.checkmark",
+                    title: "Feedback",
+                    value: "\(assistiveSummary.correctionFeedbackCount)",
+                    detail: assistiveSummary.correctionFeedbackDetail,
+                    color: .brown
+                )
+
+                assistiveTile(
+                    icon: "shield.lefthalf.filled",
+                    title: "Style Guard",
+                    value: "\(assistiveSummary.styleGuardRejectionSessionCount)",
+                    detail: assistiveSummary.styleGuardDetail,
+                    color: .green
+                )
+
+                assistiveTile(
                     icon: "rectangle.stack",
                     title: "Candidate Sources",
                     value: "\(assistiveSummary.candidateSourceCandidateCount)",
@@ -431,6 +447,14 @@ struct AssistiveSignalSummary: Equatable {
     let dismissedFallbackCount: Int
     let timeoutFallbackCount: Int
     let automaticFallbackCount: Int
+    let correctionFeedbackSessionCount: Int
+    let correctionFeedbackCount: Int
+    let correctiveFeedbackCount: Int
+    let correctionFeedbackReasonCounts: [String: Int]
+    let styleGuardRejectionSessionCount: Int
+    let styleGuardReasonCount: Int
+    let styleGuardReasonCounts: [String: Int]
+    let styleGuardRejectedCharacterCount: Int
     let candidateSourceSampleCount: Int
     let candidateSourceCandidateCount: Int
     let candidateSourceCounts: [String: Int]
@@ -499,6 +523,32 @@ struct AssistiveSignalSummary: Equatable {
         timeoutFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue }.count
         automaticFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.automaticFallback.rawValue }.count
 
+        correctionFeedbackSessionCount = metrics.filter {
+            $0.correctionFeedbackCount > 0 || !$0.correctionFeedbackReasons.isEmpty
+        }.count
+        correctionFeedbackCount = metrics.reduce(0) { $0 + $1.correctionFeedbackCount }
+        correctiveFeedbackCount = metrics.reduce(0) { $0 + $1.correctiveFeedbackCount }
+        correctionFeedbackReasonCounts = Self.mergedCounts(
+            metrics
+                .map(\.correctionFeedbackReasons)
+                .filter { !$0.isEmpty }
+                .map(Self.countsByValue)
+        )
+
+        styleGuardRejectionSessionCount = metrics.filter {
+            $0.styleGuardReasonCount > 0 ||
+                !$0.styleGuardReasons.isEmpty ||
+                $0.styleGuardRejectedCharacterCount > 0
+        }.count
+        styleGuardReasonCount = metrics.reduce(0) { $0 + $1.styleGuardReasonCount }
+        styleGuardReasonCounts = Self.mergedCounts(
+            metrics
+                .map(\.styleGuardReasons)
+                .filter { !$0.isEmpty }
+                .map(Self.countsByValue)
+        )
+        styleGuardRejectedCharacterCount = metrics.reduce(0) { $0 + $1.styleGuardRejectedCharacterCount }
+
         let sourceBreakdowns = metrics.map(\.candidateSourceCounts).filter { !$0.isEmpty }
         candidateSourceSampleCount = sourceBreakdowns.count
         candidateSourceCounts = Self.mergedCounts(sourceBreakdowns)
@@ -541,19 +591,51 @@ struct AssistiveSignalSummary: Equatable {
 
     var hasData: Bool {
         confidenceRouteSampleCount > 0 ||
-        reviewTriggerCount > 0 ||
-        confidenceScoreSampleCount > 0 ||
-        candidateSelectionCount > 0 ||
-        candidateSourceSampleCount > 0 ||
-        candidateDivergenceRatioSampleCount > 0 ||
-        canonicalizedSessionCount > 0 ||
-        suggestedSessionCount > 0 ||
-        retranscriptionSampleCount > 0 ||
-        pasteCommandSampleCount > 0
+            reviewTriggerCount > 0 ||
+            confidenceScoreSampleCount > 0 ||
+            candidateSelectionCount > 0 ||
+            correctionFeedbackCount > 0 ||
+            styleGuardRejectionSessionCount > 0 ||
+            candidateSourceSampleCount > 0 ||
+            candidateDivergenceRatioSampleCount > 0 ||
+            canonicalizedSessionCount > 0 ||
+            suggestedSessionCount > 0 ||
+            retranscriptionSampleCount > 0 ||
+            pasteCommandSampleCount > 0
     }
 
     var fallbackSelectionCount: Int {
         dismissedFallbackCount + timeoutFallbackCount + automaticFallbackCount
+    }
+
+    var correctionFeedbackDetail: String {
+        guard correctionFeedbackCount > 0 else { return "No feedback recorded" }
+
+        var parts = [
+            "\(correctiveFeedbackCount) corrective / \(Self.unitCount(correctionFeedbackSessionCount, singular: "session", plural: "sessions"))",
+        ]
+        let reasonText = Self.signalReasonSummary(correctionFeedbackReasonCounts, limit: 2)
+        if !reasonText.isEmpty {
+            parts.append(reasonText)
+        }
+        return parts.joined(separator: " / ")
+    }
+
+    var styleGuardDetail: String {
+        guard styleGuardRejectionSessionCount > 0 else { return "No style rejections" }
+
+        var parts = [
+            Self.unitCount(styleGuardRejectionSessionCount, singular: "session", plural: "sessions"),
+        ]
+        if styleGuardRejectedCharacterCount > 0 {
+            parts.append("\(Self.unitCount(styleGuardRejectedCharacterCount, singular: "char", plural: "chars")) rejected")
+        }
+
+        let reasonText = Self.styleGuardReasonSummary(styleGuardReasonCounts, limit: 2)
+        if !reasonText.isEmpty {
+            parts.append(reasonText)
+        }
+        return parts.joined(separator: " / ")
     }
 
     var reviewTriggerDetail: String {
@@ -630,12 +712,56 @@ struct AssistiveSignalSummary: Equatable {
         return "\(sign)\(percent(value))"
     }
 
+    private static func unitCount(_ count: Int, singular: String, plural: String) -> String {
+        "\(count) \(count == 1 ? singular : plural)"
+    }
+
     private static func mergedCounts(_ counts: [[String: Int]]) -> [String: Int] {
         counts.reduce(into: [:]) { merged, next in
             for (key, value) in next {
                 merged[key, default: 0] += value
             }
         }
+    }
+
+    private static func countsByValue(_ values: [String]) -> [String: Int] {
+        values.reduce(into: [:]) { counts, value in
+            counts[value, default: 0] += 1
+        }
+    }
+
+    private static func signalReasonSummary(_ counts: [String: Int], limit: Int) -> String {
+        sortedReasonCounts(counts, displayName: VocoSignalDisplayFormatter.displayReason(for:), limit: limit)
+            .map { "\(VocoSignalDisplayFormatter.displayReason(for: $0.key)) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private static func styleGuardReasonSummary(_ counts: [String: Int], limit: Int) -> String {
+        sortedReasonCounts(counts, displayName: styleGuardDisplayReason(for:), limit: limit)
+            .map { "\(styleGuardDisplayReason(for: $0.key)) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private static func sortedReasonCounts(
+        _ counts: [String: Int],
+        displayName: (String) -> String,
+        limit: Int
+    ) -> [(key: String, value: Int)] {
+        counts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value {
+                    return lhs.value > rhs.value
+                }
+                return displayName(lhs.key) < displayName(rhs.key)
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private static func styleGuardDisplayReason(for reason: String) -> String {
+        let category = reason.split(separator: ":", maxSplits: 1).first.map(String.init) ?? reason
+        return VocoSignalDisplayFormatter.displayReason(for: category)
     }
 
     private static func sourceSummary(_ counts: [String: Int], limit: Int) -> String {

@@ -34,6 +34,12 @@ final class SessionMetric {
     var selectedCandidate: String?
     var candidateSelectionSource: String?
     var userCorrectionDistance: Double?
+    var correctionFeedbackCount: Int = 0
+    var correctiveFeedbackCount: Int = 0
+    var correctionFeedbackReasonsJSON: String?
+    var styleGuardReasonCount: Int = 0
+    var styleGuardReasonsJSON: String?
+    var styleGuardRejectedCharacterCount: Int = 0
     var sourceTranscriptionID: UUID?
     var retranscriptionChangeCategory: String?
     var retranscriptionChangeRatio: Double?
@@ -68,6 +74,16 @@ final class SessionMetric {
         set { candidateSourceCountsJSON = Self.encodeJSON(newValue) }
     }
 
+    var correctionFeedbackReasons: [String] {
+        get { Self.decodeStringArray(correctionFeedbackReasonsJSON) }
+        set { correctionFeedbackReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var styleGuardReasons: [String] {
+        get { Self.decodeStringArray(styleGuardReasonsJSON) }
+        set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
     init(
         transcriptionId: UUID,
         timestamp: Date = Date(),
@@ -99,6 +115,12 @@ final class SessionMetric {
         selectedCandidate: String? = nil,
         candidateSelectionSource: String? = nil,
         userCorrectionDistance: Double? = nil,
+        correctionFeedbackCount: Int = 0,
+        correctiveFeedbackCount: Int = 0,
+        correctionFeedbackReasons: [String] = [],
+        styleGuardReasonCount: Int = 0,
+        styleGuardReasons: [String] = [],
+        styleGuardRejectedCharacterCount: Int = 0,
         sourceTranscriptionID: UUID? = nil,
         retranscriptionChangeCategory: String? = nil,
         retranscriptionChangeRatio: Double? = nil,
@@ -139,6 +161,12 @@ final class SessionMetric {
         self.selectedCandidate = selectedCandidate
         self.candidateSelectionSource = candidateSelectionSource
         self.userCorrectionDistance = userCorrectionDistance
+        self.correctionFeedbackCount = correctionFeedbackCount
+        self.correctiveFeedbackCount = correctiveFeedbackCount
+        self.correctionFeedbackReasonsJSON = Self.encodeJSON(correctionFeedbackReasons)
+        self.styleGuardReasonCount = styleGuardReasonCount
+        self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
+        self.styleGuardRejectedCharacterCount = styleGuardRejectedCharacterCount
         self.sourceTranscriptionID = sourceTranscriptionID
         self.retranscriptionChangeCategory = retranscriptionChangeCategory
         self.retranscriptionChangeRatio = retranscriptionChangeRatio
@@ -172,8 +200,20 @@ final class SessionMetric {
         selectedCandidate = transcription.selectedCandidate
         candidateSelectionSource = transcription.candidateSelectionSource
         userCorrectionDistance = transcription.userCorrectionDistance
+        recordFeedbackAndStyleGuardMetadata(from: transcription)
         recordRetranscriptionMetadata(from: transcription)
         recordFinalPasteMetadata(from: transcription)
+    }
+
+    func recordFeedbackAndStyleGuardMetadata(from transcription: Transcription) {
+        let styleReasons = Self.styleGuardReasons(from: transcription.styleGuardReasons)
+
+        correctionFeedbackCount = transcription.correctionFeedback.count
+        correctiveFeedbackCount = transcription.correctionFeedback.filter(\.isCorrectiveSignal).count
+        correctionFeedbackReasons = Self.correctionFeedbackReasons(from: transcription.correctionFeedback)
+        styleGuardReasonCount = styleReasons.count
+        styleGuardReasons = styleReasons
+        styleGuardRejectedCharacterCount = transcription.styleGuardRejectedText?.count ?? 0
     }
 
     func recordRetranscriptionMetadata(from transcription: Transcription) {
@@ -266,9 +306,25 @@ final class SessionMetric {
         VocoReviewTriggerDisplayFormatter.summaries(for: uniqueReviewTriggers(from: triggers))
     }
 
+    static func correctionFeedbackReasons(from signals: [CorrectionFeedbackSignal]) -> [String] {
+        uniqueNonEmpty(signals.map(\.reason))
+    }
+
+    static func styleGuardReasons(from reasons: [String]) -> [String] {
+        uniqueNonEmpty(reasons)
+    }
+
     private static func uniqueReviewTriggers(from triggers: [VocoReviewTrigger]) -> [VocoReviewTrigger] {
         var seen: Set<String> = []
         return triggers.filter { seen.insert($0.id).inserted }
+    }
+
+    private static func uniqueNonEmpty(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
     }
 
     private static func uniqueCandidateTexts(from hypotheses: [VocoHypothesis]) -> [String] {

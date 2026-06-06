@@ -736,6 +736,27 @@ struct VoiceInkTests {
             confidenceDelta: 0.18,
             changeCategory: .meaningfulChange
         )
+        let correctiveFeedback = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "voice anc",
+            proposedText: "VoiceInk",
+            acceptedText: "VoiceInk",
+            confidenceScore: output.assessment.score,
+            changeRatio: 0.2,
+            reason: "candidate-override",
+            termIDs: ["product.voiceink"]
+        )
+        let fallbackFeedback = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "voice inc",
+            proposedText: "VoiceInk",
+            acceptedText: "VoiceInk",
+            confidenceScore: output.assessment.score,
+            changeRatio: 0.18,
+            reason: "candidate-timeout-fallback",
+            termIDs: ["product.voiceink"]
+        )
+        let styleGuardRejectedText = "以下是我整理後的版本：我現在用 VoiceInk。"
         let transcription = Transcription(
             text: output.result.normalizedText,
             duration: 2.0,
@@ -751,8 +772,14 @@ struct VoiceInkTests {
             confidenceAssessment: output.assessment,
             candidateSelectionSource: .userSelection,
             userCorrectionDistance: 0.12,
+            styleGuardReasons: [
+                "assistant-opener:以下是",
+                "dropped-mixed-language-term:Qwen3-ASR",
+            ],
+            styleGuardRejectedText: styleGuardRejectedText,
             sourceTranscriptionID: sourceTranscriptionID,
             retranscriptionAnalysis: retranscriptionAnalysis,
+            correctionFeedback: [correctiveFeedback, fallbackFeedback],
             transcriptionStatus: .completed
         )
         context.insert(transcription)
@@ -789,6 +816,12 @@ struct VoiceInkTests {
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
         #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(metric.userCorrectionDistance == 0.12)
+        #expect(metric.correctionFeedbackCount == 2)
+        #expect(metric.correctiveFeedbackCount == 1)
+        #expect(metric.correctionFeedbackReasons == ["candidate-override", "candidate-timeout-fallback"])
+        #expect(metric.styleGuardReasonCount == 2)
+        #expect(metric.styleGuardReasons == ["assistant-opener:以下是", "dropped-mixed-language-term:Qwen3-ASR"])
+        #expect(metric.styleGuardRejectedCharacterCount == styleGuardRejectedText.count)
         #expect(metric.sourceTranscriptionID == sourceTranscriptionID)
         #expect(metric.retranscriptionChangeCategory == RetranscriptionChangeCategory.meaningfulChange.rawValue)
         #expect(metric.retranscriptionChangeRatio == 0.25)
@@ -886,6 +919,17 @@ struct VoiceInkTests {
             confidenceDelta: -0.05,
             changeCategory: .minorChange
         )
+        let feedbackSignal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "voice anc",
+            proposedText: "VoiceInk",
+            acceptedText: "VoiceInk",
+            confidenceScore: output.assessment.score,
+            changeRatio: 0.2,
+            reason: "candidate-override",
+            termIDs: ["product.voiceink"]
+        )
+        let styleGuardRejectedText = "以下是我整理後的版本：hello world"
         let transcription = Transcription(
             text: output.result.normalizedText,
             duration: 2.0,
@@ -900,8 +944,11 @@ struct VoiceInkTests {
             languageMode: "auto",
             confidenceAssessment: output.assessment,
             candidateSelectionSource: .timeoutFallback,
+            styleGuardReasons: ["assistant-opener:以下是"],
+            styleGuardRejectedText: styleGuardRejectedText,
             sourceTranscriptionID: sourceTranscriptionID,
             retranscriptionAnalysis: retranscriptionAnalysis,
+            correctionFeedback: [feedbackSignal],
             transcriptionStatus: .completed
         )
         let metric = SessionMetric(
@@ -934,6 +981,12 @@ struct VoiceInkTests {
         #expect(metric.selectedCandidateHypothesisSource == VocoHypothesisSource.autoContext.rawValue)
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
         #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue)
+        #expect(metric.correctionFeedbackCount == 1)
+        #expect(metric.correctiveFeedbackCount == 1)
+        #expect(metric.correctionFeedbackReasons == ["candidate-override"])
+        #expect(metric.styleGuardReasonCount == 1)
+        #expect(metric.styleGuardReasons == ["assistant-opener:以下是"])
+        #expect(metric.styleGuardRejectedCharacterCount == styleGuardRejectedText.count)
         #expect(metric.wordCount == 2)
         #expect(metric.finalPastedWordCount == 2)
         #expect(metric.finalPastedCharacterCount == finalPastedText.count)
@@ -1040,6 +1093,9 @@ struct VoiceInkTests {
             reviewRequiredCandidateCount: 0,
             selectedCandidateHypothesisSource: VocoHypothesisSource.autoContext.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.userSelection.rawValue,
+            correctionFeedbackCount: 1,
+            correctiveFeedbackCount: 0,
+            correctionFeedbackReasons: ["candidate-confirmed"],
             retranscriptionChangeCategory: RetranscriptionChangeCategory.unchanged.rawValue,
             retranscriptionChangeRatio: 0,
             retranscriptionEditDistance: 0,
@@ -1078,6 +1134,15 @@ struct VoiceInkTests {
             candidateDivergenceRatio: 0.25,
             selectedCandidateHypothesisSource: VocoHypothesisSource.suggestedRepair.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
+            correctionFeedbackCount: 2,
+            correctiveFeedbackCount: 2,
+            correctionFeedbackReasons: ["candidate-override", "candidate-custom"],
+            styleGuardReasonCount: 2,
+            styleGuardReasons: [
+                "assistant-opener:以下是",
+                "dropped-mixed-language-term:Qwen3-ASR",
+            ],
+            styleGuardRejectedCharacterCount: 20,
             retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
             retranscriptionChangeRatio: 0.24,
             retranscriptionEditDistance: 6,
@@ -1118,6 +1183,19 @@ struct VoiceInkTests {
         #expect(summary.userSelectionCount == 1)
         #expect(summary.timeoutFallbackCount == 1)
         #expect(summary.fallbackSelectionCount == 1)
+        #expect(summary.correctionFeedbackSessionCount == 2)
+        #expect(summary.correctionFeedbackCount == 3)
+        #expect(summary.correctiveFeedbackCount == 2)
+        #expect(summary.correctionFeedbackReasonCounts["candidate-confirmed"] == 1)
+        #expect(summary.correctionFeedbackReasonCounts["candidate-override"] == 1)
+        #expect(summary.correctionFeedbackReasonCounts["candidate-custom"] == 1)
+        #expect(summary.correctionFeedbackDetail == "2 corrective / 2 sessions / Candidate changed 1, Candidate confirmed 1")
+        #expect(summary.styleGuardRejectionSessionCount == 1)
+        #expect(summary.styleGuardReasonCount == 2)
+        #expect(summary.styleGuardReasonCounts["assistant-opener:以下是"] == 1)
+        #expect(summary.styleGuardReasonCounts["dropped-mixed-language-term:Qwen3-ASR"] == 1)
+        #expect(summary.styleGuardRejectedCharacterCount == 20)
+        #expect(summary.styleGuardDetail == "1 session / 20 chars rejected / Assistant opener 1, Dropped mixed language term 1")
         #expect(summary.candidateSourceSampleCount == 2)
         #expect(summary.candidateSourceCandidateCount == 4)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
