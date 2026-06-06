@@ -436,9 +436,18 @@ struct CandidateReviewView: View {
                                     .background(Circle().fill(Color.white.opacity(index == 0 ? 0.9 : 0.55)))
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(review.labelForCandidate(at: index))
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundColor(.white.opacity(index == 0 ? 0.85 : 0.58))
+                                    HStack(spacing: 5) {
+                                        Text(review.labelForCandidate(at: index))
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(.white.opacity(index == 0 ? 0.85 : 0.58))
+
+                                        if let source = review.sourceDisplayNameForCandidate(at: index) {
+                                            Text(source)
+                                                .font(.system(size: 9, weight: .medium))
+                                                .foregroundColor(.white.opacity(0.42))
+                                                .lineLimit(1)
+                                        }
+                                    }
 
                                     Text(candidate)
                                         .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))

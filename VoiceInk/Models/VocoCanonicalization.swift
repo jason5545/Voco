@@ -75,12 +75,52 @@ enum VocoConfidenceRoute: String, Codable, Equatable {
     case reviewSuggested
 }
 
+enum VocoHypothesisSource: String, Codable, Equatable {
+    case autoContext
+    case suggestedRepair
+    case originalCleaned
+    case rawASR
+    case segmentRescue
+
+    var displayName: String {
+        switch self {
+        case .autoContext:
+            return "AUTO + context"
+        case .suggestedRepair:
+            return "Suggestion pass"
+        case .originalCleaned:
+            return "Cleaned ASR"
+        case .rawASR:
+            return "Raw ASR"
+        case .segmentRescue:
+            return "Segment rescue"
+        }
+    }
+}
+
+struct VocoHypothesis: Codable, Equatable, Identifiable {
+    let id: String
+    let text: String
+    let label: String
+    let source: VocoHypothesisSource
+    let confidenceScore: Double?
+    let reasons: [String]
+    let activeContextIDs: [String]
+    let appliedTermIDs: [String]
+    let requiresReview: Bool
+
+    var sourceDisplayName: String {
+        source.displayName
+    }
+}
+
 struct VocoConfidenceAssessment: Codable, Equatable {
     let score: Double
     let route: VocoConfidenceRoute
     let reasons: [String]
     let candidates: [String]
     let candidateLabels: [String]
+    let hypothesisDetails: [VocoHypothesis]
     let selectedCandidate: String
 
     init(
@@ -89,6 +129,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         reasons: [String],
         candidates: [String],
         candidateLabels: [String] = [],
+        hypothesisDetails: [VocoHypothesis] = [],
         selectedCandidate: String
     ) {
         self.score = score
@@ -96,11 +137,17 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         self.reasons = reasons
         self.candidates = candidates
         self.candidateLabels = candidateLabels
+        self.hypothesisDetails = hypothesisDetails
         self.selectedCandidate = selectedCandidate
     }
 
     func labelForCandidate(at index: Int) -> String {
         guard candidateLabels.indices.contains(index) else { return "Candidate" }
         return candidateLabels[index]
+    }
+
+    func hypothesisForCandidate(at index: Int) -> VocoHypothesis? {
+        guard hypothesisDetails.indices.contains(index) else { return nil }
+        return hypothesisDetails[index]
     }
 }

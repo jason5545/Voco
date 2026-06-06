@@ -15,8 +15,23 @@ struct VocoCandidateReview: Identifiable {
     let id = UUID()
     let candidates: [String]
     let candidateLabels: [String]
+    let hypotheses: [VocoHypothesis]
     let confidenceScore: Double
     let reasons: [String]
+
+    init(
+        candidates: [String],
+        candidateLabels: [String] = [],
+        hypotheses: [VocoHypothesis] = [],
+        confidenceScore: Double,
+        reasons: [String]
+    ) {
+        self.candidates = candidates
+        self.candidateLabels = candidateLabels
+        self.hypotheses = hypotheses
+        self.confidenceScore = confidenceScore
+        self.reasons = reasons
+    }
 
     var defaultCandidate: String? {
         candidates.first
@@ -25,6 +40,15 @@ struct VocoCandidateReview: Identifiable {
     func labelForCandidate(at index: Int) -> String {
         guard candidateLabels.indices.contains(index) else { return "Candidate" }
         return candidateLabels[index]
+    }
+
+    func hypothesisForCandidate(at index: Int) -> VocoHypothesis? {
+        guard hypotheses.indices.contains(index) else { return nil }
+        return hypotheses[index]
+    }
+
+    func sourceDisplayNameForCandidate(at index: Int) -> String? {
+        hypothesisForCandidate(at: index)?.sourceDisplayName
     }
 
     var displayReasons: [String] {

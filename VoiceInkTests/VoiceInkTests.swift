@@ -158,6 +158,8 @@ struct VoiceInkTests {
         #expect(assessment.reasons.contains("unresolved-suggestions"))
         #expect(assessment.candidates.contains("今天看到炎很大"))
         #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
+        #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .suggestedRepair])
+        #expect(assessment.hypothesisDetails[1].appliedTermIDs.contains("song.homura"))
     }
 
     @Test func confidenceGateSuggestsReviewForHeavyNormalization() async throws {
@@ -167,6 +169,19 @@ struct VoiceInkTests {
         #expect(result.replacements.count >= 4)
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("heavy-normalization"))
+    }
+
+    @Test func hypothesisManagerKeepsRawASRAsTraceableCandidate() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink 的 fork 做 voco")
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: "raw qwen transcript"
+        )
+
+        #expect(assessment.hypothesisDetails.map(\.label).contains("Raw ASR"))
+        #expect(assessment.hypothesisDetails.last?.source == .rawASR)
+        #expect(assessment.hypothesisDetails.last?.text == "raw qwen transcript")
+        #expect(assessment.hypothesisDetails.first?.sourceDisplayName == "AUTO + context")
     }
 
     @Test func transcriptionStoresConfidenceGateMetadata() async throws {
@@ -186,13 +201,40 @@ struct VoiceInkTests {
         #expect(transcription.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue)
         #expect(transcription.hypotheses.first == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(transcription.hypothesisLabels.first == "Recommended")
+        #expect(transcription.hypothesisDetails.first?.source == .autoContext)
+        #expect(transcription.hypothesisDetails.first?.appliedTermIDs.contains("model.qwen3-asr") == true)
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
     }
 
     @Test func candidateReviewDisplaysReadableReasonsAndLabels() async throws {
+        let hypothesis = VocoHypothesis(
+            id: "suggestedRepair",
+            text: "今天看到炎很大",
+            label: "With suggestions",
+            source: .suggestedRepair,
+            confidenceScore: 0.62,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [],
+            appliedTermIDs: ["song.homura"],
+            requiresReview: true
+        )
         let review = VocoCandidateReview(
             candidates: ["今天看到焰很大", "今天看到炎很大"],
             candidateLabels: ["Recommended", "With suggestions"],
+            hypotheses: [
+                VocoHypothesis(
+                    id: "autoContext",
+                    text: "今天看到焰很大",
+                    label: "Recommended",
+                    source: .autoContext,
+                    confidenceScore: 0.62,
+                    reasons: ["unresolved-suggestions"],
+                    activeContextIDs: [],
+                    appliedTermIDs: [],
+                    requiresReview: true
+                ),
+                hypothesis,
+            ],
             confidenceScore: 0.62,
             reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"]
         )
@@ -200,6 +242,7 @@ struct VoiceInkTests {
         #expect(review.defaultCandidate == "今天看到焰很大")
         #expect(review.labelForCandidate(at: 1) == "With suggestions")
         #expect(review.labelForCandidate(at: 4) == "Candidate")
+        #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
         #expect(review.displayReasons == ["Needs choice", "High-risk term"])
     }
 

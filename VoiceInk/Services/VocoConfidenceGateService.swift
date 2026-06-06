@@ -55,14 +55,21 @@ final class VocoConfidenceGateService {
             reasons: reasons
         ) ? .reviewSuggested : .directInsertion
 
-        let candidateOptions = candidateOptions(from: normalizationResult, rawTranscript: rawTranscript)
+        let hypothesisDetails = VocoHypothesisManagerService.buildHypotheses(
+            normalizationResult: normalizationResult,
+            rawTranscript: rawTranscript,
+            confidenceScore: boundedScore,
+            route: route,
+            reasons: reasons
+        )
 
         return VocoConfidenceAssessment(
             score: boundedScore,
             route: route,
             reasons: reasons,
-            candidates: candidateOptions.map(\.text),
-            candidateLabels: candidateOptions.map(\.label),
+            candidates: hypothesisDetails.map(\.text),
+            candidateLabels: hypothesisDetails.map(\.label),
+            hypothesisDetails: hypothesisDetails,
             selectedCandidate: normalizationResult.normalizedText
         )
     }
@@ -92,67 +99,5 @@ final class VocoConfidenceGateService {
         let originalCount = max(result.originalText.count, 1)
         let delta = abs(result.normalizedText.count - result.originalText.count)
         return Double(delta) / Double(originalCount) > 0.35
-    }
-
-    private func candidateOptions(
-        from result: VocoNormalizationResult,
-        rawTranscript: String?
-    ) -> [(text: String, label: String)] {
-        var candidates = [
-            (result.normalizedText, "Recommended"),
-            (applying(result.replacements + result.suggestions, to: result.originalText), "With suggestions"),
-            (result.originalText, "Original"),
-        ]
-
-        if let rawTranscript, !rawTranscript.isEmpty {
-            candidates.append((rawTranscript, "Raw ASR"))
-        }
-
-        var seen: Set<String> = []
-        return candidates
-            .map { option in
-                (
-                    text: option.0.trimmingCharacters(in: .whitespacesAndNewlines),
-                    label: option.1
-                )
-            }
-            .filter { !$0.text.isEmpty }
-            .filter { seen.insert($0.text).inserted }
-            .prefix(5)
-            .map { $0 }
-    }
-
-    private func applying(_ replacements: [VocoReplacement], to text: String) -> String {
-        guard !replacements.isEmpty else { return text }
-
-        var result = text
-        let sortedReplacements = replacements
-            .compactMap { replacement -> (replacement: VocoReplacement, start: Int, length: Int)? in
-                guard let start = replacement.rangeStart,
-                      let length = replacement.rangeLength
-                else {
-                    return nil
-                }
-                return (replacement, start, length)
-            }
-            .sorted { $0.start > $1.start }
-
-        var occupied: [Range<Int>] = []
-        for item in sortedReplacements {
-            let range = item.start..<(item.start + item.length)
-            if occupied.contains(where: { $0.overlaps(range) }) {
-                continue
-            }
-            guard let startIndex = result.index(result.startIndex, offsetBy: item.start, limitedBy: result.endIndex),
-                  let endIndex = result.index(startIndex, offsetBy: item.length, limitedBy: result.endIndex)
-            else {
-                continue
-            }
-
-            result.replaceSubrange(startIndex..<endIndex, with: item.replacement.replacementText)
-            occupied.append(range)
-        }
-
-        return result
     }
 }

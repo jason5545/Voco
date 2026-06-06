@@ -40,6 +40,7 @@ final class Transcription {
     var confidenceReasonsJSON: String?
     var hypothesesJSON: String?
     var hypothesisLabelsJSON: String?
+    var hypothesisDetailsJSON: String?
     var selectedCandidate: String?
     var userCorrectionDistance: Double?
     var styleGuardReasonsJSON: String?
@@ -72,6 +73,11 @@ final class Transcription {
     var hypothesisLabels: [String] {
         get { Self.decodeStringArray(hypothesisLabelsJSON) }
         set { hypothesisLabelsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypothesisDetails: [VocoHypothesis] {
+        get { Self.decodeHypotheses(hypothesisDetailsJSON) }
+        set { hypothesisDetailsJSON = Self.encodeJSON(newValue) }
     }
 
     var confidenceReasons: [String] {
@@ -118,6 +124,7 @@ final class Transcription {
          confidenceAssessment: VocoConfidenceAssessment? = nil,
          hypotheses: [String] = [],
          hypothesisLabels: [String] = [],
+         hypothesisDetails: [VocoHypothesis] = [],
          selectedCandidate: String? = nil,
          userCorrectionDistance: Double? = nil,
          styleGuardReasons: [String] = [],
@@ -154,6 +161,7 @@ final class Transcription {
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceAssessment?.reasons ?? [])
         self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
         self.hypothesisLabelsJSON = Self.encodeJSON(confidenceAssessment?.candidateLabels ?? hypothesisLabels)
+        self.hypothesisDetailsJSON = Self.encodeJSON(confidenceAssessment?.hypothesisDetails ?? hypothesisDetails)
         self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
         self.userCorrectionDistance = userCorrectionDistance
         self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
@@ -184,6 +192,7 @@ final class Transcription {
         self.confidenceReasons = confidenceAssessment.reasons
         self.hypotheses = confidenceAssessment.candidates
         self.hypothesisLabels = confidenceAssessment.candidateLabels
+        self.hypothesisDetails = confidenceAssessment.hypothesisDetails
         self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
@@ -271,6 +280,7 @@ final class Transcription {
         confidenceReasons = []
         hypotheses = []
         hypothesisLabels = []
+        hypothesisDetails = []
         selectedCandidate = nil
         userCorrectionDistance = nil
         styleGuardReasons = []
@@ -300,6 +310,16 @@ final class Transcription {
         guard let json,
               let data = json.data(using: .utf8),
               let values = try? JSONDecoder().decode([VocoReplacement].self, from: data)
+        else {
+            return []
+        }
+        return values
+    }
+
+    private static func decodeHypotheses(_ json: String?) -> [VocoHypothesis] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([VocoHypothesis].self, from: data)
         else {
             return []
         }

@@ -160,7 +160,8 @@ struct TranscriptionInfoPanel: View {
                 if !transcription.hypotheses.isEmpty {
                     candidateList(
                         candidates: transcription.hypotheses,
-                        labels: transcription.hypothesisLabels
+                        labels: transcription.hypothesisLabels,
+                        hypotheses: transcription.hypothesisDetails
                     )
                 }
             } header: {
@@ -372,7 +373,7 @@ struct TranscriptionInfoPanel: View {
         .padding(.vertical, 4)
     }
 
-    private func candidateList(candidates: [String], labels: [String]) -> some View {
+    private func candidateList(candidates: [String], labels: [String], hypotheses: [VocoHypothesis]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Candidates")
                 .font(.system(size: 11, weight: .semibold))
@@ -387,9 +388,18 @@ struct TranscriptionInfoPanel: View {
                         .background(Circle().fill(Color.secondary.opacity(0.12)))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(candidateLabel(at: index, labels: labels))
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 5) {
+                            Text(candidateLabel(at: index, labels: labels))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+
+                            if let source = hypothesisSource(at: index, hypotheses: hypotheses) {
+                                Text(source)
+                                    .font(.system(size: 10, weight: .regular))
+                                    .foregroundColor(.secondary.opacity(0.75))
+                                    .lineLimit(1)
+                            }
+                        }
 
                         Text(candidate)
                             .font(.system(size: 12, weight: .regular))
@@ -404,6 +414,11 @@ struct TranscriptionInfoPanel: View {
     private func candidateLabel(at index: Int, labels: [String]) -> String {
         guard labels.indices.contains(index) else { return "Candidate" }
         return labels[index]
+    }
+
+    private func hypothesisSource(at index: Int, hypotheses: [VocoHypothesis]) -> String? {
+        guard hypotheses.indices.contains(index) else { return nil }
+        return hypotheses[index].sourceDisplayName
     }
 
     private func feedbackItem(_ signal: CorrectionFeedbackSignal) -> some View {
