@@ -99,7 +99,7 @@ class AudioTranscriptionService: ObservableObject {
             var promptDetectionResult: PromptDetectionService.PromptDetectionResult? = nil
 
             func styleGuardedEnhancedText(_ enhancedText: String) -> (acceptedText: String?, rejection: PersonalStyleGuardResult?) {
-                guard UserDefaults.standard.bool(forKey: PersonalStyleGuardService.enabledKey) else {
+                guard PersonalStyleGuardService.isEnabled() else {
                     return (enhancedText, nil)
                 }
 

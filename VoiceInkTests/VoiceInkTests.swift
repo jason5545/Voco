@@ -2380,6 +2380,7 @@ struct VoiceInkTests {
 
         #expect(backup.generalSettings?.llmUserContext == "mixed language dictation")
         #expect(backup.generalSettings?.enabledContextPackIDs == nil)
+        #expect(backup.generalSettings?.personalStyleGuardEnabled == nil)
     }
 
     @Test func backupFilePreservesContextPackSelection() throws {
@@ -2407,6 +2408,26 @@ struct VoiceInkTests {
 
         #expect(backup.generalSettings?.enabledContextPackIDs == expectedIDs)
         #expect(roundTripped.generalSettings?.enabledContextPackIDs == expectedIDs)
+    }
+
+    @Test func backupFilePreservesPersonalStyleGuardSetting() throws {
+        let data = Data(
+            """
+            {
+              "version": "1.79",
+              "generalSettings": {
+                "personalStyleGuardEnabled": false
+              }
+            }
+            """.utf8
+        )
+
+        let backup = try JSONDecoder().decode(BackupFile.self, from: data)
+        let encoded = try JSONEncoder().encode(backup)
+        let roundTripped = try JSONDecoder().decode(BackupFile.self, from: encoded)
+
+        #expect(backup.generalSettings?.personalStyleGuardEnabled == false)
+        #expect(roundTripped.generalSettings?.personalStyleGuardEnabled == false)
     }
 
     @Test func backupFilePreservesWordReplacementLearningMetadata() throws {
@@ -2548,6 +2569,20 @@ struct VoiceInkTests {
         #expect(result.replacements.first?.originalText == "snow mode")
         #expect(result.replacements.first?.replacementText == "SnowMode")
         #expect(result.replacements.first?.termID.hasPrefix("word-replacement.") == true)
+    }
+
+    @Test func personalStyleGuardEnabledDefaultsToTrueAndPersists() throws {
+        let suiteName = "PersonalStyleGuardTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(PersonalStyleGuardService.isEnabled(defaults: defaults))
+
+        PersonalStyleGuardService.setEnabled(false, defaults: defaults)
+        #expect(!PersonalStyleGuardService.isEnabled(defaults: defaults))
+
+        PersonalStyleGuardService.setEnabled(true, defaults: defaults)
+        #expect(PersonalStyleGuardService.isEnabled(defaults: defaults))
     }
 
     @Test func personalStyleGuardAllowsPlainMixedLanguageEditing() async throws {

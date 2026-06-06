@@ -194,7 +194,8 @@ class ImportExportService {
             correctionProtectedWords: UserDefaults.standard.stringArray(forKey: "CorrectionProtectionWords"),
             llmCorrectionExamples: UserDefaults.standard.string(forKey: "llmCorrectionExamples"),
             llmUserContext: UserDefaults.standard.string(forKey: "llmUserContext"),
-            enabledContextPackIDs: VocoCanonicalizationService.enabledContextPackIDs()
+            enabledContextPackIDs: VocoCanonicalizationService.enabledContextPackIDs(),
+            personalStyleGuardEnabled: PersonalStyleGuardService.isEnabled()
         )
 
         let exportedSettings = BackupFile(

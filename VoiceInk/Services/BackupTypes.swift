@@ -111,6 +111,7 @@ struct GeneralBackup: Codable {
 
     // Fork-specific: context-aware dictation settings
     let enabledContextPackIDs: [String]?
+    let personalStyleGuardEnabled: Bool?
 }
 
 struct WordBackup: Codable {

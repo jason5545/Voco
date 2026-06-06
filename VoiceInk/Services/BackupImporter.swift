@@ -210,6 +210,9 @@ enum BackupImporter {
         if let enabledContextPackIDs = general.enabledContextPackIDs {
             VocoCanonicalizationService.setEnabledContextPackIDs(enabledContextPackIDs)
         }
+        if let personalStyleGuardEnabled = general.personalStyleGuardEnabled {
+            PersonalStyleGuardService.setEnabled(personalStyleGuardEnabled)
+        }
 
         print("Successfully imported general settings.")
     }

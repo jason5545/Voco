@@ -567,7 +567,7 @@ class TranscriptionPipeline {
             }
 
             // === Personal Style Guard: keep LLM output from becoming template prose ===
-            if UserDefaults.standard.bool(forKey: PersonalStyleGuardService.enabledKey),
+            if PersonalStyleGuardService.isEnabled(),
                let currentText = finalPastedText,
                currentText != transcription.text {
                 let styleGuard = PersonalStyleGuardService.shared.validate(

@@ -6,7 +6,7 @@ struct EnhancementSettingsPanel: View {
     @AppStorage("ShortEnhancementWordThreshold") private var shortEnhancementWordThreshold = 3
     @AppStorage("EnhancementTimeoutSeconds") private var enhancementTimeoutSeconds = 7
     @AppStorage("EnhancementRetryOnTimeout") private var retryOnTimeout = true
-    @AppStorage(PersonalStyleGuardService.enabledKey) private var personalStyleGuardEnabled = true
+    @AppStorage(PersonalStyleGuardService.enabledKey) private var personalStyleGuardEnabled = PersonalStyleGuardService.defaultEnabled
     @State private var isShortEnhancementExpanded = false
     @State private var isHandlingToggleChange = false
 

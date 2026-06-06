@@ -8,6 +8,7 @@ struct PersonalStyleGuardResult: Equatable {
 final class PersonalStyleGuardService {
     static let shared = PersonalStyleGuardService()
     static let enabledKey = "PersonalStyleGuardEnabled"
+    static let defaultEnabled = true
 
     private let assistantOpeners = [
         "以下是",
@@ -46,6 +47,14 @@ final class PersonalStyleGuardService {
         "信件",
         "提案",
     ]
+
+    static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: enabledKey) as? Bool ?? defaultEnabled
+    }
+
+    static func setEnabled(_ isEnabled: Bool, defaults: UserDefaults = .standard) {
+        defaults.set(isEnabled, forKey: enabledKey)
+    }
 
     func validate(response: String, original: String) -> PersonalStyleGuardResult {
         let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
