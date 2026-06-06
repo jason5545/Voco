@@ -118,6 +118,7 @@ extension VoiceInkEngine {
             forkState.pendingCandidateContinuation?.resume(returning: nil)
             forkState.pendingCandidateReview = VocoCandidateReview(
                 candidates: assessment.candidates,
+                candidateLabels: assessment.candidateLabels,
                 confidenceScore: assessment.score,
                 reasons: assessment.reasons
             )

@@ -145,6 +145,7 @@ struct VoiceInkTests {
         #expect(assessment.score > 0.85)
         #expect(assessment.selectedCandidate == "我現在用 VoiceInk 的 fork 做 VOCO")
         #expect(assessment.candidates.first == "我現在用 VoiceInk 的 fork 做 VOCO")
+        #expect(assessment.labelForCandidate(at: 0) == "Recommended")
     }
 
     @Test func confidenceGateSuggestsReviewForUnresolvedAmbiguousTerms() async throws {
@@ -156,6 +157,7 @@ struct VoiceInkTests {
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("unresolved-suggestions"))
         #expect(assessment.candidates.contains("今天看到炎很大"))
+        #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
     }
 
     @Test func confidenceGateSuggestsReviewForHeavyNormalization() async throws {
@@ -183,7 +185,22 @@ struct VoiceInkTests {
         #expect(transcription.normalizedTranscript == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(transcription.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue)
         #expect(transcription.hypotheses.first == "我現在用 Qwen3-ASR 的 MLX 版本")
+        #expect(transcription.hypothesisLabels.first == "Recommended")
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
+    }
+
+    @Test func candidateReviewDisplaysReadableReasonsAndLabels() async throws {
+        let review = VocoCandidateReview(
+            candidates: ["今天看到焰很大", "今天看到炎很大"],
+            candidateLabels: ["Recommended", "With suggestions"],
+            confidenceScore: 0.62,
+            reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"]
+        )
+
+        #expect(review.defaultCandidate == "今天看到焰很大")
+        #expect(review.labelForCandidate(at: 1) == "With suggestions")
+        #expect(review.labelForCandidate(at: 4) == "Candidate")
+        #expect(review.displayReasons == ["Needs choice", "High-risk term"])
     }
 
     @Test func correctionFeedbackCapturesCandidateOverride() async throws {

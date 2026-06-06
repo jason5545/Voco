@@ -404,6 +404,24 @@ struct CandidateReviewView: View {
                 .buttonStyle(.plain)
             }
 
+            if !review.displayReasons.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        ForEach(review.displayReasons, id: \.self) { reason in
+                            Text(reason)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.72))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.1))
+                                )
+                        }
+                    }
+                }
+            }
+
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 5) {
                     ForEach(Array(review.candidates.prefix(5).enumerated()), id: \.offset) { index, candidate in
@@ -417,11 +435,17 @@ struct CandidateReviewView: View {
                                     .frame(width: 16, height: 16)
                                     .background(Circle().fill(Color.white.opacity(index == 0 ? 0.9 : 0.55)))
 
-                                Text(candidate)
-                                    .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))
-                                    .foregroundColor(.white.opacity(index == 0 ? 0.95 : 0.78))
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(review.labelForCandidate(at: index))
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.white.opacity(index == 0 ? 0.85 : 0.58))
+
+                                    Text(candidate)
+                                        .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))
+                                        .foregroundColor(.white.opacity(index == 0 ? 0.95 : 0.78))
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
 
                                 Spacer(minLength: 0)
                             }

@@ -158,7 +158,10 @@ struct TranscriptionInfoPanel: View {
                 }
 
                 if !transcription.hypotheses.isEmpty {
-                    candidateList(transcription.hypotheses)
+                    candidateList(
+                        candidates: transcription.hypotheses,
+                        labels: transcription.hypothesisLabels
+                    )
                 }
             } header: {
                 Text("Dictation")
@@ -369,7 +372,7 @@ struct TranscriptionInfoPanel: View {
         .padding(.vertical, 4)
     }
 
-    private func candidateList(_ candidates: [String]) -> some View {
+    private func candidateList(candidates: [String], labels: [String]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Candidates")
                 .font(.system(size: 11, weight: .semibold))
@@ -383,13 +386,24 @@ struct TranscriptionInfoPanel: View {
                         .frame(width: 18, height: 18)
                         .background(Circle().fill(Color.secondary.opacity(0.12)))
 
-                    Text(candidate)
-                        .font(.system(size: 12, weight: .regular))
-                        .textSelection(.enabled)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(candidateLabel(at: index, labels: labels))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+
+                        Text(candidate)
+                            .font(.system(size: 12, weight: .regular))
+                            .textSelection(.enabled)
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func candidateLabel(at index: Int, labels: [String]) -> String {
+        guard labels.indices.contains(index) else { return "Candidate" }
+        return labels[index]
     }
 
     private func feedbackItem(_ signal: CorrectionFeedbackSignal) -> some View {

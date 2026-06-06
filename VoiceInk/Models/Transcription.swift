@@ -39,6 +39,7 @@ final class Transcription {
     var confidenceRoute: String?
     var confidenceReasonsJSON: String?
     var hypothesesJSON: String?
+    var hypothesisLabelsJSON: String?
     var selectedCandidate: String?
     var userCorrectionDistance: Double?
     var styleGuardReasonsJSON: String?
@@ -66,6 +67,11 @@ final class Transcription {
     var hypotheses: [String] {
         get { Self.decodeStringArray(hypothesesJSON) }
         set { hypothesesJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypothesisLabels: [String] {
+        get { Self.decodeStringArray(hypothesisLabelsJSON) }
+        set { hypothesisLabelsJSON = Self.encodeJSON(newValue) }
     }
 
     var confidenceReasons: [String] {
@@ -111,6 +117,7 @@ final class Transcription {
          confidenceScore: Double? = nil,
          confidenceAssessment: VocoConfidenceAssessment? = nil,
          hypotheses: [String] = [],
+         hypothesisLabels: [String] = [],
          selectedCandidate: String? = nil,
          userCorrectionDistance: Double? = nil,
          styleGuardReasons: [String] = [],
@@ -146,6 +153,7 @@ final class Transcription {
         self.confidenceRoute = confidenceAssessment?.route.rawValue
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceAssessment?.reasons ?? [])
         self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
+        self.hypothesisLabelsJSON = Self.encodeJSON(confidenceAssessment?.candidateLabels ?? hypothesisLabels)
         self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
         self.userCorrectionDistance = userCorrectionDistance
         self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
@@ -175,6 +183,7 @@ final class Transcription {
         self.confidenceRoute = confidenceAssessment.route.rawValue
         self.confidenceReasons = confidenceAssessment.reasons
         self.hypotheses = confidenceAssessment.candidates
+        self.hypothesisLabels = confidenceAssessment.candidateLabels
         self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
@@ -261,6 +270,7 @@ final class Transcription {
         confidenceRoute = nil
         confidenceReasons = []
         hypotheses = []
+        hypothesisLabels = []
         selectedCandidate = nil
         userCorrectionDistance = nil
         styleGuardReasons = []

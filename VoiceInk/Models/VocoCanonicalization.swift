@@ -80,5 +80,27 @@ struct VocoConfidenceAssessment: Codable, Equatable {
     let route: VocoConfidenceRoute
     let reasons: [String]
     let candidates: [String]
+    let candidateLabels: [String]
     let selectedCandidate: String
+
+    init(
+        score: Double,
+        route: VocoConfidenceRoute,
+        reasons: [String],
+        candidates: [String],
+        candidateLabels: [String] = [],
+        selectedCandidate: String
+    ) {
+        self.score = score
+        self.route = route
+        self.reasons = reasons
+        self.candidates = candidates
+        self.candidateLabels = candidateLabels
+        self.selectedCandidate = selectedCandidate
+    }
+
+    func labelForCandidate(at index: Int) -> String {
+        guard candidateLabels.indices.contains(index) else { return "Candidate" }
+        return candidateLabels[index]
+    }
 }

@@ -14,11 +14,43 @@ struct WordSubstitution {
 struct VocoCandidateReview: Identifiable {
     let id = UUID()
     let candidates: [String]
+    let candidateLabels: [String]
     let confidenceScore: Double
     let reasons: [String]
 
     var defaultCandidate: String? {
         candidates.first
+    }
+
+    func labelForCandidate(at index: Int) -> String {
+        guard candidateLabels.indices.contains(index) else { return "Candidate" }
+        return candidateLabels[index]
+    }
+
+    var displayReasons: [String] {
+        var seen: Set<String> = []
+        return reasons
+            .map(Self.displayReason(for:))
+            .filter { seen.insert($0).inserted }
+    }
+
+    private static func displayReason(for reason: String) -> String {
+        switch reason {
+        case "unresolved-suggestions":
+            return "Needs choice"
+        case "heavy-normalization":
+            return "Heavy normalization"
+        case "low-confidence-replacement":
+            return "Low confidence"
+        case "high-risk-term":
+            return "High-risk term"
+        case "raw-cleanup-drift":
+            return "Cleanup drift"
+        case "canonicalization-clean":
+            return "Clean"
+        default:
+            return reason
+        }
     }
 }
 

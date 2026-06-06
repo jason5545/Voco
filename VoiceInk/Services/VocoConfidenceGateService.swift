@@ -55,13 +55,14 @@ final class VocoConfidenceGateService {
             reasons: reasons
         ) ? .reviewSuggested : .directInsertion
 
-        let candidates = candidateTexts(from: normalizationResult, rawTranscript: rawTranscript)
+        let candidateOptions = candidateOptions(from: normalizationResult, rawTranscript: rawTranscript)
 
         return VocoConfidenceAssessment(
             score: boundedScore,
             route: route,
             reasons: reasons,
-            candidates: candidates,
+            candidates: candidateOptions.map(\.text),
+            candidateLabels: candidateOptions.map(\.label),
             selectedCandidate: normalizationResult.normalizedText
         )
     }
@@ -93,25 +94,30 @@ final class VocoConfidenceGateService {
         return Double(delta) / Double(originalCount) > 0.35
     }
 
-    private func candidateTexts(
+    private func candidateOptions(
         from result: VocoNormalizationResult,
         rawTranscript: String?
-    ) -> [String] {
+    ) -> [(text: String, label: String)] {
         var candidates = [
-            result.normalizedText,
-            applying(result.replacements + result.suggestions, to: result.originalText),
-            result.originalText,
+            (result.normalizedText, "Recommended"),
+            (applying(result.replacements + result.suggestions, to: result.originalText), "With suggestions"),
+            (result.originalText, "Original"),
         ]
 
         if let rawTranscript, !rawTranscript.isEmpty {
-            candidates.append(rawTranscript)
+            candidates.append((rawTranscript, "Raw ASR"))
         }
 
         var seen: Set<String> = []
         return candidates
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .filter { seen.insert($0).inserted }
+            .map { option in
+                (
+                    text: option.0.trimmingCharacters(in: .whitespacesAndNewlines),
+                    label: option.1
+                )
+            }
+            .filter { !$0.text.isEmpty }
+            .filter { seen.insert($0.text).inserted }
             .prefix(5)
             .map { $0 }
     }
