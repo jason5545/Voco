@@ -25,6 +25,7 @@ final class SessionMetric {
     var confidenceReasonsJSON: String?
     var candidateCount: Int = 0
     var selectedCandidate: String?
+    var candidateSelectionSource: String?
     var userCorrectionDistance: Double?
     var finalPastedCharacterCount: Int = 0
     var finalPastedWordCount: Int = 0
@@ -62,6 +63,7 @@ final class SessionMetric {
         confidenceReasons: [String] = [],
         candidateCount: Int = 0,
         selectedCandidate: String? = nil,
+        candidateSelectionSource: String? = nil,
         userCorrectionDistance: Double? = nil,
         finalPastedCharacterCount: Int = 0,
         finalPastedWordCount: Int = 0,
@@ -89,6 +91,7 @@ final class SessionMetric {
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceReasons)
         self.candidateCount = candidateCount
         self.selectedCandidate = selectedCandidate
+        self.candidateSelectionSource = candidateSelectionSource
         self.userCorrectionDistance = userCorrectionDistance
         self.finalPastedCharacterCount = finalPastedCharacterCount
         self.finalPastedWordCount = finalPastedWordCount
@@ -106,6 +109,7 @@ final class SessionMetric {
         confidenceReasons = transcription.confidenceReasons
         candidateCount = transcription.hypotheses.count
         selectedCandidate = transcription.selectedCandidate
+        candidateSelectionSource = transcription.candidateSelectionSource
         userCorrectionDistance = transcription.userCorrectionDistance
         recordFinalPasteMetadata(from: transcription)
     }

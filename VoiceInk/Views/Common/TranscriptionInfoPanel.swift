@@ -152,6 +152,14 @@ struct TranscriptionInfoPanel: View {
                     )
                 }
 
+                if let source = transcription.candidateSelectionSource, !source.isEmpty {
+                    metadataRow(
+                        icon: "cursorarrow.click.2",
+                        label: "Selection Source",
+                        value: selectionSourceDisplay(source)
+                    )
+                }
+
                 if let correctionRiskRate = transcription.correctionRiskRate {
                     metadataRow(
                         icon: "clock.arrow.circlepath",
@@ -376,6 +384,7 @@ struct TranscriptionInfoPanel: View {
         transcription.confidenceScore != nil ||
         transcription.correctionRiskRate != nil ||
         !transcription.correctionRiskTermIDs.isEmpty ||
+        transcription.candidateSelectionSource != nil ||
         !transcription.activeContextIDs.isEmpty ||
         !transcription.canonicalizationReplacements.isEmpty ||
         !transcription.canonicalizationSuggestions.isEmpty ||
@@ -603,6 +612,10 @@ struct TranscriptionInfoPanel: View {
         case .none:
             return route
         }
+    }
+
+    private func selectionSourceDisplay(_ source: String) -> String {
+        VocoCandidateSelectionSource(rawValue: source)?.displayName ?? source
     }
 
     private func shortID(_ id: UUID) -> String {

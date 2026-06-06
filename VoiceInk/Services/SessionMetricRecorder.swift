@@ -60,6 +60,7 @@ enum SessionMetricRecorder {
             confidenceReasons: transcription.confidenceReasons,
             candidateCount: transcription.hypotheses.count,
             selectedCandidate: transcription.selectedCandidate,
+            candidateSelectionSource: transcription.candidateSelectionSource,
             userCorrectionDistance: transcription.userCorrectionDistance,
             finalPastedCharacterCount: finalPastedCharacterCount(from: transcription),
             finalPastedWordCount: finalPastedWordCount(from: transcription),

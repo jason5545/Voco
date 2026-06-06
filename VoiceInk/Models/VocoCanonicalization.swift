@@ -194,6 +194,19 @@ enum VocoCandidateSelectionSource: String, Codable, Equatable {
     case dismissedFallback
     case timeoutFallback
     case automaticFallback
+
+    var displayName: String {
+        switch self {
+        case .userSelection:
+            return "User selection"
+        case .dismissedFallback:
+            return "Dismissed fallback"
+        case .timeoutFallback:
+            return "Timeout fallback"
+        case .automaticFallback:
+            return "Automatic fallback"
+        }
+    }
 }
 
 struct VocoCandidateSelection: Codable, Equatable {

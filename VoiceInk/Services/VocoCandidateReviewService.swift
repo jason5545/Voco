@@ -84,6 +84,7 @@ enum VocoCandidateReviewService {
         transcription.text = accepted
         transcription.normalizedTranscript = accepted
         transcription.selectedCandidate = accepted
+        transcription.recordCandidateSelectionSource(selectionSource)
         recordAcceptedCandidateMetadata(
             accepted,
             for: transcription,

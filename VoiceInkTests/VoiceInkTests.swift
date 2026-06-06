@@ -263,6 +263,7 @@ struct VoiceInkTests {
         #expect(transcription.hypothesisDetails.first?.source == .autoContext)
         #expect(transcription.hypothesisDetails.first?.appliedTermIDs.contains("model.qwen3-asr") == true)
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
+        #expect(transcription.candidateSelectionSource == nil)
     }
 
     @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
@@ -310,6 +311,7 @@ struct VoiceInkTests {
             languageMode: "auto",
             confidenceScore: 0.86,
             selectedCandidate: "我現在用 VoiceInk",
+            candidateSelectionSource: .timeoutFallback,
             userCorrectionDistance: 0.12
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
@@ -338,6 +340,8 @@ struct VoiceInkTests {
         #expect(csv.contains("reviewSuggested"))
         #expect(csv.contains("Alias match | Cleanup drift"))
         #expect(csv.contains("Recommended: 我現在用 VoiceInk | Raw ASR: 我現在用 voice ink"))
+        #expect(csv.contains("Candidate Selection Source"))
+        #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
     }
 
@@ -357,6 +361,7 @@ struct VoiceInkTests {
             asrEngineID: "qwen3:Qwen3-ASR",
             languageMode: "auto",
             confidenceAssessment: output.assessment,
+            candidateSelectionSource: .userSelection,
             userCorrectionDistance: 0.12,
             transcriptionStatus: .completed
         )
@@ -382,6 +387,7 @@ struct VoiceInkTests {
         #expect(metric.confidenceReasons == output.assessment.reasons)
         #expect(metric.candidateCount == output.assessment.candidates.count)
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
+        #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(metric.userCorrectionDistance == 0.12)
     }
 
@@ -428,6 +434,7 @@ struct VoiceInkTests {
             asrEngineID: "qwen3:Qwen3-ASR",
             languageMode: "auto",
             confidenceAssessment: output.assessment,
+            candidateSelectionSource: .timeoutFallback,
             transcriptionStatus: .completed
         )
         let metric = SessionMetric(
@@ -451,6 +458,7 @@ struct VoiceInkTests {
         #expect(metric.confidenceReasons == output.assessment.reasons)
         #expect(metric.candidateCount == output.assessment.candidates.count)
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
+        #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue)
         #expect(metric.wordCount == 2)
         #expect(metric.finalPastedWordCount == 2)
         #expect(metric.finalPastedCharacterCount == finalPastedText.count)
@@ -770,6 +778,7 @@ struct VoiceInkTests {
         #expect(transcription.text == "今天看到炎很大")
         #expect(transcription.normalizedTranscript == "今天看到炎很大")
         #expect(transcription.selectedCandidate == "今天看到炎很大")
+        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(transcription.userCorrectionDistance == signal.changeRatio)
         #expect(transcription.correctionFeedback.count == 1)
         #expect(signal.reason == "candidate-override")
@@ -805,6 +814,7 @@ struct VoiceInkTests {
         #expect(transcription.text == "我現在用 VoiceInk")
         #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
         #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
+        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(transcription.userCorrectionDistance == nil)
         #expect(transcription.correctionFeedback.count == 1)
     }
@@ -838,6 +848,7 @@ struct VoiceInkTests {
         #expect(transcription.text == "我現在用 VoiceInk")
         #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
         #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
+        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue)
         #expect(transcription.userCorrectionDistance == nil)
         #expect(transcription.correctionFeedback.count == 1)
     }
@@ -861,6 +872,7 @@ struct VoiceInkTests {
         #expect(transcription.text == "今天看到炎很大")
         #expect(transcription.normalizedTranscript == "今天看到炎很大")
         #expect(transcription.selectedCandidate == "今天看到炎很大")
+        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(transcription.correctionFeedback.count == 1)
         #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
     }

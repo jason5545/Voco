@@ -48,6 +48,7 @@ final class Transcription {
     var correctionRiskCorrectedCount: Int?
     var correctionRiskTermIDsJSON: String?
     var selectedCandidate: String?
+    var candidateSelectionSource: String?
     var userCorrectionDistance: Double?
     var styleGuardReasonsJSON: String?
     var styleGuardRejectedText: String?
@@ -143,6 +144,7 @@ final class Transcription {
          correctionRiskCorrectedCount: Int? = nil,
          correctionRiskTermIDs: [String] = [],
          selectedCandidate: String? = nil,
+         candidateSelectionSource: VocoCandidateSelectionSource? = nil,
          userCorrectionDistance: Double? = nil,
          styleGuardReasons: [String] = [],
          styleGuardRejectedText: String? = nil,
@@ -193,6 +195,7 @@ final class Transcription {
             self.correctionRiskTermIDsJSON = Self.encodeJSON(correctionRiskTermIDs)
         }
         self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
+        self.candidateSelectionSource = candidateSelectionSource?.rawValue
         self.userCorrectionDistance = userCorrectionDistance
         self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
         self.styleGuardRejectedText = styleGuardRejectedText
@@ -225,6 +228,11 @@ final class Transcription {
         self.hypothesisDetails = confidenceAssessment.hypothesisDetails
         recordCorrectionRisk(confidenceAssessment.correctionRiskProfile)
         self.selectedCandidate = confidenceAssessment.selectedCandidate
+        self.candidateSelectionSource = nil
+    }
+
+    func recordCandidateSelectionSource(_ source: VocoCandidateSelectionSource) {
+        candidateSelectionSource = source.rawValue
     }
 
     @discardableResult
@@ -324,6 +332,7 @@ final class Transcription {
         correctionRiskCorrectedCount = nil
         correctionRiskTermIDs = []
         selectedCandidate = nil
+        candidateSelectionSource = nil
         userCorrectionDistance = nil
         styleGuardReasons = []
         styleGuardRejectedText = nil

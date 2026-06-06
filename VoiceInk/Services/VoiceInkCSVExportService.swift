@@ -57,6 +57,7 @@ class VoiceInkCSVExportService {
         "Candidate Labels",
         "Candidates",
         "Selected Candidate",
+        "Candidate Selection Source",
         "User Correction Distance",
         "Enhancement Time",
         "Transcription Time",
@@ -88,6 +89,7 @@ class VoiceInkCSVExportService {
             joined(transcription.hypothesisLabels),
             candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
             transcription.selectedCandidate ?? "",
+            selectionSourceDisplay(transcription.candidateSelectionSource),
             decimal(transcription.userCorrectionDistance),
             decimal(transcription.enhancementDuration),
             decimal(transcription.transcriptionDuration),
@@ -161,5 +163,10 @@ class VoiceInkCSVExportService {
     private func boolString(_ value: Bool?) -> String {
         guard let value else { return "" }
         return value ? "true" : "false"
+    }
+
+    private func selectionSourceDisplay(_ rawValue: String?) -> String {
+        guard let rawValue, !rawValue.isEmpty else { return "" }
+        return VocoCandidateSelectionSource(rawValue: rawValue)?.displayName ?? rawValue
     }
 }
