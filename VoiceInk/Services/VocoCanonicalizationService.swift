@@ -363,15 +363,39 @@ final class VocoCanonicalizationService {
             if term.contexts.contains(where: { hintText.contains($0.lowercased()) }) {
                 return true
             }
-            if Self.musicContextIndicators.contains(where: { hintText.contains($0.lowercased()) }) {
+            if contextIndicators(for: term).contains(where: { hintText.contains($0.lowercased()) }) {
                 return true
             }
         }
 
         let nearbyText = contextWindow(in: text, range: matchRange).lowercased()
-        return Self.musicContextIndicators.contains { indicator in
+        return contextIndicators(for: term).contains { indicator in
             nearbyText.contains(indicator.lowercased())
         }
+    }
+
+    private func contextIndicators(for term: VocoCanonicalTerm) -> [String] {
+        var indicators: [String] = []
+        let contexts = Set(term.contexts.map { $0.lowercased() })
+
+        if contexts.contains("music") ||
+            contexts.contains("anime") ||
+            term.type == "song" ||
+            term.type == "artist" ||
+            term.type == "anime" {
+            indicators.append(contentsOf: Self.musicContextIndicators)
+        }
+
+        if contexts.contains("voco") ||
+            contexts.contains("development") ||
+            contexts.contains("asr") ||
+            contexts.contains("dictation") ||
+            term.canonical == "VOCO" {
+            indicators.append(contentsOf: Self.vocoDevelopmentContextIndicators)
+        }
+
+        indicators.append(contentsOf: term.contexts)
+        return Self.uniqueHints(indicators)
     }
 
     private func contextWindow(in text: String, range: NSRange, radius: Int = 18) -> String {
@@ -584,11 +608,21 @@ extension VocoCanonicalizationService {
                 VocoCanonicalTerm(
                     id: "product.voco",
                     canonical: "VOCO",
-                    aliases: ["Voco", "voco", "vocal", "voice co"],
+                    aliases: ["Voco", "voco", "voice co"],
                     type: "product",
                     contexts: ["voco", "development"],
                     caseSensitive: true,
                     autoReplaceThreshold: 0.95
+                ),
+                VocoCanonicalTerm(
+                    id: "product.voco.ambiguous-vocal",
+                    canonical: "VOCO",
+                    aliases: ["vocal"],
+                    type: "product",
+                    contexts: ["voco", "development", "asr", "dictation"],
+                    caseSensitive: true,
+                    autoReplaceThreshold: 0.9,
+                    requiresContextForAutoReplace: true
                 ),
                 VocoCanonicalTerm(
                     id: "model.qwen3-asr",
@@ -717,5 +751,35 @@ extension VocoCanonicalizationService {
         "music",
         "song",
         "anime",
+    ]
+
+    fileprivate static let vocoDevelopmentContextIndicators = [
+        "voco",
+        "VoiceInk",
+        "voice ink",
+        "Qwen",
+        "Qwen3",
+        "ASR",
+        "MLX",
+        "Whisper",
+        "whisper.cpp",
+        "GGUF",
+        "Typeless",
+        "dictation",
+        "transcription",
+        "speech",
+        "candidate",
+        "confidence",
+        "context aware",
+        "context-aware",
+        "fork",
+        "development",
+        "開發",
+        "模型",
+        "轉錄",
+        "聽寫",
+        "語音",
+        "候選",
+        "信心",
     ]
 }

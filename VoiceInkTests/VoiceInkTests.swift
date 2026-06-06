@@ -149,6 +149,25 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
+    @Test func canonicalizationTreatsVocalAsContextRequiredVocoAlias() async throws {
+        let service = VocoCanonicalizationService()
+
+        let neutral = service.normalize("this vocal range is wide")
+        #expect(neutral.normalizedText == "this vocal range is wide")
+        #expect(neutral.replacements.isEmpty)
+        let neutralSuggestion = try #require(neutral.suggestions.first)
+        #expect(neutralSuggestion.originalText == "vocal")
+        #expect(neutralSuggestion.replacementText == "VOCO")
+        #expect(neutralSuggestion.termID == "product.voco.ambiguous-vocal")
+
+        let contextual = service.normalize("我在 vocal dictation 模式測試")
+        #expect(contextual.normalizedText == "我在 VOCO dictation 模式測試")
+        let contextualReplacement = try #require(contextual.replacements.first)
+        #expect(contextualReplacement.originalText == "vocal")
+        #expect(contextualReplacement.replacementText == "VOCO")
+        #expect(contextualReplacement.termID == "product.voco.ambiguous-vocal")
+    }
+
     @Test func canonicalizationUsesPowerModeContextHintsForAmbiguousTerms() async throws {
         let service = VocoCanonicalizationService()
         let text = "今天看到 homura 很亮"
