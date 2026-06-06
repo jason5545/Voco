@@ -265,6 +265,25 @@ struct VoiceInkTests {
         #expect(signal.acceptedText == "今天看到炎很大")
         #expect(signal.termIDs.contains("song.homura"))
         #expect((signal.changeRatio ?? 0) > 0)
+        #expect(signal.isCorrectiveSignal)
+    }
+
+    @Test func correctionFeedbackClassifiesCandidateConfirmationAsNonCorrective() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: "我現在用 VoiceInk",
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-confirmed")
+        #expect(signal.acceptedText == "我現在用 VoiceInk")
+        #expect(signal.isCorrectiveSignal == false)
     }
 
     @Test func transcriptionStoresCandidateFeedback() async throws {
@@ -314,7 +333,40 @@ struct VoiceInkTests {
         #expect(transcription.userCorrectionDistance == signal.changeRatio)
         #expect(transcription.correctionFeedback.count == 1)
         #expect(signal.reason == "candidate-override")
+        #expect(signal.isCorrectiveSignal)
         #expect(signal.termIDs.contains("song.homura"))
+    }
+
+    @Test func candidateReviewConfirmationDoesNotSetCorrectionDistance() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.normalizedText, duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        let signal = try #require(
+            VocoCandidateReviewService.acceptCandidate(
+                "我現在用 VoiceInk",
+                for: transcription,
+                normalizationResult: result,
+                confidenceAssessment: assessment,
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.reason == "candidate-confirmed")
+        #expect(signal.isCorrectiveSignal == false)
+        #expect(transcription.text == "我現在用 VoiceInk")
+        #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
+        #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
+        #expect(transcription.userCorrectionDistance == nil)
+        #expect(transcription.correctionFeedback.count == 1)
     }
 
     @Test func persistedCandidateReviewDoesNotDuplicateSameAcceptedCandidate() async throws {
@@ -340,7 +392,7 @@ struct VoiceInkTests {
         #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
     }
 
-    @Test @MainActor func correctionRiskProfileCountsRecentFeedback() async throws {
+    @Test @MainActor func correctionRiskProfileCountsOnlyCorrectiveFeedback() async throws {
         let context = try makeTranscriptionContext()
         let now = Date()
 
@@ -372,6 +424,20 @@ struct VoiceInkTests {
         )
         context.insert(second)
 
+        let third = Transcription(text: "voice inc", duration: 0, transcriptionStatus: .completed)
+        third.timestamp = now.addingTimeInterval(-90)
+        third.recordCorrectionFeedback(
+            CorrectionFeedbackSignal(
+                kind: .candidateSelection,
+                sourceText: "voice inc",
+                proposedText: "VoiceInk",
+                acceptedText: "VoiceInk",
+                reason: "candidate-override",
+                termIDs: ["product.voiceink"]
+            )
+        )
+        context.insert(third)
+
         let clean = Transcription(text: "沒有修正", duration: 0, transcriptionStatus: .completed)
         clean.timestamp = now.addingTimeInterval(-120)
         context.insert(clean)
@@ -392,9 +458,9 @@ struct VoiceInkTests {
         try context.save()
 
         let profile = VocoCorrectionRiskService.profile(in: context, now: now, lookbackDays: 14)
-        #expect(profile.recentSessionCount == 3)
+        #expect(profile.recentSessionCount == 4)
         #expect(profile.correctedSessionCount == 2)
-        #expect(abs(profile.recentCorrectionRate - (2.0 / 3.0)) < 0.0001)
+        #expect(abs(profile.recentCorrectionRate - 0.5) < 0.0001)
         #expect(profile.highRiskTermIDs == ["product.voiceink"])
         #expect(profile.hasElevatedCorrectionRate)
     }

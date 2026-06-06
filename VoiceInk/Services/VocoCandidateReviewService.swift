@@ -25,14 +25,16 @@ enum VocoCandidateReviewService {
 
         guard let signal else { return nil }
         if hasCandidateFeedback(for: accepted, in: transcription) {
-            if transcription.userCorrectionDistance == nil {
+            if signal.isCorrectiveSignal, transcription.userCorrectionDistance == nil {
                 transcription.userCorrectionDistance = signal.changeRatio
             }
             return nil
         }
 
         transcription.recordCorrectionFeedback(signal)
-        transcription.userCorrectionDistance = signal.changeRatio
+        if signal.isCorrectiveSignal {
+            transcription.userCorrectionDistance = signal.changeRatio
+        }
         return signal
     }
 

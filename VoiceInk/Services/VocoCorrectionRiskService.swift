@@ -57,7 +57,7 @@ enum VocoCorrectionRiskService {
 
     private static func hasCorrectionSignal(_ transcription: Transcription) -> Bool {
         if !transcription.correctionFeedback.isEmpty {
-            return true
+            return transcription.correctionFeedback.contains(where: \.isCorrectiveSignal)
         }
 
         if let distance = transcription.userCorrectionDistance, distance >= 0.08 {
@@ -80,7 +80,11 @@ enum VocoCorrectionRiskService {
     private static func highRiskTermIDs(from transcriptions: [Transcription]) -> [String] {
         var counts: [String: Int] = [:]
         for transcription in transcriptions {
-            let ids = Set(transcription.correctionFeedback.flatMap(\.termIDs))
+            let ids = Set(
+                transcription.correctionFeedback
+                    .filter(\.isCorrectiveSignal)
+                    .flatMap(\.termIDs)
+            )
             for id in ids where !id.isEmpty {
                 counts[id, default: 0] += 1
             }

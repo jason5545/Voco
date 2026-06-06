@@ -28,6 +28,33 @@ struct CorrectionFeedbackSignal: Codable, Equatable {
     let termIDs: [String]
     let createdAt: Date
 
+    var isCorrectiveSignal: Bool {
+        switch kind {
+        case .candidateSelection:
+            return reason != "candidate-confirmed" && acceptedTextDiffersFromSource
+        case .retranscriptionChange, .userSubstitution:
+            return acceptedTextDiffersFromSource
+        }
+    }
+
+    private var acceptedTextDiffersFromSource: Bool {
+        let accepted = acceptedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let proposed = proposedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !source.isEmpty && accepted.localizedCaseInsensitiveCompare(source) == .orderedSame {
+            return false
+        }
+
+        if reason == "candidate-confirmed",
+           let proposed,
+           accepted.localizedCaseInsensitiveCompare(proposed) == .orderedSame {
+            return false
+        }
+
+        return !accepted.isEmpty
+    }
+
     init(
         kind: CorrectionFeedbackKind,
         sourceText: String,
