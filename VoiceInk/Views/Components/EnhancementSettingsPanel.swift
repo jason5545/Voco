@@ -6,6 +6,7 @@ struct EnhancementSettingsPanel: View {
     @AppStorage("ShortEnhancementWordThreshold") private var shortEnhancementWordThreshold = 3
     @AppStorage("EnhancementTimeoutSeconds") private var enhancementTimeoutSeconds = 7
     @AppStorage("EnhancementRetryOnTimeout") private var retryOnTimeout = true
+    @AppStorage(PersonalStyleGuardService.enabledKey) private var personalStyleGuardEnabled = true
     @State private var isShortEnhancementExpanded = false
     @State private var isHandlingToggleChange = false
 
@@ -63,6 +64,14 @@ struct EnhancementSettingsPanel: View {
                 }
 
                 Section {
+                    Toggle(isOn: $personalStyleGuardEnabled) {
+                        HStack(spacing: 4) {
+                            Text("Personal Style Guard")
+                            InfoTip("Reject AI-enhanced output that adds assistant-style openings, template formatting, or drops mixed-language terms that were present in the transcription.")
+                        }
+                    }
+                    .toggleStyle(.switch)
+
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
                             Toggle(isOn: Binding(

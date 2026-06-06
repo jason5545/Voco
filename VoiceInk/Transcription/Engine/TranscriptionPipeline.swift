@@ -560,6 +560,25 @@ class TranscriptionPipeline {
                 }
             }
 
+            // === Personal Style Guard: keep LLM output from becoming template prose ===
+            if UserDefaults.standard.bool(forKey: PersonalStyleGuardService.enabledKey),
+               let currentText = finalPastedText,
+               currentText != transcription.text {
+                let styleGuard = PersonalStyleGuardService.shared.validate(
+                    response: currentText,
+                    original: transcription.text
+                )
+                if !styleGuard.isValid {
+                    transcription.recordStyleGuardRejection(
+                        response: currentText,
+                        reasons: styleGuard.reasons
+                    )
+                    transcription.enhancedText = nil
+                    finalPastedText = transcription.text
+                    logger.warning("⚠️ Personal Style Guard rejected enhancement: \(styleGuard.reasons.joined(separator: ","), privacy: .public)")
+                }
+            }
+
             // === Post-LLM comma cleanup: remove wrongly inserted commas after 的/了 ===
             if let currentText = finalPastedText, currentText.count >= 3 {
                 let cleaned = PostLLMCommaCleanup.clean(currentText, originalText: transcription.text)

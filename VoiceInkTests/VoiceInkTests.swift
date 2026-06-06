@@ -199,6 +199,66 @@ struct VoiceInkTests {
         #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults) == ["custom"])
     }
 
+    @Test func personalStyleGuardAllowsPlainMixedLanguageEditing() async throws {
+        let result = PersonalStyleGuardService().validate(
+            response: "我覺得這個 approach unstable，要 go around。",
+            original: "我覺得這個 approach unstable 要 go around"
+        )
+
+        #expect(result.isValid)
+    }
+
+    @Test func personalStyleGuardRejectsAssistantOpeners() async throws {
+        let result = PersonalStyleGuardService().validate(
+            response: "以下是我整理後的版本：我覺得這個改法可以跑。",
+            original: "我覺得這個改法可以跑"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains(where: { $0.hasPrefix("assistant-opener") }))
+    }
+
+    @Test func personalStyleGuardRejectsUnrequestedListFormatting() async throws {
+        let result = PersonalStyleGuardService().validate(
+            response: "我覺得這個改法可以跑，但我不太喜歡。\n- 它把問題藏到呼叫端\n- 之後每個地方都要補判斷",
+            original: "我覺得這個改法可以跑但我不太喜歡它把問題藏到呼叫端之後每個地方都要補判斷"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains("introduced-structured-format"))
+    }
+
+    @Test func personalStyleGuardAllowsRequestedListFormatting() async throws {
+        let result = PersonalStyleGuardService().validate(
+            response: "重點如下：\n- 保留 raw transcript\n- 記錄 normalized transcript",
+            original: "幫我條列重點保留 raw transcript 還有記錄 normalized transcript"
+        )
+
+        #expect(result.isValid)
+    }
+
+    @Test func personalStyleGuardRejectsDroppedMixedLanguageTerms() async throws {
+        let result = PersonalStyleGuardService().validate(
+            response: "我覺得這次進場不穩，應該重來。",
+            original: "我覺得這次 approach unstable 應該 go around"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains(where: { $0.hasPrefix("dropped-mixed-language-term") }))
+    }
+
+    @Test func transcriptionStoresStyleGuardRejection() async throws {
+        let transcription = Transcription(text: "我覺得這個改法可以跑", duration: 0)
+
+        transcription.recordStyleGuardRejection(
+            response: "以下是我整理後的版本：我覺得這個改法可以跑。",
+            reasons: ["assistant-opener:以下是"]
+        )
+
+        #expect(transcription.styleGuardRejectedText == "以下是我整理後的版本：我覺得這個改法可以跑。")
+        #expect(transcription.styleGuardReasons == ["assistant-opener:以下是"])
+    }
+
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
         var state = EditModePollingState()
 

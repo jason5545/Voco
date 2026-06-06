@@ -98,6 +98,18 @@ class AudioTranscriptionService: ObservableObject {
             let originalText = text
             var promptDetectionResult: PromptDetectionService.PromptDetectionResult? = nil
 
+            func styleGuardedEnhancedText(_ enhancedText: String) -> (acceptedText: String?, rejection: PersonalStyleGuardResult?) {
+                guard UserDefaults.standard.bool(forKey: PersonalStyleGuardService.enabledKey) else {
+                    return (enhancedText, nil)
+                }
+
+                let result = PersonalStyleGuardService.shared.validate(
+                    response: enhancedText,
+                    original: originalText
+                )
+                return result.isValid ? (enhancedText, nil) : (nil, result)
+            }
+
             if let enhancementService = enhancementService, enhancementService.isConfigured {
                 let detectionResult = await promptDetectionService.analyzeText(text, with: enhancementService)
                 promptDetectionResult = detectionResult
@@ -111,10 +123,11 @@ class AudioTranscriptionService: ObservableObject {
                 do {
                     let textForAI = promptDetectionResult?.processedText ?? text
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
+                    let styleGuard = styleGuardedEnhancedText(enhancedText)
                     let newTranscription = Transcription(
                         text: originalText,
                         duration: duration,
-                        enhancedText: enhancedText,
+                        enhancedText: styleGuard.acceptedText,
                         audioFileURL: permanentURLString,
                         transcriptionModelName: model.displayName,
                         aiEnhancementModelName: enhancementService.getAIService()?.currentModel,
@@ -132,7 +145,9 @@ class AudioTranscriptionService: ObservableObject {
                         canonicalizationSuggestions: normalizationResult.suggestions,
                         asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: model),
                         languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
-                        confidenceAssessment: confidenceAssessment
+                        confidenceAssessment: confidenceAssessment,
+                        styleGuardReasons: styleGuard.rejection?.reasons ?? [],
+                        styleGuardRejectedText: styleGuard.rejection == nil ? nil : enhancedText
                     )
                     modelContext.insert(newTranscription)
                     do {

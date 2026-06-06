@@ -187,16 +187,29 @@ class AudioTranscriptionManager: ObservableObject {
             // Handle enhancement if enabled
             var transcription: Transcription
 
+            func styleGuardedEnhancedText(_ enhancedText: String) -> (acceptedText: String?, rejection: PersonalStyleGuardResult?) {
+                guard UserDefaults.standard.bool(forKey: PersonalStyleGuardService.enabledKey) else {
+                    return (enhancedText, nil)
+                }
+
+                let result = PersonalStyleGuardService.shared.validate(
+                    response: enhancedText,
+                    original: text
+                )
+                return result.isValid ? (enhancedText, nil) : (nil, result)
+            }
+
             if let enhancementService = engine.enhancementService,
                enhancementService.isEnhancementEnabled,
                enhancementService.isConfigured {
                 item.status = .processing(phase: .enhancing)
                 do {
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(text)
+                    let styleGuard = styleGuardedEnhancedText(enhancedText)
                     transcription = Transcription(
                         text: text,
                         duration: duration,
-                        enhancedText: enhancedText,
+                        enhancedText: styleGuard.acceptedText,
                         audioFileURL: permanentURL.absoluteString,
                         transcriptionModelName: currentModel.displayName,
                         aiEnhancementModelName: enhancementService.getAIService()?.currentModel,
@@ -214,7 +227,9 @@ class AudioTranscriptionManager: ObservableObject {
                         canonicalizationSuggestions: normalizationResult.suggestions,
                         asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: currentModel),
                         languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
-                        confidenceAssessment: confidenceAssessment
+                        confidenceAssessment: confidenceAssessment,
+                        styleGuardReasons: styleGuard.rejection?.reasons ?? [],
+                        styleGuardRejectedText: styleGuard.rejection == nil ? nil : enhancedText
                     )
                 } catch {
                     logger.error("Enhancement failed: \(error.localizedDescription, privacy: .public)")

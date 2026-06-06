@@ -41,6 +41,8 @@ final class Transcription {
     var hypothesesJSON: String?
     var selectedCandidate: String?
     var userCorrectionDistance: Double?
+    var styleGuardReasonsJSON: String?
+    var styleGuardRejectedText: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -65,6 +67,11 @@ final class Transcription {
     var confidenceReasons: [String] {
         get { Self.decodeStringArray(confidenceReasonsJSON) }
         set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var styleGuardReasons: [String] {
+        get { Self.decodeStringArray(styleGuardReasonsJSON) }
+        set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
     }
 
     init(text: String,
@@ -92,6 +99,8 @@ final class Transcription {
          hypotheses: [String] = [],
          selectedCandidate: String? = nil,
          userCorrectionDistance: Double? = nil,
+         styleGuardReasons: [String] = [],
+         styleGuardRejectedText: String? = nil,
          transcriptionStatus: TranscriptionStatus = .pending) {
         self.id = UUID()
         self.text = text
@@ -121,6 +130,8 @@ final class Transcription {
         self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
         self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
         self.userCorrectionDistance = userCorrectionDistance
+        self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
+        self.styleGuardRejectedText = styleGuardRejectedText
         self.transcriptionStatus = transcriptionStatus.rawValue
     }
 
@@ -143,6 +154,11 @@ final class Transcription {
         self.confidenceReasons = confidenceAssessment.reasons
         self.hypotheses = confidenceAssessment.candidates
         self.selectedCandidate = confidenceAssessment.selectedCandidate
+    }
+
+    func recordStyleGuardRejection(response: String, reasons: [String]) {
+        styleGuardRejectedText = response
+        styleGuardReasons = reasons
     }
 
     func markAsCanceledTranscription(
@@ -176,6 +192,8 @@ final class Transcription {
         hypotheses = []
         selectedCandidate = nil
         userCorrectionDistance = nil
+        styleGuardReasons = []
+        styleGuardRejectedText = nil
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {

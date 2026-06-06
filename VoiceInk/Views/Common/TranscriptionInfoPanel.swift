@@ -9,6 +9,7 @@ struct TranscriptionInfoPanel: View {
         Form {
             detailsSection
             dictationSection
+            styleGuardSection
             aiRequestSection
         }
         .formStyle(.grouped)
@@ -164,6 +165,36 @@ struct TranscriptionInfoPanel: View {
     }
 
     // MARK: - AI Request Section
+
+    @ViewBuilder
+    private var styleGuardSection: some View {
+        if !transcription.styleGuardReasons.isEmpty || transcription.styleGuardRejectedText != nil {
+            Section {
+                if !transcription.styleGuardReasons.isEmpty {
+                    metadataRow(
+                        icon: "shield.lefthalf.filled",
+                        label: "Reason",
+                        value: transcription.styleGuardReasons.joined(separator: ", ")
+                    )
+                }
+
+                if let rejectedText = transcription.styleGuardRejectedText, !rejectedText.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Rejected Output")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Text(rejectedText)
+                            .font(.system(size: 12, weight: .regular))
+                            .lineSpacing(2)
+                            .textSelection(.enabled)
+                            .foregroundColor(.primary)
+                    }
+                }
+            } header: {
+                Text("Style Guard")
+            }
+        }
+    }
 
     @ViewBuilder
     private var aiRequestSection: some View {

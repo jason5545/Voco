@@ -49,6 +49,7 @@ enum AppDefaults {
             "ShortEnhancementWordThreshold": 3,
             "EnhancementTimeoutSeconds": 7,
             "EnhancementRetryOnTimeout": true,
+            PersonalStyleGuardService.enabledKey: true,
 
             // Model
             "PrewarmModelOnWake": true,
