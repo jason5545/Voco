@@ -102,6 +102,14 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             badges.append(retranscriptionBadge)
         }
 
+        if let feedbackBadge = correctionFeedbackBadge(for: transcription.correctionFeedback) {
+            badges.append(feedbackBadge)
+        }
+
+        if let styleGuardBadge = styleGuardBadge(for: transcription) {
+            badges.append(styleGuardBadge)
+        }
+
         let replacementCount = transcription.canonicalizationReplacements.count
         if replacementCount > 0 {
             badges.append(
@@ -172,6 +180,41 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 tone: .secondary
             )
         }
+    }
+
+    private static func correctionFeedbackBadge(for signals: [CorrectionFeedbackSignal]) -> TranscriptionAssistiveBadge? {
+        guard !signals.isEmpty else { return nil }
+
+        let correctiveCount = signals.filter(\.isCorrectiveSignal).count
+        if correctiveCount > 0 {
+            return TranscriptionAssistiveBadge(
+                id: "correction-feedback",
+                icon: "checklist.checked",
+                title: countLabel(correctiveCount, singular: "correction", plural: "corrections"),
+                tone: .green
+            )
+        }
+
+        return TranscriptionAssistiveBadge(
+            id: "correction-feedback-passive",
+            icon: "checklist",
+            title: countLabel(signals.count, singular: "feedback signal", plural: "feedback signals"),
+            tone: .secondary
+        )
+    }
+
+    private static func styleGuardBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
+        let reasonCount = transcription.styleGuardReasons.count
+        guard reasonCount > 0 || transcription.styleGuardRejectedText?.isEmpty == false else {
+            return nil
+        }
+
+        return TranscriptionAssistiveBadge(
+            id: "style-guard",
+            icon: "shield.lefthalf.filled",
+            title: reasonCount > 0 ? countLabel(reasonCount, singular: "style flag", plural: "style flags") : "Style guard",
+            tone: .purple
+        )
     }
 
     private static func reviewBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {

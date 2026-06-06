@@ -614,6 +614,64 @@ struct VoiceInkTests {
         #expect(TranscriptionAssistiveBadge.badges(for: directCanonicalized).map(\.title) == ["1 fix"])
     }
 
+    @Test func historyAssistiveBadgesSurfaceFeedbackAndStyleGuardSignals() async throws {
+        let correctiveFeedback = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我覺得 lisa 的 homura 很難唱",
+            proposedText: "我覺得 LiSA 的炎很難唱",
+            acceptedText: "我覺得 LiSA 的明け星很難唱",
+            confidenceScore: 0.62,
+            changeRatio: 0.18,
+            reason: "candidate-override",
+            termIDs: ["artist.lisa", "song.akeboshi"]
+        )
+        let passiveFeedback = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我現在用 voice ink",
+            proposedText: "我現在用 VoiceInk",
+            acceptedText: "我現在用 VoiceInk",
+            confidenceScore: 0.82,
+            changeRatio: 0.1,
+            reason: "candidate-timeout-fallback",
+            termIDs: ["product.voiceink"]
+        )
+        let transcription = Transcription(
+            text: "我覺得 LiSA 的明け星很難唱",
+            duration: 0.8,
+            styleGuardReasons: [
+                "assistant-opener:以下是",
+                "dropped-mixed-language-term:Qwen3-ASR",
+            ],
+            styleGuardRejectedText: "以下是我整理後的版本：我覺得這首歌很難唱。",
+            correctionFeedback: [correctiveFeedback, passiveFeedback]
+        )
+
+        let badges = TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
+
+        #expect(badges.map(\.id) == [
+            "correction-feedback",
+            "style-guard",
+        ])
+        #expect(badges.map(\.title) == [
+            "1 correction",
+            "2 style flags",
+        ])
+        #expect(badges.map(\.tone) == [
+            .green,
+            .purple,
+        ])
+        #expect(TranscriptionAssistiveBadge.badges(for: transcription, limit: 1).map(\.title) == ["1 correction"])
+
+        let passiveOnly = Transcription(
+            text: "我現在用 VoiceInk",
+            duration: 0.3,
+            correctionFeedback: [passiveFeedback]
+        )
+
+        #expect(TranscriptionAssistiveBadge.badges(for: passiveOnly).map(\.title) == ["1 feedback signal"])
+        #expect(TranscriptionAssistiveBadge.badges(for: passiveOnly).map(\.tone) == [.secondary])
+    }
+
     @Test func historyReviewBadgeSummarizesTriggerSpecificity() async throws {
         let review = Transcription(text: "今天看到焰很大", duration: 0.4)
         review.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
