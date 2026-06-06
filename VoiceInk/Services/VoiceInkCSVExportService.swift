@@ -56,6 +56,7 @@ class VoiceInkCSVExportService {
         "Confidence Reasons",
         "Candidate Labels",
         "Candidates",
+        "Candidate Details",
         "Selected Candidate",
         "Candidate Selection Source",
         "User Correction Distance",
@@ -96,6 +97,7 @@ class VoiceInkCSVExportService {
             joined(VocoSignalDisplayFormatter.displayReasons(for: transcription.confidenceReasons)),
             joined(transcription.hypothesisLabels),
             candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
+            candidateDetailSummary(labels: transcription.hypothesisLabels, hypotheses: transcription.hypothesisDetails),
             transcription.selectedCandidate ?? "",
             selectionSourceDisplay(transcription.candidateSelectionSource),
             decimal(transcription.userCorrectionDistance),
@@ -152,6 +154,18 @@ class VoiceInkCSVExportService {
             .map { index, candidate in
                 let label = labels.indices.contains(index) ? labels[index] : "Candidate"
                 return "\(label): \(candidate)"
+            }
+            .joined(separator: " | ")
+    }
+
+    private func candidateDetailSummary(labels: [String], hypotheses: [VocoHypothesis]) -> String {
+        hypotheses.enumerated()
+            .map { index, hypothesis in
+                let label = labels.indices.contains(index) ? labels[index] : hypothesis.label
+                let summary = VocoHypothesisDisplayFormatter.summary(for: hypothesis)
+                let prefix = "\(label) / \(hypothesis.sourceDisplayName)"
+                guard let summary, !summary.isEmpty else { return prefix }
+                return "\(prefix): \(summary)"
             }
             .joined(separator: " | ")
     }

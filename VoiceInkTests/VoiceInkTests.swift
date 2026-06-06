@@ -354,6 +354,33 @@ struct VoiceInkTests {
         transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
         transcription.hypothesisLabels = ["Recommended", "Raw ASR"]
         transcription.hypotheses = ["我現在用 VoiceInk", "我現在用 voice ink"]
+        transcription.hypothesisDetails = [
+            VocoHypothesis(
+                id: "autoContext",
+                text: "我現在用 VoiceInk",
+                label: "Recommended",
+                source: .autoContext,
+                confidenceScore: 0.86,
+                reasons: ["alias-match", "raw-cleanup-drift"],
+                activeContextIDs: [
+                    VocoCanonicalizationService.defaultContextPackID,
+                    "power-mode:123",
+                ],
+                appliedTermIDs: ["product.voiceink"],
+                requiresReview: true
+            ),
+            VocoHypothesis(
+                id: "rawASR",
+                text: "我現在用 voice ink",
+                label: "Raw ASR",
+                source: .rawASR,
+                confidenceScore: 0.86,
+                reasons: ["raw-cleanup-drift"],
+                activeContextIDs: [],
+                appliedTermIDs: [],
+                requiresReview: false
+            ),
+        ]
 
         let csv = VoiceInkCSVExportService().generateCSV(for: [transcription])
 
@@ -376,6 +403,12 @@ struct VoiceInkTests {
         #expect(csv.contains("reviewSuggested"))
         #expect(csv.contains("Alias match | Cleanup drift"))
         #expect(csv.contains("Recommended: 我現在用 VoiceInk | Raw ASR: 我現在用 voice ink"))
+        #expect(csv.contains("Candidate Details"))
+        #expect(csv.contains("Recommended / AUTO + context: Confidence 86%"))
+        #expect(csv.contains("Terms product.voiceink"))
+        #expect(csv.contains("Contexts VOCO Development, Power Mode"))
+        #expect(csv.contains("Review required"))
+        #expect(csv.contains("Raw ASR / Raw ASR: Confidence 86%"))
         #expect(csv.contains("Candidate Selection Source"))
         #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
