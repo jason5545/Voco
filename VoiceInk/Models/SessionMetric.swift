@@ -25,6 +25,7 @@ final class SessionMetric {
     var confidenceReasonsJSON: String?
     var reviewTriggerCount: Int = 0
     var reviewTriggerIDsJSON: String?
+    var reviewTriggerSummariesJSON: String?
     var candidateCount: Int = 0
     var candidateSourceCountsJSON: String?
     var reviewRequiredCandidateCount: Int = 0
@@ -57,6 +58,11 @@ final class SessionMetric {
         set { reviewTriggerIDsJSON = Self.encodeJSON(newValue) }
     }
 
+    var reviewTriggerSummaries: [String] {
+        get { Self.decodeStringArray(reviewTriggerSummariesJSON) }
+        set { reviewTriggerSummariesJSON = Self.encodeJSON(newValue) }
+    }
+
     var candidateSourceCounts: [String: Int] {
         get { Self.decodeStringIntDictionary(candidateSourceCountsJSON) }
         set { candidateSourceCountsJSON = Self.encodeJSON(newValue) }
@@ -84,6 +90,7 @@ final class SessionMetric {
         confidenceReasons: [String] = [],
         reviewTriggerCount: Int = 0,
         reviewTriggerIDs: [String] = [],
+        reviewTriggerSummaries: [String] = [],
         candidateCount: Int = 0,
         candidateSourceCounts: [String: Int] = [:],
         reviewRequiredCandidateCount: Int = 0,
@@ -123,6 +130,7 @@ final class SessionMetric {
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceReasons)
         self.reviewTriggerCount = reviewTriggerCount
         self.reviewTriggerIDsJSON = Self.encodeJSON(reviewTriggerIDs)
+        self.reviewTriggerSummariesJSON = Self.encodeJSON(reviewTriggerSummaries)
         self.candidateCount = candidateCount
         self.candidateSourceCountsJSON = Self.encodeJSON(candidateSourceCounts)
         self.reviewRequiredCandidateCount = reviewRequiredCandidateCount
@@ -152,6 +160,7 @@ final class SessionMetric {
         confidenceReasons = transcription.confidenceReasons
         reviewTriggerCount = transcription.reviewTriggers.count
         reviewTriggerIDs = transcription.reviewTriggers.map(\.id)
+        reviewTriggerSummaries = Self.reviewTriggerSummaries(from: transcription.reviewTriggers)
         candidateCount = transcription.hypotheses.count
         candidateSourceCounts = Self.candidateSourceCounts(from: transcription.hypothesisDetails)
         reviewRequiredCandidateCount = Self.reviewRequiredCandidateCount(in: transcription.hypothesisDetails)
@@ -242,6 +251,10 @@ final class SessionMetric {
         return hypotheses.first { hypothesis in
             hypothesis.text.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
         }?.source.rawValue
+    }
+
+    static func reviewTriggerSummaries(from triggers: [VocoReviewTrigger]) -> [String] {
+        VocoReviewTriggerDisplayFormatter.summaries(for: triggers)
     }
 
     private static func uniqueCandidateTexts(from hypotheses: [VocoHypothesis]) -> [String] {
