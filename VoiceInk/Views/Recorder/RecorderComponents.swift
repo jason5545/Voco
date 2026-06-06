@@ -383,6 +383,8 @@ struct CandidateReviewView: View {
     let onSelect: (String) -> Void
     let onDismiss: () -> Void
 
+    @State private var typedCandidate = ""
+
     var body: some View {
         VStack(spacing: 7) {
             HStack(spacing: 7) {
@@ -422,6 +424,8 @@ struct CandidateReviewView: View {
                     }
                 }
             }
+
+            typedRescueRow
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 5) {
@@ -479,5 +483,46 @@ struct CandidateReviewView: View {
 
     private var confidenceText: String {
         "\(Int((review.confidenceScore * 100).rounded()))%"
+    }
+
+    private var trimmedTypedCandidate: String {
+        typedCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var typedRescueRow: some View {
+        HStack(spacing: 6) {
+            TextField("Type correction", text: $typedCandidate, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.9))
+                .lineLimit(1...2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.white.opacity(0.09))
+                )
+                .onSubmit(submitTypedCandidate)
+
+            Button(action: submitTypedCandidate) {
+                Image(systemName: "arrow.turn.down.left")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(trimmedTypedCandidate.isEmpty ? .white.opacity(0.25) : .black.opacity(0.78))
+                    .frame(width: 24, height: 24)
+                    .background(
+                        Circle()
+                            .fill(trimmedTypedCandidate.isEmpty ? Color.white.opacity(0.08) : Color.white.opacity(0.86))
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(trimmedTypedCandidate.isEmpty)
+            .help("Use typed correction")
+        }
+    }
+
+    private func submitTypedCandidate() {
+        let candidate = trimmedTypedCandidate
+        guard !candidate.isEmpty else { return }
+        onSelect(candidate)
     }
 }

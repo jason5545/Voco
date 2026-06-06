@@ -417,6 +417,26 @@ struct VoiceInkTests {
         #expect(signal.isCorrectiveSignal)
     }
 
+    @Test func correctionFeedbackCapturesTypedCandidateRescue() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: "今天看到火焰很大",
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-custom")
+        #expect(signal.proposedText == "今天看到焰很大")
+        #expect(signal.acceptedText == "今天看到火焰很大")
+        #expect(signal.termIDs.contains("song.homura"))
+        #expect(signal.isCorrectiveSignal)
+    }
+
     @Test func correctionFeedbackClassifiesCandidateConfirmationAsNonCorrective() async throws {
         let result = VocoCanonicalizationService().normalize("我現在用 voice anc")
         let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
@@ -471,6 +491,29 @@ struct VoiceInkTests {
         #expect(signal.kind == .candidateSelection)
         #expect(signal.acceptedText == "今天看到炎很大")
         #expect(signal.reason == "candidate-override")
+    }
+
+    @Test func candidateReviewAcceptanceStoresTypedRescue() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.normalizedText, duration: 0)
+
+        let signal = try #require(
+            VocoCandidateReviewService.acceptCandidate(
+                "今天看到火焰很大",
+                for: transcription,
+                normalizationResult: result,
+                confidenceAssessment: assessment,
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(transcription.text == "今天看到火焰很大")
+        #expect(transcription.normalizedTranscript == "今天看到火焰很大")
+        #expect(transcription.selectedCandidate == "今天看到火焰很大")
+        #expect(signal.reason == "candidate-custom")
+        #expect(transcription.correctionFeedback.first?.reason == "candidate-custom")
+        #expect(transcription.userCorrectionDistance != nil)
     }
 
     @Test func candidateReviewAcceptanceUpdatesTranscriptAndFeedback() async throws {
