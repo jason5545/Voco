@@ -9,7 +9,7 @@ final class SessionMetricMigrationService {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SessionMetricMigrationService")
     private let completionKey = "HasCompletedStatsMigration"
     private let backfillVersionKey = "SessionMetricBackfillVersion"
-    private let currentBackfillVersion = 1
+    private let currentBackfillVersion = 2
     private(set) var isRunning = false
 
     private init() {}
@@ -30,13 +30,14 @@ final class SessionMetricMigrationService {
         return Task.detached(priority: .utility) {
             let backgroundContext = ModelContext(modelContainer)
             var insertedCount = 0
+            var updatedCount = 0
 
             do {
-                // Build a Set of already-migrated IDs in one query instead of
-                // checking per-record — turns N queries into 1.
-                let existingIds = Set(
-                    try backgroundContext.fetch(FetchDescriptor<SessionMetric>())
-                        .map { $0.transcriptionId }
+                // Fetch once instead of checking per record.
+                let existingMetrics = try backgroundContext.fetch(FetchDescriptor<SessionMetric>())
+                let existingMetricsByTranscriptionID = Dictionary(
+                    existingMetrics.map { ($0.transcriptionId, $0) },
+                    uniquingKeysWith: { first, _ in first }
                 )
 
                 let descriptor = FetchDescriptor<Transcription>(
@@ -45,7 +46,11 @@ final class SessionMetricMigrationService {
                 let transcriptions = try backgroundContext.fetch(descriptor)
 
                 for transcription in transcriptions {
-                    guard !existingIds.contains(transcription.id) else { continue }
+                    if let existingMetric = existingMetricsByTranscriptionID[transcription.id] {
+                        existingMetric.recordDictationMetadata(from: transcription)
+                        updatedCount += 1
+                        continue
+                    }
 
                     let enhancementDuration = transcription.enhancementDuration.flatMap { $0 > 0 ? $0 : nil }
                     let audioDuration = max(transcription.duration, 0)
@@ -71,19 +76,30 @@ final class SessionMetricMigrationService {
                         speedFactor: speedFactor,
                         powerModeName: transcription.powerModeName,
                         aiEnhancementModelName: transcription.aiEnhancementModelName,
-                        enhancementDuration: enhancementDuration
+                        enhancementDuration: enhancementDuration,
+                        asrEngineID: transcription.asrEngineID,
+                        languageMode: transcription.languageMode,
+                        activeContextIDs: transcription.activeContextIDs,
+                        canonicalizationReplacementCount: transcription.canonicalizationReplacements.count,
+                        canonicalizationSuggestionCount: transcription.canonicalizationSuggestions.count,
+                        confidenceScore: transcription.confidenceScore,
+                        confidenceRoute: transcription.confidenceRoute,
+                        confidenceReasons: transcription.confidenceReasons,
+                        candidateCount: transcription.hypotheses.count,
+                        selectedCandidate: transcription.selectedCandidate,
+                        userCorrectionDistance: transcription.userCorrectionDistance
                     )
                     backgroundContext.insert(metric)
                     insertedCount += 1
                 }
 
-                if insertedCount > 0 {
+                if insertedCount > 0 || updatedCount > 0 {
                     try backgroundContext.save()
                 }
 
                 UserDefaults.standard.set(true, forKey: completionKey)
                 UserDefaults.standard.set(currentBackfillVersion, forKey: backfillVersionKey)
-                logger.notice("Completed stats migration/backfill with \(insertedCount, privacy: .public) session metric(s)")
+                logger.notice("Completed stats migration/backfill with \(insertedCount, privacy: .public) inserted and \(updatedCount, privacy: .public) updated session metric(s)")
             } catch {
                 logger.error("Stats migration failed: \(error.localizedDescription, privacy: .public)")
             }

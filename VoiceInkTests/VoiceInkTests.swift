@@ -335,6 +335,88 @@ struct VoiceInkTests {
         #expect(csv.contains("0.120"))
     }
 
+    @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
+        let context = try makeSessionMetricContext()
+        let output = makeSessionMetricDictationOutput()
+        let transcription = Transcription(
+            text: output.result.normalizedText,
+            duration: 2.0,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: 0.5,
+            rawTranscript: output.result.originalText,
+            normalizedTranscript: output.result.normalizedText,
+            activeContextIDs: output.result.activeContextIDs,
+            canonicalizationReplacements: output.result.replacements,
+            canonicalizationSuggestions: output.result.suggestions,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto",
+            confidenceAssessment: output.assessment,
+            userCorrectionDistance: 0.12,
+            transcriptionStatus: .completed
+        )
+        context.insert(transcription)
+
+        let inserted = try SessionMetricRecorder.recordRecorderSession(
+            transcription: transcription,
+            model: nil,
+            in: context,
+            timestamp: transcription.timestamp
+        )
+
+        let metric = try #require(try context.fetch(FetchDescriptor<SessionMetric>()).first)
+        #expect(inserted)
+        #expect(metric.transcriptionId == transcription.id)
+        #expect(metric.asrEngineID == "qwen3:Qwen3-ASR")
+        #expect(metric.languageMode == "auto")
+        #expect(metric.activeContextIDs == output.result.activeContextIDs)
+        #expect(metric.canonicalizationReplacementCount == 1)
+        #expect(metric.canonicalizationSuggestionCount == 1)
+        #expect(metric.confidenceScore == output.assessment.score)
+        #expect(metric.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue)
+        #expect(metric.confidenceReasons == output.assessment.reasons)
+        #expect(metric.candidateCount == output.assessment.candidates.count)
+        #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
+        #expect(metric.userCorrectionDistance == 0.12)
+    }
+
+    @Test func sessionMetricBackfillCapturesDictationMetadataFromTranscription() async throws {
+        let output = makeSessionMetricDictationOutput()
+        let transcription = Transcription(
+            text: output.result.normalizedText,
+            duration: 2.0,
+            rawTranscript: output.result.originalText,
+            normalizedTranscript: output.result.normalizedText,
+            activeContextIDs: output.result.activeContextIDs,
+            canonicalizationReplacements: output.result.replacements,
+            canonicalizationSuggestions: output.result.suggestions,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto",
+            confidenceAssessment: output.assessment,
+            transcriptionStatus: .completed
+        )
+        let metric = SessionMetric(
+            transcriptionId: transcription.id,
+            wordCount: 3,
+            audioDuration: 2.0,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: 0.5,
+            speedFactor: 4.0,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil
+        )
+
+        metric.recordDictationMetadata(from: transcription)
+
+        #expect(metric.activeContextIDs == output.result.activeContextIDs)
+        #expect(metric.canonicalizationReplacementCount == 1)
+        #expect(metric.canonicalizationSuggestionCount == 1)
+        #expect(metric.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue)
+        #expect(metric.confidenceReasons == output.assessment.reasons)
+        #expect(metric.candidateCount == output.assessment.candidates.count)
+        #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
+    }
+
     @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {
         let context = try makeCanonicalizationPipelineContext()
         let transcription = Transcription(text: "", duration: 0)
@@ -1410,4 +1492,57 @@ private func makeCanonicalizationPipelineContext() throws -> ModelContext {
     )
     let container = try ModelContainer(for: schema, configurations: [config])
     return ModelContext(container)
+}
+
+@MainActor
+private func makeSessionMetricContext() throws -> ModelContext {
+    let schema = Schema([Transcription.self, SessionMetric.self])
+    let storeURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("session-metric-test-\(UUID().uuidString).store")
+    let config = ModelConfiguration(
+        "session-metric-test-\(UUID().uuidString)",
+        schema: schema,
+        url: storeURL,
+        cloudKitDatabase: .none
+    )
+    let container = try ModelContainer(for: schema, configurations: [config])
+    return ModelContext(container)
+}
+
+private func makeSessionMetricDictationOutput() -> (result: VocoNormalizationResult, assessment: VocoConfidenceAssessment) {
+    let result = VocoNormalizationResult(
+        originalText: "我現在用 voice ink 然後可能是 voco",
+        normalizedText: "我現在用 VoiceInk 然後可能是 voco",
+        activeContextIDs: [
+            VocoCanonicalizationService.defaultContextPackID,
+            "power-mode:123",
+        ],
+        replacements: [
+            VocoReplacement(
+                originalText: "voice ink",
+                replacementText: "VoiceInk",
+                termID: "product.voiceink",
+                confidence: 0.97,
+                reason: "alias-match",
+                rangeStart: 4,
+                rangeLength: 9
+            ),
+        ],
+        suggestions: [
+            VocoReplacement(
+                originalText: "voco",
+                replacementText: "VOCO",
+                termID: "product.voco",
+                confidence: 0.55,
+                reason: "inactive-context-suggestion",
+                rangeStart: 19,
+                rangeLength: 4
+            ),
+        ]
+    )
+    let assessment = VocoConfidenceGateService().assess(
+        normalizationResult: result,
+        rawTranscript: result.originalText
+    )
+    return (result, assessment)
 }

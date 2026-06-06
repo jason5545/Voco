@@ -49,7 +49,18 @@ enum SessionMetricRecorder {
             speedFactor: speedFactor,
             powerModeName: transcription.powerModeName,
             aiEnhancementModelName: transcription.aiEnhancementModelName,
-            enhancementDuration: enhancementDuration
+            enhancementDuration: enhancementDuration,
+            asrEngineID: transcription.asrEngineID,
+            languageMode: transcription.languageMode,
+            activeContextIDs: transcription.activeContextIDs,
+            canonicalizationReplacementCount: transcription.canonicalizationReplacements.count,
+            canonicalizationSuggestionCount: transcription.canonicalizationSuggestions.count,
+            confidenceScore: transcription.confidenceScore,
+            confidenceRoute: transcription.confidenceRoute,
+            confidenceReasons: transcription.confidenceReasons,
+            candidateCount: transcription.hypotheses.count,
+            selectedCandidate: transcription.selectedCandidate,
+            userCorrectionDistance: transcription.userCorrectionDistance
         )
 
         modelContext.insert(metric)

@@ -15,6 +15,27 @@ final class SessionMetric {
     var powerModeName: String?
     var aiEnhancementModelName: String?
     var enhancementDuration: TimeInterval?
+    var asrEngineID: String?
+    var languageMode: String?
+    var activeContextIDsJSON: String?
+    var canonicalizationReplacementCount: Int = 0
+    var canonicalizationSuggestionCount: Int = 0
+    var confidenceScore: Double?
+    var confidenceRoute: String?
+    var confidenceReasonsJSON: String?
+    var candidateCount: Int = 0
+    var selectedCandidate: String?
+    var userCorrectionDistance: Double?
+
+    var activeContextIDs: [String] {
+        get { Self.decodeStringArray(activeContextIDsJSON) }
+        set { activeContextIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var confidenceReasons: [String] {
+        get { Self.decodeStringArray(confidenceReasonsJSON) }
+        set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
+    }
 
     init(
         transcriptionId: UUID,
@@ -27,7 +48,18 @@ final class SessionMetric {
         speedFactor: Double?,
         powerModeName: String?,
         aiEnhancementModelName: String?,
-        enhancementDuration: TimeInterval?
+        enhancementDuration: TimeInterval?,
+        asrEngineID: String? = nil,
+        languageMode: String? = nil,
+        activeContextIDs: [String] = [],
+        canonicalizationReplacementCount: Int = 0,
+        canonicalizationSuggestionCount: Int = 0,
+        confidenceScore: Double? = nil,
+        confidenceRoute: String? = nil,
+        confidenceReasons: [String] = [],
+        candidateCount: Int = 0,
+        selectedCandidate: String? = nil,
+        userCorrectionDistance: Double? = nil
     ) {
         self.id = UUID()
         self.transcriptionId = transcriptionId
@@ -41,5 +73,45 @@ final class SessionMetric {
         self.powerModeName = powerModeName
         self.aiEnhancementModelName = aiEnhancementModelName
         self.enhancementDuration = enhancementDuration
+        self.asrEngineID = asrEngineID
+        self.languageMode = languageMode
+        self.activeContextIDsJSON = Self.encodeJSON(activeContextIDs)
+        self.canonicalizationReplacementCount = canonicalizationReplacementCount
+        self.canonicalizationSuggestionCount = canonicalizationSuggestionCount
+        self.confidenceScore = confidenceScore
+        self.confidenceRoute = confidenceRoute
+        self.confidenceReasonsJSON = Self.encodeJSON(confidenceReasons)
+        self.candidateCount = candidateCount
+        self.selectedCandidate = selectedCandidate
+        self.userCorrectionDistance = userCorrectionDistance
+    }
+
+    func recordDictationMetadata(from transcription: Transcription) {
+        asrEngineID = transcription.asrEngineID
+        languageMode = transcription.languageMode
+        activeContextIDs = transcription.activeContextIDs
+        canonicalizationReplacementCount = transcription.canonicalizationReplacements.count
+        canonicalizationSuggestionCount = transcription.canonicalizationSuggestions.count
+        confidenceScore = transcription.confidenceScore
+        confidenceRoute = transcription.confidenceRoute
+        confidenceReasons = transcription.confidenceReasons
+        candidateCount = transcription.hypotheses.count
+        selectedCandidate = transcription.selectedCandidate
+        userCorrectionDistance = transcription.userCorrectionDistance
+    }
+
+    private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeStringArray(_ json: String?) -> [String] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([String].self, from: data)
+        else {
+            return []
+        }
+        return values
     }
 }
