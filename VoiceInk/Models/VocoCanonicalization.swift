@@ -269,6 +269,8 @@ enum VocoSignalDisplayFormatter {
             return "Recent corrections"
         case "recent-term-corrections":
             return "Term was corrected"
+        case "segment-rescue":
+            return "Segment rescue"
         case "unresolved-suggestions":
             return "Needs choice"
         case "user-substitution":

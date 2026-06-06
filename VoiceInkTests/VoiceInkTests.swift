@@ -257,6 +257,32 @@ struct VoiceInkTests {
         #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .rawASR])
     }
 
+    @Test func hypothesisManagerAddsSegmentRescueForRawDriftWithCanonicalTerms() async throws {
+        let result = VocoCanonicalizationService().normalize("我今天要測 voice anc")
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: "我今天要測 voice anc 然後後面還有一大段錯字"
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("raw-cleanup-significant"))
+        #expect(assessment.candidates == [
+            "我今天要測 VoiceInk",
+            "我今天要測 VoiceInk 然後後面還有一大段錯字",
+            "我今天要測 voice anc",
+            "我今天要測 voice anc 然後後面還有一大段錯字",
+        ])
+        #expect(assessment.candidateLabels == ["Recommended", "Segment rescue", "Original", "Raw ASR"])
+
+        let rescue = try #require(assessment.hypothesisDetails.first { $0.source == .segmentRescue })
+        #expect(rescue.text == "我今天要測 VoiceInk 然後後面還有一大段錯字")
+        #expect(rescue.label == "Segment rescue")
+        #expect(rescue.appliedTermIDs == ["product.voiceink"])
+        #expect(rescue.requiresReview)
+        #expect(rescue.reasons.contains("segment-rescue"))
+        #expect(VocoHypothesisDisplayFormatter.summary(for: rescue)?.contains("Segment rescue") == true)
+    }
+
     @Test func hypothesisManagerKeepsRawASRAsTraceableCandidate() async throws {
         let result = VocoCanonicalizationService().normalize("我現在用 voice ink 的 fork 做 voco")
         let assessment = VocoConfidenceGateService().assess(
