@@ -90,8 +90,8 @@ enum VocoCanonicalizationPipeline {
         "\(model.provider.rawValue):\(model.name)"
     }
 
-    static func selectedLanguageMode() -> String {
-        UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto"
+    static func selectedLanguageMode(defaults: UserDefaults = .standard) -> String {
+        TranscriptionLanguageSupport.selectedLanguage(in: defaults)
     }
 
     private static func vocabularyWords(in modelContext: ModelContext) -> [String] {

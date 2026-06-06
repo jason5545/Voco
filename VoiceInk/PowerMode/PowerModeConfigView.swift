@@ -64,7 +64,7 @@ struct ConfigurationView: View {
 
     private func useCompatibleLanguage(for model: any TranscriptionModel) {
         selectedLanguage = TranscriptionLanguageSupport.validLanguageOrFallback(
-            selectedLanguage ?? UserDefaults.standard.string(forKey: "SelectedLanguage"),
+            selectedLanguage ?? UserDefaults.standard.string(forKey: TranscriptionLanguageSupport.selectedLanguageKey),
             for: model
         )
     }
@@ -301,7 +301,7 @@ struct ConfigurationView: View {
                             if let modelName = newModelName ?? transcriptionModelManager.currentTranscriptionModel?.name,
                                let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }) {
                                 if model.provider == .gemini {
-                                    selectedLanguage = "auto"
+                                    selectedLanguage = TranscriptionLanguageSupport.defaultLanguageCode
                                 } else {
                                     useCompatibleLanguage(for: model)
                                 }
@@ -315,13 +315,17 @@ struct ConfigurationView: View {
                                 .foregroundColor(.secondary)
                         }
                         .onAppear {
-                            selectedLanguage = "auto"
+                            selectedLanguage = TranscriptionLanguageSupport.defaultLanguageCode
                         }
                     } else if let selectedModel = effectiveModelName,
                               let modelInfo = transcriptionModelManager.allAvailableModels.first(where: { $0.name == selectedModel }),
                               modelInfo.isMultilingualModel {
                         let languageBinding = Binding<String?>(
-                            get: { selectedLanguage ?? UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto" },
+                            get: {
+                                selectedLanguage ??
+                                    UserDefaults.standard.string(forKey: TranscriptionLanguageSupport.selectedLanguageKey) ??
+                                    TranscriptionLanguageSupport.defaultLanguageCode
+                            },
                             set: { selectedLanguage = $0 }
                         )
 

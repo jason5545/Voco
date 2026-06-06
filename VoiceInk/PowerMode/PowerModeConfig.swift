@@ -47,11 +47,11 @@ struct PowerModeConfig: Codable, Identifiable, Equatable {
     }
 
     static func defaultSelectedLanguage(defaults: UserDefaults = .standard) -> String {
-        defaultSelectedLanguage(storedLanguage: defaults.string(forKey: "SelectedLanguage"))
+        defaultSelectedLanguage(storedLanguage: defaults.string(forKey: TranscriptionLanguageSupport.selectedLanguageKey))
     }
 
     static func defaultSelectedLanguage(storedLanguage: String?) -> String {
-        storedLanguage ?? "auto"
+        storedLanguage ?? TranscriptionLanguageSupport.defaultLanguageCode
     }
     
     init(id: UUID = UUID(), name: String, emoji: String, appConfigs: [AppConfig]? = nil,

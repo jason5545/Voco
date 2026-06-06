@@ -2540,8 +2540,45 @@ struct VoiceInkTests {
     }
 
     @Test func powerModeDefaultLanguageStaysAutoFirst() throws {
-        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: nil) == "auto")
+        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: nil) == TranscriptionLanguageSupport.defaultLanguageCode)
         #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: "ja") == "ja")
+    }
+
+    @Test @MainActor func appDefaultsRegisterAutoFirstLanguage() throws {
+        let suiteName = "AppDefaultsTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        AppDefaults.registerDefaults(defaults: defaults)
+
+        #expect(
+            defaults.string(forKey: TranscriptionLanguageSupport.selectedLanguageKey) ==
+                TranscriptionLanguageSupport.defaultLanguageCode
+        )
+        #expect(TranscriptionLanguageSupport.selectedLanguage(in: defaults) == TranscriptionLanguageSupport.defaultLanguageCode)
+        #expect(VocoCanonicalizationPipeline.selectedLanguageMode(defaults: defaults) == TranscriptionLanguageSupport.defaultLanguageCode)
+    }
+
+    @Test func languageFallbackPrefersAutoWhenModelSupportsIt() throws {
+        let qwenModel = try #require(TranscriptionModelRegistry.models.first { $0.provider == .qwen3 })
+        let nativeAppleModel = try #require(TranscriptionModelRegistry.models.first { $0.provider == .nativeApple })
+
+        #expect(
+            TranscriptionLanguageSupport.validLanguageOrFallback(nil, for: qwenModel) ==
+                TranscriptionLanguageSupport.defaultLanguageCode
+        )
+        #expect(
+            TranscriptionLanguageSupport.validLanguageOrFallback(
+                TranscriptionLanguageSupport.defaultLanguageCode,
+                for: qwenModel
+            ) == TranscriptionLanguageSupport.defaultLanguageCode
+        )
+        #expect(
+            TranscriptionLanguageSupport.validLanguageOrFallback(
+                TranscriptionLanguageSupport.defaultLanguageCode,
+                for: nativeAppleModel
+            ) == "en-US"
+        )
     }
 
     @Test func canonicalizationUsesEnabledWordReplacementsAsPersonalDictionaryTerms() async throws {

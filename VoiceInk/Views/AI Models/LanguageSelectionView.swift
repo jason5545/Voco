@@ -8,7 +8,7 @@ enum LanguageDisplayMode {
 
 struct LanguageSelectionView: View {
     @ObservedObject var transcriptionModelManager: TranscriptionModelManager
-    @AppStorage("SelectedLanguage") private var selectedLanguage: String = "en"
+    @AppStorage(TranscriptionLanguageSupport.selectedLanguageKey) private var selectedLanguage: String = TranscriptionLanguageSupport.defaultLanguageCode
     // Add display mode parameter with full as the default
     var displayMode: LanguageDisplayMode = .full
     @ObservedObject var whisperPrompt: WhisperPrompt
@@ -48,7 +48,7 @@ struct LanguageSelectionView: View {
 
     private func availableLanguagesForCurrentModel() -> [String: String] {
         guard let currentModel = transcriptionModelManager.currentTranscriptionModel else {
-            return ["en": "English"] // Default to English if no model found
+            return [TranscriptionLanguageSupport.defaultLanguageCode: "Auto-detect"]
         }
         return TranscriptionLanguageSupport.languages(for: currentModel)
     }

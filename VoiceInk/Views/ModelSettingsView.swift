@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ModelSettingsView: View {
     @ObservedObject var whisperPrompt: WhisperPrompt
-    @AppStorage("SelectedLanguage") private var selectedLanguage: String = "en"
+    @AppStorage(TranscriptionLanguageSupport.selectedLanguageKey) private var selectedLanguage: String = TranscriptionLanguageSupport.defaultLanguageCode
     @AppStorage("IsTextFormattingEnabled") private var isTextFormattingEnabled = true
     @AppStorage(PunctuationCleanupMode.userDefaultsKey) private var punctuationCleanupModeRaw = PunctuationCleanupMode.current().rawValue
     @AppStorage("LowercaseTranscription") private var lowercaseTranscription = false
