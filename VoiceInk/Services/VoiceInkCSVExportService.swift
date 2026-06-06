@@ -59,6 +59,12 @@ class VoiceInkCSVExportService {
         "Selected Candidate",
         "Candidate Selection Source",
         "User Correction Distance",
+        "Retranscription Source ID",
+        "Retranscription Source Text",
+        "Retranscription Change Category",
+        "Retranscription Change Ratio",
+        "Retranscription Edit Distance",
+        "Retranscription Confidence Delta",
         "Enhancement Time",
         "Transcription Time",
         "Timestamp",
@@ -66,7 +72,9 @@ class VoiceInkCSVExportService {
     ]
 
     private func values(for transcription: Transcription) -> [String] {
-        [
+        let retranscriptionAnalysis = transcription.retranscriptionAnalysis
+
+        return [
             transcription.text,
             transcription.rawTranscript ?? "",
             transcription.normalizedTranscript ?? "",
@@ -91,6 +99,12 @@ class VoiceInkCSVExportService {
             transcription.selectedCandidate ?? "",
             selectionSourceDisplay(transcription.candidateSelectionSource),
             decimal(transcription.userCorrectionDistance),
+            transcription.sourceTranscriptionID?.uuidString ?? "",
+            transcription.retranscriptionSourceText ?? "",
+            retranscriptionAnalysis?.changeCategory.rawValue ?? "",
+            decimal(retranscriptionAnalysis?.changeRatio),
+            retranscriptionAnalysis.map { "\($0.editDistance)" } ?? "",
+            decimal(retranscriptionAnalysis?.confidenceDelta),
             decimal(transcription.enhancementDuration),
             decimal(transcription.transcriptionDuration),
             transcription.timestamp.ISO8601Format(),

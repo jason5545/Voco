@@ -267,6 +267,7 @@ struct VoiceInkTests {
     }
 
     @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
+        let sourceTranscriptionID = try #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
         let transcription = Transcription(
             text: "我現在用 VoiceInk",
             duration: 1.25,
@@ -312,7 +313,15 @@ struct VoiceInkTests {
             confidenceScore: 0.86,
             selectedCandidate: "我現在用 VoiceInk",
             candidateSelectionSource: .timeoutFallback,
-            userCorrectionDistance: 0.12
+            userCorrectionDistance: 0.12,
+            sourceTranscriptionID: sourceTranscriptionID,
+            retranscriptionSourceText: "我現在用 voice anc",
+            retranscriptionAnalysis: RetranscriptionAnalysis(
+                editDistance: 4,
+                changeRatio: 0.3333,
+                confidenceDelta: 0.2,
+                changeCategory: .meaningfulChange
+            )
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
         transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
@@ -343,6 +352,13 @@ struct VoiceInkTests {
         #expect(csv.contains("Candidate Selection Source"))
         #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
+        #expect(csv.contains("Retranscription Source ID"))
+        #expect(csv.contains("11111111-2222-3333-4444-555555555555"))
+        #expect(csv.contains("我現在用 voice anc"))
+        #expect(csv.contains("meaningfulChange"))
+        #expect(csv.contains("0.333"))
+        #expect(csv.contains("meaningfulChange,0.333,4,0.200"))
+        #expect(csv.contains("0.200"))
     }
 
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
