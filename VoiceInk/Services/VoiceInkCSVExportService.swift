@@ -227,22 +227,7 @@ class VoiceInkCSVExportService {
     }
 
     private func sourceSortOrder(_ source: String) -> Int {
-        switch VocoHypothesisSource(rawValue: source) {
-        case .autoContext:
-            return 0
-        case .suggestedRepair:
-            return 1
-        case .originalCleaned:
-            return 2
-        case .rawASR:
-            return 3
-        case .segmentRescue:
-            return 4
-        case .customRescue:
-            return 5
-        case nil:
-            return 99
-        }
+        VocoHypothesisSource(rawValue: source)?.analyticsSortPriority ?? 99
     }
 
     private func joined(_ values: [String]) -> String {

@@ -378,8 +378,8 @@ struct VoiceInkTests {
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
         transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
-        transcription.hypothesisLabels = ["Recommended", "Raw ASR"]
-        transcription.hypotheses = ["我現在用 VoiceInk", "我現在用 voice ink"]
+        transcription.hypothesisLabels = ["Recommended", "Segment rescue", "Raw ASR"]
+        transcription.hypotheses = ["我現在用 VoiceInk", "我現在用 VoiceInk rescue", "我現在用 voice ink"]
         transcription.hypothesisDetails = [
             VocoHypothesis(
                 id: "autoContext",
@@ -391,6 +391,19 @@ struct VoiceInkTests {
                 activeContextIDs: [
                     VocoCanonicalizationService.defaultContextPackID,
                     "power-mode:123",
+                ],
+                appliedTermIDs: ["product.voiceink"],
+                requiresReview: true
+            ),
+            VocoHypothesis(
+                id: "segmentRescue",
+                text: "我現在用 VoiceInk rescue",
+                label: "Segment rescue",
+                source: .segmentRescue,
+                confidenceScore: 0.86,
+                reasons: ["segment-rescue", "raw-cleanup-drift"],
+                activeContextIDs: [
+                    VocoCanonicalizationService.defaultContextPackID,
                 ],
                 appliedTermIDs: ["product.voiceink"],
                 requiresReview: true
@@ -428,9 +441,10 @@ struct VoiceInkTests {
         #expect(csv.contains("86%"))
         #expect(csv.contains("reviewSuggested"))
         #expect(csv.contains("Alias match | Cleanup drift"))
-        #expect(csv.contains("Recommended: 我現在用 VoiceInk | Raw ASR: 我現在用 voice ink"))
+        #expect(csv.contains("Recommended: 我現在用 VoiceInk | Segment rescue: 我現在用 VoiceInk rescue | Raw ASR: 我現在用 voice ink"))
         #expect(csv.contains("Candidate Details"))
         #expect(csv.contains("Recommended / AUTO + context: Confidence 86%"))
+        #expect(csv.contains("Segment rescue / Segment rescue: Confidence 86%"))
         #expect(csv.contains("Terms product.voiceink"))
         #expect(csv.contains("Contexts VOCO Development, Power Mode"))
         #expect(csv.contains("Review required"))
@@ -438,8 +452,8 @@ struct VoiceInkTests {
         #expect(csv.contains("Candidate Source Counts"))
         #expect(csv.contains("Review Required Candidates"))
         #expect(csv.contains("Selected Candidate Source"))
-        #expect(csv.contains("AUTO + context: 1 | Raw ASR: 1"))
-        #expect(csv.contains("1,我現在用 VoiceInk,AUTO + context,Timeout fallback"))
+        #expect(csv.contains("AUTO + context: 1 | Segment rescue: 1 | Raw ASR: 1"))
+        #expect(csv.contains("2,我現在用 VoiceInk,AUTO + context,Timeout fallback"))
         #expect(csv.contains("Candidate Selection Source"))
         #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
@@ -724,9 +738,10 @@ struct VoiceInkTests {
             confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
             candidateSourceCounts: [
                 VocoHypothesisSource.suggestedRepair.rawValue: 1,
+                VocoHypothesisSource.segmentRescue.rawValue: 1,
                 VocoHypothesisSource.rawASR.rawValue: 1,
             ],
-            reviewRequiredCandidateCount: 1,
+            reviewRequiredCandidateCount: 2,
             selectedCandidateHypothesisSource: VocoHypothesisSource.suggestedRepair.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
             retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
@@ -763,14 +778,15 @@ struct VoiceInkTests {
         #expect(summary.timeoutFallbackCount == 1)
         #expect(summary.fallbackSelectionCount == 1)
         #expect(summary.candidateSourceSampleCount == 2)
-        #expect(summary.candidateSourceCandidateCount == 3)
+        #expect(summary.candidateSourceCandidateCount == 4)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
+        #expect(summary.candidateSourceCounts[VocoHypothesisSource.segmentRescue.rawValue] == 1)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.rawASR.rawValue] == 1)
-        #expect(summary.reviewRequiredCandidateCount == 1)
+        #expect(summary.reviewRequiredCandidateCount == 2)
         #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
         #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
-        #expect(summary.candidateSourceDetail == "1 review / AUTO + context 1, Suggestion pass 1")
+        #expect(summary.candidateSourceDetail == "2 review / AUTO + context 1, Suggestion pass 1, Segment rescue 1")
         #expect(summary.canonicalizedSessionCount == 1)
         #expect(summary.suggestedSessionCount == 1)
         #expect(summary.totalCanonicalizationReplacementCount == 2)

@@ -511,7 +511,7 @@ struct AssistiveSignalSummary: Equatable {
         guard candidateSourceCandidateCount > 0 else { return "No source breakdown" }
 
         let reviewText = "\(reviewRequiredCandidateCount) review"
-        let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 2)
+        let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 3)
         guard !sourceText.isEmpty else { return reviewText }
         return "\(reviewText) / \(sourceText)"
     }
@@ -594,22 +594,7 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     private static func sourceSortOrder(_ source: String) -> Int {
-        switch VocoHypothesisSource(rawValue: source) {
-        case .autoContext:
-            return 0
-        case .suggestedRepair:
-            return 1
-        case .originalCleaned:
-            return 2
-        case .rawASR:
-            return 3
-        case .segmentRescue:
-            return 4
-        case .customRescue:
-            return 5
-        case nil:
-            return 99
-        }
+        VocoHypothesisSource(rawValue: source)?.analyticsSortPriority ?? 99
     }
 }
 

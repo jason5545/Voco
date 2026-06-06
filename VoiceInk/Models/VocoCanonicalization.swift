@@ -99,6 +99,23 @@ enum VocoHypothesisSource: String, Codable, Equatable {
             return "Custom rescue"
         }
     }
+
+    var analyticsSortPriority: Int {
+        switch self {
+        case .autoContext:
+            return 0
+        case .suggestedRepair:
+            return 1
+        case .segmentRescue:
+            return 2
+        case .customRescue:
+            return 3
+        case .originalCleaned:
+            return 4
+        case .rawASR:
+            return 5
+        }
+    }
 }
 
 struct VocoHypothesis: Codable, Equatable, Identifiable {
