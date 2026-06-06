@@ -917,7 +917,24 @@ struct VoiceInkTests {
                 hypothesis,
             ],
             confidenceScore: 0.62,
-            reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"]
+            reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"],
+            reviewTriggers: [
+                VocoReviewTrigger(
+                    id: "low-confidence-score",
+                    reason: "low-confidence-score",
+                    detail: "Score 62% below 78%"
+                ),
+                VocoReviewTrigger(
+                    id: "unresolved-suggestions",
+                    reason: "unresolved-suggestions",
+                    detail: "1 suggestion"
+                ),
+                VocoReviewTrigger(
+                    id: "unresolved-suggestions",
+                    reason: "unresolved-suggestions",
+                    detail: "duplicate ignored"
+                ),
+            ]
         )
 
         #expect(review.defaultCandidate == "今天看到焰很大")
@@ -932,6 +949,10 @@ struct VoiceInkTests {
         #expect(review.labelForCandidate(at: 4) == "Candidate")
         #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
         #expect(review.displayReasons == ["Needs choice", "High-risk term"])
+        #expect(review.displayReviewSignals == [
+            "Low score (Score 62% below 78%)",
+            "Needs choice (1 suggestion)",
+        ])
     }
 
     @Test func signalDisplayFormatterCoversDictationAndFeedbackReasons() async throws {
@@ -1060,10 +1081,18 @@ struct VoiceInkTests {
             appliedTermIDs: ["song.homura"],
             requiresReview: true
         )
+        let reviewTriggers = [
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "1 suggestion"
+            ),
+        ]
         let assessment = VocoConfidenceAssessment(
             score: 0.7,
             route: .reviewSuggested,
             reasons: ["unresolved-suggestions"],
+            reviewTriggers: reviewTriggers,
             candidates: [" 今天看到炎很大 ", "今天看到炎很大", ""],
             candidateLabels: ["With suggestions", "Duplicate", "Empty"],
             hypothesisDetails: [hypothesis],
@@ -1076,6 +1105,8 @@ struct VoiceInkTests {
         #expect(review.candidateLabels == ["Recommended", "With suggestions"])
         #expect(review.defaultCandidate == "今天看到焰很大")
         #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
+        #expect(review.reviewTriggers == reviewTriggers)
+        #expect(review.displayReviewSignals == ["Needs choice (1 suggestion)"])
     }
 
     @Test func candidateReviewPayloadRequiresReviewRouteAndAlternative() async throws {

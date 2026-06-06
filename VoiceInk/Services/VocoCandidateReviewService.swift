@@ -57,7 +57,8 @@ enum VocoCandidateReviewService {
             candidateLabels: visibleEntries.map(\.label),
             hypotheses: visibleEntries.map(\.hypothesis),
             confidenceScore: assessment.score,
-            reasons: assessment.reasons
+            reasons: assessment.reasons,
+            reviewTriggers: assessment.reviewTriggers
         )
     }
 

@@ -408,11 +408,11 @@ struct CandidateReviewView: View {
                 .keyboardShortcut(.cancelAction)
             }
 
-            if !review.displayReasons.isEmpty {
+            if !review.displayReviewSignals.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 5) {
-                        ForEach(review.displayReasons, id: \.self) { reason in
-                            Text(reason)
+                        ForEach(review.displayReviewSignals, id: \.self) { signal in
+                            Text(signal)
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.72))
                                 .padding(.horizontal, 6)

@@ -20,19 +20,22 @@ struct VocoCandidateReview: Identifiable {
     let hypotheses: [VocoHypothesis]
     let confidenceScore: Double
     let reasons: [String]
+    let reviewTriggers: [VocoReviewTrigger]
 
     init(
         candidates: [String],
         candidateLabels: [String] = [],
         hypotheses: [VocoHypothesis] = [],
         confidenceScore: Double,
-        reasons: [String]
+        reasons: [String],
+        reviewTriggers: [VocoReviewTrigger] = []
     ) {
         self.candidates = candidates
         self.candidateLabels = candidateLabels
         self.hypotheses = hypotheses
         self.confidenceScore = confidenceScore
         self.reasons = reasons
+        self.reviewTriggers = reviewTriggers
     }
 
     var defaultCandidate: String? {
@@ -70,6 +73,11 @@ struct VocoCandidateReview: Identifiable {
 
     var displayReasons: [String] {
         VocoSignalDisplayFormatter.displayReasons(for: reasons)
+    }
+
+    var displayReviewSignals: [String] {
+        let triggerSummaries = VocoReviewTriggerDisplayFormatter.summaries(for: reviewTriggers)
+        return triggerSummaries.isEmpty ? displayReasons : triggerSummaries
     }
 }
 
