@@ -239,6 +239,23 @@ struct VoiceInkTests {
         #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults) == ["custom"])
     }
 
+    @Test func contextPackDisplayMetadataIsReadable() async throws {
+        let pack = try #require(VocoCanonicalizationService.builtInContextPacks.first)
+
+        #expect(pack.displayName == "VOCO Development")
+        #expect(pack.aliasCount > pack.terms.count)
+        #expect(pack.contextRequiredTermCount > 0)
+        #expect(pack.canonicalPreview.contains("VoiceInk"))
+
+        let names = VocoCanonicalizationService.contextDisplayNames(for: [
+            VocoCanonicalizationService.defaultContextPackID,
+            "power-mode:123",
+            "custom.context",
+        ])
+
+        #expect(names == ["VOCO Development", "Power Mode", "custom.context"])
+    }
+
     @Test func personalStyleGuardAllowsPlainMixedLanguageEditing() async throws {
         let result = PersonalStyleGuardService().validate(
             response: "我覺得這個 approach unstable，要 go around。",

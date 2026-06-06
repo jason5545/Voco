@@ -35,6 +35,21 @@ struct VocoContextPack: Codable, Equatable, Identifiable {
     let id: String
     let displayName: String
     let terms: [VocoCanonicalTerm]
+
+    var aliasCount: Int {
+        terms.reduce(0) { $0 + $1.aliases.count }
+    }
+
+    var contextRequiredTermCount: Int {
+        terms.filter(\.requiresContextForAutoReplace).count
+    }
+
+    var canonicalPreview: String {
+        terms
+            .prefix(6)
+            .map(\.canonical)
+            .joined(separator: ", ")
+    }
 }
 
 struct VocoReplacement: Codable, Equatable {

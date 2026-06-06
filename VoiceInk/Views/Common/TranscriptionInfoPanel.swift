@@ -139,7 +139,7 @@ struct TranscriptionInfoPanel: View {
                     metadataRow(
                         icon: "square.stack.3d.up.fill",
                         label: "Contexts",
-                        value: transcription.activeContextIDs.joined(separator: ", ")
+                        value: VocoCanonicalizationService.contextDisplayNames(for: transcription.activeContextIDs).joined(separator: ", ")
                     )
                 }
 

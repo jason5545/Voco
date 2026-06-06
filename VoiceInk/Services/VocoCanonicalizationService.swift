@@ -70,6 +70,22 @@ final class VocoCanonicalizationService {
         defaults.set(ids, forKey: enabledContextPackIDsKey)
     }
 
+    static func contextDisplayName(for id: String, contextPacks: [VocoContextPack] = builtInContextPacks) -> String {
+        if let pack = contextPacks.first(where: { $0.id == id }) {
+            return pack.displayName
+        }
+
+        if id.hasPrefix("power-mode:") {
+            return "Power Mode"
+        }
+
+        return id
+    }
+
+    static func contextDisplayNames(for ids: [String], contextPacks: [VocoContextPack] = builtInContextPacks) -> [String] {
+        ids.map { contextDisplayName(for: $0, contextPacks: contextPacks) }
+    }
+
     private func termsForActiveContexts(_ activeContextIDs: [String]) -> [VocoCanonicalTerm] {
         let activeIDs = Set(activeContextIDs)
         return contextPacks
