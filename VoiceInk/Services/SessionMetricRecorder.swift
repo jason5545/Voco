@@ -87,6 +87,44 @@ enum SessionMetricRecorder {
         return true
     }
 
+    @discardableResult
+    static func refreshExistingRecorderSessionMetric(
+        transcription: Transcription,
+        model: (any TranscriptionModel)? = nil,
+        in modelContext: ModelContext
+    ) throws -> Bool {
+        guard transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue else {
+            return false
+        }
+
+        let transcriptionId = transcription.id
+        let descriptor = FetchDescriptor<SessionMetric>(
+            predicate: #Predicate<SessionMetric> { metric in
+                metric.transcriptionId == transcriptionId
+            }
+        )
+
+        guard let metric = try modelContext.fetch(descriptor).first else {
+            return false
+        }
+
+        metric.source = source
+        metric.wordCount = WordCounter.count(in: finalTextForCounting(from: transcription))
+        metric.audioDuration = max(transcription.duration, 0)
+        metric.transcriptionModelName = transcription.transcriptionModelName ?? model?.displayName
+        metric.transcriptionDuration = transcription.transcriptionDuration.flatMap { $0 > 0 ? $0 : nil }
+        metric.speedFactor = metric.transcriptionDuration.flatMap { duration in
+            metric.audioDuration > 0 ? metric.audioDuration / duration : nil
+        }
+        metric.powerModeName = transcription.powerModeName
+        metric.aiEnhancementModelName = transcription.aiEnhancementModelName
+        metric.enhancementDuration = transcription.enhancementDuration.flatMap { $0 > 0 ? $0 : nil }
+        metric.recordDictationMetadata(from: transcription)
+
+        logger.notice("Refreshed session metric for transcription \(transcriptionId.uuidString, privacy: .public)")
+        return true
+    }
+
     private static func finalTextForCounting(from transcription: Transcription) -> String {
         if let finalPastedText = transcription.finalPastedText,
            !finalPastedText.isEmpty {

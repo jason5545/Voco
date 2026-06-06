@@ -505,13 +505,20 @@ struct TranscriptionInfoPanel: View {
             candidate,
             for: transcription
         )
-        CorrectionFeedbackLearningService.stageLearningCandidates(
-            from: feedbackSignal,
-            in: modelContext
-        )
 
         do {
+            let didRefreshMetric = try SessionMetricRecorder.refreshExistingRecorderSessionMetric(
+                transcription: transcription,
+                in: modelContext
+            )
+            CorrectionFeedbackLearningService.stageLearningCandidates(
+                from: feedbackSignal,
+                in: modelContext
+            )
             try modelContext.save()
+            if didRefreshMetric {
+                NotificationCenter.default.post(name: .sessionMetricsDidChange, object: nil)
+            }
         } catch {
             modelContext.rollback()
             candidateReviewError = error.localizedDescription

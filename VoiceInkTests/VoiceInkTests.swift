@@ -777,6 +777,59 @@ struct VoiceInkTests {
         #expect(metric.pasteCommandPosted == true)
     }
 
+    @Test @MainActor func sessionMetricRefreshTracksPersistedCandidateSelection() async throws {
+        let context = try makeSessionMetricContext()
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: result.originalText
+        )
+        let transcription = Transcription(
+            text: result.normalizedText,
+            duration: 2.0,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: 0.5,
+            transcriptionStatus: .completed
+        )
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+        context.insert(transcription)
+
+        let inserted = try SessionMetricRecorder.recordRecorderSession(
+            transcription: transcription,
+            model: nil,
+            in: context,
+            timestamp: transcription.timestamp
+        )
+        let metric = try #require(try context.fetch(FetchDescriptor<SessionMetric>()).first)
+        #expect(inserted)
+        #expect(metric.selectedCandidate == result.normalizedText)
+        #expect(metric.candidateSelectionSource == nil)
+
+        let signal = try #require(
+            VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
+        )
+        let refreshed = try SessionMetricRecorder.refreshExistingRecorderSessionMetric(
+            transcription: transcription,
+            in: context
+        )
+
+        #expect(refreshed)
+        #expect(signal.reason == "candidate-override")
+        #expect(transcription.selectedCandidate == "今天看到炎很大")
+        #expect(metric.selectedCandidate == "今天看到炎很大")
+        #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
+        #expect(metric.selectedCandidateHypothesisSource == VocoHypothesisSource.suggestedRepair.rawValue)
+        #expect(metric.userCorrectionDistance == transcription.userCorrectionDistance)
+        #expect(metric.wordCount == WordCounter.count(in: "今天看到炎很大"))
+    }
+
     @Test func sessionMetricBackfillCapturesDictationMetadataFromTranscription() async throws {
         let output = makeSessionMetricDictationOutput()
         let finalPastedText = "hello world "
