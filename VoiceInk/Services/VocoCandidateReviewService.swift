@@ -22,13 +22,13 @@ enum VocoCandidateReviewService {
                     assessment: assessment
                 )
             entries.append((selectedCandidate, selectedHypothesis.label, selectedHypothesis))
-            seen.insert(selectedCandidate)
+            seen.insert(candidateKey(selectedCandidate))
         }
 
         for (index, rawCandidate) in assessment.candidates.enumerated() {
             let candidate = rawCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !candidate.isEmpty,
-                  seen.insert(candidate).inserted
+                  seen.insert(candidateKey(candidate)).inserted
             else { continue }
 
             let hypothesis = assessment.hypothesisForCandidate(at: index)

@@ -248,8 +248,9 @@ final class SessionMetric {
             return nil
         }
 
+        let selectedKey = candidateKey(selectedCandidate)
         return hypotheses.first { hypothesis in
-            hypothesis.text.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
+            candidateKey(hypothesis.text) == selectedKey
         }?.source.rawValue
     }
 
@@ -275,7 +276,13 @@ final class SessionMetric {
         return hypotheses
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .filter { seen.insert($0.lowercased()).inserted }
+            .filter { seen.insert(candidateKey($0)).inserted }
+    }
+
+    private static func candidateKey(_ candidate: String) -> String {
+        candidate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {

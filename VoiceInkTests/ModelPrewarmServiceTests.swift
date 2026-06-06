@@ -34,11 +34,13 @@ private final class PrewarmTestFixture {
     let transcriber: FakePrewarmTranscriber
     let transcriptionModelManager: TranscriptionModelManager
     let audioURL: URL
-    private let previousPrewarmValue: Any?
+    private let userDefaults: UserDefaults
+    private let userDefaultsSuiteName: String
 
     init(transcribeDuration: Duration? = nil) throws {
         self.transcriber = FakePrewarmTranscriber(transcribeDuration: transcribeDuration)
-        self.previousPrewarmValue = UserDefaults.standard.object(forKey: "PrewarmModelOnWake")
+        self.userDefaultsSuiteName = "ModelPrewarmServiceTests.\(UUID().uuidString)"
+        self.userDefaults = try #require(UserDefaults(suiteName: userDefaultsSuiteName))
 
         let modelsDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -61,15 +63,11 @@ private final class PrewarmTestFixture {
         try Data().write(to: audioURL)
         self.audioURL = audioURL
 
-        UserDefaults.standard.set(true, forKey: "PrewarmModelOnWake")
+        userDefaults.set(true, forKey: "PrewarmModelOnWake")
     }
 
     deinit {
-        if let previousPrewarmValue {
-            UserDefaults.standard.set(previousPrewarmValue, forKey: "PrewarmModelOnWake")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "PrewarmModelOnWake")
-        }
+        userDefaults.removePersistentDomain(forName: userDefaultsSuiteName)
     }
 
     func makeService(prewarmDelay: Duration) -> ModelPrewarmService {
@@ -78,6 +76,7 @@ private final class PrewarmTestFixture {
             serviceRegistry: transcriber,
             prewarmAudioURL: audioURL,
             prewarmDelay: prewarmDelay,
+            userDefaults: userDefaults,
             observeWorkspaceNotifications: false,
             scheduleInitialPrewarm: false
         )

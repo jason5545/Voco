@@ -18,6 +18,7 @@ final class ModelPrewarmService: ObservableObject {
     private let prewarmEnabledKey = "PrewarmModelOnWake"
     private let prewarmAudioURL: URL?
     private let prewarmDelay: Duration
+    private let userDefaults: UserDefaults
 
     private var scheduledPrewarmTask: Task<Void, Never>?
     private var activePrewarmTask: Task<Void, Never>?
@@ -39,6 +40,7 @@ final class ModelPrewarmService: ObservableObject {
         serviceRegistry: any ModelPrewarmTranscribing,
         prewarmAudioURL: URL? = Bundle.main.url(forResource: "sound7", withExtension: "wav"),
         prewarmDelay: Duration = .seconds(3),
+        userDefaults: UserDefaults = .standard,
         observeWorkspaceNotifications: Bool = true,
         scheduleInitialPrewarm: Bool = true
     ) {
@@ -46,6 +48,7 @@ final class ModelPrewarmService: ObservableObject {
         self.serviceRegistry = serviceRegistry
         self.prewarmAudioURL = prewarmAudioURL
         self.prewarmDelay = prewarmDelay
+        self.userDefaults = userDefaults
 
         if observeWorkspaceNotifications {
             setupNotifications()
@@ -168,7 +171,7 @@ final class ModelPrewarmService: ObservableObject {
 
     private func shouldPrewarm() -> Bool {
         // Check if user has enabled prewarming
-        let isEnabled = UserDefaults.standard.bool(forKey: prewarmEnabledKey)
+        let isEnabled = userDefaults.bool(forKey: prewarmEnabledKey)
         guard isEnabled else {
             logger.notice("Prewarm disabled by user")
             return false
@@ -194,7 +197,7 @@ final class ModelPrewarmService: ObservableObject {
     /// Called after prewarm completes on app launch and wake, and when settings change.
     func startKeepAlive() {
         keepAliveTask?.cancel()
-        guard UserDefaults.standard.bool(forKey: Self.keepAliveEnabledKey) else {
+        guard userDefaults.bool(forKey: Self.keepAliveEnabledKey) else {
             keepAliveTask = nil
             logger.notice("Keep-alive disabled")
             return
@@ -216,7 +219,7 @@ final class ModelPrewarmService: ObservableObject {
                 guard !Task.isCancelled else { break }
 
                 // Skip if on battery and user hasn't opted in
-                if self.isOnBattery && !UserDefaults.standard.bool(forKey: Self.keepAliveOnBatteryKey) {
+                if self.isOnBattery && !self.userDefaults.bool(forKey: Self.keepAliveOnBatteryKey) {
                     self.logger.notice("Keep-alive ping skipped (on battery)")
                     continue
                 }

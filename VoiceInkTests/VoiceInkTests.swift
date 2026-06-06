@@ -969,6 +969,29 @@ struct VoiceInkTests {
         #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
     }
 
+    @Test func sessionMetricSelectedCandidateSourceUsesFoldedMatch() async throws {
+        let hypotheses = [
+            VocoHypothesis(
+                id: "suggestedRepair",
+                text: "LiSA",
+                label: "With suggestions",
+                source: .suggestedRepair,
+                confidenceScore: 0.72,
+                reasons: ["unresolved-suggestions"],
+                activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+                appliedTermIDs: ["artist.lisa"],
+                requiresReview: true
+            ),
+        ]
+
+        #expect(
+            SessionMetric.selectedCandidateHypothesisSource(
+                in: hypotheses,
+                selectedCandidate: " lisa "
+            ) == VocoHypothesisSource.suggestedRepair.rawValue
+        )
+    }
+
     @Test func assistiveSignalSummaryCountsContextAwareMetrics() async throws {
         let direct = SessionMetric(
             transcriptionId: UUID(),
@@ -1349,6 +1372,58 @@ struct VoiceInkTests {
         #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
         #expect(review.reviewTriggers == reviewTriggers)
         #expect(review.displayReviewSignals == ["Needs choice (1 suggestion)"])
+    }
+
+    @Test func candidateReviewPayloadDeduplicatesFoldedCandidates() async throws {
+        let lowercase = VocoHypothesis(
+            id: "rawASR",
+            text: "voiceink",
+            label: "Lowercase duplicate",
+            source: .rawASR,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [],
+            appliedTermIDs: [],
+            requiresReview: false
+        )
+        let canonical = VocoHypothesis(
+            id: "autoContext",
+            text: "VoiceInk",
+            label: "Canonical",
+            source: .autoContext,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            appliedTermIDs: ["product.voiceink"],
+            requiresReview: true
+        )
+        let product = VocoHypothesis(
+            id: "suggestedRepair",
+            text: "VOCO",
+            label: "Product",
+            source: .suggestedRepair,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            appliedTermIDs: ["product.voco"],
+            requiresReview: true
+        )
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: [" voiceink ", "VoiceInk", "VOCO"],
+            candidateLabels: ["Lowercase duplicate", "Canonical", "Product"],
+            hypothesisDetails: [lowercase, canonical, product],
+            selectedCandidate: "VoiceInk"
+        )
+
+        let review = try #require(VocoCandidateReviewService.review(for: assessment))
+
+        #expect(review.candidates == ["VoiceInk", "VOCO"])
+        #expect(review.candidateLabels == ["Canonical", "Product"])
+        #expect(review.hypotheses.map(\.text) == ["VoiceInk", "VOCO"])
+        #expect(review.hypotheses.map(\.source) == [.autoContext, .suggestedRepair])
     }
 
     @Test func candidateReviewPayloadRequiresReviewRouteAndAlternative() async throws {
