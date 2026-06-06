@@ -158,8 +158,8 @@ final class SessionMetric {
         confidenceScore = transcription.confidenceScore
         confidenceRoute = transcription.confidenceRoute
         confidenceReasons = transcription.confidenceReasons
-        reviewTriggerCount = transcription.reviewTriggers.count
-        reviewTriggerIDs = transcription.reviewTriggers.map(\.id)
+        reviewTriggerCount = Self.reviewTriggerCount(from: transcription.reviewTriggers)
+        reviewTriggerIDs = Self.reviewTriggerIDs(from: transcription.reviewTriggers)
         reviewTriggerSummaries = Self.reviewTriggerSummaries(from: transcription.reviewTriggers)
         candidateCount = transcription.hypotheses.count
         candidateSourceCounts = Self.candidateSourceCounts(from: transcription.hypothesisDetails)
@@ -253,8 +253,21 @@ final class SessionMetric {
         }?.source.rawValue
     }
 
+    static func reviewTriggerCount(from triggers: [VocoReviewTrigger]) -> Int {
+        reviewTriggerIDs(from: triggers).count
+    }
+
+    static func reviewTriggerIDs(from triggers: [VocoReviewTrigger]) -> [String] {
+        uniqueReviewTriggers(from: triggers).map(\.id)
+    }
+
     static func reviewTriggerSummaries(from triggers: [VocoReviewTrigger]) -> [String] {
-        VocoReviewTriggerDisplayFormatter.summaries(for: triggers)
+        VocoReviewTriggerDisplayFormatter.summaries(for: uniqueReviewTriggers(from: triggers))
+    }
+
+    private static func uniqueReviewTriggers(from triggers: [VocoReviewTrigger]) -> [VocoReviewTrigger] {
+        var seen: Set<String> = []
+        return triggers.filter { seen.insert($0.id).inserted }
     }
 
     private static func uniqueCandidateTexts(from hypotheses: [VocoHypothesis]) -> [String] {

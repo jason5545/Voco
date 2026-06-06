@@ -918,6 +918,57 @@ struct VoiceInkTests {
         #expect(metric.retranscriptionConfidenceDelta == -0.05)
     }
 
+    @Test func sessionMetricMetadataDeduplicatesReviewTriggers() async throws {
+        let transcription = Transcription(
+            text: "需要確認",
+            duration: 0.5,
+            transcriptionStatus: .completed
+        )
+        transcription.reviewTriggers = [
+            VocoReviewTrigger(
+                id: "low-confidence-score",
+                reason: "low-confidence-score",
+                detail: "Score 60% below 78%"
+            ),
+            VocoReviewTrigger(
+                id: "low-confidence-score",
+                reason: "low-confidence-score",
+                detail: "duplicate ignored"
+            ),
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "1 suggestion"
+            ),
+        ]
+
+        let metric = SessionMetric(
+            transcriptionId: transcription.id,
+            wordCount: 1,
+            audioDuration: 0.5,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: nil,
+            speedFactor: nil,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil
+        )
+
+        metric.recordDictationMetadata(from: transcription)
+
+        #expect(metric.reviewTriggerCount == 2)
+        #expect(metric.reviewTriggerIDs == ["low-confidence-score", "unresolved-suggestions"])
+        #expect(metric.reviewTriggerSummaries == [
+            "Low score (Score 60% below 78%)",
+            "Needs choice (1 suggestion)",
+        ])
+
+        let summary = AssistiveSignalSummary(metrics: [metric])
+        #expect(summary.reviewTriggerCount == 2)
+        #expect(summary.reviewTriggerCounts["low-confidence-score"] == 1)
+        #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
+    }
+
     @Test func assistiveSignalSummaryCountsContextAwareMetrics() async throws {
         let direct = SessionMetric(
             transcriptionId: UUID(),
