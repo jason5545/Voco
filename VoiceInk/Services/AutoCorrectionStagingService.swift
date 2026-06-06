@@ -76,7 +76,11 @@ final class AutoCorrectionStagingService {
     // MARK: - Staging
 
     /// Stage a correction pair: insert or increment hitCount, check promotion.
-    func stageCorrection(_ sub: WordSubstitution, in modelContext: ModelContext) {
+    func stageCorrection(
+        _ sub: WordSubstitution,
+        in modelContext: ModelContext,
+        source: String = WordReplacement.sourceEditMode
+    ) {
         let coreOriginal = sub.original
         let coreReplacement = sub.replacement
 
@@ -100,7 +104,7 @@ final class AutoCorrectionStagingService {
                 originalText: coreOriginal,
                 replacementText: coreReplacement,
                 isEnabled: false,
-                source: WordReplacement.sourceEditMode
+                source: source
             )
             modelContext.insert(entry)
             logger.info("New staged correction: \(coreOriginal, privacy: .private) → \(coreReplacement, privacy: .private)")
@@ -112,7 +116,11 @@ final class AutoCorrectionStagingService {
     // MARK: - Promotion
 
     private func checkPromotion(_ entry: WordReplacement) {
-        guard entry.source == WordReplacement.sourceEditMode, !entry.isEnabled else { return }
+        guard !entry.isEnabled,
+              entry.source == WordReplacement.sourceEditMode || entry.source == WordReplacement.sourceCorrectionFeedback
+        else {
+            return
+        }
 
         switch entry.hitCount {
         case 2:

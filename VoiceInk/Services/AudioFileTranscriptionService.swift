@@ -116,7 +116,11 @@ class AudioTranscriptionService: ObservableObject {
 
             func recordRetranscriptionSource(on transcription: Transcription) {
                 guard let sourceTranscription else { return }
-                transcription.recordRetranscriptionAnalysis(source: sourceTranscription)
+                let feedbackSignal = transcription.recordRetranscriptionAnalysis(source: sourceTranscription)
+                CorrectionFeedbackLearningService.stageLearningCandidates(
+                    from: feedbackSignal,
+                    in: modelContext
+                )
             }
 
             if let enhancementService = enhancementService, enhancementService.isConfigured {

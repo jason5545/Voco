@@ -5,6 +5,7 @@ import SwiftData
 final class WordReplacement {
     static let sourceUser = "user"
     static let sourceEditMode = "editMode"
+    static let sourceCorrectionFeedback = "correctionFeedback"
 
     var id: UUID = UUID()
     var originalText: String = ""

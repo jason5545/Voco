@@ -178,12 +178,13 @@ final class Transcription {
         self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
+    @discardableResult
     func recordCandidateReviewFeedback(
         normalizationResult: VocoNormalizationResult,
         confidenceAssessment: VocoConfidenceAssessment,
         selectedCandidate: String,
         rawTranscript: String?
-    ) {
+    ) -> CorrectionFeedbackSignal? {
         let signal = CorrectionFeedbackService.candidateSelectionSignal(
             normalizationResult: normalizationResult,
             assessment: confidenceAssessment,
@@ -191,6 +192,7 @@ final class Transcription {
             rawTranscript: rawTranscript
         )
         recordCorrectionFeedback(signal)
+        return signal
     }
 
     func recordStyleGuardRejection(response: String, reasons: [String]) {
@@ -198,7 +200,8 @@ final class Transcription {
         styleGuardReasons = reasons
     }
 
-    func recordRetranscriptionAnalysis(source: Transcription) {
+    @discardableResult
+    func recordRetranscriptionAnalysis(source: Transcription) -> CorrectionFeedbackSignal? {
         let sourceText = source.enhancedText?.isEmpty == false ? source.enhancedText! : source.text
         let newText = enhancedText?.isEmpty == false ? enhancedText! : text
         let analysis = RetranscriptionAnalyticsService.analyze(
@@ -212,14 +215,14 @@ final class Transcription {
         retranscriptionSourceText = sourceText
         retranscriptionAnalysis = analysis
         userCorrectionDistance = analysis.changeRatio
-        recordCorrectionFeedback(
-            CorrectionFeedbackService.retranscriptionSignal(
-                sourceText: sourceText,
-                retranscribedText: newText,
-                analysis: analysis,
-                confidenceScore: confidenceScore
-            )
+        let signal = CorrectionFeedbackService.retranscriptionSignal(
+            sourceText: sourceText,
+            retranscribedText: newText,
+            analysis: analysis,
+            confidenceScore: confidenceScore
         )
+        recordCorrectionFeedback(signal)
+        return signal
     }
 
     func recordCorrectionFeedback(_ signal: CorrectionFeedbackSignal?) {

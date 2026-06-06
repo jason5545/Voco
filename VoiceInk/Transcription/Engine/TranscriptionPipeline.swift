@@ -216,11 +216,15 @@ class TranscriptionPipeline {
                !selectedCandidate.isEmpty {
                 text = selectedCandidate
                 transcription.selectedCandidate = selectedCandidate
-                transcription.recordCandidateReviewFeedback(
+                let feedbackSignal = transcription.recordCandidateReviewFeedback(
                     normalizationResult: normalizationResult,
                     confidenceAssessment: confidenceAssessment,
                     selectedCandidate: selectedCandidate,
                     rawTranscript: rawASRText
+                )
+                CorrectionFeedbackLearningService.stageLearningCandidates(
+                    from: feedbackSignal,
+                    in: modelContext
                 )
                 logger.notice("📝 Candidate review selected text: \(text, privacy: .private)")
             }

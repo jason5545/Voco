@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import Testing
 @testable import Voco
 
@@ -362,6 +363,76 @@ struct VoiceInkTests {
         #expect(signal.reason == "user-substitution")
     }
 
+    @Test @MainActor func correctionFeedbackLearningStagesCandidateOverride() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我剛剛用 voice anc 測一下",
+            proposedText: "我剛剛用 voice anc 測一下",
+            acceptedText: "我剛剛用 VoiceInk 測一下",
+            confidenceScore: 0.64,
+            changeRatio: 0.12,
+            reason: "candidate-override"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+
+        #expect(staged.count == 1)
+        #expect(staged.first?.original == "voice anc")
+        #expect(staged.first?.replacement == "VoiceInk")
+
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+        let entry = try #require(entries.first)
+        #expect(entry.originalText == "voice anc")
+        #expect(entry.replacementText == "VoiceInk")
+        #expect(entry.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(entry.isEnabled == false)
+        #expect(entry.hitCount == 1)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsCandidateConfirmation() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "voice ink",
+            proposedText: "VoiceInk",
+            acceptedText: "VoiceInk",
+            confidenceScore: 0.82,
+            changeRatio: 0.1,
+            reason: "candidate-confirmed"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningPromotesRepeatedRetranscriptionCorrection() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .retranscriptionChange,
+            sourceText: "我今天要測 voice anc",
+            acceptedText: "我今天要測 VoiceInk",
+            confidenceScore: 0.9,
+            changeRatio: 0.18,
+            reason: "retranscription-meaningfulChange"
+        )
+
+        for _ in 0..<3 {
+            _ = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        }
+
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+        let entry = try #require(entries.first)
+        #expect(entry.originalText == "voice anc")
+        #expect(entry.replacementText == "VoiceInk")
+        #expect(entry.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(entry.hitCount == 3)
+        #expect(entry.isEnabled)
+    }
+
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
         var state = EditModePollingState()
 
@@ -397,4 +468,12 @@ struct VoiceInkTests {
         #expect(state.enqueueRefresh() == .ignoredStopped)
     }
 
+}
+
+@MainActor
+private func makeDictionaryContext() throws -> ModelContext {
+    let schema = Schema([VocabularyWord.self, WordReplacement.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try ModelContainer(for: schema, configurations: [config])
+    return ModelContext(container)
 }
