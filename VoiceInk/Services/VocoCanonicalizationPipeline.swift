@@ -10,6 +10,22 @@ enum VocoCanonicalizationPipeline {
         modelContext: ModelContext,
         transcription: Transcription? = nil
     ) -> VocoNormalizationResult {
+        normalizeWithAssessment(
+            text,
+            rawTranscript: rawTranscript,
+            model: model,
+            modelContext: modelContext,
+            transcription: transcription
+        ).normalizationResult
+    }
+
+    static func normalizeWithAssessment(
+        _ text: String,
+        rawTranscript: String?,
+        model: any TranscriptionModel,
+        modelContext: ModelContext,
+        transcription: Transcription? = nil
+    ) -> (normalizationResult: VocoNormalizationResult, confidenceAssessment: VocoConfidenceAssessment) {
         let result = VocoCanonicalizationService.shared.normalize(
             text,
             activeContextIDs: activeContextIDs(),
@@ -30,7 +46,7 @@ enum VocoCanonicalizationPipeline {
             languageMode: selectedLanguageMode()
         )
 
-        return result
+        return (result, assessment)
     }
 
     static func confidenceAssessment(

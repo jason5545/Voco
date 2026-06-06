@@ -188,25 +188,21 @@ class TranscriptionPipeline {
             }
             text = cleanedText
 
-            let normalizationResult = VocoCanonicalizationPipeline.normalize(
+            let normalizedOutput = VocoCanonicalizationPipeline.normalizeWithAssessment(
                 text,
                 rawTranscript: rawASRText,
                 model: model,
                 modelContext: modelContext,
                 transcription: transcription
             )
+            let normalizationResult = normalizedOutput.normalizationResult
+            let confidenceAssessment = normalizedOutput.confidenceAssessment
             text = normalizationResult.normalizedText
             if !normalizationResult.replacements.isEmpty || !normalizationResult.suggestions.isEmpty {
                 logger.notice(
                     "📝 Canonicalization: replacements=\(normalizationResult.replacements.count, privacy: .public), suggestions=\(normalizationResult.suggestions.count, privacy: .public), result=\(text, privacy: .private)"
                 )
             }
-            let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
-                for: normalizationResult,
-                rawTranscript: rawASRText,
-                modelContext: modelContext,
-                excluding: transcription
-            )
 
             if !isEditMode,
                confidenceAssessment.route == .reviewSuggested,

@@ -265,6 +265,35 @@ struct VoiceInkTests {
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
     }
 
+    @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {
+        let context = try makeCanonicalizationPipelineContext()
+        let transcription = Transcription(text: "", duration: 0)
+        context.insert(transcription)
+
+        let model = try #require(TranscriptionModelRegistry.models.first)
+        let output = VocoCanonicalizationPipeline.normalizeWithAssessment(
+            "我剛剛用 voice anc 測了一下",
+            rawTranscript: "我剛剛用 voice anc 測了一下",
+            model: model,
+            modelContext: context,
+            transcription: transcription
+        )
+
+        #expect(transcription.normalizedTranscript == output.normalizationResult.normalizedText)
+        #expect(transcription.activeContextIDs == output.normalizationResult.activeContextIDs)
+        #expect(transcription.canonicalizationReplacements == output.normalizationResult.replacements)
+        #expect(transcription.canonicalizationSuggestions == output.normalizationResult.suggestions)
+        #expect(transcription.confidenceScore == output.confidenceAssessment.score)
+        #expect(transcription.confidenceRoute == output.confidenceAssessment.route.rawValue)
+        #expect(transcription.confidenceReasons == output.confidenceAssessment.reasons)
+        #expect(transcription.hypotheses == output.confidenceAssessment.candidates)
+        #expect(transcription.hypothesisLabels == output.confidenceAssessment.candidateLabels)
+        #expect(transcription.hypothesisDetails == output.confidenceAssessment.hypothesisDetails)
+        #expect(transcription.selectedCandidate == output.confidenceAssessment.selectedCandidate)
+        #expect(transcription.asrEngineID == VocoCanonicalizationPipeline.asrEngineID(for: model))
+        #expect(transcription.languageMode == VocoCanonicalizationPipeline.selectedLanguageMode())
+    }
+
     @Test func candidateReviewDisplaysReadableReasonsAndLabels() async throws {
         let hypothesis = VocoHypothesis(
             id: "suggestedRepair",
@@ -1245,6 +1274,21 @@ private func makeTranscriptionContext() throws -> ModelContext {
         .appendingPathComponent("transcription-test-\(UUID().uuidString).store")
     let config = ModelConfiguration(
         "transcription-test-\(UUID().uuidString)",
+        schema: schema,
+        url: storeURL,
+        cloudKitDatabase: .none
+    )
+    let container = try ModelContainer(for: schema, configurations: [config])
+    return ModelContext(container)
+}
+
+@MainActor
+private func makeCanonicalizationPipelineContext() throws -> ModelContext {
+    let schema = Schema([Transcription.self, VocabularyWord.self, WordReplacement.self])
+    let storeURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("canonicalization-pipeline-test-\(UUID().uuidString).store")
+    let config = ModelConfiguration(
+        "canonicalization-pipeline-test-\(UUID().uuidString)",
         schema: schema,
         url: storeURL,
         cloudKitDatabase: .none
