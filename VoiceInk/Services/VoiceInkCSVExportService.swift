@@ -54,6 +54,7 @@ class VoiceInkCSVExportService {
         "Confidence Score",
         "Confidence Route",
         "Confidence Reasons",
+        "Review Triggers",
         "Candidate Labels",
         "Candidates",
         "Candidate Details",
@@ -99,6 +100,7 @@ class VoiceInkCSVExportService {
             percent(transcription.confidenceScore),
             transcription.confidenceRoute ?? "",
             joined(VocoSignalDisplayFormatter.displayReasons(for: transcription.confidenceReasons)),
+            reviewTriggerSummary(transcription.reviewTriggers),
             joined(transcription.hypothesisLabels),
             candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
             candidateDetailSummary(labels: transcription.hypothesisLabels, hypotheses: transcription.hypothesisDetails),
@@ -167,6 +169,10 @@ class VoiceInkCSVExportService {
                 return "\(label): \(candidate)"
             }
             .joined(separator: " | ")
+    }
+
+    private func reviewTriggerSummary(_ triggers: [VocoReviewTrigger]) -> String {
+        joined(VocoReviewTriggerDisplayFormatter.summaries(for: triggers))
     }
 
     private func candidateDetailSummary(labels: [String], hypotheses: [VocoHypothesis]) -> String {

@@ -315,6 +315,7 @@ struct VoiceInkTests {
 
         #expect(transcription.normalizedTranscript == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(transcription.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue)
+        #expect(transcription.reviewTriggers.isEmpty)
         #expect(transcription.hypotheses.first == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(transcription.hypothesisLabels.first == "Recommended")
         #expect(transcription.hypothesisDetails.first?.source == .autoContext)
@@ -382,6 +383,18 @@ struct VoiceInkTests {
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
         transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
+        transcription.reviewTriggers = [
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "1 suggestion"
+            ),
+            VocoReviewTrigger(
+                id: "raw-cleanup-significant",
+                reason: "raw-cleanup-significant",
+                detail: "Raw cleanup changed text"
+            ),
+        ]
         transcription.hypothesisLabels = ["Recommended", "Segment rescue", "Raw ASR"]
         transcription.hypotheses = ["我現在用 VoiceInk", "我現在用 VoiceInk rescue", "我現在用 voice ink"]
         transcription.hypothesisDetails = [
@@ -449,6 +462,8 @@ struct VoiceInkTests {
         #expect(csv.contains("86%"))
         #expect(csv.contains("reviewSuggested"))
         #expect(csv.contains("Alias match | Cleanup drift"))
+        #expect(csv.contains("Review Triggers"))
+        #expect(csv.contains("Needs choice (1 suggestion) | Cleanup changed text (Raw cleanup changed text)"))
         #expect(csv.contains("Recommended: 我現在用 VoiceInk | Segment rescue: 我現在用 VoiceInk rescue | Raw ASR: 我現在用 voice ink"))
         #expect(csv.contains("Candidate Details"))
         #expect(csv.contains("Recommended / AUTO + context: Confidence 86%"))
@@ -595,6 +610,8 @@ struct VoiceInkTests {
         #expect(metric.confidenceScore == output.assessment.score)
         #expect(metric.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue)
         #expect(metric.confidenceReasons == output.assessment.reasons)
+        #expect(metric.reviewTriggerCount == output.assessment.reviewTriggers.count)
+        #expect(metric.reviewTriggerIDs == output.assessment.reviewTriggers.map(\.id))
         #expect(metric.candidateCount == output.assessment.candidates.count)
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
@@ -687,6 +704,8 @@ struct VoiceInkTests {
         #expect(metric.canonicalizationSuggestionCount == 1)
         #expect(metric.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue)
         #expect(metric.confidenceReasons == output.assessment.reasons)
+        #expect(metric.reviewTriggerCount == output.assessment.reviewTriggers.count)
+        #expect(metric.reviewTriggerIDs == output.assessment.reviewTriggers.map(\.id))
         #expect(metric.candidateCount == output.assessment.candidates.count)
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
@@ -841,6 +860,7 @@ struct VoiceInkTests {
         #expect(transcription.confidenceScore == output.confidenceAssessment.score)
         #expect(transcription.confidenceRoute == output.confidenceAssessment.route.rawValue)
         #expect(transcription.confidenceReasons == output.confidenceAssessment.reasons)
+        #expect(transcription.reviewTriggers == output.confidenceAssessment.reviewTriggers)
         #expect(transcription.hypotheses == output.confidenceAssessment.candidates)
         #expect(transcription.hypothesisLabels == output.confidenceAssessment.candidateLabels)
         #expect(transcription.hypothesisDetails == output.confidenceAssessment.hypothesisDetails)
@@ -988,6 +1008,26 @@ struct VoiceInkTests {
         #expect(hypothesis.source == .autoContext)
         #expect(hypothesis.divergenceFromRecommended == nil)
         #expect(hypothesis.text == "我現在用 VoiceInk")
+    }
+
+    @Test func confidenceAssessmentDecodesLegacyPayloadWithoutReviewTriggers() async throws {
+        let json = """
+        {
+          "score": 0.86,
+          "route": "reviewSuggested",
+          "reasons": ["unresolved-suggestions"],
+          "candidates": ["今天看到焰很大", "今天看到炎很大"],
+          "candidateLabels": ["Recommended", "With suggestions"],
+          "hypothesisDetails": [],
+          "selectedCandidate": "今天看到焰很大"
+        }
+        """
+
+        let assessment = try JSONDecoder().decode(VocoConfidenceAssessment.self, from: Data(json.utf8))
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reviewTriggers.isEmpty)
+        #expect(assessment.candidates.count == 2)
     }
 
     @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {
@@ -1467,6 +1507,13 @@ struct VoiceInkTests {
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("recent-correction-rate"))
         #expect(assessment.reasons.contains("recent-term-corrections"))
+        #expect(assessment.reviewTriggers.map(\.id).contains("recent-correction-rate"))
+        #expect(assessment.reviewTriggers.map(\.id).contains("recent-term-corrections"))
+        #expect(
+            VocoReviewTriggerDisplayFormatter
+                .summaries(for: assessment.reviewTriggers)
+                .contains("Recent corrections (50% recent correction rate)")
+        )
         #expect(assessment.correctionRiskProfile == riskProfile)
         #expect(assessment.hypothesisDetails.first?.reasons.contains("recent-term-corrections") == true)
     }
@@ -1500,6 +1547,8 @@ struct VoiceInkTests {
         #expect(transcription.correctionRiskSampleCount == 5)
         #expect(transcription.correctionRiskCorrectedCount == 2)
         #expect(transcription.correctionRiskTermIDs == ["product.voiceink"])
+        #expect(transcription.reviewTriggers.map(\.id).contains("recent-correction-rate"))
+        #expect(transcription.reviewTriggers.map(\.id).contains("recent-term-corrections"))
     }
 
     @Test func contextPackEnabledIDsDefaultAndPersist() async throws {

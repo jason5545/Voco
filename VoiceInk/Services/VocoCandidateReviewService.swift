@@ -132,6 +132,7 @@ enum VocoCandidateReviewService {
             score: transcription.confidenceScore ?? 1,
             route: VocoConfidenceRoute(rawValue: transcription.confidenceRoute ?? "") ?? .directInsertion,
             reasons: transcription.confidenceReasons,
+            reviewTriggers: transcription.reviewTriggers,
             candidates: transcription.hypotheses,
             candidateLabels: transcription.hypothesisLabels,
             hypothesisDetails: transcription.hypothesisDetails,

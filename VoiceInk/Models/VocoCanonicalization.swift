@@ -75,6 +75,22 @@ enum VocoConfidenceRoute: String, Codable, Equatable {
     case reviewSuggested
 }
 
+struct VocoReviewTrigger: Codable, Equatable, Identifiable {
+    let id: String
+    let reason: String
+    let detail: String?
+
+    init(id: String, reason: String, detail: String? = nil) {
+        self.id = id
+        self.reason = reason
+        self.detail = detail
+    }
+
+    var displayName: String {
+        VocoSignalDisplayFormatter.displayReason(for: reason)
+    }
+}
+
 enum VocoHypothesisSource: String, Codable, Equatable {
     case autoContext
     case suggestedRepair
@@ -194,6 +210,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
     let score: Double
     let route: VocoConfidenceRoute
     let reasons: [String]
+    let reviewTriggers: [VocoReviewTrigger]
     let candidates: [String]
     let candidateLabels: [String]
     let hypothesisDetails: [VocoHypothesis]
@@ -204,6 +221,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         score: Double,
         route: VocoConfidenceRoute,
         reasons: [String],
+        reviewTriggers: [VocoReviewTrigger] = [],
         candidates: [String],
         candidateLabels: [String] = [],
         hypothesisDetails: [VocoHypothesis] = [],
@@ -213,11 +231,43 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         self.score = score
         self.route = route
         self.reasons = reasons
+        self.reviewTriggers = reviewTriggers
         self.candidates = candidates
         self.candidateLabels = candidateLabels
         self.hypothesisDetails = hypothesisDetails
         self.correctionRiskProfile = correctionRiskProfile
         self.selectedCandidate = selectedCandidate
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case score
+        case route
+        case reasons
+        case reviewTriggers
+        case candidates
+        case candidateLabels
+        case hypothesisDetails
+        case correctionRiskProfile
+        case selectedCandidate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.init(
+            score: try container.decode(Double.self, forKey: .score),
+            route: try container.decode(VocoConfidenceRoute.self, forKey: .route),
+            reasons: try container.decode([String].self, forKey: .reasons),
+            reviewTriggers: try container.decodeIfPresent([VocoReviewTrigger].self, forKey: .reviewTriggers) ?? [],
+            candidates: try container.decode([String].self, forKey: .candidates),
+            candidateLabels: try container.decodeIfPresent([String].self, forKey: .candidateLabels) ?? [],
+            hypothesisDetails: try container.decodeIfPresent([VocoHypothesis].self, forKey: .hypothesisDetails) ?? [],
+            correctionRiskProfile: try container.decodeIfPresent(
+                VocoCorrectionRiskProfile.self,
+                forKey: .correctionRiskProfile
+            ),
+            selectedCandidate: try container.decode(String.self, forKey: .selectedCandidate)
+        )
     }
 
     func labelForCandidate(at index: Int) -> String {
@@ -303,6 +353,8 @@ enum VocoSignalDisplayFormatter {
             return "Inactive context"
         case "low-confidence-replacement":
             return "Low confidence"
+        case "low-confidence-score":
+            return "Low score"
         case "raw-cleanup-drift":
             return "Cleanup drift"
         case "raw-cleanup-significant":
@@ -348,6 +400,24 @@ enum VocoSignalDisplayFormatter {
                 index == 0 ? word.capitalized : word
             }
             .joined(separator: " ")
+    }
+}
+
+enum VocoReviewTriggerDisplayFormatter {
+    static func summaries(for triggers: [VocoReviewTrigger]) -> [String] {
+        var seen: Set<String> = []
+        return triggers
+            .filter { seen.insert($0.id).inserted }
+            .map(summary(for:))
+    }
+
+    static func summary(for trigger: VocoReviewTrigger) -> String {
+        let detail = trigger.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let detail, !detail.isEmpty else {
+            return trigger.displayName
+        }
+
+        return "\(trigger.displayName) (\(detail))"
     }
 }
 

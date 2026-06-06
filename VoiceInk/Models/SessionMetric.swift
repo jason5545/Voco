@@ -23,6 +23,8 @@ final class SessionMetric {
     var confidenceScore: Double?
     var confidenceRoute: String?
     var confidenceReasonsJSON: String?
+    var reviewTriggerCount: Int = 0
+    var reviewTriggerIDsJSON: String?
     var candidateCount: Int = 0
     var candidateSourceCountsJSON: String?
     var reviewRequiredCandidateCount: Int = 0
@@ -50,6 +52,11 @@ final class SessionMetric {
         set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
     }
 
+    var reviewTriggerIDs: [String] {
+        get { Self.decodeStringArray(reviewTriggerIDsJSON) }
+        set { reviewTriggerIDsJSON = Self.encodeJSON(newValue) }
+    }
+
     var candidateSourceCounts: [String: Int] {
         get { Self.decodeStringIntDictionary(candidateSourceCountsJSON) }
         set { candidateSourceCountsJSON = Self.encodeJSON(newValue) }
@@ -75,6 +82,8 @@ final class SessionMetric {
         confidenceScore: Double? = nil,
         confidenceRoute: String? = nil,
         confidenceReasons: [String] = [],
+        reviewTriggerCount: Int = 0,
+        reviewTriggerIDs: [String] = [],
         candidateCount: Int = 0,
         candidateSourceCounts: [String: Int] = [:],
         reviewRequiredCandidateCount: Int = 0,
@@ -112,6 +121,8 @@ final class SessionMetric {
         self.confidenceScore = confidenceScore
         self.confidenceRoute = confidenceRoute
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceReasons)
+        self.reviewTriggerCount = reviewTriggerCount
+        self.reviewTriggerIDsJSON = Self.encodeJSON(reviewTriggerIDs)
         self.candidateCount = candidateCount
         self.candidateSourceCountsJSON = Self.encodeJSON(candidateSourceCounts)
         self.reviewRequiredCandidateCount = reviewRequiredCandidateCount
@@ -139,6 +150,8 @@ final class SessionMetric {
         confidenceScore = transcription.confidenceScore
         confidenceRoute = transcription.confidenceRoute
         confidenceReasons = transcription.confidenceReasons
+        reviewTriggerCount = transcription.reviewTriggers.count
+        reviewTriggerIDs = transcription.reviewTriggers.map(\.id)
         candidateCount = transcription.hypotheses.count
         candidateSourceCounts = Self.candidateSourceCounts(from: transcription.hypothesisDetails)
         reviewRequiredCandidateCount = Self.reviewRequiredCandidateCount(in: transcription.hypothesisDetails)

@@ -40,6 +40,7 @@ final class Transcription {
     var confidenceScore: Double?
     var confidenceRoute: String?
     var confidenceReasonsJSON: String?
+    var reviewTriggersJSON: String?
     var hypothesesJSON: String?
     var hypothesisLabelsJSON: String?
     var hypothesisDetailsJSON: String?
@@ -92,6 +93,11 @@ final class Transcription {
         set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
     }
 
+    var reviewTriggers: [VocoReviewTrigger] {
+        get { Self.decodeReviewTriggers(reviewTriggersJSON) }
+        set { reviewTriggersJSON = Self.encodeJSON(newValue) }
+    }
+
     var correctionRiskTermIDs: [String] {
         get { Self.decodeStringArray(correctionRiskTermIDsJSON) }
         set { correctionRiskTermIDsJSON = Self.encodeJSON(newValue) }
@@ -136,6 +142,7 @@ final class Transcription {
          languageMode: String? = nil,
          confidenceScore: Double? = nil,
          confidenceAssessment: VocoConfidenceAssessment? = nil,
+         reviewTriggers: [VocoReviewTrigger] = [],
          hypotheses: [String] = [],
          hypothesisLabels: [String] = [],
          hypothesisDetails: [VocoHypothesis] = [],
@@ -180,6 +187,7 @@ final class Transcription {
         self.confidenceScore = confidenceAssessment?.score ?? confidenceScore
         self.confidenceRoute = confidenceAssessment?.route.rawValue
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceAssessment?.reasons ?? [])
+        self.reviewTriggersJSON = Self.encodeJSON(confidenceAssessment?.reviewTriggers ?? reviewTriggers)
         self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
         self.hypothesisLabelsJSON = Self.encodeJSON(confidenceAssessment?.candidateLabels ?? hypothesisLabels)
         self.hypothesisDetailsJSON = Self.encodeJSON(confidenceAssessment?.hypothesisDetails ?? hypothesisDetails)
@@ -223,6 +231,7 @@ final class Transcription {
         self.confidenceScore = confidenceAssessment.score
         self.confidenceRoute = confidenceAssessment.route.rawValue
         self.confidenceReasons = confidenceAssessment.reasons
+        self.reviewTriggers = confidenceAssessment.reviewTriggers
         self.hypotheses = confidenceAssessment.candidates
         self.hypothesisLabels = confidenceAssessment.candidateLabels
         self.hypothesisDetails = confidenceAssessment.hypothesisDetails
@@ -324,6 +333,7 @@ final class Transcription {
         confidenceScore = nil
         confidenceRoute = nil
         confidenceReasons = []
+        reviewTriggers = []
         hypotheses = []
         hypothesisLabels = []
         hypothesisDetails = []
@@ -376,6 +386,16 @@ final class Transcription {
         guard let json,
               let data = json.data(using: .utf8),
               let values = try? JSONDecoder().decode([VocoReplacement].self, from: data)
+        else {
+            return []
+        }
+        return values
+    }
+
+    private static func decodeReviewTriggers(_ json: String?) -> [VocoReviewTrigger] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([VocoReviewTrigger].self, from: data)
         else {
             return []
         }

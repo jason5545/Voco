@@ -70,11 +70,14 @@ final class VocoConfidenceGateService {
             reasons.append("canonicalization-clean")
         }
 
-        let route: VocoConfidenceRoute = shouldSuggestReview(
+        let reviewTriggers = reviewTriggers(
             score: boundedScore,
             normalizationResult: normalizationResult,
-            reasons: reasons
-        ) ? .reviewSuggested : .directInsertion
+            reasons: reasons,
+            affectedTermIDs: affectedTermIDs,
+            correctionRiskProfile: correctionRiskProfile
+        )
+        let route: VocoConfidenceRoute = reviewTriggers.isEmpty ? .directInsertion : .reviewSuggested
 
         let hypothesisDetails = VocoHypothesisManagerService.buildHypotheses(
             normalizationResult: normalizationResult,
@@ -88,6 +91,7 @@ final class VocoConfidenceGateService {
             score: boundedScore,
             route: route,
             reasons: reasons,
+            reviewTriggers: reviewTriggers,
             candidates: hypothesisDetails.map(\.text),
             candidateLabels: hypothesisDetails.map(\.label),
             hypothesisDetails: hypothesisDetails,
@@ -96,19 +100,88 @@ final class VocoConfidenceGateService {
         )
     }
 
-    private func shouldSuggestReview(
+    private func reviewTriggers(
         score: Double,
         normalizationResult: VocoNormalizationResult,
-        reasons: [String]
-    ) -> Bool {
-        if score < 0.78 { return true }
-        if !normalizationResult.suggestions.isEmpty { return true }
-        if reasons.contains("heavy-normalization") { return true }
-        if reasons.contains("low-confidence-replacement") { return true }
-        if reasons.contains("raw-cleanup-significant") { return true }
-        if reasons.contains("recent-term-corrections") { return true }
-        if reasons.contains("recent-correction-rate"), !normalizationResult.replacements.isEmpty { return true }
-        return false
+        reasons: [String],
+        affectedTermIDs: [String],
+        correctionRiskProfile: VocoCorrectionRiskProfile?
+    ) -> [VocoReviewTrigger] {
+        var triggers: [VocoReviewTrigger] = []
+
+        if score < 0.78 {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "low-confidence-score",
+                    reason: "low-confidence-score",
+                    detail: "Score \(percent(score)) below \(percent(0.78))"
+                )
+            )
+        }
+
+        if !normalizationResult.suggestions.isEmpty {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "unresolved-suggestions",
+                    reason: "unresolved-suggestions",
+                    detail: countDetail(normalizationResult.suggestions.count, singular: "suggestion")
+                )
+            )
+        }
+
+        if reasons.contains("heavy-normalization") {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "heavy-normalization",
+                    reason: "heavy-normalization",
+                    detail: countDetail(normalizationResult.replacements.count, singular: "replacement")
+                )
+            )
+        }
+
+        if reasons.contains("low-confidence-replacement") {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "low-confidence-replacement",
+                    reason: "low-confidence-replacement",
+                    detail: "Replacement confidence below 92%"
+                )
+            )
+        }
+
+        if reasons.contains("raw-cleanup-significant") {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "raw-cleanup-significant",
+                    reason: "raw-cleanup-significant",
+                    detail: "Raw cleanup changed text"
+                )
+            )
+        }
+
+        if reasons.contains("recent-term-corrections") {
+            let riskIDs = correctionRiskProfile?.highRiskTermIDs ?? []
+            let overlappingIDs = affectedTermIDs.filter { riskIDs.contains($0) }
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "recent-term-corrections",
+                    reason: "recent-term-corrections",
+                    detail: overlappingIDs.isEmpty ? "Recent term corrections" : overlappingIDs.joined(separator: ", ")
+                )
+            )
+        }
+
+        if reasons.contains("recent-correction-rate"), !normalizationResult.replacements.isEmpty {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "recent-correction-rate",
+                    reason: "recent-correction-rate",
+                    detail: correctionRiskProfile.map { "\(percent($0.recentCorrectionRate)) recent correction rate" }
+                )
+            )
+        }
+
+        return triggers
     }
 
     private func rawCleanupDrift(rawTranscript: String, cleanedText: String) -> RawCleanupDrift {
@@ -144,6 +217,14 @@ final class VocoConfidenceGateService {
         return (result.replacements + result.suggestions)
             .map(\.termID)
             .filter { seen.insert($0).inserted }
+    }
+
+    private func countDetail(_ count: Int, singular: String) -> String {
+        count == 1 ? "1 \(singular)" : "\(count) \(singular)s"
+    }
+
+    private func percent(_ value: Double) -> String {
+        "\(Int((max(0, min(1, value)) * 100).rounded()))%"
     }
 
     private struct RawCleanupDrift {

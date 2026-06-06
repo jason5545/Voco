@@ -190,6 +190,16 @@ struct TranscriptionInfoPanel: View {
                     )
                 }
 
+                if !transcription.reviewTriggers.isEmpty {
+                    metadataRow(
+                        icon: "checklist",
+                        label: "Review Triggers",
+                        value: VocoReviewTriggerDisplayFormatter
+                            .summaries(for: transcription.reviewTriggers)
+                            .joined(separator: ", ")
+                    )
+                }
+
                 if !transcription.activeContextIDs.isEmpty {
                     metadataRow(
                         icon: "square.stack.3d.up.fill",
