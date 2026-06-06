@@ -5,7 +5,7 @@ import SwiftData
 import os
 
 /// Handles the full post-recording pipeline:
-/// transcribe → filter → format → word-replace → Chinese post-process → voice-command → prompt-detect → AI enhance → validate → save → paste → dismiss
+/// transcribe → filter → format → Chinese post-process → canonicalize → voice-command → prompt-detect → AI enhance → validate → save → paste → dismiss
 @MainActor
 class TranscriptionPipeline {
     let modelContext: ModelContext
@@ -136,9 +136,6 @@ class TranscriptionPipeline {
                 text = WhisperTextFormatter.format(text)
                 logger.notice("📝 Formatted transcript: \(text, privacy: .private)")
             }
-
-            text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
-            logger.notice("📝 WordReplacement: \(text, privacy: .private)")
 
             // Set model provider for confidence routing
             postProcessor.lastModelProvider = model.provider

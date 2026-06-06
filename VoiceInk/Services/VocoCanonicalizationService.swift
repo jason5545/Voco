@@ -59,6 +59,32 @@ final class VocoCanonicalizationService {
             }
     }
 
+    static func wordReplacementTerms(from replacements: [WordReplacement]) -> [VocoCanonicalTerm] {
+        replacements
+            .filter(\.isEnabled)
+            .compactMap { replacement in
+                let canonical = replacement.replacementText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let aliases = replacement.originalText
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+
+                guard !canonical.isEmpty,
+                      !aliases.isEmpty
+                else { return nil }
+
+                return VocoCanonicalTerm(
+                    id: "word-replacement.\(replacement.id.uuidString.lowercased())",
+                    canonical: canonical,
+                    aliases: aliases,
+                    type: "word-replacement",
+                    contexts: ["personal-dictionary"],
+                    caseSensitive: true,
+                    autoReplaceThreshold: 0.97
+                )
+            }
+    }
+
     static func enabledContextPackIDs(defaults: UserDefaults = .standard) -> [String] {
         guard let storedIDs = defaults.array(forKey: enabledContextPackIDsKey) as? [String] else {
             return defaultActiveContextIDs

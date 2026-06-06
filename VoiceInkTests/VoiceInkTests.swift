@@ -555,6 +555,33 @@ struct VoiceInkTests {
         #expect(names == ["VOCO Development", "Power Mode", "custom.context"])
     }
 
+    @Test func canonicalizationUsesEnabledWordReplacementsAsPersonalDictionaryTerms() async throws {
+        let terms = VocoCanonicalizationService.wordReplacementTerms(
+            from: [
+                WordReplacement(originalText: "snow mode, snowmode", replacementText: "SnowMode"),
+                WordReplacement(originalText: "ghost term", replacementText: "GhostTerm", isEnabled: false),
+            ]
+        )
+
+        let term = try #require(terms.first)
+        #expect(terms.count == 1)
+        #expect(term.canonical == "SnowMode")
+        #expect(term.aliases == ["snow mode", "snowmode"])
+        #expect(term.type == "word-replacement")
+        #expect(term.contexts == ["personal-dictionary"])
+
+        let result = VocoCanonicalizationService(contextPacks: []).normalize(
+            "我今天開 snow mode 不是 ghost term",
+            activeContextIDs: [],
+            additionalTerms: terms
+        )
+        #expect(result.normalizedText == "我今天開 SnowMode 不是 ghost term")
+        #expect(result.replacements.count == 1)
+        #expect(result.replacements.first?.originalText == "snow mode")
+        #expect(result.replacements.first?.replacementText == "SnowMode")
+        #expect(result.replacements.first?.termID.hasPrefix("word-replacement.") == true)
+    }
+
     @Test func personalStyleGuardAllowsPlainMixedLanguageEditing() async throws {
         let result = PersonalStyleGuardService().validate(
             response: "我覺得這個 approach unstable，要 go around。",

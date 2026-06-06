@@ -13,7 +13,7 @@ enum VocoCanonicalizationPipeline {
         let result = VocoCanonicalizationService.shared.normalize(
             text,
             activeContextIDs: activeContextIDs(),
-            additionalTerms: VocoCanonicalizationService.vocabularyTerms(from: vocabularyWords(in: modelContext))
+            additionalTerms: dictionaryTerms(in: modelContext)
         )
         let assessment = confidenceAssessment(
             for: result,
@@ -80,5 +80,18 @@ enum VocoCanonicalizationPipeline {
     private static func vocabularyWords(in modelContext: ModelContext) -> [String] {
         let descriptor = FetchDescriptor<VocabularyWord>(sortBy: [SortDescriptor(\.word)])
         return ((try? modelContext.fetch(descriptor)) ?? []).map(\.word)
+    }
+
+    private static func wordReplacements(in modelContext: ModelContext) -> [WordReplacement] {
+        let descriptor = FetchDescriptor<WordReplacement>(
+            predicate: #Predicate { $0.isEnabled },
+            sortBy: [SortDescriptor(\.originalText)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private static func dictionaryTerms(in modelContext: ModelContext) -> [VocoCanonicalTerm] {
+        VocoCanonicalizationService.vocabularyTerms(from: vocabularyWords(in: modelContext)) +
+            VocoCanonicalizationService.wordReplacementTerms(from: wordReplacements(in: modelContext))
     }
 }

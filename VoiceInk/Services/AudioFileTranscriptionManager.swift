@@ -169,7 +169,6 @@ class AudioTranscriptionManager: ObservableObject {
                 text = WhisperTextFormatter.format(text)
             }
 
-            text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
             let normalizationResult = VocoCanonicalizationPipeline.normalize(
                 cleanedText,
