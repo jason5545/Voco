@@ -13,75 +13,15 @@ struct TranscriptionDetailView: View {
         return false
     }
 
-    private var normalizedDisplayText: String {
-        guard let normalizedTranscript = transcription.normalizedTranscript?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !normalizedTranscript.isEmpty
-        else {
-            return transcription.text
-        }
-        return normalizedTranscript
-    }
-
-    private var selectedDisplayText: String {
-        guard let selectedCandidate = transcription.selectedCandidate?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !selectedCandidate.isEmpty
-        else {
-            return transcription.text
-        }
-        return selectedCandidate
-    }
-
-    private var shouldShowSelectedCandidate: Bool {
-        selectedDisplayText != normalizedDisplayText
-    }
-
     var body: some View {
         VStack(spacing: 12) {
             ScrollView {
                 VStack(spacing: 16) {
-                    if let rawTranscript = transcription.rawTranscript,
-                       !rawTranscript.isEmpty,
-                       rawTranscript != normalizedDisplayText,
-                       rawTranscript != selectedDisplayText {
+                    ForEach(transcription.detailDisplayTexts) { item in
                         MessageBubble(
-                            label: "Raw ASR",
-                            text: rawTranscript,
-                            isEnhanced: false
-                        )
-                    }
-
-                    MessageBubble(
-                        label: transcription.rawTranscript == nil ? "Original" : "Normalized",
-                        text: normalizedDisplayText,
-                        isEnhanced: false
-                    )
-
-                    if shouldShowSelectedCandidate {
-                        MessageBubble(
-                            label: "Selected",
-                            text: selectedDisplayText,
-                            isEnhanced: false
-                        )
-                    }
-
-                    if let enhancedText = transcription.enhancedText {
-                        MessageBubble(
-                            label: "Enhanced",
-                            text: enhancedText,
-                            isEnhanced: true
-                        )
-                    }
-
-                    if let finalPastedText = transcription.finalPastedText,
-                       !finalPastedText.isEmpty,
-                       finalPastedText != (transcription.enhancedText ?? ""),
-                       finalPastedText != transcription.text {
-                        MessageBubble(
-                            label: "Pasted",
-                            text: finalPastedText,
-                            isEnhanced: true
+                            label: item.label,
+                            text: item.text,
+                            isEnhanced: item.isEnhanced
                         )
                     }
                 }

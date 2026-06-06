@@ -648,6 +648,38 @@ struct VoiceInkTests {
         #expect(pasted.historyDisplayText == "VoiceInk pasted")
     }
 
+    @Test func transcriptionDetailTextsTraceMeaningfulOutputVariants() async throws {
+        let selected = Transcription(
+            text: "今天看到焰很大",
+            duration: 0.2,
+            rawTranscript: "今天看到焰很大",
+            normalizedTranscript: "今天看到焰很大",
+            finalPastedText: " 今天看到炎很大 ",
+            selectedCandidate: "今天看到炎很大"
+        )
+        let enhanced = Transcription(
+            text: "voice ink",
+            duration: 0.2,
+            enhancedText: "VoiceInk enhanced",
+            rawTranscript: "voice ink",
+            normalizedTranscript: "VoiceInk",
+            finalPastedText: "VoiceInk enhanced."
+        )
+        let original = Transcription(text: "一般文字", duration: 0.2)
+        let normalizedWithoutRaw = Transcription(
+            text: "voice ink",
+            duration: 0.2,
+            normalizedTranscript: "VoiceInk"
+        )
+
+        #expect(selected.detailDisplayTexts.map(\.label) == ["Normalized", "Selected"])
+        #expect(selected.detailDisplayTexts.map(\.text) == ["今天看到焰很大", "今天看到炎很大"])
+        #expect(enhanced.detailDisplayTexts.map(\.label) == ["Raw ASR", "Normalized", "Enhanced", "Pasted"])
+        #expect(enhanced.detailDisplayTexts.map(\.isEnhanced) == [false, false, true, true])
+        #expect(original.detailDisplayTexts.map(\.label) == ["Original"])
+        #expect(normalizedWithoutRaw.detailDisplayTexts.map(\.label) == ["Original", "Normalized"])
+    }
+
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
         let context = try makeSessionMetricContext()
         let output = makeSessionMetricDictationOutput()

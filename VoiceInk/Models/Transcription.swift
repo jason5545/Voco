@@ -8,6 +8,13 @@ enum TranscriptionStatus: String, Codable {
     case canceled
 }
 
+struct TranscriptionDetailText: Equatable, Identifiable {
+    let id: String
+    let label: String
+    let text: String
+    let isEnhanced: Bool
+}
+
 @Model
 final class Transcription {
     static let canceledTranscriptionText = "The transcription was canceled."
@@ -149,6 +156,82 @@ final class Transcription {
             normalizedTranscript,
             text
         ) ?? text
+    }
+
+    var detailDisplayTexts: [TranscriptionDetailText] {
+        let normalizedText = Self.firstNonEmpty(normalizedTranscript, text) ?? text
+        let selectedText = Self.firstNonEmpty(selectedCandidate)
+        var items: [TranscriptionDetailText] = []
+        var seenTexts: Set<String> = []
+
+        if let rawText = Self.firstNonEmpty(rawTranscript),
+           !Self.isSameText(rawText, normalizedText),
+           !Self.isSameText(rawText, selectedText) {
+            Self.appendDetailText(
+                id: "raw-asr",
+                label: "Raw ASR",
+                text: rawText,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        } else if !Self.hasText(rawTranscript),
+                  Self.hasText(normalizedTranscript),
+                  !Self.isSameText(text, normalizedText) {
+            Self.appendDetailText(
+                id: "original",
+                label: "Original",
+                text: text,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        Self.appendDetailText(
+            id: "normalized",
+            label: Self.hasText(normalizedTranscript) ? "Normalized" : "Original",
+            text: normalizedText,
+            isEnhanced: false,
+            to: &items,
+            seenTexts: &seenTexts
+        )
+
+        if let selectedText,
+           !Self.isSameText(selectedText, normalizedText) {
+            Self.appendDetailText(
+                id: "selected",
+                label: "Selected",
+                text: selectedText,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        if let enhancedText = Self.firstNonEmpty(enhancedText) {
+            Self.appendDetailText(
+                id: "enhanced",
+                label: "Enhanced",
+                text: enhancedText,
+                isEnhanced: true,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        if let finalPastedText = Self.firstNonEmpty(finalPastedText) {
+            Self.appendDetailText(
+                id: "pasted",
+                label: "Pasted",
+                text: finalPastedText,
+                isEnhanced: true,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        return items
     }
 
     init(text: String,
@@ -413,6 +496,38 @@ final class Transcription {
         values
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty }
+    }
+
+    private static func isSameText(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs = lhs?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let rhs = rhs?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !lhs.isEmpty,
+              !rhs.isEmpty
+        else { return false }
+        return lhs == rhs
+    }
+
+    private static func appendDetailText(
+        id: String,
+        label: String,
+        text: String,
+        isEnhanced: Bool,
+        to items: inout [TranscriptionDetailText],
+        seenTexts: inout Set<String>
+    ) {
+        let displayText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayText.isEmpty,
+              seenTexts.insert(displayText).inserted
+        else { return }
+
+        items.append(
+            TranscriptionDetailText(
+                id: id,
+                label: label,
+                text: displayText,
+                isEnhanced: isEnhanced
+            )
+        )
     }
 
     private static func decodeStringArray(_ json: String?) -> [String] {
