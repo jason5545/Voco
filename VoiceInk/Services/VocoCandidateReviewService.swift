@@ -156,91 +156,130 @@ enum VocoCandidateReviewService {
         assessment: VocoConfidenceAssessment
     ) {
         let baseCandidates = transcription.hypotheses.isEmpty ? assessment.candidates : transcription.hypotheses
-        var candidates = normalizedCandidateList(baseCandidates)
-        var labels = alignedLabels(
-            transcription.hypothesisLabels.isEmpty ? assessment.candidateLabels : transcription.hypothesisLabels,
-            count: candidates.count
-        )
-        var details = alignedHypotheses(
-            transcription.hypothesisDetails.isEmpty ? assessment.hypothesisDetails : transcription.hypothesisDetails,
-            candidates: candidates,
-            labels: labels,
+        var entries = candidateMetadataEntries(
+            candidates: baseCandidates,
+            labels: transcription.hypothesisLabels.isEmpty ? assessment.candidateLabels : transcription.hypothesisLabels,
+            hypotheses: transcription.hypothesisDetails.isEmpty ? assessment.hypothesisDetails : transcription.hypothesisDetails,
             assessment: assessment
         )
 
-        if candidates.contains(where: { isSameCandidate($0, accepted) }) {
-            transcription.hypotheses = candidates
-            transcription.hypothesisLabels = labels
-            transcription.hypothesisDetails = details
+        if entries.contains(where: { isSameCandidate($0.candidate, accepted) }) {
+            recordCandidateMetadataEntries(entries, for: transcription)
             return
         }
 
-        if candidates.count >= maxPersistedCandidateCount {
-            candidates.removeLast()
-            if !labels.isEmpty { labels.removeLast() }
-            if !details.isEmpty { details.removeLast() }
+        if entries.count >= maxPersistedCandidateCount {
+            entries.removeLast()
         }
 
-        candidates.append(accepted)
-        labels.append("Typed correction")
-        details.append(
-            VocoHypothesis(
-                id: "custom-rescue",
-                text: accepted,
+        let customContextIDs = entries.first?.hypothesis.activeContextIDs
+            ?? assessment.hypothesisDetails.first?.activeContextIDs
+            ?? []
+        entries.append(
+            CandidateMetadataEntry(
+                candidate: accepted,
                 label: "Typed correction",
-                source: .customRescue,
-                confidenceScore: assessment.score,
-                reasons: ["candidate-custom"] + assessment.reasons,
-                activeContextIDs: assessment.hypothesisDetails.first?.activeContextIDs ?? [],
-                appliedTermIDs: [],
-                requiresReview: false
+                hypothesis: VocoHypothesis(
+                    id: "custom-rescue",
+                    text: accepted,
+                    label: "Typed correction",
+                    source: .customRescue,
+                    confidenceScore: assessment.score,
+                    reasons: ["candidate-custom"] + assessment.reasons,
+                    activeContextIDs: customContextIDs,
+                    appliedTermIDs: [],
+                    requiresReview: false
+                )
             )
         )
 
-        transcription.hypotheses = candidates
-        transcription.hypothesisLabels = labels
-        transcription.hypothesisDetails = details
+        recordCandidateMetadataEntries(entries, for: transcription)
     }
 
-    private static func normalizedCandidateList(_ candidates: [String]) -> [String] {
-        var seen: Set<String> = []
-        return candidates
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .filter { seen.insert(candidateKey($0)).inserted }
-            .prefix(maxPersistedCandidateCount)
-            .map { $0 }
-    }
-
-    private static func alignedLabels(_ labels: [String], count: Int) -> [String] {
-        (0..<count).map { index in
-            guard labels.indices.contains(index),
-                  !labels[index].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            else {
-                return "Candidate"
-            }
-            return labels[index]
-        }
-    }
-
-    private static func alignedHypotheses(
-        _ hypotheses: [VocoHypothesis],
+    private static func candidateMetadataEntries(
         candidates: [String],
         labels: [String],
+        hypotheses: [VocoHypothesis],
         assessment: VocoConfidenceAssessment
-    ) -> [VocoHypothesis] {
-        candidates.enumerated().map { index, candidate in
-            if hypotheses.indices.contains(index),
-               isSameCandidate(hypotheses[index].text, candidate) {
-                return hypotheses[index]
-            }
+    ) -> [CandidateMetadataEntry] {
+        var seen: Set<String> = []
+        var entries: [CandidateMetadataEntry] = []
 
-            return fallbackHypothesis(
-                text: candidate,
-                label: labels.indices.contains(index) ? labels[index] : "Candidate",
+        for (index, rawCandidate) in candidates.enumerated() {
+            let candidate = rawCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty,
+                  seen.insert(candidateKey(candidate)).inserted
+            else { continue }
+
+            let hypothesis = alignedHypothesis(
+                at: index,
+                candidate: candidate,
+                label: metadataLabel(
+                    at: index,
+                    labels: labels,
+                    hypothesis: hypotheses.indices.contains(index) ? hypotheses[index] : nil
+                ),
+                hypotheses: hypotheses,
                 assessment: assessment
             )
+            entries.append(
+                CandidateMetadataEntry(
+                    candidate: candidate,
+                    label: metadataLabel(at: index, labels: labels, hypothesis: hypothesis),
+                    hypothesis: hypothesis
+                )
+            )
+
+            if entries.count >= maxPersistedCandidateCount { break }
         }
+
+        return entries
+    }
+
+    private static func alignedHypothesis(
+        at index: Int,
+        candidate: String,
+        label: String,
+        hypotheses: [VocoHypothesis],
+        assessment: VocoConfidenceAssessment
+    ) -> VocoHypothesis {
+        if hypotheses.indices.contains(index),
+           isSameCandidate(hypotheses[index].text, candidate) {
+            return hypotheses[index]
+        }
+
+        return fallbackHypothesis(
+            text: candidate,
+            label: label,
+            assessment: assessment
+        )
+    }
+
+    private static func metadataLabel(at index: Int, labels: [String], hypothesis: VocoHypothesis?) -> String {
+        if labels.indices.contains(index) {
+            let label = labels[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !label.isEmpty {
+                return label
+            }
+        }
+
+        if let hypothesis {
+            let label = hypothesis.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !label.isEmpty {
+                return label
+            }
+        }
+
+        return "Candidate"
+    }
+
+    private static func recordCandidateMetadataEntries(
+        _ entries: [CandidateMetadataEntry],
+        for transcription: Transcription
+    ) {
+        transcription.hypotheses = entries.map(\.candidate)
+        transcription.hypothesisLabels = entries.map(\.label)
+        transcription.hypothesisDetails = entries.map(\.hypothesis)
     }
 
     private static func hasCandidateFeedback(for acceptedText: String, in transcription: Transcription) -> Bool {
@@ -316,4 +355,10 @@ enum VocoCandidateReviewService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
+}
+
+private struct CandidateMetadataEntry {
+    let candidate: String
+    let label: String
+    let hypothesis: VocoHypothesis
 }

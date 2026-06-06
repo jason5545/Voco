@@ -1724,6 +1724,84 @@ struct VoiceInkTests {
         #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
     }
 
+    @Test func candidateReviewAcceptanceKeepsMetadataAlignedAfterFoldedDeduplication() async throws {
+        let activeContextIDs = [VocoCanonicalizationService.defaultContextPackID]
+        let details = [
+            VocoHypothesis(
+                id: "rawASR",
+                text: "voiceink",
+                label: "Lowercase duplicate",
+                source: .rawASR,
+                confidenceScore: 0.7,
+                reasons: ["unresolved-suggestions"],
+                activeContextIDs: activeContextIDs,
+                appliedTermIDs: [],
+                requiresReview: false
+            ),
+            VocoHypothesis(
+                id: "autoContext",
+                text: "VoiceInk",
+                label: "Canonical",
+                source: .autoContext,
+                confidenceScore: 0.7,
+                reasons: ["unresolved-suggestions"],
+                activeContextIDs: activeContextIDs,
+                appliedTermIDs: ["product.voiceink"],
+                requiresReview: true
+            ),
+            VocoHypothesis(
+                id: "suggestedRepair",
+                text: "VOCO",
+                label: "Product",
+                source: .suggestedRepair,
+                confidenceScore: 0.7,
+                reasons: ["unresolved-suggestions"],
+                activeContextIDs: activeContextIDs,
+                appliedTermIDs: ["product.voco"],
+                requiresReview: true
+            ),
+        ]
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: details.map(\.text),
+            candidateLabels: details.map(\.label),
+            hypothesisDetails: details,
+            selectedCandidate: "voiceink"
+        )
+        let result = VocoNormalizationResult(
+            originalText: "voiceink",
+            normalizedText: "voiceink",
+            activeContextIDs: activeContextIDs,
+            replacements: [],
+            suggestions: []
+        )
+        let transcription = Transcription(text: "voiceink", duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        _ = VocoCandidateReviewService.acceptCandidate(
+            "typed rescue",
+            for: transcription,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            rawTranscript: result.originalText
+        )
+
+        #expect(transcription.hypotheses == ["voiceink", "VOCO", "typed rescue"])
+        #expect(transcription.hypothesisLabels == ["Lowercase duplicate", "Product", "Typed correction"])
+        #expect(transcription.hypothesisDetails.map(\.text) == ["voiceink", "VOCO", "typed rescue"])
+        #expect(transcription.hypothesisDetails.map(\.source) == [.rawASR, .suggestedRepair, .customRescue])
+        #expect(transcription.hypothesisDetails[1].appliedTermIDs == ["product.voco"])
+    }
+
     @Test func candidateReviewAcceptanceKeepsCustomRescueWithinPersistedLimit() async throws {
         let candidates = ["first", "second", "third", "fourth", "fifth"]
         let details = candidates.enumerated().map { index, candidate in
