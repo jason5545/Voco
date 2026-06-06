@@ -381,6 +381,7 @@ struct DictionaryConfirmationView: View {
 struct CandidateReviewView: View {
     let review: VocoCandidateReview
     let onSelect: (String) -> Void
+    let onInteraction: () -> Void
     let onDismiss: () -> Void
 
     @State private var typedCandidate = ""
@@ -503,6 +504,11 @@ struct CandidateReviewView: View {
                         .fill(Color.white.opacity(0.09))
                 )
                 .onSubmit(submitTypedCandidate)
+                .onChange(of: typedCandidate) { _, newValue in
+                    if VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: newValue) {
+                        onInteraction()
+                    }
+                }
 
             Button(action: submitTypedCandidate) {
                 Image(systemName: "arrow.turn.down.left")

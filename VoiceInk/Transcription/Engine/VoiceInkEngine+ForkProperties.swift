@@ -50,6 +50,10 @@ struct VocoCandidateReview: Identifiable {
         return "\(index + 1)"
     }
 
+    static func shouldRefreshTimeout(forTypedCandidate typedCandidate: String) -> Bool {
+        !typedCandidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func labelForCandidate(at index: Int) -> String {
         guard candidateLabels.indices.contains(index) else { return "Candidate" }
         return candidateLabels[index]

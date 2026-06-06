@@ -301,6 +301,8 @@ struct VoiceInkTests {
         #expect(review.defaultCandidate == "今天看到焰很大")
         #expect(review.timeoutFallbackCandidate == "今天看到焰很大")
         #expect(VocoCandidateReview.timeoutSeconds == 20)
+        #expect(VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: " 今天看到火焰很大 "))
+        #expect(!VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: "   "))
         #expect(review.keyboardShortcutForCandidate(at: 0) == "1")
         #expect(review.keyboardShortcutForCandidate(at: 1) == "2")
         #expect(review.keyboardShortcutForCandidate(at: 5) == nil)

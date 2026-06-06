@@ -75,6 +75,7 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                     CandidateReviewView(
                         review: review,
                         onSelect: { stateProvider.selectCandidateReview(candidate: $0) },
+                        onInteraction: { stateProvider.keepCandidateReviewAlive() },
                         onDismiss: { stateProvider.dismissCandidateReview() }
                     )
                     .frame(height: candidateReviewHeight)

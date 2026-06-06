@@ -12,5 +12,6 @@ protocol RecorderStateProvider: AnyObject {
     func confirmDictionaryEntry()
     func dismissDictionaryEntry()
     func selectCandidateReview(candidate: String)
+    func keepCandidateReviewAlive()
     func dismissCandidateReview()
 }

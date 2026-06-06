@@ -126,6 +126,13 @@ extension VoiceInkEngine {
         resumeCandidateReview(returning: VocoCandidateSelection(candidate: candidate, source: .userSelection))
     }
 
+    func keepCandidateReviewAlive() {
+        guard let review = forkState.pendingCandidateReview,
+              forkState.pendingCandidateContinuation != nil
+        else { return }
+        startCandidateReviewTimeout(for: review.id)
+    }
+
     func dismissCandidateReview() {
         resumeCandidateReview(returning: fallbackSelection(source: .dismissedFallback))
     }
