@@ -402,6 +402,7 @@ struct CandidateReviewView: View {
                         .foregroundColor(.white.opacity(0.45))
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
             }
 
             if !review.displayReasons.isEmpty {
@@ -425,11 +426,12 @@ struct CandidateReviewView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 5) {
                     ForEach(Array(review.candidates.prefix(5).enumerated()), id: \.offset) { index, candidate in
+                        let shortcut = review.keyboardShortcutForCandidate(at: index) ?? "\(index + 1)"
                         Button {
                             onSelect(candidate)
                         } label: {
                             HStack(alignment: .top, spacing: 7) {
-                                Text("\(index + 1)")
+                                Text(shortcut)
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundColor(.black.opacity(0.75))
                                     .frame(width: 16, height: 16)
@@ -466,6 +468,7 @@ struct CandidateReviewView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [])
                     }
                 }
             }

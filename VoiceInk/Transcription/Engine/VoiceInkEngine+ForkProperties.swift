@@ -43,6 +43,13 @@ struct VocoCandidateReview: Identifiable {
         defaultCandidate
     }
 
+    func keyboardShortcutForCandidate(at index: Int) -> String? {
+        guard candidates.indices.contains(index),
+              index < 5
+        else { return nil }
+        return "\(index + 1)"
+    }
+
     func labelForCandidate(at index: Int) -> String {
         guard candidateLabels.indices.contains(index) else { return "Candidate" }
         return candidateLabels[index]
