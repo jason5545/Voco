@@ -185,6 +185,45 @@ struct VoiceInkTests {
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
     }
 
+    @Test func correctionFeedbackCapturesCandidateOverride() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: "今天看到炎很大",
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-override")
+        #expect(signal.sourceText == "今天看到焰很大")
+        #expect(signal.proposedText == "今天看到焰很大")
+        #expect(signal.acceptedText == "今天看到炎很大")
+        #expect(signal.termIDs.contains("song.homura"))
+        #expect((signal.changeRatio ?? 0) > 0)
+    }
+
+    @Test func transcriptionStoresCandidateFeedback() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: "今天看到焰很大", duration: 0)
+
+        transcription.recordCandidateReviewFeedback(
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            selectedCandidate: "今天看到炎很大",
+            rawTranscript: result.originalText
+        )
+
+        let signal = try #require(transcription.correctionFeedback.first)
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.acceptedText == "今天看到炎很大")
+        #expect(signal.reason == "candidate-override")
+    }
+
     @Test func contextPackEnabledIDsDefaultAndPersist() async throws {
         let suiteName = "VocoCanonicalizationTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -302,6 +341,25 @@ struct VoiceInkTests {
         #expect(retranscribed.retranscriptionSourceText == source.text)
         #expect(abs((analysis.confidenceDelta ?? 0) - 0.3) < 0.0001)
         #expect(retranscribed.userCorrectionDistance == analysis.changeRatio)
+
+        let signal = try #require(retranscribed.correctionFeedback.first)
+        #expect(signal.kind == .retranscriptionChange)
+        #expect(signal.sourceText == "我今天要測試 voice anc")
+        #expect(signal.acceptedText == "我今天要測試 VoiceInk")
+        #expect(signal.reason == "retranscription-\(analysis.changeCategory.rawValue)")
+    }
+
+    @Test func correctionFeedbackCapturesUserSubstitution() async throws {
+        let signal = try #require(
+            CorrectionFeedbackService.userSubstitutionSignal(
+                WordSubstitution(original: "voice anc", replacement: "VoiceInk")
+            )
+        )
+
+        #expect(signal.kind == .userSubstitution)
+        #expect(signal.sourceText == "voice anc")
+        #expect(signal.acceptedText == "VoiceInk")
+        #expect(signal.reason == "user-substitution")
     }
 
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {

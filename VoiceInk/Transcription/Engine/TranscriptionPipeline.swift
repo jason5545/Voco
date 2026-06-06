@@ -216,6 +216,12 @@ class TranscriptionPipeline {
                !selectedCandidate.isEmpty {
                 text = selectedCandidate
                 transcription.selectedCandidate = selectedCandidate
+                transcription.recordCandidateReviewFeedback(
+                    normalizationResult: normalizationResult,
+                    confidenceAssessment: confidenceAssessment,
+                    selectedCandidate: selectedCandidate,
+                    rawTranscript: rawASRText
+                )
                 logger.notice("📝 Candidate review selected text: \(text, privacy: .private)")
             }
 

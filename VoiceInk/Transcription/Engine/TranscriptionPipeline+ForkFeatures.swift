@@ -74,6 +74,10 @@ extension TranscriptionPipeline {
 
             // If LLM identified a simple word substitution → show dictionary confirmation
             if let sub = substitution {
+                transcription.recordCorrectionFeedback(
+                    CorrectionFeedbackService.userSubstitutionSignal(sub)
+                )
+                try? modelContext.save()
                 onEditModeComplete?(sub)
                 return true
             }
@@ -82,6 +86,10 @@ extension TranscriptionPipeline {
             if let diffSub = AutoCorrectionStagingService.shared.extractSubstitution(
                 original: selectedText, edited: editedText
             ) {
+                transcription.recordCorrectionFeedback(
+                    CorrectionFeedbackService.userSubstitutionSignal(diffSub)
+                )
+                try? modelContext.save()
                 // Show dictionary confirmation UI for diff-extracted pair too
                 onEditModeComplete?(diffSub)
                 return true

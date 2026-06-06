@@ -9,6 +9,7 @@ struct TranscriptionInfoPanel: View {
         Form {
             detailsSection
             dictationSection
+            correctionFeedbackSection
             retranscriptionSection
             styleGuardSection
             aiRequestSection
@@ -166,6 +167,19 @@ struct TranscriptionInfoPanel: View {
     }
 
     // MARK: - AI Request Section
+
+    @ViewBuilder
+    private var correctionFeedbackSection: some View {
+        if !transcription.correctionFeedback.isEmpty {
+            Section {
+                ForEach(Array(transcription.correctionFeedback.enumerated()), id: \.offset) { _, signal in
+                    feedbackItem(signal)
+                }
+            } header: {
+                Text("Correction Feedback")
+            }
+        }
+    }
 
     @ViewBuilder
     private var retranscriptionSection: some View {
@@ -376,6 +390,68 @@ struct TranscriptionInfoPanel: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func feedbackItem(_ signal: CorrectionFeedbackSignal) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            metadataRow(
+                icon: feedbackIcon(for: signal.kind),
+                label: signal.kind.displayName,
+                value: feedbackSummary(signal)
+            )
+
+            feedbackText(label: "Source", text: signal.sourceText)
+
+            if let proposedText = signal.proposedText, !proposedText.isEmpty {
+                feedbackText(label: "Proposed", text: proposedText)
+            }
+
+            feedbackText(label: "Accepted", text: signal.acceptedText)
+
+            if !signal.termIDs.isEmpty {
+                metadataRow(
+                    icon: "tag.fill",
+                    label: "Terms",
+                    value: signal.termIDs.joined(separator: ", ")
+                )
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func feedbackText(label: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.system(size: 12, weight: .regular))
+                .lineSpacing(2)
+                .textSelection(.enabled)
+                .foregroundColor(.primary)
+        }
+    }
+
+    private func feedbackIcon(for kind: CorrectionFeedbackKind) -> String {
+        switch kind {
+        case .candidateSelection:
+            return "checklist.checked"
+        case .retranscriptionChange:
+            return "arrow.triangle.2.circlepath"
+        case .userSubstitution:
+            return "text.badge.checkmark"
+        }
+    }
+
+    private func feedbackSummary(_ signal: CorrectionFeedbackSignal) -> String {
+        var parts = [signal.reason]
+        if let confidenceScore = signal.confidenceScore {
+            parts.append(confidenceDisplay(score: confidenceScore))
+        }
+        if let changeRatio = signal.changeRatio {
+            parts.append("change \(Int((changeRatio * 100).rounded()))%")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func confidenceDisplay(score: Double) -> String {

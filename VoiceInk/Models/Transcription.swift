@@ -46,6 +46,7 @@ final class Transcription {
     var sourceTranscriptionID: UUID?
     var retranscriptionSourceText: String?
     var retranscriptionAnalysisJSON: String?
+    var correctionFeedbackJSON: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -82,6 +83,11 @@ final class Transcription {
         set { retranscriptionAnalysisJSON = Self.encodeJSON(newValue) }
     }
 
+    var correctionFeedback: [CorrectionFeedbackSignal] {
+        get { Self.decodeCorrectionFeedback(correctionFeedbackJSON) }
+        set { correctionFeedbackJSON = Self.encodeJSON(newValue) }
+    }
+
     init(text: String,
          duration: TimeInterval,
          enhancedText: String? = nil,
@@ -112,6 +118,7 @@ final class Transcription {
          sourceTranscriptionID: UUID? = nil,
          retranscriptionSourceText: String? = nil,
          retranscriptionAnalysis: RetranscriptionAnalysis? = nil,
+         correctionFeedback: [CorrectionFeedbackSignal] = [],
          transcriptionStatus: TranscriptionStatus = .pending) {
         self.id = UUID()
         self.text = text
@@ -146,6 +153,7 @@ final class Transcription {
         self.sourceTranscriptionID = sourceTranscriptionID
         self.retranscriptionSourceText = retranscriptionSourceText
         self.retranscriptionAnalysisJSON = Self.encodeJSON(retranscriptionAnalysis)
+        self.correctionFeedbackJSON = Self.encodeJSON(correctionFeedback)
         self.transcriptionStatus = transcriptionStatus.rawValue
     }
 
@@ -170,6 +178,21 @@ final class Transcription {
         self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
+    func recordCandidateReviewFeedback(
+        normalizationResult: VocoNormalizationResult,
+        confidenceAssessment: VocoConfidenceAssessment,
+        selectedCandidate: String,
+        rawTranscript: String?
+    ) {
+        let signal = CorrectionFeedbackService.candidateSelectionSignal(
+            normalizationResult: normalizationResult,
+            assessment: confidenceAssessment,
+            selectedCandidate: selectedCandidate,
+            rawTranscript: rawTranscript
+        )
+        recordCorrectionFeedback(signal)
+    }
+
     func recordStyleGuardRejection(response: String, reasons: [String]) {
         styleGuardRejectedText = response
         styleGuardReasons = reasons
@@ -189,6 +212,21 @@ final class Transcription {
         retranscriptionSourceText = sourceText
         retranscriptionAnalysis = analysis
         userCorrectionDistance = analysis.changeRatio
+        recordCorrectionFeedback(
+            CorrectionFeedbackService.retranscriptionSignal(
+                sourceText: sourceText,
+                retranscribedText: newText,
+                analysis: analysis,
+                confidenceScore: confidenceScore
+            )
+        )
+    }
+
+    func recordCorrectionFeedback(_ signal: CorrectionFeedbackSignal?) {
+        guard let signal else { return }
+        var signals = correctionFeedback
+        signals.append(signal)
+        correctionFeedback = signals
     }
 
     func markAsCanceledTranscription(
@@ -227,6 +265,7 @@ final class Transcription {
         sourceTranscriptionID = nil
         retranscriptionSourceText = nil
         retranscriptionAnalysis = nil
+        correctionFeedback = []
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
@@ -261,5 +300,15 @@ final class Transcription {
             return nil
         }
         return try? JSONDecoder().decode(RetranscriptionAnalysis.self, from: data)
+    }
+
+    private static func decodeCorrectionFeedback(_ json: String?) -> [CorrectionFeedbackSignal] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([CorrectionFeedbackSignal].self, from: data)
+        else {
+            return []
+        }
+        return values
     }
 }
