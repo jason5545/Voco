@@ -127,6 +127,26 @@ struct TranscriptionInfoPanel: View {
                     )
                 }
 
+                if let correctionRiskRate = transcription.correctionRiskRate {
+                    metadataRow(
+                        icon: "clock.arrow.circlepath",
+                        label: "Recent Correction Risk",
+                        value: correctionRiskDisplay(
+                            rate: correctionRiskRate,
+                            sampleCount: transcription.correctionRiskSampleCount,
+                            correctedCount: transcription.correctionRiskCorrectedCount
+                        )
+                    )
+                }
+
+                if !transcription.correctionRiskTermIDs.isEmpty {
+                    metadataRow(
+                        icon: "tag.fill",
+                        label: "Risk Terms",
+                        value: transcription.correctionRiskTermIDs.joined(separator: ", ")
+                    )
+                }
+
                 if !transcription.confidenceReasons.isEmpty {
                     metadataRow(
                         icon: "exclamationmark.triangle.fill",
@@ -325,6 +345,8 @@ struct TranscriptionInfoPanel: View {
         transcription.asrEngineID != nil ||
         transcription.languageMode != nil ||
         transcription.confidenceScore != nil ||
+        transcription.correctionRiskRate != nil ||
+        !transcription.correctionRiskTermIDs.isEmpty ||
         !transcription.activeContextIDs.isEmpty ||
         !transcription.canonicalizationReplacements.isEmpty ||
         !transcription.canonicalizationSuggestions.isEmpty ||
@@ -485,6 +507,12 @@ struct TranscriptionInfoPanel: View {
 
     private func confidenceDisplay(score: Double) -> String {
         "\(Int((score * 100).rounded()))%"
+    }
+
+    private func correctionRiskDisplay(rate: Double, sampleCount: Int?, correctedCount: Int?) -> String {
+        let rateText = confidenceDisplay(score: rate)
+        guard let sampleCount, let correctedCount else { return rateText }
+        return "\(rateText) · \(correctedCount)/\(sampleCount) corrected"
     }
 
     private func routeDisplay(_ route: String) -> String {

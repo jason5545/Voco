@@ -285,6 +285,119 @@ struct VoiceInkTests {
         #expect(signal.reason == "candidate-override")
     }
 
+    @Test @MainActor func correctionRiskProfileCountsRecentFeedback() async throws {
+        let context = try makeTranscriptionContext()
+        let now = Date()
+
+        let first = Transcription(text: "voice ink", duration: 0, transcriptionStatus: .completed)
+        first.timestamp = now
+        first.recordCorrectionFeedback(
+            CorrectionFeedbackSignal(
+                kind: .candidateSelection,
+                sourceText: "voice ink",
+                proposedText: "VoiceInk",
+                acceptedText: "VoiceInk",
+                reason: "candidate-confirmed",
+                termIDs: ["product.voiceink"]
+            )
+        )
+        context.insert(first)
+
+        let second = Transcription(text: "voice anc", duration: 0, transcriptionStatus: .completed)
+        second.timestamp = now.addingTimeInterval(-60)
+        second.recordCorrectionFeedback(
+            CorrectionFeedbackSignal(
+                kind: .candidateSelection,
+                sourceText: "voice anc",
+                proposedText: "VoiceInk",
+                acceptedText: "VoiceInk",
+                reason: "candidate-override",
+                termIDs: ["product.voiceink"]
+            )
+        )
+        context.insert(second)
+
+        let clean = Transcription(text: "沒有修正", duration: 0, transcriptionStatus: .completed)
+        clean.timestamp = now.addingTimeInterval(-120)
+        context.insert(clean)
+
+        let old = Transcription(text: "很久以前", duration: 0, transcriptionStatus: .completed)
+        old.timestamp = now.addingTimeInterval(-60 * 60 * 24 * 30)
+        old.recordCorrectionFeedback(
+            CorrectionFeedbackSignal(
+                kind: .candidateSelection,
+                sourceText: "old",
+                acceptedText: "old",
+                reason: "candidate-confirmed",
+                termIDs: ["product.voiceink"]
+            )
+        )
+        context.insert(old)
+
+        try context.save()
+
+        let profile = VocoCorrectionRiskService.profile(in: context, now: now, lookbackDays: 14)
+        #expect(profile.recentSessionCount == 3)
+        #expect(profile.correctedSessionCount == 2)
+        #expect(abs(profile.recentCorrectionRate - (2.0 / 3.0)) < 0.0001)
+        #expect(profile.highRiskTermIDs == ["product.voiceink"])
+        #expect(profile.hasElevatedCorrectionRate)
+    }
+
+    @Test func confidenceGateUsesRecentCorrectionRiskForReview() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink 做測試")
+        let riskProfile = VocoCorrectionRiskProfile(
+            recentSessionCount: 4,
+            correctedSessionCount: 2,
+            recentCorrectionRate: 0.5,
+            highRiskTermIDs: ["product.voiceink"],
+            lookbackDays: 14,
+            minimumSampleCount: 3
+        )
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: result.originalText,
+            correctionRiskProfile: riskProfile
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("recent-correction-rate"))
+        #expect(assessment.reasons.contains("recent-term-corrections"))
+        #expect(assessment.correctionRiskProfile == riskProfile)
+        #expect(assessment.hypothesisDetails.first?.reasons.contains("recent-term-corrections") == true)
+    }
+
+    @Test func transcriptionStoresCorrectionRiskMetadata() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink 做測試")
+        let riskProfile = VocoCorrectionRiskProfile(
+            recentSessionCount: 5,
+            correctedSessionCount: 2,
+            recentCorrectionRate: 0.4,
+            highRiskTermIDs: ["product.voiceink"],
+            lookbackDays: 14,
+            minimumSampleCount: 3
+        )
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: result.originalText,
+            correctionRiskProfile: riskProfile
+        )
+        let transcription = Transcription(text: "", duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        #expect(transcription.correctionRiskRate == 0.4)
+        #expect(transcription.correctionRiskSampleCount == 5)
+        #expect(transcription.correctionRiskCorrectedCount == 2)
+        #expect(transcription.correctionRiskTermIDs == ["product.voiceink"])
+    }
+
     @Test func contextPackEnabledIDsDefaultAndPersist() async throws {
         let suiteName = "VocoCanonicalizationTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -572,6 +685,21 @@ struct VoiceInkTests {
 private func makeDictionaryContext() throws -> ModelContext {
     let schema = Schema([VocabularyWord.self, WordReplacement.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try ModelContainer(for: schema, configurations: [config])
+    return ModelContext(container)
+}
+
+@MainActor
+private func makeTranscriptionContext() throws -> ModelContext {
+    let schema = Schema([Transcription.self])
+    let storeURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("transcription-test-\(UUID().uuidString).store")
+    let config = ModelConfiguration(
+        "transcription-test-\(UUID().uuidString)",
+        schema: schema,
+        url: storeURL,
+        cloudKitDatabase: .none
+    )
     let container = try ModelContainer(for: schema, configurations: [config])
     return ModelContext(container)
 }

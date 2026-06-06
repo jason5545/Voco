@@ -114,6 +114,37 @@ struct VocoHypothesis: Codable, Equatable, Identifiable {
     }
 }
 
+struct VocoCorrectionRiskProfile: Codable, Equatable {
+    static let empty = VocoCorrectionRiskProfile(
+        recentSessionCount: 0,
+        correctedSessionCount: 0,
+        recentCorrectionRate: 0,
+        highRiskTermIDs: [],
+        lookbackDays: 14,
+        minimumSampleCount: 3
+    )
+
+    let recentSessionCount: Int
+    let correctedSessionCount: Int
+    let recentCorrectionRate: Double
+    let highRiskTermIDs: [String]
+    let lookbackDays: Int
+    let minimumSampleCount: Int
+
+    var hasEnoughSamples: Bool {
+        recentSessionCount >= minimumSampleCount
+    }
+
+    var hasElevatedCorrectionRate: Bool {
+        hasEnoughSamples && recentCorrectionRate >= 0.35
+    }
+
+    func hasHighRiskOverlap(with termIDs: [String]) -> Bool {
+        let riskIDs = Set(highRiskTermIDs)
+        return termIDs.contains { riskIDs.contains($0) }
+    }
+}
+
 struct VocoConfidenceAssessment: Codable, Equatable {
     let score: Double
     let route: VocoConfidenceRoute
@@ -121,6 +152,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
     let candidates: [String]
     let candidateLabels: [String]
     let hypothesisDetails: [VocoHypothesis]
+    let correctionRiskProfile: VocoCorrectionRiskProfile?
     let selectedCandidate: String
 
     init(
@@ -130,6 +162,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         candidates: [String],
         candidateLabels: [String] = [],
         hypothesisDetails: [VocoHypothesis] = [],
+        correctionRiskProfile: VocoCorrectionRiskProfile? = nil,
         selectedCandidate: String
     ) {
         self.score = score
@@ -138,6 +171,7 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         self.candidates = candidates
         self.candidateLabels = candidateLabels
         self.hypothesisDetails = hypothesisDetails
+        self.correctionRiskProfile = correctionRiskProfile
         self.selectedCandidate = selectedCandidate
     }
 

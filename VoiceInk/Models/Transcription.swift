@@ -41,6 +41,10 @@ final class Transcription {
     var hypothesesJSON: String?
     var hypothesisLabelsJSON: String?
     var hypothesisDetailsJSON: String?
+    var correctionRiskRate: Double?
+    var correctionRiskSampleCount: Int?
+    var correctionRiskCorrectedCount: Int?
+    var correctionRiskTermIDsJSON: String?
     var selectedCandidate: String?
     var userCorrectionDistance: Double?
     var styleGuardReasonsJSON: String?
@@ -85,6 +89,11 @@ final class Transcription {
         set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
     }
 
+    var correctionRiskTermIDs: [String] {
+        get { Self.decodeStringArray(correctionRiskTermIDsJSON) }
+        set { correctionRiskTermIDsJSON = Self.encodeJSON(newValue) }
+    }
+
     var styleGuardReasons: [String] {
         get { Self.decodeStringArray(styleGuardReasonsJSON) }
         set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
@@ -125,6 +134,10 @@ final class Transcription {
          hypotheses: [String] = [],
          hypothesisLabels: [String] = [],
          hypothesisDetails: [VocoHypothesis] = [],
+         correctionRiskRate: Double? = nil,
+         correctionRiskSampleCount: Int? = nil,
+         correctionRiskCorrectedCount: Int? = nil,
+         correctionRiskTermIDs: [String] = [],
          selectedCandidate: String? = nil,
          userCorrectionDistance: Double? = nil,
          styleGuardReasons: [String] = [],
@@ -162,6 +175,17 @@ final class Transcription {
         self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
         self.hypothesisLabelsJSON = Self.encodeJSON(confidenceAssessment?.candidateLabels ?? hypothesisLabels)
         self.hypothesisDetailsJSON = Self.encodeJSON(confidenceAssessment?.hypothesisDetails ?? hypothesisDetails)
+        if let riskProfile = confidenceAssessment?.correctionRiskProfile {
+            self.correctionRiskRate = riskProfile.recentCorrectionRate
+            self.correctionRiskSampleCount = riskProfile.recentSessionCount
+            self.correctionRiskCorrectedCount = riskProfile.correctedSessionCount
+            self.correctionRiskTermIDsJSON = Self.encodeJSON(riskProfile.highRiskTermIDs)
+        } else {
+            self.correctionRiskRate = correctionRiskRate
+            self.correctionRiskSampleCount = correctionRiskSampleCount
+            self.correctionRiskCorrectedCount = correctionRiskCorrectedCount
+            self.correctionRiskTermIDsJSON = Self.encodeJSON(correctionRiskTermIDs)
+        }
         self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
         self.userCorrectionDistance = userCorrectionDistance
         self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
@@ -193,6 +217,7 @@ final class Transcription {
         self.hypotheses = confidenceAssessment.candidates
         self.hypothesisLabels = confidenceAssessment.candidateLabels
         self.hypothesisDetails = confidenceAssessment.hypothesisDetails
+        recordCorrectionRisk(confidenceAssessment.correctionRiskProfile)
         self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
@@ -281,6 +306,10 @@ final class Transcription {
         hypotheses = []
         hypothesisLabels = []
         hypothesisDetails = []
+        correctionRiskRate = nil
+        correctionRiskSampleCount = nil
+        correctionRiskCorrectedCount = nil
+        correctionRiskTermIDs = []
         selectedCandidate = nil
         userCorrectionDistance = nil
         styleGuardReasons = []
@@ -289,6 +318,21 @@ final class Transcription {
         retranscriptionSourceText = nil
         retranscriptionAnalysis = nil
         correctionFeedback = []
+    }
+
+    private func recordCorrectionRisk(_ profile: VocoCorrectionRiskProfile?) {
+        guard let profile else {
+            correctionRiskRate = nil
+            correctionRiskSampleCount = nil
+            correctionRiskCorrectedCount = nil
+            correctionRiskTermIDs = []
+            return
+        }
+
+        correctionRiskRate = profile.recentCorrectionRate
+        correctionRiskSampleCount = profile.recentSessionCount
+        correctionRiskCorrectedCount = profile.correctedSessionCount
+        correctionRiskTermIDs = profile.highRiskTermIDs
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {

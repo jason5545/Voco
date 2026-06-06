@@ -70,6 +70,10 @@ struct VocoCandidateReview: Identifiable {
             return "High-risk term"
         case "raw-cleanup-drift":
             return "Cleanup drift"
+        case "recent-correction-rate":
+            return "Recent corrections"
+        case "recent-term-corrections":
+            return "Term was corrected"
         case "canonicalization-clean":
             return "Clean"
         default:

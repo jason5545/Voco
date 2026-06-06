@@ -206,7 +206,9 @@ class TranscriptionPipeline {
             }
             let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
                 for: normalizationResult,
-                rawTranscript: rawASRText
+                rawTranscript: rawASRText,
+                modelContext: modelContext,
+                excluding: transcription
             )
 
             if !isEditMode,

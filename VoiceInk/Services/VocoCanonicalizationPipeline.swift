@@ -15,7 +15,12 @@ enum VocoCanonicalizationPipeline {
             activeContextIDs: activeContextIDs(),
             additionalTerms: VocoCanonicalizationService.vocabularyTerms(from: vocabularyWords(in: modelContext))
         )
-        let assessment = confidenceAssessment(for: result, rawTranscript: rawTranscript)
+        let assessment = confidenceAssessment(
+            for: result,
+            rawTranscript: rawTranscript,
+            modelContext: modelContext,
+            excluding: transcription
+        )
 
         transcription?.recordASRMetadata(
             rawTranscript: rawTranscript,
@@ -35,6 +40,23 @@ enum VocoCanonicalizationPipeline {
         VocoConfidenceGateService.shared.assess(
             normalizationResult: normalizationResult,
             rawTranscript: rawTranscript
+        )
+    }
+
+    static func confidenceAssessment(
+        for normalizationResult: VocoNormalizationResult,
+        rawTranscript: String?,
+        modelContext: ModelContext,
+        excluding transcription: Transcription? = nil
+    ) -> VocoConfidenceAssessment {
+        let riskProfile = VocoCorrectionRiskService.profile(
+            in: modelContext,
+            excluding: transcription?.id
+        )
+        return VocoConfidenceGateService.shared.assess(
+            normalizationResult: normalizationResult,
+            rawTranscript: rawTranscript,
+            correctionRiskProfile: riskProfile
         )
     }
 

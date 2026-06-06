@@ -5,13 +5,15 @@ final class VocoConfidenceGateService {
 
     func assess(
         normalizationResult: VocoNormalizationResult,
-        rawTranscript: String? = nil
+        rawTranscript: String? = nil,
+        correctionRiskProfile: VocoCorrectionRiskProfile? = nil
     ) -> VocoConfidenceAssessment {
         var score = 1.0
         var reasons: [String] = []
 
         let replacementCount = normalizationResult.replacements.count
         let suggestionCount = normalizationResult.suggestions.count
+        let affectedTermIDs = termIDs(from: normalizationResult)
 
         if replacementCount > 0 {
             score -= min(Double(replacementCount) * 0.03, 0.12)
@@ -44,6 +46,19 @@ final class VocoConfidenceGateService {
             reasons.append("raw-cleanup-drift")
         }
 
+        if let correctionRiskProfile,
+           correctionRiskProfile.hasElevatedCorrectionRate,
+           !affectedTermIDs.isEmpty {
+            score -= min(0.16, 0.04 + correctionRiskProfile.recentCorrectionRate * 0.16)
+            reasons.append("recent-correction-rate")
+        }
+
+        if let correctionRiskProfile,
+           correctionRiskProfile.hasHighRiskOverlap(with: affectedTermIDs) {
+            score -= 0.14
+            reasons.append("recent-term-corrections")
+        }
+
         let boundedScore = max(0.0, min(1.0, score))
         if reasons.isEmpty {
             reasons.append("canonicalization-clean")
@@ -70,6 +85,7 @@ final class VocoConfidenceGateService {
             candidates: hypothesisDetails.map(\.text),
             candidateLabels: hypothesisDetails.map(\.label),
             hypothesisDetails: hypothesisDetails,
+            correctionRiskProfile: correctionRiskProfile,
             selectedCandidate: normalizationResult.normalizedText
         )
     }
@@ -83,6 +99,8 @@ final class VocoConfidenceGateService {
         if !normalizationResult.suggestions.isEmpty { return true }
         if reasons.contains("heavy-normalization") { return true }
         if reasons.contains("low-confidence-replacement") { return true }
+        if reasons.contains("recent-term-corrections") { return true }
+        if reasons.contains("recent-correction-rate"), !normalizationResult.replacements.isEmpty { return true }
         return false
     }
 
@@ -99,5 +117,12 @@ final class VocoConfidenceGateService {
         let originalCount = max(result.originalText.count, 1)
         let delta = abs(result.normalizedText.count - result.originalText.count)
         return Double(delta) / Double(originalCount) > 0.35
+    }
+
+    private func termIDs(from result: VocoNormalizationResult) -> [String] {
+        var seen: Set<String> = []
+        return (result.replacements + result.suggestions)
+            .map(\.termID)
+            .filter { seen.insert($0).inserted }
     }
 }
