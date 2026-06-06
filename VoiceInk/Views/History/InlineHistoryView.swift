@@ -494,15 +494,24 @@ private struct HistoryCardRow: View {
     let onToggleCheck: () -> Void
     let onShowInfo: () -> Void
 
-    @State private var selectedTab: TranscriptionTab = .original
+    @State private var selectedDetailID: String?
 
-    private var displayText: String {
-        switch selectedTab {
-        case .original:
-            return transcription.text
-        case .enhanced:
-            return transcription.enhancedText ?? ""
+    private var detailItems: [TranscriptionDetailText] {
+        transcription.detailDisplayTexts
+    }
+
+    private var selectedDetail: TranscriptionDetailText {
+        if let selectedDetailID,
+           let selected = detailItems.first(where: { $0.id == selectedDetailID }) {
+            return selected
         }
+
+        return detailItems.first ?? TranscriptionDetailText(
+            id: "original",
+            label: "Original",
+            text: transcription.text,
+            isEnhanced: false
+        )
     }
 
     private var hasAudioFile: Bool {
@@ -561,23 +570,24 @@ private struct HistoryCardRow: View {
 
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Tabs
-            if transcription.enhancedText != nil {
+            if detailItems.count > 1 {
                 HStack(spacing: 4) {
-                    ForEach(Array(TranscriptionTab.allCases), id: \.self) { tab in
+                    ForEach(detailItems) { item in
+                        let isSelected = selectedDetail.id == item.id
+
                         Button {
                             withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedTab = tab
+                                selectedDetailID = item.id
                             }
                         } label: {
-                            Text(tab.localizedName)
+                            Text(item.label)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(selectedTab == tab ? .primary : .secondary)
+                                .foregroundColor(isSelected ? .primary : .secondary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill(selectedTab == tab ? Color.secondary.opacity(0.15) : Color.clear)
+                                        .fill(isSelected ? Color.secondary.opacity(0.15) : Color.clear)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -587,14 +597,14 @@ private struct HistoryCardRow: View {
             }
 
             ScrollView {
-                Text(displayText)
+                Text(selectedDetail.text)
                     .font(.body)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: 350)
             .overlay(alignment: .bottomTrailing) {
-                CopyIconButton(textToCopy: displayText)
+                CopyIconButton(textToCopy: selectedDetail.text)
                     .padding(8)
             }
 
