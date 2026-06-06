@@ -82,7 +82,9 @@ enum VocoCandidateReviewService {
         )
 
         transcription.text = accepted
-        transcription.normalizedTranscript = accepted
+        if transcription.normalizedTranscript?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            transcription.normalizedTranscript = normalizationResult.normalizedText
+        }
         transcription.selectedCandidate = accepted
         transcription.recordCandidateSelectionSource(selectionSource)
         recordAcceptedCandidateMetadata(

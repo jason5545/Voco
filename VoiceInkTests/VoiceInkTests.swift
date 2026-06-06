@@ -944,7 +944,7 @@ struct VoiceInkTests {
         )
 
         #expect(transcription.text == "今天看到火焰很大")
-        #expect(transcription.normalizedTranscript == "今天看到火焰很大")
+        #expect(transcription.normalizedTranscript == result.normalizedText)
         #expect(transcription.selectedCandidate == "今天看到火焰很大")
         #expect(signal.reason == "candidate-custom")
         #expect(transcription.correctionFeedback.first?.reason == "candidate-custom")
@@ -980,7 +980,7 @@ struct VoiceInkTests {
         )
 
         #expect(transcription.text == "今天看到炎很大")
-        #expect(transcription.normalizedTranscript == "今天看到炎很大")
+        #expect(transcription.normalizedTranscript == result.normalizedText)
         #expect(transcription.selectedCandidate == "今天看到炎很大")
         #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(transcription.userCorrectionDistance == signal.changeRatio)
@@ -988,6 +988,33 @@ struct VoiceInkTests {
         #expect(signal.reason == "candidate-override")
         #expect(signal.isCorrectiveSignal)
         #expect(signal.termIDs.contains("song.homura"))
+    }
+
+    @Test func candidateReviewAcceptancePreservesAutoNormalizedTranscript() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.normalizedText, duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        VocoCandidateReviewService.acceptCandidate(
+            "今天看到火焰很大",
+            for: transcription,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            rawTranscript: result.originalText
+        )
+
+        #expect(transcription.rawTranscript == result.originalText)
+        #expect(transcription.normalizedTranscript == result.normalizedText)
+        #expect(transcription.text == "今天看到火焰很大")
+        #expect(transcription.selectedCandidate == "今天看到火焰很大")
     }
 
     @Test func candidateReviewConfirmationDoesNotSetCorrectionDistance() async throws {
@@ -1074,7 +1101,7 @@ struct VoiceInkTests {
         _ = VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
 
         #expect(transcription.text == "今天看到炎很大")
-        #expect(transcription.normalizedTranscript == "今天看到炎很大")
+        #expect(transcription.normalizedTranscript == result.normalizedText)
         #expect(transcription.selectedCandidate == "今天看到炎很大")
         #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(transcription.correctionFeedback.count == 1)

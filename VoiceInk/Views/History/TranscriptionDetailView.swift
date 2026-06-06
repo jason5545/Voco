@@ -13,13 +13,38 @@ struct TranscriptionDetailView: View {
         return false
     }
 
+    private var normalizedDisplayText: String {
+        guard let normalizedTranscript = transcription.normalizedTranscript?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !normalizedTranscript.isEmpty
+        else {
+            return transcription.text
+        }
+        return normalizedTranscript
+    }
+
+    private var selectedDisplayText: String {
+        guard let selectedCandidate = transcription.selectedCandidate?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !selectedCandidate.isEmpty
+        else {
+            return transcription.text
+        }
+        return selectedCandidate
+    }
+
+    private var shouldShowSelectedCandidate: Bool {
+        selectedDisplayText != normalizedDisplayText
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             ScrollView {
                 VStack(spacing: 16) {
                     if let rawTranscript = transcription.rawTranscript,
                        !rawTranscript.isEmpty,
-                       rawTranscript != transcription.text {
+                       rawTranscript != normalizedDisplayText,
+                       rawTranscript != selectedDisplayText {
                         MessageBubble(
                             label: "Raw ASR",
                             text: rawTranscript,
@@ -29,9 +54,17 @@ struct TranscriptionDetailView: View {
 
                     MessageBubble(
                         label: transcription.rawTranscript == nil ? "Original" : "Normalized",
-                        text: transcription.text,
+                        text: normalizedDisplayText,
                         isEnhanced: false
                     )
+
+                    if shouldShowSelectedCandidate {
+                        MessageBubble(
+                            label: "Selected",
+                            text: selectedDisplayText,
+                            isEnhanced: false
+                        )
+                    }
 
                     if let enhancedText = transcription.enhancedText {
                         MessageBubble(
