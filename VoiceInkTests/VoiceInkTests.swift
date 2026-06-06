@@ -149,6 +149,33 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
+    @Test func canonicalizationUsesPowerModeContextHintsForAmbiguousTerms() async throws {
+        let service = VocoCanonicalizationService()
+        let text = "今天看到 homura 很亮"
+
+        let neutral = service.normalize(text)
+        #expect(neutral.normalizedText == text)
+        #expect(neutral.replacements.isEmpty)
+        #expect(neutral.suggestions.contains(where: { $0.replacementText == "炎" }))
+
+        let powerMode = PowerModeConfig(
+            name: "LiSA music notes",
+            emoji: "M",
+            appConfigs: [AppConfig(bundleIdentifier: "com.apple.Music", appName: "Music")],
+            urlConfigs: [URLConfig(url: "youtube.com")],
+            isAIEnhancementEnabled: false,
+            selectedLanguage: "auto"
+        )
+        let contextual = service.normalize(
+            text,
+            contextHints: VocoCanonicalizationService.powerModeContextHints(from: powerMode)
+        )
+
+        #expect(contextual.normalizedText == "今天看到炎很亮")
+        #expect(contextual.replacements.first?.termID == "song.homura")
+        #expect(contextual.replacements.first?.replacementText == "炎")
+    }
+
     @Test func canonicalizationDoesNotExpandCanonicalCJKPhrases() async throws {
         let service = VocoCanonicalizationService()
 
@@ -1366,6 +1393,11 @@ struct VoiceInkTests {
         ])
 
         #expect(names == ["VOCO Development", "Power Mode", "custom.context"])
+    }
+
+    @Test func powerModeDefaultLanguageStaysAutoFirst() throws {
+        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: nil) == "auto")
+        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: "ja") == "ja")
     }
 
     @Test func canonicalizationUsesEnabledWordReplacementsAsPersonalDictionaryTerms() async throws {

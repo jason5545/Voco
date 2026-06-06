@@ -15,7 +15,8 @@ final class VocoCanonicalizationService {
     func normalize(
         _ text: String,
         activeContextIDs: [String] = VocoCanonicalizationService.defaultActiveContextIDs,
-        additionalTerms: [VocoCanonicalTerm] = []
+        additionalTerms: [VocoCanonicalTerm] = [],
+        contextHints: [String] = []
     ) -> VocoNormalizationResult {
         guard !text.isEmpty else {
             return VocoNormalizationResult(
@@ -28,7 +29,12 @@ final class VocoCanonicalizationService {
         }
 
         let termSources = termSources(for: activeContextIDs, additionalTerms: additionalTerms)
-        let candidates = replacementCandidates(in: text, termSources: termSources, activeContextIDs: activeContextIDs)
+        let candidates = replacementCandidates(
+            in: text,
+            termSources: termSources,
+            activeContextIDs: activeContextIDs,
+            contextHints: contextHints
+        )
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
@@ -83,6 +89,24 @@ final class VocoCanonicalizationService {
                     autoReplaceThreshold: 0.97
                 )
             }
+    }
+
+    static func powerModeContextHints(from config: PowerModeConfig?) -> [String] {
+        guard let config, config.isEnabled else { return [] }
+
+        var hints: [String] = []
+        appendHint(config.name, to: &hints)
+
+        for appConfig in config.appConfigs ?? [] {
+            appendHint(appConfig.appName, to: &hints)
+            appendHint(appConfig.bundleIdentifier, to: &hints)
+        }
+
+        for urlConfig in config.urlConfigs ?? [] {
+            appendHint(urlConfig.url, to: &hints)
+        }
+
+        return uniqueHints(hints)
     }
 
     static func enabledContextPackIDs(defaults: UserDefaults = .standard) -> [String] {
@@ -155,7 +179,8 @@ final class VocoCanonicalizationService {
     private func replacementCandidates(
         in text: String,
         termSources: [TermCandidateSource],
-        activeContextIDs: [String]
+        activeContextIDs: [String],
+        contextHints: [String]
     ) -> [ReplacementCandidate] {
         var candidates: [ReplacementCandidate] = []
         let nsText = text as NSString
@@ -189,7 +214,13 @@ final class VocoCanonicalizationService {
                         continue
                     }
 
-                    let hasContext = hasStrongContext(for: term, in: text, matchRange: match.range, activeContextIDs: activeContextIDs)
+                    let hasContext = hasStrongContext(
+                        for: term,
+                        in: text,
+                        matchRange: match.range,
+                        activeContextIDs: activeContextIDs,
+                        contextHints: contextHints
+                    )
                     let confidence = confidence(for: term, original: original, alias: alias, hasContext: hasContext)
                     let isAutomatic = source.allowsAutomaticReplacement && confidence >= term.autoReplaceThreshold
 
@@ -317,13 +348,24 @@ final class VocoCanonicalizationService {
         for term: VocoCanonicalTerm,
         in text: String,
         matchRange: NSRange,
-        activeContextIDs: [String]
+        activeContextIDs: [String],
+        contextHints: [String]
     ) -> Bool {
         guard term.requiresContextForAutoReplace else { return true }
 
         let activeContexts = Set(activeContextIDs)
         if !activeContexts.intersection(term.contexts).isEmpty {
             return true
+        }
+
+        let hintText = contextHints.joined(separator: " ").lowercased()
+        if !hintText.isEmpty {
+            if term.contexts.contains(where: { hintText.contains($0.lowercased()) }) {
+                return true
+            }
+            if Self.musicContextIndicators.contains(where: { hintText.contains($0.lowercased()) }) {
+                return true
+            }
         }
 
         let nearbyText = contextWindow(in: text, range: matchRange).lowercased()
@@ -427,6 +469,29 @@ final class VocoCanonicalizationService {
         let start = text.distance(from: text.startIndex, to: swiftRange.lowerBound)
         let length = text.distance(from: swiftRange.lowerBound, to: swiftRange.upperBound)
         return (start, length)
+    }
+
+    private static func appendHint(_ value: String?, to hints: inout [String]) {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else { return }
+
+        hints.append(trimmed)
+
+        let separators = CharacterSet(charactersIn: ".:/-_")
+            .union(.whitespacesAndNewlines)
+        let parts = trimmed
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 3 }
+        hints.append(contentsOf: parts)
+    }
+
+    private static func uniqueHints(_ hints: [String]) -> [String] {
+        var seen: Set<String> = []
+        return hints.filter { hint in
+            seen.insert(hint.lowercased()).inserted
+        }
     }
 }
 

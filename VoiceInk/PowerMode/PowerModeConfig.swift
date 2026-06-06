@@ -45,6 +45,14 @@ struct PowerModeConfig: Codable, Identifiable, Equatable {
         case selectedWhisperModel
         case selectedTranscriptionModelName
     }
+
+    static func defaultSelectedLanguage(defaults: UserDefaults = .standard) -> String {
+        defaultSelectedLanguage(storedLanguage: defaults.string(forKey: "SelectedLanguage"))
+    }
+
+    static func defaultSelectedLanguage(storedLanguage: String?) -> String {
+        storedLanguage ?? "auto"
+    }
     
     init(id: UUID = UUID(), name: String, emoji: String, appConfigs: [AppConfig]? = nil,
          urlConfigs: [URLConfig]? = nil, isAIEnhancementEnabled: Bool, selectedPrompt: String? = nil,
@@ -63,7 +71,7 @@ struct PowerModeConfig: Codable, Identifiable, Equatable {
         self.selectedAIProvider = selectedAIProvider ?? UserDefaults.standard.string(forKey: "selectedAIProvider")
         self.selectedAIModel = selectedAIModel
         self.selectedTranscriptionModelName = selectedTranscriptionModelName ?? UserDefaults.standard.string(forKey: "CurrentTranscriptionModel")
-        self.selectedLanguage = selectedLanguage ?? UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "en"
+        self.selectedLanguage = selectedLanguage ?? Self.defaultSelectedLanguage()
         self.isTextFormattingEnabled = isTextFormattingEnabled
         self.punctuationCleanupMode = punctuationCleanupMode
         self.lowercaseTranscription = lowercaseTranscription
