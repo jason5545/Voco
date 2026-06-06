@@ -1426,6 +1426,47 @@ struct VoiceInkTests {
         #expect(review.hypotheses.map(\.source) == [.autoContext, .suggestedRepair])
     }
 
+    @Test func candidateReviewPayloadUsesFoldedSelectedCandidateMetadata() async throws {
+        let lowercase = VocoHypothesis(
+            id: "rawASR",
+            text: "voiceink",
+            label: "Lowercase duplicate",
+            source: .rawASR,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [],
+            appliedTermIDs: [],
+            requiresReview: false
+        )
+        let product = VocoHypothesis(
+            id: "suggestedRepair",
+            text: "VOCO",
+            label: "Product",
+            source: .suggestedRepair,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            appliedTermIDs: ["product.voco"],
+            requiresReview: true
+        )
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: [" voiceink ", "VOCO"],
+            candidateLabels: ["Lowercase duplicate", "Product"],
+            hypothesisDetails: [lowercase, product],
+            selectedCandidate: "VoiceInk"
+        )
+
+        let review = try #require(VocoCandidateReviewService.review(for: assessment))
+
+        #expect(review.candidates == ["VoiceInk", "VOCO"])
+        #expect(review.candidateLabels == ["Lowercase duplicate", "Product"])
+        #expect(review.hypotheses.map(\.text) == ["voiceink", "VOCO"])
+        #expect(review.hypotheses.map(\.source) == [.rawASR, .suggestedRepair])
+    }
+
     @Test func candidateReviewPayloadRequiresReviewRouteAndAlternative() async throws {
         let duplicateOnly = VocoConfidenceAssessment(
             score: 0.7,
@@ -1433,6 +1474,13 @@ struct VoiceInkTests {
             reasons: ["unresolved-suggestions"],
             candidates: ["今天看到焰很大", " 今天看到焰很大 "],
             selectedCandidate: "今天看到焰很大"
+        )
+        let foldedDuplicateOnly = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: [" voiceink "],
+            selectedCandidate: "VoiceInk"
         )
         let directRoute = VocoConfidenceAssessment(
             score: 0.7,
@@ -1443,6 +1491,7 @@ struct VoiceInkTests {
         )
 
         #expect(VocoCandidateReviewService.review(for: duplicateOnly) == nil)
+        #expect(VocoCandidateReviewService.review(for: foldedDuplicateOnly) == nil)
         #expect(VocoCandidateReviewService.review(for: directRoute) == nil)
     }
 
@@ -1504,6 +1553,66 @@ struct VoiceInkTests {
         #expect(signal.reason == "candidate-confirmed")
         #expect(signal.acceptedText == "我現在用 VoiceInk")
         #expect(signal.isCorrectiveSignal == false)
+    }
+
+    @Test func correctionFeedbackClassifiesFoldedCandidateConfirmationAsNonCorrective() async throws {
+        let result = VocoNormalizationResult(
+            originalText: "voiceink",
+            normalizedText: "VoiceInk",
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            replacements: [],
+            suggestions: []
+        )
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: ["VoiceInk"],
+            selectedCandidate: "VoiceInk"
+        )
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: " voiceink ",
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-confirmed")
+        #expect(signal.acceptedText == "voiceink")
+        #expect(signal.isCorrectiveSignal == false)
+    }
+
+    @Test func correctionFeedbackClassifiesFoldedCandidateOverride() async throws {
+        let result = VocoNormalizationResult(
+            originalText: "voiceink",
+            normalizedText: "VoiceInk",
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            replacements: [],
+            suggestions: []
+        )
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: ["VoiceInk", "VOCO"],
+            selectedCandidate: "VoiceInk"
+        )
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: " voco ",
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-override")
+        #expect(signal.acceptedText == "voco")
+        #expect(signal.isCorrectiveSignal)
     }
 
     @Test func correctionFeedbackClassifiesCandidateTimeoutFallbackAsNonCorrective() async throws {

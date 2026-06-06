@@ -103,7 +103,7 @@ enum CorrectionFeedbackService {
 
         let source = firstNonEmpty(rawTranscript, normalizationResult.originalText)
         let proposed = normalizationResult.normalizedText
-        let comparisonBase = accepted == proposed ? source : proposed
+        let comparisonBase = isSameCandidate(accepted, proposed) ? source : proposed
         let analysis = RetranscriptionAnalyticsService.analyze(
             sourceText: comparisonBase,
             retranscribedText: accepted,
@@ -120,9 +120,9 @@ enum CorrectionFeedbackService {
         case .automaticFallback:
             reason = "candidate-auto-fallback"
         case .userSelection:
-            if accepted == assessment.selectedCandidate {
+            if isSameCandidate(accepted, assessment.selectedCandidate) {
                 reason = "candidate-confirmed"
-            } else if assessment.candidates.contains(accepted) {
+            } else if assessment.candidates.contains(where: { isSameCandidate($0, accepted) }) {
                 reason = "candidate-override"
             } else {
                 reason = "candidate-custom"
@@ -199,5 +199,15 @@ enum CorrectionFeedbackService {
         values
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? ""
+    }
+
+    private static func isSameCandidate(_ lhs: String, _ rhs: String) -> Bool {
+        candidateKey(lhs) == candidateKey(rhs)
+    }
+
+    private static func candidateKey(_ candidate: String) -> String {
+        candidate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 }

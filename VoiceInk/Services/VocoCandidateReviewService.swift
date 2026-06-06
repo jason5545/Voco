@@ -11,9 +11,7 @@ enum VocoCandidateReviewService {
         var seen: Set<String> = []
 
         if !selectedCandidate.isEmpty {
-            let selectedIndex = assessment.candidates.firstIndex {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
-            }
+            let selectedIndex = selectedCandidateIndex(in: assessment, matching: selectedCandidate)
             let selectedHypothesis = selectedIndex
                 .flatMap { assessment.hypothesisForCandidate(at: $0) }
                 ?? fallbackHypothesis(
@@ -44,7 +42,7 @@ enum VocoCandidateReviewService {
         if selectedCandidate.isEmpty {
             hasActionableAlternative = entries.count > 1
         } else {
-            hasActionableAlternative = entries.contains { $0.candidate != selectedCandidate }
+            hasActionableAlternative = entries.contains { !isSameCandidate($0.candidate, selectedCandidate) }
         }
 
         guard entries.count > 1,
@@ -344,6 +342,21 @@ enum VocoCandidateReviewService {
         values
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? ""
+    }
+
+    private static func selectedCandidateIndex(
+        in assessment: VocoConfidenceAssessment,
+        matching selectedCandidate: String
+    ) -> Int? {
+        if let exactIndex = assessment.candidates.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
+        }) {
+            return exactIndex
+        }
+
+        return assessment.candidates.firstIndex {
+            isSameCandidate($0, selectedCandidate)
+        }
     }
 
     private static func isSameCandidate(_ lhs: String, _ rhs: String) -> Bool {
