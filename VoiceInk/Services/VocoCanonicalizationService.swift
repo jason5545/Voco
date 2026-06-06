@@ -27,8 +27,8 @@ final class VocoCanonicalizationService {
             )
         }
 
-        let terms = termsForActiveContexts(activeContextIDs) + additionalTerms
-        let candidates = replacementCandidates(in: text, terms: terms, activeContextIDs: activeContextIDs)
+        let termSources = termSources(for: activeContextIDs, additionalTerms: additionalTerms)
+        let candidates = replacementCandidates(in: text, termSources: termSources, activeContextIDs: activeContextIDs)
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
@@ -112,22 +112,56 @@ final class VocoCanonicalizationService {
         ids.map { contextDisplayName(for: $0, contextPacks: contextPacks) }
     }
 
-    private func termsForActiveContexts(_ activeContextIDs: [String]) -> [VocoCanonicalTerm] {
+    private func termSources(
+        for activeContextIDs: [String],
+        additionalTerms: [VocoCanonicalTerm]
+    ) -> [TermCandidateSource] {
         let activeIDs = Set(activeContextIDs)
-        return contextPacks
-            .filter { activeIDs.contains($0.id) }
-            .flatMap(\.terms)
+        var seen: Set<String> = []
+        var sources: [TermCandidateSource] = []
+
+        func append(_ term: VocoCanonicalTerm, allowsAutomaticReplacement: Bool) {
+            guard seen.insert(term.id).inserted else { return }
+            sources.append(
+                TermCandidateSource(
+                    term: term,
+                    allowsAutomaticReplacement: allowsAutomaticReplacement
+                )
+            )
+        }
+
+        let activePacks = contextPacks.filter { activeIDs.contains($0.id) }
+        let inactivePacks = contextPacks.filter { !activeIDs.contains($0.id) }
+
+        for pack in activePacks {
+            for term in pack.terms {
+                append(term, allowsAutomaticReplacement: true)
+            }
+        }
+
+        for pack in inactivePacks {
+            for term in pack.terms {
+                append(term, allowsAutomaticReplacement: false)
+            }
+        }
+
+        for term in additionalTerms {
+            append(term, allowsAutomaticReplacement: true)
+        }
+
+        return sources
     }
 
     private func replacementCandidates(
         in text: String,
-        terms: [VocoCanonicalTerm],
+        termSources: [TermCandidateSource],
         activeContextIDs: [String]
     ) -> [ReplacementCandidate] {
         var candidates: [ReplacementCandidate] = []
         let nsText = text as NSString
 
-        for term in terms {
+        for source in termSources {
+            let term = source.term
             for alias in matchAliases(for: term) {
                 guard !alias.isEmpty else { continue }
                 let pattern = pattern(for: alias)
@@ -157,7 +191,7 @@ final class VocoCanonicalizationService {
 
                     let hasContext = hasStrongContext(for: term, in: text, matchRange: match.range, activeContextIDs: activeContextIDs)
                     let confidence = confidence(for: term, original: original, alias: alias, hasContext: hasContext)
-                    let isAutomatic = confidence >= term.autoReplaceThreshold
+                    let isAutomatic = source.allowsAutomaticReplacement && confidence >= term.autoReplaceThreshold
 
                     candidates.append(
                         ReplacementCandidate(
@@ -166,7 +200,13 @@ final class VocoCanonicalizationService {
                             replacementText: term.canonical,
                             termID: term.id,
                             confidence: confidence,
-                            reason: reason(for: term, original: original, alias: alias, isAutomatic: isAutomatic),
+                            reason: reason(
+                                for: term,
+                                original: original,
+                                alias: alias,
+                                isAutomatic: isAutomatic,
+                                allowsAutomaticReplacement: source.allowsAutomaticReplacement
+                            ),
                             isAutomatic: isAutomatic,
                             isBlocker: false
                         )
@@ -303,8 +343,12 @@ final class VocoCanonicalizationService {
         for term: VocoCanonicalTerm,
         original: String,
         alias: String,
-        isAutomatic: Bool
+        isAutomatic: Bool,
+        allowsAutomaticReplacement: Bool
     ) -> String {
+        if !allowsAutomaticReplacement {
+            return "inactive-context-suggestion"
+        }
         if !isAutomatic {
             return "context-required"
         }
@@ -384,6 +428,11 @@ final class VocoCanonicalizationService {
         let length = text.distance(from: swiftRange.lowerBound, to: swiftRange.upperBound)
         return (start, length)
     }
+}
+
+private struct TermCandidateSource {
+    let term: VocoCanonicalTerm
+    let allowsAutomaticReplacement: Bool
 }
 
 private struct ReplacementCandidate {

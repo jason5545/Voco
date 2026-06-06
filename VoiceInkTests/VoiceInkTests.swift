@@ -111,6 +111,24 @@ struct VoiceInkTests {
         #expect(service.normalize("我還是會留 whisper.cpp 支援").normalizedText == "我還是會留 whisper.cpp 支援")
     }
 
+    @Test func canonicalizationSuggestsInactiveContextTermsWithoutAutoReplacing() async throws {
+        let service = VocoCanonicalizationService()
+
+        let inactive = service.normalize("我剛剛用 voice anc 測了一下", activeContextIDs: [])
+        #expect(inactive.normalizedText == "我剛剛用 voice anc 測了一下")
+        #expect(inactive.replacements.isEmpty)
+
+        let suggestion = try #require(inactive.suggestions.first)
+        #expect(suggestion.originalText == "voice anc")
+        #expect(suggestion.replacementText == "VoiceInk")
+        #expect(suggestion.termID == "product.voiceink")
+        #expect(suggestion.reason == "inactive-context-suggestion")
+
+        let active = service.normalize("我剛剛用 voice anc 測了一下")
+        #expect(active.normalizedText == "我剛剛用 VoiceInk 測了一下")
+        #expect(active.replacements.contains { $0.replacementText == "VoiceInk" })
+    }
+
     @Test func canonicalizationNormalizesMixedLanguageMusicTermsWithContext() async throws {
         let service = VocoCanonicalizationService()
 
@@ -160,6 +178,18 @@ struct VoiceInkTests {
         #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
         #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .suggestedRepair])
         #expect(assessment.hypothesisDetails[1].appliedTermIDs.contains("song.homura"))
+    }
+
+    @Test func confidenceGateRoutesInactiveContextSuggestionsToReview() async throws {
+        let result = VocoCanonicalizationService().normalize("我剛剛用 voice anc 測了一下", activeContextIDs: [])
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+
+        #expect(result.replacements.isEmpty)
+        #expect(result.suggestions.contains { $0.replacementText == "VoiceInk" })
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.candidates == ["我剛剛用 voice anc 測了一下", "我剛剛用 VoiceInk 測了一下"])
+        #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
+        #expect(assessment.hypothesisDetails[1].appliedTermIDs.contains("product.voiceink"))
     }
 
     @Test func confidenceGateSuggestsReviewForHeavyNormalization() async throws {
