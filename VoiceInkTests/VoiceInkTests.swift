@@ -285,6 +285,61 @@ struct VoiceInkTests {
         #expect(signal.reason == "candidate-override")
     }
 
+    @Test func candidateReviewAcceptanceUpdatesTranscriptAndFeedback() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.normalizedText, duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        let signal = try #require(
+            VocoCandidateReviewService.acceptCandidate(
+                "今天看到炎很大",
+                for: transcription,
+                normalizationResult: result,
+                confidenceAssessment: assessment,
+                rawTranscript: result.originalText
+            )
+        )
+
+        #expect(transcription.text == "今天看到炎很大")
+        #expect(transcription.normalizedTranscript == "今天看到炎很大")
+        #expect(transcription.selectedCandidate == "今天看到炎很大")
+        #expect(transcription.userCorrectionDistance == signal.changeRatio)
+        #expect(transcription.correctionFeedback.count == 1)
+        #expect(signal.reason == "candidate-override")
+        #expect(signal.termIDs.contains("song.homura"))
+    }
+
+    @Test func persistedCandidateReviewDoesNotDuplicateSameAcceptedCandidate() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.normalizedText, duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        _ = VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
+        _ = VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
+
+        #expect(transcription.text == "今天看到炎很大")
+        #expect(transcription.normalizedTranscript == "今天看到炎很大")
+        #expect(transcription.selectedCandidate == "今天看到炎很大")
+        #expect(transcription.correctionFeedback.count == 1)
+        #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
+    }
+
     @Test @MainActor func correctionRiskProfileCountsRecentFeedback() async throws {
         let context = try makeTranscriptionContext()
         let now = Date()

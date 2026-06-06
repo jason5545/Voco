@@ -1,8 +1,12 @@
 import SwiftUI
+import SwiftData
 
 /// Reusable component that displays transcription Details and AI Request sections.
 /// Used in both the inline history sliding panel and the separate history window's metadata view.
 struct TranscriptionInfoPanel: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var candidateReviewError: String?
+
     let transcription: Transcription
 
     var body: some View {
@@ -427,10 +431,57 @@ struct TranscriptionInfoPanel: View {
                             .font(.system(size: 12, weight: .regular))
                             .textSelection(.enabled)
                     }
+
+                    Spacer(minLength: 0)
+
+                    candidateActionButton(candidate)
                 }
+            }
+
+            if let candidateReviewError {
+                Text(candidateReviewError)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.red)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func candidateActionButton(_ candidate: String) -> some View {
+        Button {
+            acceptCandidate(candidate)
+        } label: {
+            Image(systemName: isSelectedCandidate(candidate) ? "checkmark.circle.fill" : "checkmark.circle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(isSelectedCandidate(candidate) ? .green : .accentColor)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(isSelectedCandidate(candidate) ? "Selected candidate" : "Accept candidate")
+    }
+
+    private func acceptCandidate(_ candidate: String) {
+        candidateReviewError = nil
+        let feedbackSignal = VocoCandidateReviewService.acceptPersistedCandidate(
+            candidate,
+            for: transcription
+        )
+        CorrectionFeedbackLearningService.stageLearningCandidates(
+            from: feedbackSignal,
+            in: modelContext
+        )
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            candidateReviewError = error.localizedDescription
+        }
+    }
+
+    private func isSelectedCandidate(_ candidate: String) -> Bool {
+        transcription.selectedCandidate == candidate
     }
 
     private func candidateLabel(at index: Int, labels: [String]) -> String {

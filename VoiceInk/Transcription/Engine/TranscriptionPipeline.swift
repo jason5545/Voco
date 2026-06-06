@@ -216,14 +216,14 @@ class TranscriptionPipeline {
                let requestCandidateReview,
                let selectedCandidate = await requestCandidateReview(confidenceAssessment),
                !selectedCandidate.isEmpty {
-                text = selectedCandidate
-                transcription.selectedCandidate = selectedCandidate
-                let feedbackSignal = transcription.recordCandidateReviewFeedback(
+                let feedbackSignal = VocoCandidateReviewService.acceptCandidate(
+                    selectedCandidate,
+                    for: transcription,
                     normalizationResult: normalizationResult,
                     confidenceAssessment: confidenceAssessment,
-                    selectedCandidate: selectedCandidate,
                     rawTranscript: rawASRText
                 )
+                text = transcription.text
                 CorrectionFeedbackLearningService.stageLearningCandidates(
                     from: feedbackSignal,
                     in: modelContext
