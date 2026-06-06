@@ -9,9 +9,9 @@ struct ModelPrewarmServiceTests {
         let service = fixture.makeService(prewarmDelay: .milliseconds(80))
 
         service.schedulePrewarm(trigger: "first")
-        try await Task.sleep(for: .milliseconds(20))
         service.schedulePrewarm(trigger: "second")
-        try await Task.sleep(for: .milliseconds(140))
+        try await fixture.transcriber.waitForTranscribeCallCount(1)
+        try await Task.sleep(for: .milliseconds(120))
 
         #expect(fixture.transcriber.transcribeCallCount == 1)
     }
@@ -100,5 +100,14 @@ private final class FakePrewarmTranscriber: ModelPrewarmTranscribing {
         }
 
         return ""
+    }
+
+    func waitForTranscribeCallCount(_ expectedCount: Int, timeout: Duration = .seconds(2)) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+
+        while transcribeCallCount < expectedCount && clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 }

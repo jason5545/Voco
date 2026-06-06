@@ -121,6 +121,42 @@ struct WordBackup: Codable {
     }
 }
 
+struct WordReplacementBackup: Codable, Equatable {
+    let originalText: String
+    let replacementText: String
+    let isEnabled: Bool
+    let source: String
+    let hitCount: Int
+    let dateAdded: Date
+    let lastSeenDate: Date
+
+    init(replacement: WordReplacement) {
+        self.originalText = replacement.originalText
+        self.replacementText = replacement.replacementText
+        self.isEnabled = replacement.isEnabled
+        self.source = replacement.source
+        self.hitCount = replacement.hitCount
+        self.dateAdded = replacement.dateAdded
+        self.lastSeenDate = replacement.lastSeenDate
+    }
+
+    func makeReplacement(
+        originalText: String? = nil,
+        replacementText: String? = nil
+    ) -> WordReplacement {
+        let wordReplacement = WordReplacement(
+            originalText: originalText ?? self.originalText,
+            replacementText: replacementText ?? self.replacementText,
+            dateAdded: dateAdded,
+            isEnabled: isEnabled,
+            source: source
+        )
+        wordReplacement.hitCount = max(1, hitCount)
+        wordReplacement.lastSeenDate = lastSeenDate
+        return wordReplacement
+    }
+}
+
 struct BackupFile: Codable {
     let version: String
     let customPrompts: [CustomPrompt]
@@ -128,21 +164,23 @@ struct BackupFile: Codable {
     let powerModeShortcuts: [String: ShortcutBackup]?
     let vocabularyWords: [WordBackup]?
     let wordReplacements: [String: String]?
+    let wordReplacementDetails: [WordReplacementBackup]?
     let generalSettings: GeneralBackup?
     let customEmojis: [String]?
     let customCloudModels: [CustomModelBackup]?
 
     private enum CodingKeys: String, CodingKey {
-        case version, customPrompts, powerModeConfigs, powerModeShortcuts, vocabularyWords, wordReplacements, generalSettings, customEmojis, customCloudModels
+        case version, customPrompts, powerModeConfigs, powerModeShortcuts, vocabularyWords, wordReplacements, wordReplacementDetails, generalSettings, customEmojis, customCloudModels
     }
 
-    init(version: String, customPrompts: [CustomPrompt], powerModeConfigs: [PowerModeConfig], powerModeShortcuts: [String: ShortcutBackup]?, vocabularyWords: [WordBackup]?, wordReplacements: [String: String]?, generalSettings: GeneralBackup?, customEmojis: [String]?, customCloudModels: [CustomModelBackup]?) {
+    init(version: String, customPrompts: [CustomPrompt], powerModeConfigs: [PowerModeConfig], powerModeShortcuts: [String: ShortcutBackup]?, vocabularyWords: [WordBackup]?, wordReplacements: [String: String]?, wordReplacementDetails: [WordReplacementBackup]? = nil, generalSettings: GeneralBackup?, customEmojis: [String]?, customCloudModels: [CustomModelBackup]?) {
         self.version = version
         self.customPrompts = customPrompts
         self.powerModeConfigs = powerModeConfigs
         self.powerModeShortcuts = powerModeShortcuts
         self.vocabularyWords = vocabularyWords
         self.wordReplacements = wordReplacements
+        self.wordReplacementDetails = wordReplacementDetails
         self.generalSettings = generalSettings
         self.customEmojis = customEmojis
         self.customCloudModels = customCloudModels
@@ -156,6 +194,7 @@ struct BackupFile: Codable {
         powerModeShortcuts = try container.decodeIfPresent([String: ShortcutBackup].self, forKey: .powerModeShortcuts)
         vocabularyWords = try container.decodeIfPresent([WordBackup].self, forKey: .vocabularyWords)
         wordReplacements = try container.decodeIfPresent([String: String].self, forKey: .wordReplacements)
+        wordReplacementDetails = try container.decodeIfPresent([WordReplacementBackup].self, forKey: .wordReplacementDetails)
         generalSettings = try container.decodeIfPresent(GeneralBackup.self, forKey: .generalSettings)
         customEmojis = try container.decodeIfPresent([String].self, forKey: .customEmojis)
         customCloudModels = try container.decodeIfPresent([CustomModelBackup].self, forKey: .customCloudModels)

@@ -146,9 +146,11 @@ class ImportExportService {
 
         // Fetch word replacements from SwiftData
         var exportedWordReplacements: [String: String]? = nil
+        var exportedWordReplacementDetails: [WordReplacementBackup]? = nil
         let replacementsDescriptor = FetchDescriptor<WordReplacement>()
         if let replacements = try? modelContext.fetch(replacementsDescriptor), !replacements.isEmpty {
             exportedWordReplacements = Dictionary(replacements.map { ($0.originalText, $0.replacementText) }, uniquingKeysWith: { _, last in last })
+            exportedWordReplacementDetails = replacements.map(WordReplacementBackup.init)
         }
 
         let punctuationCleanupMode = PunctuationCleanupMode.current()
@@ -202,6 +204,7 @@ class ImportExportService {
             powerModeShortcuts: powerModeShortcuts.isEmpty ? nil : powerModeShortcuts,
             vocabularyWords: exportedDictionaryItems,
             wordReplacements: exportedWordReplacements,
+            wordReplacementDetails: exportedWordReplacementDetails,
             generalSettings: generalSettingsToExport,
             customEmojis: emojiManager.customEmojis,
             customCloudModels: customModels

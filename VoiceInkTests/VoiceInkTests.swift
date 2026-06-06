@@ -2227,6 +2227,98 @@ struct VoiceInkTests {
         #expect(roundTripped.generalSettings?.enabledContextPackIDs == expectedIDs)
     }
 
+    @Test func backupFilePreservesWordReplacementLearningMetadata() throws {
+        let dateAdded = Date(timeIntervalSince1970: 1_700_000_000)
+        let lastSeenDate = Date(timeIntervalSince1970: 1_700_003_600)
+        let replacement = WordReplacement(
+            originalText: "voice anc, voice inc",
+            replacementText: "VoiceInk",
+            dateAdded: dateAdded,
+            isEnabled: false,
+            source: WordReplacement.sourceCorrectionFeedback
+        )
+        replacement.hitCount = 2
+        replacement.lastSeenDate = lastSeenDate
+
+        let backup = BackupFile(
+            version: "1.79",
+            customPrompts: [],
+            powerModeConfigs: [],
+            powerModeShortcuts: nil,
+            vocabularyWords: nil,
+            wordReplacements: [
+                replacement.originalText: replacement.replacementText,
+            ],
+            wordReplacementDetails: [WordReplacementBackup(replacement: replacement)],
+            generalSettings: nil,
+            customEmojis: nil,
+            customCloudModels: nil
+        )
+
+        let encoded = try JSONEncoder().encode(backup)
+        let roundTripped = try JSONDecoder().decode(BackupFile.self, from: encoded)
+        let detail = try #require(roundTripped.wordReplacementDetails?.first)
+        let restored = detail.makeReplacement()
+
+        #expect(roundTripped.wordReplacements == ["voice anc, voice inc": "VoiceInk"])
+        #expect(detail.originalText == "voice anc, voice inc")
+        #expect(detail.replacementText == "VoiceInk")
+        #expect(detail.isEnabled == false)
+        #expect(detail.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(detail.hitCount == 2)
+        #expect(detail.dateAdded == dateAdded)
+        #expect(detail.lastSeenDate == lastSeenDate)
+        #expect(restored.originalText == replacement.originalText)
+        #expect(restored.replacementText == replacement.replacementText)
+        #expect(restored.isEnabled == false)
+        #expect(restored.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(restored.hitCount == 2)
+        #expect(restored.lastSeenDate == lastSeenDate)
+        #expect(restored.isLearningCandidate)
+    }
+
+    @Test @MainActor func backupImporterPreservesWordReplacementLearningMetadata() throws {
+        let context = try makeDictionaryContext()
+        let dateAdded = Date(timeIntervalSince1970: 1_700_000_000)
+        let lastSeenDate = Date(timeIntervalSince1970: 1_700_003_600)
+        let staged = WordReplacement(
+            originalText: "voice anc, voice inc",
+            replacementText: "VoiceInk",
+            dateAdded: dateAdded,
+            isEnabled: false,
+            source: WordReplacement.sourceCorrectionFeedback
+        )
+        staged.hitCount = 2
+        staged.lastSeenDate = lastSeenDate
+
+        let backup = BackupFile(
+            version: "1.79",
+            customPrompts: [],
+            powerModeConfigs: [],
+            powerModeShortcuts: nil,
+            vocabularyWords: nil,
+            wordReplacements: [
+                "voice anc, voice inc": "VoiceInk",
+            ],
+            wordReplacementDetails: [WordReplacementBackup(replacement: staged)],
+            generalSettings: nil,
+            customEmojis: nil,
+            customCloudModels: nil
+        )
+
+        try BackupImporter.importDictionary(from: backup, modelContext: context)
+        let imported = try #require(try context.fetch(FetchDescriptor<WordReplacement>()).first)
+
+        #expect(imported.originalText == "voice anc, voice inc")
+        #expect(imported.replacementText == "VoiceInk")
+        #expect(imported.isEnabled == false)
+        #expect(imported.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(imported.hitCount == 2)
+        #expect(imported.lastSeenDate == lastSeenDate)
+        #expect(imported.isLearningCandidate)
+        #expect(VocoCanonicalizationService.wordReplacementTerms(from: [imported]).isEmpty)
+    }
+
     @Test func contextPackDisplayMetadataIsReadable() async throws {
         let pack = try #require(VocoCanonicalizationService.builtInContextPacks.first)
 

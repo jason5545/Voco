@@ -215,7 +215,7 @@ enum BackupImporter {
     }
 
     @MainActor
-    private static func importDictionary(from backup: BackupFile, modelContext: ModelContext) throws {
+    static func importDictionary(from backup: BackupFile, modelContext: ModelContext) throws {
         var insertedWords = 0
         var insertedReplacements = 0
         var skippedInvalidReplacements = 0
@@ -240,7 +240,38 @@ enum BackupImporter {
             print("No vocabulary words found in the imported file. Existing items remain unchanged.")
         }
 
-        if let replacements = backup.wordReplacements {
+        if let replacementDetails = backup.wordReplacementDetails {
+            let descriptor = FetchDescriptor<WordReplacement>()
+            let existingReplacements = try modelContext.fetch(descriptor)
+
+            var existingKeys = Set<String>()
+            for existing in existingReplacements {
+                existingKeys.formUnion(tokens(from: existing.originalText))
+            }
+
+            for replacement in replacementDetails {
+                let trimmedOriginal = replacement.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedReplacement = replacement.replacementText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let importTokens = tokens(from: trimmedOriginal)
+                guard !importTokens.isEmpty, !trimmedReplacement.isEmpty else {
+                    skippedInvalidReplacements += 1
+                    continue
+                }
+
+                let hasConflict = importTokens.contains { existingKeys.contains($0) }
+
+                if !hasConflict {
+                    modelContext.insert(
+                        replacement.makeReplacement(
+                            originalText: trimmedOriginal,
+                            replacementText: trimmedReplacement
+                        )
+                    )
+                    existingKeys.formUnion(importTokens)
+                    insertedReplacements += 1
+                }
+            }
+        } else if let replacements = backup.wordReplacements {
             let descriptor = FetchDescriptor<WordReplacement>()
             let existingReplacements = try modelContext.fetch(descriptor)
 
@@ -261,7 +292,12 @@ enum BackupImporter {
                 let hasConflict = importTokens.contains { existingKeys.contains($0) }
 
                 if !hasConflict {
-                    modelContext.insert(WordReplacement(originalText: trimmedOriginal, replacementText: trimmedReplacement))
+                    modelContext.insert(
+                        WordReplacement(
+                            originalText: trimmedOriginal,
+                            replacementText: trimmedReplacement
+                        )
+                    )
                     existingKeys.formUnion(importTokens)
                     insertedReplacements += 1
                 }
