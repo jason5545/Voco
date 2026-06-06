@@ -251,6 +251,56 @@ struct VoiceInkTests {
         #expect(review.displayReasons == ["Needs choice", "High-risk term"])
     }
 
+    @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {
+        let hypothesis = VocoHypothesis(
+            id: "suggestedRepair",
+            text: "今天看到炎很大",
+            label: "With suggestions",
+            source: .suggestedRepair,
+            confidenceScore: 0.7,
+            reasons: ["unresolved-suggestions"],
+            activeContextIDs: [],
+            appliedTermIDs: ["song.homura"],
+            requiresReview: true
+        )
+        let assessment = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: [" 今天看到炎很大 ", "今天看到炎很大", ""],
+            candidateLabels: ["With suggestions", "Duplicate", "Empty"],
+            hypothesisDetails: [hypothesis],
+            selectedCandidate: "今天看到焰很大"
+        )
+
+        let review = try #require(VocoCandidateReviewService.review(for: assessment))
+
+        #expect(review.candidates == ["今天看到焰很大", "今天看到炎很大"])
+        #expect(review.candidateLabels == ["Recommended", "With suggestions"])
+        #expect(review.defaultCandidate == "今天看到焰很大")
+        #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
+    }
+
+    @Test func candidateReviewPayloadRequiresReviewRouteAndAlternative() async throws {
+        let duplicateOnly = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: ["今天看到焰很大", " 今天看到焰很大 "],
+            selectedCandidate: "今天看到焰很大"
+        )
+        let directRoute = VocoConfidenceAssessment(
+            score: 0.7,
+            route: .directInsertion,
+            reasons: ["unresolved-suggestions"],
+            candidates: ["今天看到焰很大", "今天看到炎很大"],
+            selectedCandidate: "今天看到焰很大"
+        )
+
+        #expect(VocoCandidateReviewService.review(for: duplicateOnly) == nil)
+        #expect(VocoCandidateReviewService.review(for: directRoute) == nil)
+    }
+
     @Test func correctionFeedbackCapturesCandidateOverride() async throws {
         let result = VocoCanonicalizationService().normalize("今天看到焰很大")
         let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)

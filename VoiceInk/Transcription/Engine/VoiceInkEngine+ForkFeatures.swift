@@ -108,21 +108,12 @@ extension VoiceInkEngine {
     // MARK: - Candidate Review
 
     func requestCandidateReview(_ assessment: VocoConfidenceAssessment) async -> String? {
-        guard assessment.route == .reviewSuggested,
-              assessment.candidates.count > 1
-        else {
+        guard let review = VocoCandidateReviewService.review(for: assessment) else {
             return assessment.selectedCandidate
         }
 
         return await withCheckedContinuation { continuation in
             forkState.pendingCandidateContinuation?.resume(returning: nil)
-            let review = VocoCandidateReview(
-                candidates: assessment.candidates,
-                candidateLabels: assessment.candidateLabels,
-                hypotheses: assessment.hypothesisDetails,
-                confidenceScore: assessment.score,
-                reasons: assessment.reasons
-            )
             forkState.pendingCandidateReview = review
             forkState.pendingCandidateContinuation = continuation
             startCandidateReviewTimeout(for: review.id)
