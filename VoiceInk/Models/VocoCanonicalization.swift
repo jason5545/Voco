@@ -185,3 +185,83 @@ struct VocoConfidenceAssessment: Codable, Equatable {
         return hypothesisDetails[index]
     }
 }
+
+enum VocoSignalDisplayFormatter {
+    static func displayReasons(for reasons: [String]) -> [String] {
+        var seen: Set<String> = []
+        return reasons
+            .map(displayReason(for:))
+            .filter { seen.insert($0).inserted }
+    }
+
+    static func displayReason(for reason: String) -> String {
+        switch reason {
+        case "alias-match":
+            return "Alias match"
+        case "canonical-match":
+            return "Already canonical"
+        case "canonicalization-clean":
+            return "Clean"
+        case "candidate-confirmed":
+            return "Candidate confirmed"
+        case "candidate-custom":
+            return "Custom candidate"
+        case "candidate-override":
+            return "Candidate changed"
+        case "case-normalization":
+            return "Case normalization"
+        case "context-required":
+            return "Needs context"
+        case "contextual-alias-match":
+            return "Context match"
+        case "heavy-normalization":
+            return "Heavy normalization"
+        case "high-risk-term":
+            return "High-risk term"
+        case "inactive-context-suggestion":
+            return "Inactive context"
+        case "low-confidence-replacement":
+            return "Low confidence"
+        case "raw-cleanup-drift":
+            return "Cleanup drift"
+        case "recent-correction-rate":
+            return "Recent corrections"
+        case "recent-term-corrections":
+            return "Term was corrected"
+        case "unresolved-suggestions":
+            return "Needs choice"
+        case "user-substitution":
+            return "User substitution"
+        default:
+            if let retranscriptionReason = retranscriptionDisplayReason(for: reason) {
+                return retranscriptionReason
+            }
+            return fallbackDisplayReason(for: reason)
+        }
+    }
+
+    private static func retranscriptionDisplayReason(for reason: String) -> String? {
+        guard reason.hasPrefix("retranscription-") else { return nil }
+
+        let rawCategory = String(reason.dropFirst("retranscription-".count))
+        guard let category = RetranscriptionChangeCategory(rawValue: rawCategory) else {
+            return "Retranscription change"
+        }
+        return "Retranscription \(category.displayName.lowercased())"
+    }
+
+    private static func fallbackDisplayReason(for reason: String) -> String {
+        let words = reason
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-")
+            .map { String($0) }
+
+        guard !words.isEmpty else { return reason }
+
+        return words.enumerated()
+            .map { index, word in
+                index == 0 ? word.capitalized : word
+            }
+            .joined(separator: " ")
+    }
+}

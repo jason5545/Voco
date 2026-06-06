@@ -281,6 +281,33 @@ struct VoiceInkTests {
         #expect(review.displayReasons == ["Needs choice", "High-risk term"])
     }
 
+    @Test func signalDisplayFormatterCoversDictationAndFeedbackReasons() async throws {
+        let displayReasons = VocoSignalDisplayFormatter.displayReasons(for: [
+            "unresolved-suggestions",
+            "inactive-context-suggestion",
+            "context-required",
+            "alias-match",
+            "candidate-override",
+            "candidate-confirmed",
+            "retranscription-meaningfulChange",
+            "user-substitution",
+            "unknown-signal",
+            "unresolved-suggestions",
+        ])
+
+        #expect(displayReasons == [
+            "Needs choice",
+            "Inactive context",
+            "Needs context",
+            "Alias match",
+            "Candidate changed",
+            "Candidate confirmed",
+            "Retranscription meaningful",
+            "User substitution",
+            "Unknown signal",
+        ])
+    }
+
     @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {
         let hypothesis = VocoHypothesis(
             id: "suggestedRepair",

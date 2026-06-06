@@ -65,33 +65,7 @@ struct VocoCandidateReview: Identifiable {
     }
 
     var displayReasons: [String] {
-        var seen: Set<String> = []
-        return reasons
-            .map(Self.displayReason(for:))
-            .filter { seen.insert($0).inserted }
-    }
-
-    private static func displayReason(for reason: String) -> String {
-        switch reason {
-        case "unresolved-suggestions":
-            return "Needs choice"
-        case "heavy-normalization":
-            return "Heavy normalization"
-        case "low-confidence-replacement":
-            return "Low confidence"
-        case "high-risk-term":
-            return "High-risk term"
-        case "raw-cleanup-drift":
-            return "Cleanup drift"
-        case "recent-correction-rate":
-            return "Recent corrections"
-        case "recent-term-corrections":
-            return "Term was corrected"
-        case "canonicalization-clean":
-            return "Clean"
-        default:
-            return reason
-        }
+        VocoSignalDisplayFormatter.displayReasons(for: reasons)
     }
 }
 

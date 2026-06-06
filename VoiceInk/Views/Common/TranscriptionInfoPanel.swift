@@ -155,7 +155,9 @@ struct TranscriptionInfoPanel: View {
                     metadataRow(
                         icon: "exclamationmark.triangle.fill",
                         label: "Signals",
-                        value: transcription.confidenceReasons.joined(separator: ", ")
+                        value: VocoSignalDisplayFormatter
+                            .displayReasons(for: transcription.confidenceReasons)
+                            .joined(separator: ", ")
                     )
                 }
 
@@ -390,7 +392,10 @@ struct TranscriptionInfoPanel: View {
                         .font(.system(size: 12, weight: .semibold))
                         .textSelection(.enabled)
 
-                    Text("\(confidenceDisplay(score: replacement.confidence)) · \(replacement.reason)")
+                    Text(
+                        "\(confidenceDisplay(score: replacement.confidence)) · " +
+                            VocoSignalDisplayFormatter.displayReason(for: replacement.reason)
+                    )
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(.secondary)
                 }
@@ -546,7 +551,7 @@ struct TranscriptionInfoPanel: View {
     }
 
     private func feedbackSummary(_ signal: CorrectionFeedbackSignal) -> String {
-        var parts = [signal.reason]
+        var parts = [VocoSignalDisplayFormatter.displayReason(for: signal.reason)]
         if let confidenceScore = signal.confidenceScore {
             parts.append(confidenceDisplay(score: confidenceScore))
         }
