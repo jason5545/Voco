@@ -467,6 +467,14 @@ struct TranscriptionInfoPanel: View {
                         Text(candidate)
                             .font(.system(size: 12, weight: .regular))
                             .textSelection(.enabled)
+
+                        if let summary = hypothesisSummary(at: index, hypotheses: hypotheses) {
+                            Text(summary)
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
                     }
 
                     Spacer(minLength: 0)
@@ -529,6 +537,11 @@ struct TranscriptionInfoPanel: View {
     private func hypothesisSource(at index: Int, hypotheses: [VocoHypothesis]) -> String? {
         guard hypotheses.indices.contains(index) else { return nil }
         return hypotheses[index].sourceDisplayName
+    }
+
+    private func hypothesisSummary(at index: Int, hypotheses: [VocoHypothesis]) -> String? {
+        guard hypotheses.indices.contains(index) else { return nil }
+        return VocoHypothesisDisplayFormatter.summary(for: hypotheses[index])
     }
 
     private func feedbackItem(_ signal: CorrectionFeedbackSignal) -> some View {

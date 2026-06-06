@@ -807,6 +807,42 @@ struct VoiceInkTests {
         ])
     }
 
+    @Test func hypothesisDisplayFormatterSummarizesPersistedCandidateDetails() async throws {
+        let hypothesis = VocoHypothesis(
+            id: "suggestedRepair",
+            text: "今天看到炎很大",
+            label: "With suggestions",
+            source: .suggestedRepair,
+            confidenceScore: 0.624,
+            reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"],
+            activeContextIDs: [
+                VocoCanonicalizationService.defaultContextPackID,
+                "power-mode:1234",
+                VocoCanonicalizationService.defaultContextPackID,
+            ],
+            appliedTermIDs: ["song.homura", "song.homura", "artist.lisa"],
+            requiresReview: true
+        )
+
+        #expect(
+            VocoHypothesisDisplayFormatter.summary(for: hypothesis) ==
+                "Confidence 62% · Needs choice, High-risk term · Terms song.homura, artist.lisa · Contexts VOCO Development, Power Mode · Review required"
+        )
+
+        let empty = VocoHypothesis(
+            id: "clean",
+            text: "乾淨候選",
+            label: "Recommended",
+            source: .autoContext,
+            confidenceScore: nil,
+            reasons: [],
+            activeContextIDs: [],
+            appliedTermIDs: [],
+            requiresReview: false
+        )
+        #expect(VocoHypothesisDisplayFormatter.summary(for: empty) == nil)
+    }
+
     @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {
         let hypothesis = VocoHypothesis(
             id: "suggestedRepair",

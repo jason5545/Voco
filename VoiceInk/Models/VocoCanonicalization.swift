@@ -306,3 +306,50 @@ enum VocoSignalDisplayFormatter {
             .joined(separator: " ")
     }
 }
+
+enum VocoHypothesisDisplayFormatter {
+    static func summary(for hypothesis: VocoHypothesis) -> String? {
+        var parts: [String] = []
+
+        if let confidenceScore = hypothesis.confidenceScore {
+            parts.append("Confidence \(percent(confidenceScore))")
+        }
+
+        let reasons = VocoSignalDisplayFormatter.displayReasons(for: hypothesis.reasons)
+        if !reasons.isEmpty {
+            parts.append(reasons.joined(separator: ", "))
+        }
+
+        let termIDs = uniqueNonEmpty(hypothesis.appliedTermIDs)
+        if !termIDs.isEmpty {
+            parts.append("Terms \(termIDs.joined(separator: ", "))")
+        }
+
+        let contexts = uniqueNonEmpty(
+            VocoCanonicalizationService.contextDisplayNames(for: hypothesis.activeContextIDs)
+        )
+        if !contexts.isEmpty {
+            parts.append("Contexts \(contexts.joined(separator: ", "))")
+        }
+
+        if hypothesis.requiresReview {
+            parts.append("Review required")
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func percent(_ value: Double) -> String {
+        let bounded = max(0, min(1, value))
+        return "\(Int((bounded * 100).rounded()))%"
+    }
+
+    private static func uniqueNonEmpty(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
+    }
+}
