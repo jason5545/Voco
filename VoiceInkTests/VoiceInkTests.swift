@@ -1037,6 +1037,75 @@ struct VoiceInkTests {
         #expect(entry.hitCount == 1)
     }
 
+    @Test @MainActor func correctionFeedbackLearningStagesTypedCJKSpanRescue() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "今天看到焰很大",
+            proposedText: "今天看到焰很大",
+            acceptedText: "今天看到火焰很大",
+            confidenceScore: 0.61,
+            changeRatio: 0.14,
+            reason: "candidate-custom"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+
+        #expect(staged.count == 1)
+        #expect(staged.first?.original == "焰")
+        #expect(staged.first?.replacement == "火焰")
+
+        let entry = try #require(try context.fetch(FetchDescriptor<WordReplacement>()).first)
+        #expect(entry.originalText == "焰")
+        #expect(entry.replacementText == "火焰")
+        #expect(entry.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(entry.isEnabled == false)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningStagesTypedKanaCanonicalRescue() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我喜歡あけぼし",
+            proposedText: "我喜歡あけぼし",
+            acceptedText: "我喜歡明け星",
+            confidenceScore: 0.58,
+            changeRatio: 0.2,
+            reason: "candidate-custom"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+
+        #expect(staged.count == 1)
+        #expect(staged.first?.original == "あけぼし")
+        #expect(staged.first?.replacement == "明け星")
+
+        let entry = try #require(try context.fetch(FetchDescriptor<WordReplacement>()).first)
+        #expect(entry.originalText == "あけぼし")
+        #expect(entry.replacementText == "明け星")
+        #expect(entry.source == WordReplacement.sourceCorrectionFeedback)
+        #expect(entry.isEnabled == false)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsBroadCharacterRewrite() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "今天看到焰很大",
+            proposedText: "今天看到焰很大",
+            acceptedText: "我想改成另一句完全不同",
+            confidenceScore: 0.4,
+            changeRatio: 0.8,
+            reason: "candidate-custom"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
     @Test @MainActor func correctionFeedbackLearningSkipsCandidateConfirmation() async throws {
         let context = try makeDictionaryContext()
         let signal = CorrectionFeedbackSignal(
@@ -1160,7 +1229,11 @@ struct VoiceInkTests {
 @MainActor
 private func makeDictionaryContext() throws -> ModelContext {
     let schema = Schema([VocabularyWord.self, WordReplacement.self])
-    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let config = ModelConfiguration(
+        "dictionary-test-\(UUID().uuidString)",
+        schema: schema,
+        isStoredInMemoryOnly: true
+    )
     let container = try ModelContainer(for: schema, configurations: [config])
     return ModelContext(container)
 }
