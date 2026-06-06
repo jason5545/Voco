@@ -579,7 +579,11 @@ struct AudioPlayerView: View {
 
         Task {
             do {
-                let _ = try await transcriptionService.retranscribeAudio(from: url, using: currentTranscriptionModel)
+                let _ = try await transcriptionService.retranscribeAudio(
+                    from: url,
+                    using: currentTranscriptionModel,
+                    sourceTranscription: transcription
+                )
                 await MainActor.run {
                     isRetranscribing = false
                     showTemporaryBanner(.retranscribeSuccess)
@@ -593,4 +597,3 @@ struct AudioPlayerView: View {
         }
     }
 }
-

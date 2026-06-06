@@ -43,6 +43,9 @@ final class Transcription {
     var userCorrectionDistance: Double?
     var styleGuardReasonsJSON: String?
     var styleGuardRejectedText: String?
+    var sourceTranscriptionID: UUID?
+    var retranscriptionSourceText: String?
+    var retranscriptionAnalysisJSON: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -74,6 +77,11 @@ final class Transcription {
         set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
     }
 
+    var retranscriptionAnalysis: RetranscriptionAnalysis? {
+        get { Self.decodeRetranscriptionAnalysis(retranscriptionAnalysisJSON) }
+        set { retranscriptionAnalysisJSON = Self.encodeJSON(newValue) }
+    }
+
     init(text: String,
          duration: TimeInterval,
          enhancedText: String? = nil,
@@ -101,6 +109,9 @@ final class Transcription {
          userCorrectionDistance: Double? = nil,
          styleGuardReasons: [String] = [],
          styleGuardRejectedText: String? = nil,
+         sourceTranscriptionID: UUID? = nil,
+         retranscriptionSourceText: String? = nil,
+         retranscriptionAnalysis: RetranscriptionAnalysis? = nil,
          transcriptionStatus: TranscriptionStatus = .pending) {
         self.id = UUID()
         self.text = text
@@ -132,6 +143,9 @@ final class Transcription {
         self.userCorrectionDistance = userCorrectionDistance
         self.styleGuardReasonsJSON = Self.encodeJSON(styleGuardReasons)
         self.styleGuardRejectedText = styleGuardRejectedText
+        self.sourceTranscriptionID = sourceTranscriptionID
+        self.retranscriptionSourceText = retranscriptionSourceText
+        self.retranscriptionAnalysisJSON = Self.encodeJSON(retranscriptionAnalysis)
         self.transcriptionStatus = transcriptionStatus.rawValue
     }
 
@@ -159,6 +173,22 @@ final class Transcription {
     func recordStyleGuardRejection(response: String, reasons: [String]) {
         styleGuardRejectedText = response
         styleGuardReasons = reasons
+    }
+
+    func recordRetranscriptionAnalysis(source: Transcription) {
+        let sourceText = source.enhancedText?.isEmpty == false ? source.enhancedText! : source.text
+        let newText = enhancedText?.isEmpty == false ? enhancedText! : text
+        let analysis = RetranscriptionAnalyticsService.analyze(
+            sourceText: sourceText,
+            retranscribedText: newText,
+            sourceConfidenceScore: source.confidenceScore,
+            retranscribedConfidenceScore: confidenceScore
+        )
+
+        sourceTranscriptionID = source.id
+        retranscriptionSourceText = sourceText
+        retranscriptionAnalysis = analysis
+        userCorrectionDistance = analysis.changeRatio
     }
 
     func markAsCanceledTranscription(
@@ -194,6 +224,9 @@ final class Transcription {
         userCorrectionDistance = nil
         styleGuardReasons = []
         styleGuardRejectedText = nil
+        sourceTranscriptionID = nil
+        retranscriptionSourceText = nil
+        retranscriptionAnalysis = nil
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
@@ -219,5 +252,14 @@ final class Transcription {
             return []
         }
         return values
+    }
+
+    private static func decodeRetranscriptionAnalysis(_ json: String?) -> RetranscriptionAnalysis? {
+        guard let json,
+              let data = json.data(using: .utf8)
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(RetranscriptionAnalysis.self, from: data)
     }
 }

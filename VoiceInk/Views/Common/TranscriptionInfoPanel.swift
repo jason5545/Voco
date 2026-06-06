@@ -9,6 +9,7 @@ struct TranscriptionInfoPanel: View {
         Form {
             detailsSection
             dictationSection
+            retranscriptionSection
             styleGuardSection
             aiRequestSection
         }
@@ -165,6 +166,58 @@ struct TranscriptionInfoPanel: View {
     }
 
     // MARK: - AI Request Section
+
+    @ViewBuilder
+    private var retranscriptionSection: some View {
+        if transcription.sourceTranscriptionID != nil || transcription.retranscriptionAnalysis != nil {
+            Section {
+                if let sourceID = transcription.sourceTranscriptionID {
+                    metadataRow(
+                        icon: "arrow.triangle.2.circlepath",
+                        label: "Source",
+                        value: shortID(sourceID)
+                    )
+                }
+
+                if let analysis = transcription.retranscriptionAnalysis {
+                    metadataRow(
+                        icon: "ruler",
+                        label: "Change",
+                        value: "\(Int((analysis.changeRatio * 100).rounded()))% (\(analysis.changeCategory.displayName))"
+                    )
+
+                    metadataRow(
+                        icon: "number",
+                        label: "Edit Distance",
+                        value: "\(analysis.editDistance)"
+                    )
+
+                    if let confidenceDelta = analysis.confidenceDelta {
+                        metadataRow(
+                            icon: "gauge.with.dots.needle.bottom.50percent",
+                            label: "Confidence Delta",
+                            value: signedPercent(confidenceDelta)
+                        )
+                    }
+                }
+
+                if let sourceText = transcription.retranscriptionSourceText, !sourceText.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Source Text")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Text(sourceText)
+                            .font(.system(size: 12, weight: .regular))
+                            .lineSpacing(2)
+                            .textSelection(.enabled)
+                            .foregroundColor(.primary)
+                    }
+                }
+            } header: {
+                Text("Retranscription")
+            }
+        }
+    }
 
     @ViewBuilder
     private var styleGuardSection: some View {
@@ -338,6 +391,15 @@ struct TranscriptionInfoPanel: View {
         case .none:
             return route
         }
+    }
+
+    private func shortID(_ id: UUID) -> String {
+        String(id.uuidString.prefix(8))
+    }
+
+    private func signedPercent(_ value: Double) -> String {
+        let percent = Int((value * 100).rounded())
+        return percent > 0 ? "+\(percent)%" : "\(percent)%"
     }
 
     private func powerModeDisplay(name: String?, emoji: String?) -> String? {

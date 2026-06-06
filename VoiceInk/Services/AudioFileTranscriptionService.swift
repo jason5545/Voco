@@ -34,7 +34,11 @@ class AudioTranscriptionService: ObservableObject {
         self.serviceRegistry = serviceRegistry
     }
     
-    func retranscribeAudio(from url: URL, using model: any TranscriptionModel) async throws -> Transcription {
+    func retranscribeAudio(
+        from url: URL,
+        using model: any TranscriptionModel,
+        sourceTranscription: Transcription? = nil
+    ) async throws -> Transcription {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw TranscriptionError.noAudioFile
         }
@@ -110,6 +114,11 @@ class AudioTranscriptionService: ObservableObject {
                 return result.isValid ? (enhancedText, nil) : (nil, result)
             }
 
+            func recordRetranscriptionSource(on transcription: Transcription) {
+                guard let sourceTranscription else { return }
+                transcription.recordRetranscriptionAnalysis(source: sourceTranscription)
+            }
+
             if let enhancementService = enhancementService, enhancementService.isConfigured {
                 let detectionResult = await promptDetectionService.analyzeText(text, with: enhancementService)
                 promptDetectionResult = detectionResult
@@ -149,6 +158,7 @@ class AudioTranscriptionService: ObservableObject {
                         styleGuardReasons: styleGuard.rejection?.reasons ?? [],
                         styleGuardRejectedText: styleGuard.rejection == nil ? nil : enhancedText
                     )
+                    recordRetranscriptionSource(on: newTranscription)
                     modelContext.insert(newTranscription)
                     do {
                         try modelContext.save()
@@ -188,6 +198,7 @@ class AudioTranscriptionService: ObservableObject {
                         languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
                         confidenceAssessment: confidenceAssessment
                     )
+                    recordRetranscriptionSource(on: newTranscription)
                     modelContext.insert(newTranscription)
                     do {
                         try modelContext.save()
@@ -222,6 +233,7 @@ class AudioTranscriptionService: ObservableObject {
                     languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
                     confidenceAssessment: confidenceAssessment
                 )
+                recordRetranscriptionSource(on: newTranscription)
                 modelContext.insert(newTranscription)
                 do {
                     try modelContext.save()

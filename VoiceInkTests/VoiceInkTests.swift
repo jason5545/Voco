@@ -259,6 +259,51 @@ struct VoiceInkTests {
         #expect(transcription.styleGuardReasons == ["assistant-opener:以下是"])
     }
 
+    @Test func retranscriptionAnalyticsDetectsChangeCategoriesAndConfidenceDelta() async throws {
+        let unchanged = RetranscriptionAnalyticsService.analyze(
+            sourceText: "我現在用 VoiceInk",
+            retranscribedText: "我現在用 VoiceInk",
+            sourceConfidenceScore: 0.8,
+            retranscribedConfidenceScore: 0.9
+        )
+
+        #expect(unchanged.changeCategory == .unchanged)
+        #expect(unchanged.editDistance == 0)
+        #expect(abs((unchanged.confidenceDelta ?? 0) - 0.1) < 0.0001)
+
+        let meaningful = RetranscriptionAnalyticsService.analyze(
+            sourceText: "我今天要測試 voice anc",
+            retranscribedText: "我今天要測試 VoiceInk 的 Qwen3-ASR",
+            sourceConfidenceScore: nil,
+            retranscribedConfidenceScore: nil
+        )
+
+        #expect(meaningful.changeCategory == .meaningfulChange)
+        #expect(meaningful.changeRatio > 0.12)
+        #expect(meaningful.confidenceDelta == nil)
+    }
+
+    @Test func transcriptionStoresRetranscriptionAnalysis() async throws {
+        let source = Transcription(
+            text: "我今天要測試 voice anc",
+            duration: 1,
+            confidenceScore: 0.6
+        )
+        let retranscribed = Transcription(
+            text: "我今天要測試 VoiceInk",
+            duration: 1,
+            confidenceScore: 0.9
+        )
+
+        retranscribed.recordRetranscriptionAnalysis(source: source)
+
+        let analysis = try #require(retranscribed.retranscriptionAnalysis)
+        #expect(retranscribed.sourceTranscriptionID == source.id)
+        #expect(retranscribed.retranscriptionSourceText == source.text)
+        #expect(abs((analysis.confidenceDelta ?? 0) - 0.3) < 0.0001)
+        #expect(retranscribed.userCorrectionDistance == analysis.changeRatio)
+    }
+
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
         var state = EditModePollingState()
 
