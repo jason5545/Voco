@@ -59,6 +59,12 @@ enum SessionMetricRecorder {
             confidenceRoute: transcription.confidenceRoute,
             confidenceReasons: transcription.confidenceReasons,
             candidateCount: transcription.hypotheses.count,
+            candidateSourceCounts: SessionMetric.candidateSourceCounts(from: transcription.hypothesisDetails),
+            reviewRequiredCandidateCount: SessionMetric.reviewRequiredCandidateCount(in: transcription.hypothesisDetails),
+            selectedCandidateHypothesisSource: SessionMetric.selectedCandidateHypothesisSource(
+                in: transcription.hypothesisDetails,
+                selectedCandidate: transcription.selectedCandidate
+            ),
             selectedCandidate: transcription.selectedCandidate,
             candidateSelectionSource: transcription.candidateSelectionSource,
             userCorrectionDistance: transcription.userCorrectionDistance,

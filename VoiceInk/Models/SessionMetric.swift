@@ -24,6 +24,9 @@ final class SessionMetric {
     var confidenceRoute: String?
     var confidenceReasonsJSON: String?
     var candidateCount: Int = 0
+    var candidateSourceCountsJSON: String?
+    var reviewRequiredCandidateCount: Int = 0
+    var selectedCandidateHypothesisSource: String?
     var selectedCandidate: String?
     var candidateSelectionSource: String?
     var userCorrectionDistance: Double?
@@ -44,6 +47,11 @@ final class SessionMetric {
     var confidenceReasons: [String] {
         get { Self.decodeStringArray(confidenceReasonsJSON) }
         set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var candidateSourceCounts: [String: Int] {
+        get { Self.decodeStringIntDictionary(candidateSourceCountsJSON) }
+        set { candidateSourceCountsJSON = Self.encodeJSON(newValue) }
     }
 
     init(
@@ -67,6 +75,9 @@ final class SessionMetric {
         confidenceRoute: String? = nil,
         confidenceReasons: [String] = [],
         candidateCount: Int = 0,
+        candidateSourceCounts: [String: Int] = [:],
+        reviewRequiredCandidateCount: Int = 0,
+        selectedCandidateHypothesisSource: String? = nil,
         selectedCandidate: String? = nil,
         candidateSelectionSource: String? = nil,
         userCorrectionDistance: Double? = nil,
@@ -100,6 +111,9 @@ final class SessionMetric {
         self.confidenceRoute = confidenceRoute
         self.confidenceReasonsJSON = Self.encodeJSON(confidenceReasons)
         self.candidateCount = candidateCount
+        self.candidateSourceCountsJSON = Self.encodeJSON(candidateSourceCounts)
+        self.reviewRequiredCandidateCount = reviewRequiredCandidateCount
+        self.selectedCandidateHypothesisSource = selectedCandidateHypothesisSource
         self.selectedCandidate = selectedCandidate
         self.candidateSelectionSource = candidateSelectionSource
         self.userCorrectionDistance = userCorrectionDistance
@@ -123,6 +137,12 @@ final class SessionMetric {
         confidenceRoute = transcription.confidenceRoute
         confidenceReasons = transcription.confidenceReasons
         candidateCount = transcription.hypotheses.count
+        candidateSourceCounts = Self.candidateSourceCounts(from: transcription.hypothesisDetails)
+        reviewRequiredCandidateCount = Self.reviewRequiredCandidateCount(in: transcription.hypothesisDetails)
+        selectedCandidateHypothesisSource = Self.selectedCandidateHypothesisSource(
+            in: transcription.hypothesisDetails,
+            selectedCandidate: transcription.selectedCandidate
+        )
         selectedCandidate = transcription.selectedCandidate
         candidateSelectionSource = transcription.candidateSelectionSource
         userCorrectionDistance = transcription.userCorrectionDistance
@@ -149,6 +169,31 @@ final class SessionMetric {
         pasteCommandPosted = transcription.pasteCommandPosted
     }
 
+    static func candidateSourceCounts(from hypotheses: [VocoHypothesis]) -> [String: Int] {
+        hypotheses.reduce(into: [:]) { counts, hypothesis in
+            counts[hypothesis.source.rawValue, default: 0] += 1
+        }
+    }
+
+    static func reviewRequiredCandidateCount(in hypotheses: [VocoHypothesis]) -> Int {
+        hypotheses.filter(\.requiresReview).count
+    }
+
+    static func selectedCandidateHypothesisSource(
+        in hypotheses: [VocoHypothesis],
+        selectedCandidate: String?
+    ) -> String? {
+        guard let selectedCandidate = selectedCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !selectedCandidate.isEmpty
+        else {
+            return nil
+        }
+
+        return hypotheses.first { hypothesis in
+            hypothesis.text.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
+        }?.source.rawValue
+    }
+
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return String(data: data, encoding: .utf8)
@@ -160,6 +205,16 @@ final class SessionMetric {
               let values = try? JSONDecoder().decode([String].self, from: data)
         else {
             return []
+        }
+        return values
+    }
+
+    private static func decodeStringIntDictionary(_ json: String?) -> [String: Int] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([String: Int].self, from: data)
+        else {
+            return [:]
         }
         return values
     }

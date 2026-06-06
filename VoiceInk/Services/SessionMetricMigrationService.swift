@@ -9,7 +9,7 @@ final class SessionMetricMigrationService {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SessionMetricMigrationService")
     private let completionKey = "HasCompletedStatsMigration"
     private let backfillVersionKey = "SessionMetricBackfillVersion"
-    private let currentBackfillVersion = 5
+    private let currentBackfillVersion = 6
     private(set) var isRunning = false
 
     private init() {}
@@ -93,6 +93,12 @@ final class SessionMetricMigrationService {
                         confidenceRoute: transcription.confidenceRoute,
                         confidenceReasons: transcription.confidenceReasons,
                         candidateCount: transcription.hypotheses.count,
+                        candidateSourceCounts: SessionMetric.candidateSourceCounts(from: transcription.hypothesisDetails),
+                        reviewRequiredCandidateCount: SessionMetric.reviewRequiredCandidateCount(in: transcription.hypothesisDetails),
+                        selectedCandidateHypothesisSource: SessionMetric.selectedCandidateHypothesisSource(
+                            in: transcription.hypothesisDetails,
+                            selectedCandidate: transcription.selectedCandidate
+                        ),
                         selectedCandidate: transcription.selectedCandidate,
                         candidateSelectionSource: transcription.candidateSelectionSource,
                         userCorrectionDistance: transcription.userCorrectionDistance,
