@@ -665,6 +665,11 @@ struct VoiceInkTests {
             canonicalizationSuggestionCount: 0,
             confidenceScore: 0.9,
             confidenceRoute: VocoConfidenceRoute.directInsertion.rawValue,
+            candidateSourceCounts: [
+                VocoHypothesisSource.autoContext.rawValue: 1,
+            ],
+            reviewRequiredCandidateCount: 0,
+            selectedCandidateHypothesisSource: VocoHypothesisSource.autoContext.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.userSelection.rawValue,
             retranscriptionChangeCategory: RetranscriptionChangeCategory.unchanged.rawValue,
             retranscriptionChangeRatio: 0,
@@ -686,6 +691,12 @@ struct VoiceInkTests {
             canonicalizationSuggestionCount: 3,
             confidenceScore: 0.6,
             confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
+            candidateSourceCounts: [
+                VocoHypothesisSource.suggestedRepair.rawValue: 1,
+                VocoHypothesisSource.rawASR.rawValue: 1,
+            ],
+            reviewRequiredCandidateCount: 1,
+            selectedCandidateHypothesisSource: VocoHypothesisSource.suggestedRepair.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
             retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
             retranscriptionChangeRatio: 0.24,
@@ -720,6 +731,15 @@ struct VoiceInkTests {
         #expect(summary.userSelectionCount == 1)
         #expect(summary.timeoutFallbackCount == 1)
         #expect(summary.fallbackSelectionCount == 1)
+        #expect(summary.candidateSourceSampleCount == 2)
+        #expect(summary.candidateSourceCandidateCount == 3)
+        #expect(summary.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
+        #expect(summary.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
+        #expect(summary.candidateSourceCounts[VocoHypothesisSource.rawASR.rawValue] == 1)
+        #expect(summary.reviewRequiredCandidateCount == 1)
+        #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
+        #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
+        #expect(summary.candidateSourceDetail == "1 review / AUTO + context 1, Suggestion pass 1")
         #expect(summary.canonicalizedSessionCount == 1)
         #expect(summary.suggestedSessionCount == 1)
         #expect(summary.totalCanonicalizationReplacementCount == 2)

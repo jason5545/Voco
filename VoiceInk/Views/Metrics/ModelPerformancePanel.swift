@@ -201,6 +201,14 @@ private struct ModelPerformancePanelContent: View {
                 )
 
                 assistiveTile(
+                    icon: "rectangle.stack",
+                    title: "Candidate Sources",
+                    value: "\(assistiveSummary.candidateSourceCandidateCount)",
+                    detail: assistiveSummary.candidateSourceDetail,
+                    color: .cyan
+                )
+
+                assistiveTile(
                     icon: "text.magnifyingglass",
                     title: "Canonicalization",
                     value: "\(assistiveSummary.canonicalizedSessionCount)",
@@ -411,6 +419,11 @@ struct AssistiveSignalSummary: Equatable {
     let dismissedFallbackCount: Int
     let timeoutFallbackCount: Int
     let automaticFallbackCount: Int
+    let candidateSourceSampleCount: Int
+    let candidateSourceCandidateCount: Int
+    let candidateSourceCounts: [String: Int]
+    let reviewRequiredCandidateCount: Int
+    let selectedCandidateSourceCounts: [String: Int]
     let canonicalizedSessionCount: Int
     let suggestedSessionCount: Int
     let totalCanonicalizationReplacementCount: Int
@@ -444,6 +457,15 @@ struct AssistiveSignalSummary: Equatable {
         timeoutFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue }.count
         automaticFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.automaticFallback.rawValue }.count
 
+        let sourceBreakdowns = metrics.map(\.candidateSourceCounts).filter { !$0.isEmpty }
+        candidateSourceSampleCount = sourceBreakdowns.count
+        candidateSourceCounts = Self.mergedCounts(sourceBreakdowns)
+        candidateSourceCandidateCount = candidateSourceCounts.values.reduce(0, +)
+        reviewRequiredCandidateCount = metrics.reduce(0) { $0 + $1.reviewRequiredCandidateCount }
+        selectedCandidateSourceCounts = Self.mergedCounts(
+            metrics.compactMap(\.selectedCandidateHypothesisSource).map { [$0: 1] }
+        )
+
         canonicalizedSessionCount = metrics.filter { $0.canonicalizationReplacementCount > 0 }.count
         suggestedSessionCount = metrics.filter { $0.canonicalizationSuggestionCount > 0 }.count
         totalCanonicalizationReplacementCount = metrics.reduce(0) { $0 + $1.canonicalizationReplacementCount }
@@ -474,6 +496,7 @@ struct AssistiveSignalSummary: Equatable {
         confidenceRouteSampleCount > 0 ||
         confidenceScoreSampleCount > 0 ||
         candidateSelectionCount > 0 ||
+        candidateSourceSampleCount > 0 ||
         canonicalizedSessionCount > 0 ||
         suggestedSessionCount > 0 ||
         retranscriptionSampleCount > 0 ||
@@ -482,6 +505,15 @@ struct AssistiveSignalSummary: Equatable {
 
     var fallbackSelectionCount: Int {
         dismissedFallbackCount + timeoutFallbackCount + automaticFallbackCount
+    }
+
+    var candidateSourceDetail: String {
+        guard candidateSourceCandidateCount > 0 else { return "No source breakdown" }
+
+        let reviewText = "\(reviewRequiredCandidateCount) review"
+        let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 2)
+        guard !sourceText.isEmpty else { return reviewText }
+        return "\(reviewText) / \(sourceText)"
     }
 
     var directInsertionRate: Double? {
@@ -528,6 +560,56 @@ struct AssistiveSignalSummary: Equatable {
     private static func signedPercent(_ value: Double) -> String {
         let sign = value >= 0 ? "+" : ""
         return "\(sign)\(percent(value))"
+    }
+
+    private static func mergedCounts(_ counts: [[String: Int]]) -> [String: Int] {
+        counts.reduce(into: [:]) { merged, next in
+            for (key, value) in next {
+                merged[key, default: 0] += value
+            }
+        }
+    }
+
+    private static func sourceSummary(_ counts: [String: Int], limit: Int) -> String {
+        counts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value {
+                    return lhs.value > rhs.value
+                }
+                let lhsOrder = sourceSortOrder(lhs.key)
+                let rhsOrder = sourceSortOrder(rhs.key)
+                if lhsOrder != rhsOrder {
+                    return lhsOrder < rhsOrder
+                }
+                return sourceDisplayName(lhs.key) < sourceDisplayName(rhs.key)
+            }
+            .prefix(limit)
+            .map { "\(sourceDisplayName($0.key)) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private static func sourceDisplayName(_ source: String) -> String {
+        VocoHypothesisSource(rawValue: source)?.displayName ?? source
+    }
+
+    private static func sourceSortOrder(_ source: String) -> Int {
+        switch VocoHypothesisSource(rawValue: source) {
+        case .autoContext:
+            return 0
+        case .suggestedRepair:
+            return 1
+        case .originalCleaned:
+            return 2
+        case .rawASR:
+            return 3
+        case .segmentRescue:
+            return 4
+        case .customRescue:
+            return 5
+        case nil:
+            return 99
+        }
     }
 }
 
