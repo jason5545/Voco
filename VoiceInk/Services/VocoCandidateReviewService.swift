@@ -1,6 +1,8 @@
 import Foundation
 
 enum VocoCandidateReviewService {
+    private static let maxPersistedCandidateCount = 5
+
     static func review(for assessment: VocoConfidenceAssessment) -> VocoCandidateReview? {
         guard assessment.route == .reviewSuggested else { return nil }
 
@@ -82,6 +84,11 @@ enum VocoCandidateReviewService {
         transcription.text = accepted
         transcription.normalizedTranscript = accepted
         transcription.selectedCandidate = accepted
+        recordAcceptedCandidateMetadata(
+            accepted,
+            for: transcription,
+            assessment: confidenceAssessment
+        )
 
         guard let signal else { return nil }
         if hasCandidateFeedback(for: accepted, in: transcription) {
@@ -136,6 +143,99 @@ enum VocoCandidateReviewService {
             confidenceAssessment: assessment,
             rawTranscript: rawTranscript
         )
+    }
+
+    private static func recordAcceptedCandidateMetadata(
+        _ accepted: String,
+        for transcription: Transcription,
+        assessment: VocoConfidenceAssessment
+    ) {
+        let baseCandidates = transcription.hypotheses.isEmpty ? assessment.candidates : transcription.hypotheses
+        var candidates = normalizedCandidateList(baseCandidates)
+        var labels = alignedLabels(
+            transcription.hypothesisLabels.isEmpty ? assessment.candidateLabels : transcription.hypothesisLabels,
+            count: candidates.count
+        )
+        var details = alignedHypotheses(
+            transcription.hypothesisDetails.isEmpty ? assessment.hypothesisDetails : transcription.hypothesisDetails,
+            candidates: candidates,
+            labels: labels,
+            assessment: assessment
+        )
+
+        if candidates.contains(where: { isSameCandidate($0, accepted) }) {
+            transcription.hypotheses = candidates
+            transcription.hypothesisLabels = labels
+            transcription.hypothesisDetails = details
+            return
+        }
+
+        if candidates.count >= maxPersistedCandidateCount {
+            candidates.removeLast()
+            if !labels.isEmpty { labels.removeLast() }
+            if !details.isEmpty { details.removeLast() }
+        }
+
+        candidates.append(accepted)
+        labels.append("Typed correction")
+        details.append(
+            VocoHypothesis(
+                id: "custom-rescue",
+                text: accepted,
+                label: "Typed correction",
+                source: .customRescue,
+                confidenceScore: assessment.score,
+                reasons: ["candidate-custom"] + assessment.reasons,
+                activeContextIDs: assessment.hypothesisDetails.first?.activeContextIDs ?? [],
+                appliedTermIDs: [],
+                requiresReview: false
+            )
+        )
+
+        transcription.hypotheses = candidates
+        transcription.hypothesisLabels = labels
+        transcription.hypothesisDetails = details
+    }
+
+    private static func normalizedCandidateList(_ candidates: [String]) -> [String] {
+        var seen: Set<String> = []
+        return candidates
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert(candidateKey($0)).inserted }
+            .prefix(maxPersistedCandidateCount)
+            .map { $0 }
+    }
+
+    private static func alignedLabels(_ labels: [String], count: Int) -> [String] {
+        (0..<count).map { index in
+            guard labels.indices.contains(index),
+                  !labels[index].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                return "Candidate"
+            }
+            return labels[index]
+        }
+    }
+
+    private static func alignedHypotheses(
+        _ hypotheses: [VocoHypothesis],
+        candidates: [String],
+        labels: [String],
+        assessment: VocoConfidenceAssessment
+    ) -> [VocoHypothesis] {
+        candidates.enumerated().map { index, candidate in
+            if hypotheses.indices.contains(index),
+               isSameCandidate(hypotheses[index].text, candidate) {
+                return hypotheses[index]
+            }
+
+            return fallbackHypothesis(
+                text: candidate,
+                label: labels.indices.contains(index) ? labels[index] : "Candidate",
+                assessment: assessment
+            )
+        }
     }
 
     private static func hasCandidateFeedback(for acceptedText: String, in transcription: Transcription) -> Bool {
@@ -200,5 +300,15 @@ enum VocoCandidateReviewService {
         values
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? ""
+    }
+
+    private static func isSameCandidate(_ lhs: String, _ rhs: String) -> Bool {
+        candidateKey(lhs) == candidateKey(rhs)
+    }
+
+    private static func candidateKey(_ candidate: String) -> String {
+        candidate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 }

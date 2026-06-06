@@ -516,6 +516,11 @@ struct VoiceInkTests {
         #expect(signal.reason == "candidate-custom")
         #expect(transcription.correctionFeedback.first?.reason == "candidate-custom")
         #expect(transcription.userCorrectionDistance != nil)
+        let customIndex = try #require(transcription.hypotheses.firstIndex(of: "今天看到火焰很大"))
+        #expect(transcription.hypothesisLabels[customIndex] == "Typed correction")
+        #expect(transcription.hypothesisDetails[customIndex].source == .customRescue)
+        #expect(transcription.hypothesisDetails[customIndex].requiresReview == false)
+        #expect(transcription.hypotheses.count <= 5)
     }
 
     @Test func candidateReviewAcceptanceUpdatesTranscriptAndFeedback() async throws {
@@ -637,6 +642,63 @@ struct VoiceInkTests {
         #expect(transcription.selectedCandidate == "今天看到炎很大")
         #expect(transcription.correctionFeedback.count == 1)
         #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
+    }
+
+    @Test func candidateReviewAcceptanceKeepsCustomRescueWithinPersistedLimit() async throws {
+        let candidates = ["first", "second", "third", "fourth", "fifth"]
+        let details = candidates.enumerated().map { index, candidate in
+            VocoHypothesis(
+                id: "candidate.\(index)",
+                text: candidate,
+                label: "Candidate \(index + 1)",
+                source: .autoContext,
+                confidenceScore: 0.62,
+                reasons: ["unresolved-suggestions"],
+                activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+                appliedTermIDs: [],
+                requiresReview: true
+            )
+        }
+        let assessment = VocoConfidenceAssessment(
+            score: 0.62,
+            route: .reviewSuggested,
+            reasons: ["unresolved-suggestions"],
+            candidates: candidates,
+            candidateLabels: details.map(\.label),
+            hypothesisDetails: details,
+            selectedCandidate: "first"
+        )
+        let result = VocoNormalizationResult(
+            originalText: "first",
+            normalizedText: "first",
+            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
+            replacements: [],
+            suggestions: []
+        )
+        let transcription = Transcription(text: "first", duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        _ = VocoCandidateReviewService.acceptCandidate(
+            "typed rescue",
+            for: transcription,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            rawTranscript: result.originalText
+        )
+
+        #expect(transcription.hypotheses.count == 5)
+        #expect(transcription.hypotheses.contains("typed rescue"))
+        #expect(!transcription.hypotheses.contains("fifth"))
+        let customIndex = try #require(transcription.hypotheses.firstIndex(of: "typed rescue"))
+        #expect(transcription.hypothesisDetails[customIndex].source == .customRescue)
+        #expect(transcription.hypothesisDetails[customIndex].sourceDisplayName == "Custom rescue")
     }
 
     @Test @MainActor func correctionRiskProfileCountsOnlyCorrectiveFeedback() async throws {

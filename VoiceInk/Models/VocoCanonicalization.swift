@@ -81,6 +81,7 @@ enum VocoHypothesisSource: String, Codable, Equatable {
     case originalCleaned
     case rawASR
     case segmentRescue
+    case customRescue
 
     var displayName: String {
         switch self {
@@ -94,6 +95,8 @@ enum VocoHypothesisSource: String, Codable, Equatable {
             return "Raw ASR"
         case .segmentRescue:
             return "Segment rescue"
+        case .customRescue:
+            return "Custom rescue"
         }
     }
 }
