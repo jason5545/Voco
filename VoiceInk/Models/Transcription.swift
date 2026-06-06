@@ -141,6 +141,16 @@ final class Transcription {
         !hypothesisDetails.isEmpty
     }
 
+    var historyDisplayText: String {
+        Self.firstNonEmpty(
+            finalPastedText,
+            enhancedText,
+            selectedCandidate,
+            normalizedTranscript,
+            text
+        ) ?? text
+    }
+
     init(text: String,
          duration: TimeInterval,
          enhancedText: String? = nil,
@@ -397,6 +407,12 @@ final class Transcription {
 
     private static func hasText(_ value: String?) -> Bool {
         value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private static func firstNonEmpty(_ values: String?...) -> String? {
+        values
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
     }
 
     private static func decodeStringArray(_ json: String?) -> [String] {

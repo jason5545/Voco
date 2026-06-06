@@ -615,6 +615,39 @@ struct VoiceInkTests {
         #expect(triggerOnly.hasDictationMetadata)
     }
 
+    @Test func historyDisplayTextPrefersFinalUserOutput() async throws {
+        let rawOnly = Transcription(text: "raw qwen transcript", duration: 0.2)
+        let normalizedOnly = Transcription(
+            text: "voice ink",
+            duration: 0.2,
+            normalizedTranscript: "VoiceInk"
+        )
+        let selected = Transcription(
+            text: "今天看到焰很大",
+            duration: 0.2,
+            normalizedTranscript: "今天看到焰很大",
+            selectedCandidate: "今天看到炎很大"
+        )
+        let enhanced = Transcription(
+            text: "voice ink",
+            duration: 0.2,
+            enhancedText: "VoiceInk enhanced",
+            normalizedTranscript: "VoiceInk"
+        )
+        let pasted = Transcription(
+            text: "voice ink",
+            duration: 0.2,
+            enhancedText: "VoiceInk enhanced",
+            finalPastedText: " VoiceInk pasted "
+        )
+
+        #expect(rawOnly.historyDisplayText == "raw qwen transcript")
+        #expect(normalizedOnly.historyDisplayText == "VoiceInk")
+        #expect(selected.historyDisplayText == "今天看到炎很大")
+        #expect(enhanced.historyDisplayText == "VoiceInk enhanced")
+        #expect(pasted.historyDisplayText == "VoiceInk pasted")
+    }
+
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
         let context = try makeSessionMetricContext()
         let output = makeSessionMetricDictationOutput()
