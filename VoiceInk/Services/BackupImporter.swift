@@ -207,6 +207,9 @@ enum BackupImporter {
         } else if let appleScriptPaste = general.useAppleScriptPaste {
             PasteMethod.setCurrent(appleScriptPaste ? .appleScript : .standard)
         }
+        if let enabledContextPackIDs = general.enabledContextPackIDs {
+            VocoCanonicalizationService.setEnabledContextPackIDs(enabledContextPackIDs)
+        }
 
         print("Successfully imported general settings.")
     }

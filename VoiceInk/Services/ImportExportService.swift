@@ -191,7 +191,8 @@ class ImportExportService {
             useAppleScriptPaste: PasteMethod.current() == .appleScript,
             correctionProtectedWords: UserDefaults.standard.stringArray(forKey: "CorrectionProtectionWords"),
             llmCorrectionExamples: UserDefaults.standard.string(forKey: "llmCorrectionExamples"),
-            llmUserContext: UserDefaults.standard.string(forKey: "llmUserContext")
+            llmUserContext: UserDefaults.standard.string(forKey: "llmUserContext"),
+            enabledContextPackIDs: VocoCanonicalizationService.enabledContextPackIDs()
         )
 
         let exportedSettings = BackupFile(

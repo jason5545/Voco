@@ -871,6 +871,51 @@ struct VoiceInkTests {
         #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults) == ["custom"])
     }
 
+    @Test func backupFileDecodesLegacyGeneralSettingsWithoutContextPackSelection() throws {
+        let data = Data(
+            """
+            {
+              "version": "1.79",
+              "generalSettings": {
+                "llmUserContext": "mixed language dictation"
+              }
+            }
+            """.utf8
+        )
+
+        let backup = try JSONDecoder().decode(BackupFile.self, from: data)
+
+        #expect(backup.generalSettings?.llmUserContext == "mixed language dictation")
+        #expect(backup.generalSettings?.enabledContextPackIDs == nil)
+    }
+
+    @Test func backupFilePreservesContextPackSelection() throws {
+        let expectedIDs = [
+            VocoCanonicalizationService.defaultContextPackID,
+            "custom.personal",
+        ]
+        let data = Data(
+            """
+            {
+              "version": "1.79",
+              "generalSettings": {
+                "enabledContextPackIDs": [
+                  "\(expectedIDs[0])",
+                  "\(expectedIDs[1])"
+                ]
+              }
+            }
+            """.utf8
+        )
+
+        let backup = try JSONDecoder().decode(BackupFile.self, from: data)
+        let encoded = try JSONEncoder().encode(backup)
+        let roundTripped = try JSONDecoder().decode(BackupFile.self, from: encoded)
+
+        #expect(backup.generalSettings?.enabledContextPackIDs == expectedIDs)
+        #expect(roundTripped.generalSettings?.enabledContextPackIDs == expectedIDs)
+    }
+
     @Test func contextPackDisplayMetadataIsReadable() async throws {
         let pack = try #require(VocoCanonicalizationService.builtInContextPacks.first)
 

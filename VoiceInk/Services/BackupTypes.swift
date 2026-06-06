@@ -108,6 +108,9 @@ struct GeneralBackup: Codable {
     let correctionProtectedWords: [String]?
     let llmCorrectionExamples: String?
     let llmUserContext: String?
+
+    // Fork-specific: context-aware dictation settings
+    let enabledContextPackIDs: [String]?
 }
 
 struct WordBackup: Codable {
