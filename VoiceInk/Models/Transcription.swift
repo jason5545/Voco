@@ -30,6 +30,8 @@ final class Transcription {
     var transcriptionStatus: String?
     var rawTranscript: String?
     var normalizedTranscript: String?
+    var finalPastedText: String?
+    var pasteCommandPosted: Bool?
     var activeContextIDsJSON: String?
     var canonicalizationReplacementsJSON: String?
     var canonicalizationSuggestionsJSON: String?
@@ -124,6 +126,8 @@ final class Transcription {
          powerModeEmoji: String? = nil,
          rawTranscript: String? = nil,
          normalizedTranscript: String? = nil,
+         finalPastedText: String? = nil,
+         pasteCommandPosted: Bool? = nil,
          activeContextIDs: [String] = [],
          canonicalizationReplacements: [VocoReplacement] = [],
          canonicalizationSuggestions: [VocoReplacement] = [],
@@ -164,6 +168,8 @@ final class Transcription {
         self.powerModeEmoji = powerModeEmoji
         self.rawTranscript = rawTranscript
         self.normalizedTranscript = normalizedTranscript
+        self.finalPastedText = finalPastedText
+        self.pasteCommandPosted = pasteCommandPosted
         self.activeContextIDsJSON = Self.encodeJSON(activeContextIDs)
         self.canonicalizationReplacementsJSON = Self.encodeJSON(canonicalizationReplacements)
         self.canonicalizationSuggestionsJSON = Self.encodeJSON(canonicalizationSuggestions)
@@ -243,6 +249,11 @@ final class Transcription {
         styleGuardReasons = reasons
     }
 
+    func recordPasteAttempt(text: String, didPostCommand: Bool) {
+        finalPastedText = text
+        pasteCommandPosted = didPostCommand
+    }
+
     @discardableResult
     func recordRetranscriptionAnalysis(source: Transcription) -> CorrectionFeedbackSignal? {
         let sourceText = source.enhancedText?.isEmpty == false ? source.enhancedText! : source.text
@@ -295,6 +306,8 @@ final class Transcription {
         aiRequestSystemMessage = nil
         aiRequestUserMessage = nil
         normalizedTranscript = nil
+        finalPastedText = nil
+        pasteCommandPosted = nil
         activeContextIDs = []
         canonicalizationReplacements = []
         canonicalizationSuggestions = []

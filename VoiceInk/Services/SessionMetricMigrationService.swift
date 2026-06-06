@@ -9,7 +9,7 @@ final class SessionMetricMigrationService {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "SessionMetricMigrationService")
     private let completionKey = "HasCompletedStatsMigration"
     private let backfillVersionKey = "SessionMetricBackfillVersion"
-    private let currentBackfillVersion = 2
+    private let currentBackfillVersion = 3
     private(set) var isRunning = false
 
     private init() {}
@@ -58,7 +58,14 @@ final class SessionMetricMigrationService {
                     let speedFactor = transcriptionDuration.flatMap { d in
                         audioDuration > 0 ? audioDuration / d : nil
                     }
+                    let finalPastedText = transcription.finalPastedText ?? ""
+                    let finalPastedTextForCounting = finalPastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let finalPastedWordCount = finalPastedTextForCounting.isEmpty
+                        ? 0
+                        : WordCounter.count(in: finalPastedTextForCounting)
                     let textForCounting: String = {
+                        if let finalPasted = transcription.finalPastedText,
+                           !finalPasted.isEmpty { return finalPasted }
                         if let enhanced = transcription.enhancedText,
                            transcription.enhancementDuration != nil,
                            !enhanced.isEmpty { return enhanced }
@@ -87,7 +94,10 @@ final class SessionMetricMigrationService {
                         confidenceReasons: transcription.confidenceReasons,
                         candidateCount: transcription.hypotheses.count,
                         selectedCandidate: transcription.selectedCandidate,
-                        userCorrectionDistance: transcription.userCorrectionDistance
+                        userCorrectionDistance: transcription.userCorrectionDistance,
+                        finalPastedCharacterCount: finalPastedText.count,
+                        finalPastedWordCount: finalPastedWordCount,
+                        pasteCommandPosted: transcription.pasteCommandPosted
                     )
                     backgroundContext.insert(metric)
                     insertedCount += 1

@@ -115,6 +115,27 @@ struct TranscriptionInfoPanel: View {
                     )
                 }
 
+                if let finalPastedText = transcription.finalPastedText, !finalPastedText.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Final Pasted Text")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Text(finalPastedText)
+                            .font(.system(size: 12, weight: .regular))
+                            .lineSpacing(2)
+                            .textSelection(.enabled)
+                            .foregroundColor(.primary)
+                    }
+                }
+
+                if let pasteCommandPosted = transcription.pasteCommandPosted {
+                    metadataRow(
+                        icon: "doc.on.clipboard",
+                        label: "Paste Command",
+                        value: pasteCommandPosted ? "Posted" : "Not posted"
+                    )
+                }
+
                 if let confidenceScore = transcription.confidenceScore {
                     metadataRow(
                         icon: "gauge.with.dots.needle.bottom.50percent",
@@ -348,6 +369,8 @@ struct TranscriptionInfoPanel: View {
     private var hasDictationMetadata: Bool {
         transcription.rawTranscript != nil ||
         transcription.normalizedTranscript != nil ||
+        transcription.finalPastedText != nil ||
+        transcription.pasteCommandPosted != nil ||
         transcription.asrEngineID != nil ||
         transcription.languageMode != nil ||
         transcription.confidenceScore != nil ||

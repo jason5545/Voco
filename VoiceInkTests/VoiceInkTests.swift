@@ -278,6 +278,8 @@ struct VoiceInkTests {
             enhancementDuration: 0.25,
             rawTranscript: "我現在用 voice ink",
             normalizedTranscript: "我現在用 VoiceInk",
+            finalPastedText: "他說 \"VOCO, good\" ",
+            pasteCommandPosted: true,
             activeContextIDs: [
                 VocoCanonicalizationService.defaultContextPackID,
                 "power-mode:123",
@@ -318,10 +320,14 @@ struct VoiceInkTests {
         let csv = VoiceInkCSVExportService().generateCSV(for: [transcription])
 
         #expect(csv.contains("Original Transcript,Raw Transcript,Normalized Transcript"))
+        #expect(csv.contains("Final Pasted Text"))
+        #expect(csv.contains("Paste Command Posted"))
         #expect(csv.contains("ASR Engine ID"))
         #expect(csv.contains("我現在用 voice ink"))
         #expect(csv.contains("我現在用 VoiceInk"))
         #expect(csv.contains("\"他說 \"\"VOCO, good\"\"\""))
+        #expect(csv.contains("\"他說 \"\"VOCO, good\"\" \""))
+        #expect(csv.contains("true"))
         #expect(csv.contains("qwen3:Qwen3-ASR"))
         #expect(csv.contains("auto"))
         #expect(csv.contains("builtin.voco-development | power-mode:123"))
@@ -379,13 +385,43 @@ struct VoiceInkTests {
         #expect(metric.userCorrectionDistance == 0.12)
     }
 
+    @Test @MainActor func sessionMetricRecorderCountsFinalPastedTextWhenAvailable() async throws {
+        let context = try makeSessionMetricContext()
+        let finalPastedText = "hello world "
+        let transcription = Transcription(
+            text: "hello",
+            duration: 1.0,
+            finalPastedText: finalPastedText,
+            pasteCommandPosted: true,
+            transcriptionStatus: .completed
+        )
+        context.insert(transcription)
+
+        let inserted = try SessionMetricRecorder.recordRecorderSession(
+            transcription: transcription,
+            model: nil,
+            in: context,
+            timestamp: transcription.timestamp
+        )
+
+        let metric = try #require(try context.fetch(FetchDescriptor<SessionMetric>()).first)
+        #expect(inserted)
+        #expect(metric.wordCount == 2)
+        #expect(metric.finalPastedWordCount == 2)
+        #expect(metric.finalPastedCharacterCount == finalPastedText.count)
+        #expect(metric.pasteCommandPosted == true)
+    }
+
     @Test func sessionMetricBackfillCapturesDictationMetadataFromTranscription() async throws {
         let output = makeSessionMetricDictationOutput()
+        let finalPastedText = "hello world "
         let transcription = Transcription(
             text: output.result.normalizedText,
             duration: 2.0,
             rawTranscript: output.result.originalText,
             normalizedTranscript: output.result.normalizedText,
+            finalPastedText: finalPastedText,
+            pasteCommandPosted: false,
             activeContextIDs: output.result.activeContextIDs,
             canonicalizationReplacements: output.result.replacements,
             canonicalizationSuggestions: output.result.suggestions,
@@ -415,6 +451,10 @@ struct VoiceInkTests {
         #expect(metric.confidenceReasons == output.assessment.reasons)
         #expect(metric.candidateCount == output.assessment.candidates.count)
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
+        #expect(metric.wordCount == 2)
+        #expect(metric.finalPastedWordCount == 2)
+        #expect(metric.finalPastedCharacterCount == finalPastedText.count)
+        #expect(metric.pasteCommandPosted == false)
     }
 
     @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {

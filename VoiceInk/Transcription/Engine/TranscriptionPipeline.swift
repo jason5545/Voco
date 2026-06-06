@@ -677,7 +677,11 @@ class TranscriptionPipeline {
                 autoLearn.prepareMonitoring(pastedText: pastedText, element: element, modelContext: modelContext)
             }
 
-            _ = await CursorPaster.startPasteAtCursor(pastedText).value
+            let pasteResult = await CursorPaster.startPasteAtCursor(pastedText).value
+            transcription.recordPasteAttempt(
+                text: pastedText,
+                didPostCommand: pasteResult.didPostPasteCommand
+            )
             SoundManager.shared.playStopSound()
             await restorePromptDetectionSettingsAndDismiss {
                 if let autoSendKey, autoSendKey.isEnabled {

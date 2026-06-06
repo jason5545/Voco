@@ -26,6 +26,9 @@ final class SessionMetric {
     var candidateCount: Int = 0
     var selectedCandidate: String?
     var userCorrectionDistance: Double?
+    var finalPastedCharacterCount: Int = 0
+    var finalPastedWordCount: Int = 0
+    var pasteCommandPosted: Bool?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -59,7 +62,10 @@ final class SessionMetric {
         confidenceReasons: [String] = [],
         candidateCount: Int = 0,
         selectedCandidate: String? = nil,
-        userCorrectionDistance: Double? = nil
+        userCorrectionDistance: Double? = nil,
+        finalPastedCharacterCount: Int = 0,
+        finalPastedWordCount: Int = 0,
+        pasteCommandPosted: Bool? = nil
     ) {
         self.id = UUID()
         self.transcriptionId = transcriptionId
@@ -84,6 +90,9 @@ final class SessionMetric {
         self.candidateCount = candidateCount
         self.selectedCandidate = selectedCandidate
         self.userCorrectionDistance = userCorrectionDistance
+        self.finalPastedCharacterCount = finalPastedCharacterCount
+        self.finalPastedWordCount = finalPastedWordCount
+        self.pasteCommandPosted = pasteCommandPosted
     }
 
     func recordDictationMetadata(from transcription: Transcription) {
@@ -98,6 +107,18 @@ final class SessionMetric {
         candidateCount = transcription.hypotheses.count
         selectedCandidate = transcription.selectedCandidate
         userCorrectionDistance = transcription.userCorrectionDistance
+        recordFinalPasteMetadata(from: transcription)
+    }
+
+    func recordFinalPasteMetadata(from transcription: Transcription) {
+        let pastedText = transcription.finalPastedText ?? ""
+        let textForCounting = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        finalPastedCharacterCount = pastedText.count
+        finalPastedWordCount = textForCounting.isEmpty ? 0 : WordCounter.count(in: textForCounting)
+        if finalPastedWordCount > 0 {
+            wordCount = finalPastedWordCount
+        }
+        pasteCommandPosted = transcription.pasteCommandPosted
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {

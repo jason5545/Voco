@@ -60,7 +60,10 @@ enum SessionMetricRecorder {
             confidenceReasons: transcription.confidenceReasons,
             candidateCount: transcription.hypotheses.count,
             selectedCandidate: transcription.selectedCandidate,
-            userCorrectionDistance: transcription.userCorrectionDistance
+            userCorrectionDistance: transcription.userCorrectionDistance,
+            finalPastedCharacterCount: finalPastedCharacterCount(from: transcription),
+            finalPastedWordCount: finalPastedWordCount(from: transcription),
+            pasteCommandPosted: transcription.pasteCommandPosted
         )
 
         modelContext.insert(metric)
@@ -69,6 +72,11 @@ enum SessionMetricRecorder {
     }
 
     private static func finalTextForCounting(from transcription: Transcription) -> String {
+        if let finalPastedText = transcription.finalPastedText,
+           !finalPastedText.isEmpty {
+            return finalPastedText
+        }
+
         if let enhancedText = transcription.enhancedText,
            transcription.enhancementDuration != nil,
            !enhancedText.isEmpty {
@@ -76,5 +84,19 @@ enum SessionMetricRecorder {
         }
 
         return transcription.text
+    }
+
+    private static func finalPastedCharacterCount(from transcription: Transcription) -> Int {
+        transcription.finalPastedText?.count ?? 0
+    }
+
+    private static func finalPastedWordCount(from transcription: Transcription) -> Int {
+        guard let pastedText = transcription.finalPastedText?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !pastedText.isEmpty
+        else {
+            return 0
+        }
+        return WordCounter.count(in: pastedText)
     }
 }

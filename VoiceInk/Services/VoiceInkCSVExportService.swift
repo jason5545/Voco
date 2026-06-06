@@ -39,6 +39,8 @@ class VoiceInkCSVExportService {
         "Raw Transcript",
         "Normalized Transcript",
         "Enhanced Transcript",
+        "Final Pasted Text",
+        "Paste Command Posted",
         "Enhancement Model",
         "Prompt Name",
         "Transcription Model",
@@ -68,6 +70,8 @@ class VoiceInkCSVExportService {
             transcription.rawTranscript ?? "",
             transcription.normalizedTranscript ?? "",
             transcription.enhancedText ?? "",
+            transcription.finalPastedText ?? "",
+            boolString(transcription.pasteCommandPosted),
             transcription.aiEnhancementModelName ?? "",
             transcription.promptName ?? "",
             transcription.transcriptionModelName ?? "",
@@ -152,5 +156,10 @@ class VoiceInkCSVExportService {
 
     private func decimal(_ value: Double) -> String {
         String(format: "%.3f", value)
+    }
+
+    private func boolString(_ value: Bool?) -> String {
+        guard let value else { return "" }
+        return value ? "true" : "false"
     }
 }

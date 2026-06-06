@@ -40,6 +40,17 @@ struct TranscriptionDetailView: View {
                             isEnhanced: true
                         )
                     }
+
+                    if let finalPastedText = transcription.finalPastedText,
+                       !finalPastedText.isEmpty,
+                       finalPastedText != (transcription.enhancedText ?? ""),
+                       finalPastedText != transcription.text {
+                        MessageBubble(
+                            label: "Pasted",
+                            text: finalPastedText,
+                            isEnhanced: true
+                        )
+                    }
                 }
                 .padding(16)
             }
