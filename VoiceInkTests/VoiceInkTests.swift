@@ -465,6 +465,77 @@ struct VoiceInkTests {
         #expect(metric.pasteCommandPosted == false)
     }
 
+    @Test func assistiveSignalSummaryCountsContextAwareMetrics() async throws {
+        let direct = SessionMetric(
+            transcriptionId: UUID(),
+            wordCount: 4,
+            audioDuration: 2.0,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: 0.5,
+            speedFactor: 4.0,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil,
+            canonicalizationReplacementCount: 2,
+            canonicalizationSuggestionCount: 0,
+            confidenceScore: 0.9,
+            confidenceRoute: VocoConfidenceRoute.directInsertion.rawValue,
+            candidateSelectionSource: VocoCandidateSelectionSource.userSelection.rawValue,
+            pasteCommandPosted: true
+        )
+        let review = SessionMetric(
+            transcriptionId: UUID(),
+            wordCount: 5,
+            audioDuration: 3.0,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: 0.8,
+            speedFactor: 3.75,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil,
+            canonicalizationReplacementCount: 0,
+            canonicalizationSuggestionCount: 3,
+            confidenceScore: 0.6,
+            confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
+            candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
+            pasteCommandPosted: false
+        )
+        let legacy = SessionMetric(
+            transcriptionId: UUID(),
+            wordCount: 2,
+            audioDuration: 1.0,
+            transcriptionModelName: nil,
+            transcriptionDuration: nil,
+            speedFactor: nil,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil
+        )
+
+        let summary = AssistiveSignalSummary(metrics: [direct, review, legacy])
+
+        #expect(summary.hasData)
+        #expect(summary.sessionCount == 3)
+        #expect(summary.confidenceRouteSampleCount == 2)
+        #expect(summary.directInsertionCount == 1)
+        #expect(summary.reviewSuggestedCount == 1)
+        #expect(summary.directInsertionRate == 0.5)
+        #expect(summary.reviewSuggestedRate == 0.5)
+        #expect(summary.confidenceScoreSampleCount == 2)
+        #expect(abs((summary.averageConfidenceScore ?? 0) - 0.75) < 0.001)
+        #expect(summary.candidateSelectionCount == 2)
+        #expect(summary.userSelectionCount == 1)
+        #expect(summary.timeoutFallbackCount == 1)
+        #expect(summary.fallbackSelectionCount == 1)
+        #expect(summary.canonicalizedSessionCount == 1)
+        #expect(summary.suggestedSessionCount == 1)
+        #expect(summary.totalCanonicalizationReplacementCount == 2)
+        #expect(summary.totalCanonicalizationSuggestionCount == 3)
+        #expect(summary.pasteCommandSampleCount == 2)
+        #expect(summary.pasteCommandPostedCount == 1)
+        #expect(summary.pasteCommandPostedRate == 0.5)
+    }
+
     @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {
         let context = try makeCanonicalizationPipelineContext()
         let transcription = Transcription(text: "", duration: 0)

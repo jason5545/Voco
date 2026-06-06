@@ -120,17 +120,24 @@ private struct ModelPerformancePanelContent: View {
             .sorted { $0.avgDuration < $1.avgDuration }
     }
 
+    private var assistiveSummary: AssistiveSignalSummary {
+        AssistiveSignalSummary(metrics: metrics)
+    }
+
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
 
     var body: some View {
-        if modelStats.isEmpty && enhancementStats.isEmpty {
+        if modelStats.isEmpty && enhancementStats.isEmpty && !assistiveSummary.hasData {
             emptyState
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if assistiveSummary.hasData {
+                        assistiveSection
+                    }
                     if !modelStats.isEmpty {
                         modelsSection
                     }
@@ -153,6 +160,102 @@ private struct ModelPerformancePanelContent: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Assistive signals
+
+    private var assistiveSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Assistive Signals")
+            LazyVGrid(columns: gridColumns, spacing: 12) {
+                assistiveTile(
+                    icon: "checkmark.shield",
+                    title: "Direct Insertions",
+                    value: formatPercent(assistiveSummary.directInsertionRate),
+                    detail: "\(assistiveSummary.directInsertionCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                    color: .mint
+                )
+
+                assistiveTile(
+                    icon: "exclamationmark.bubble",
+                    title: "Review Suggested",
+                    value: formatPercent(assistiveSummary.reviewSuggestedRate),
+                    detail: "\(assistiveSummary.reviewSuggestedCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                    color: .orange
+                )
+
+                assistiveTile(
+                    icon: "slider.horizontal.3",
+                    title: "Average Confidence",
+                    value: formatPercent(assistiveSummary.averageConfidenceScore),
+                    detail: "\(assistiveSummary.confidenceScoreSampleCount) scored sessions",
+                    color: .teal
+                )
+
+                assistiveTile(
+                    icon: "cursorarrow.click.2",
+                    title: "Candidate Selections",
+                    value: "\(assistiveSummary.candidateSelectionCount)",
+                    detail: "\(assistiveSummary.userSelectionCount) user / \(assistiveSummary.fallbackSelectionCount) fallback",
+                    color: .indigo
+                )
+
+                assistiveTile(
+                    icon: "text.magnifyingglass",
+                    title: "Canonicalization",
+                    value: "\(assistiveSummary.canonicalizedSessionCount)",
+                    detail: "\(assistiveSummary.totalCanonicalizationReplacementCount) replacements / \(assistiveSummary.totalCanonicalizationSuggestionCount) suggestions",
+                    color: .purple
+                )
+
+                assistiveTile(
+                    icon: "doc.on.clipboard",
+                    title: "Paste Commands",
+                    value: formatPercent(assistiveSummary.pasteCommandPostedRate),
+                    detail: "\(assistiveSummary.pasteCommandPostedCount) of \(assistiveSummary.pasteCommandSampleCount) recorded",
+                    color: .blue
+                )
+            }
+        }
+    }
+
+    private func assistiveTile(
+        icon: String,
+        title: LocalizedStringKey,
+        value: String,
+        detail: String,
+        color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 18, height: 18)
+
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Text(value)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+
+            Text(detail)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(MetricCardBackground(color: color))
+        .cornerRadius(12)
     }
 
     // MARK: - Models grid
@@ -279,9 +382,91 @@ private struct ModelPerformancePanelContent: View {
         formatter.unitsStyle = .abbreviated
         return formatter.string(from: duration) ?? "0s"
     }
+
+    private func formatPercent(_ value: Double?) -> String {
+        guard let value else { return "-" }
+        return "\(Int((value * 100).rounded()))%"
+    }
 }
 
 // MARK: - Data models
+
+struct AssistiveSignalSummary: Equatable {
+    let sessionCount: Int
+    let confidenceRouteSampleCount: Int
+    let directInsertionCount: Int
+    let reviewSuggestedCount: Int
+    let confidenceScoreSampleCount: Int
+    let averageConfidenceScore: Double?
+    let candidateSelectionCount: Int
+    let userSelectionCount: Int
+    let dismissedFallbackCount: Int
+    let timeoutFallbackCount: Int
+    let automaticFallbackCount: Int
+    let canonicalizedSessionCount: Int
+    let suggestedSessionCount: Int
+    let totalCanonicalizationReplacementCount: Int
+    let totalCanonicalizationSuggestionCount: Int
+    let pasteCommandSampleCount: Int
+    let pasteCommandPostedCount: Int
+
+    init(metrics: [SessionMetric]) {
+        sessionCount = metrics.count
+        confidenceRouteSampleCount = metrics.filter { $0.confidenceRoute != nil }.count
+        directInsertionCount = metrics.filter { $0.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue }.count
+        reviewSuggestedCount = metrics.filter { $0.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue }.count
+
+        let confidenceScores = metrics.compactMap(\.confidenceScore)
+        confidenceScoreSampleCount = confidenceScores.count
+        averageConfidenceScore = confidenceScores.isEmpty
+            ? nil
+            : confidenceScores.reduce(0, +) / Double(confidenceScores.count)
+
+        candidateSelectionCount = metrics.filter { ($0.candidateSelectionSource ?? "").isEmpty == false }.count
+        userSelectionCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue }.count
+        dismissedFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.dismissedFallback.rawValue }.count
+        timeoutFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue }.count
+        automaticFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.automaticFallback.rawValue }.count
+
+        canonicalizedSessionCount = metrics.filter { $0.canonicalizationReplacementCount > 0 }.count
+        suggestedSessionCount = metrics.filter { $0.canonicalizationSuggestionCount > 0 }.count
+        totalCanonicalizationReplacementCount = metrics.reduce(0) { $0 + $1.canonicalizationReplacementCount }
+        totalCanonicalizationSuggestionCount = metrics.reduce(0) { $0 + $1.canonicalizationSuggestionCount }
+
+        pasteCommandSampleCount = metrics.filter { $0.pasteCommandPosted != nil }.count
+        pasteCommandPostedCount = metrics.filter { $0.pasteCommandPosted == true }.count
+    }
+
+    var hasData: Bool {
+        confidenceRouteSampleCount > 0 ||
+        confidenceScoreSampleCount > 0 ||
+        candidateSelectionCount > 0 ||
+        canonicalizedSessionCount > 0 ||
+        suggestedSessionCount > 0 ||
+        pasteCommandSampleCount > 0
+    }
+
+    var fallbackSelectionCount: Int {
+        dismissedFallbackCount + timeoutFallbackCount + automaticFallbackCount
+    }
+
+    var directInsertionRate: Double? {
+        rate(directInsertionCount, confidenceRouteSampleCount)
+    }
+
+    var reviewSuggestedRate: Double? {
+        rate(reviewSuggestedCount, confidenceRouteSampleCount)
+    }
+
+    var pasteCommandPostedRate: Double? {
+        rate(pasteCommandPostedCount, pasteCommandSampleCount)
+    }
+
+    private func rate(_ numerator: Int, _ denominator: Int) -> Double? {
+        guard denominator > 0 else { return nil }
+        return Double(numerator) / Double(denominator)
+    }
+}
 
 struct ModelPerformanceStat: Identifiable {
     var id: String { name }
