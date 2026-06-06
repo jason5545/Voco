@@ -4,14 +4,14 @@ import AppKit
 import SwiftData
 
 class VoiceInkCSVExportService {
-    
+
     func exportTranscriptionsToCSV(transcriptions: [Transcription]) {
         let csvString = generateCSV(for: transcriptions)
-        
+
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.commaSeparatedText]
-        savePanel.nameFieldStringValue = "VoiceInk-transcription.csv"
-        
+        savePanel.nameFieldStringValue = "Voco-transcription.csv"
+
         savePanel.begin { result in
             if result == .OK, let url = savePanel.url {
                 do {
@@ -22,32 +22,85 @@ class VoiceInkCSVExportService {
             }
         }
     }
-    
-    private func generateCSV(for transcriptions: [Transcription]) -> String {
-        var csvString = "Original Transcript,Enhanced Transcript,Enhancement Model,Prompt Name,Transcription Model,Power Mode,Enhancement Time,Transcription Time,Timestamp,Duration\n"
+
+    func generateCSV(for transcriptions: [Transcription]) -> String {
+        var csvString = csvRow(Self.headers) + "\n"
 
         for transcription in transcriptions {
-            let originalText = escapeCSVString(transcription.text)
-            let enhancedText = escapeCSVString(transcription.enhancedText ?? "")
-            let enhancementModel = escapeCSVString(transcription.aiEnhancementModelName ?? "")
-            let promptName = escapeCSVString(transcription.promptName ?? "")
-            let transcriptionModel = escapeCSVString(transcription.transcriptionModelName ?? "")
-            let powerMode = escapeCSVString(powerModeDisplay(name: transcription.powerModeName, emoji: transcription.powerModeEmoji))
-            let enhancementTime = transcription.enhancementDuration ?? 0
-            let transcriptionTime = transcription.transcriptionDuration ?? 0
-            let timestamp = transcription.timestamp.ISO8601Format()
-            let duration = transcription.duration
-
-            let row = "\(originalText),\(enhancedText),\(enhancementModel),\(promptName),\(transcriptionModel),\(powerMode),\(enhancementTime),\(transcriptionTime),\(timestamp),\(duration)\n"
-            csvString.append(row)
+            csvString.append(csvRow(values(for: transcription)))
+            csvString.append("\n")
         }
 
         return csvString
     }
 
+    private static let headers = [
+        "Original Transcript",
+        "Raw Transcript",
+        "Normalized Transcript",
+        "Enhanced Transcript",
+        "Enhancement Model",
+        "Prompt Name",
+        "Transcription Model",
+        "ASR Engine ID",
+        "Language Mode",
+        "Power Mode",
+        "Active Context IDs",
+        "Active Contexts",
+        "Canonicalization Replacements",
+        "Canonicalization Suggestions",
+        "Confidence Score",
+        "Confidence Route",
+        "Confidence Reasons",
+        "Candidate Labels",
+        "Candidates",
+        "Selected Candidate",
+        "User Correction Distance",
+        "Enhancement Time",
+        "Transcription Time",
+        "Timestamp",
+        "Duration",
+    ]
+
+    private func values(for transcription: Transcription) -> [String] {
+        [
+            transcription.text,
+            transcription.rawTranscript ?? "",
+            transcription.normalizedTranscript ?? "",
+            transcription.enhancedText ?? "",
+            transcription.aiEnhancementModelName ?? "",
+            transcription.promptName ?? "",
+            transcription.transcriptionModelName ?? "",
+            transcription.asrEngineID ?? "",
+            transcription.languageMode ?? "",
+            powerModeDisplay(name: transcription.powerModeName, emoji: transcription.powerModeEmoji),
+            joined(transcription.activeContextIDs),
+            joined(VocoCanonicalizationService.contextDisplayNames(for: transcription.activeContextIDs)),
+            replacementSummary(transcription.canonicalizationReplacements),
+            replacementSummary(transcription.canonicalizationSuggestions),
+            percent(transcription.confidenceScore),
+            transcription.confidenceRoute ?? "",
+            joined(VocoSignalDisplayFormatter.displayReasons(for: transcription.confidenceReasons)),
+            joined(transcription.hypothesisLabels),
+            candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
+            transcription.selectedCandidate ?? "",
+            decimal(transcription.userCorrectionDistance),
+            decimal(transcription.enhancementDuration),
+            decimal(transcription.transcriptionDuration),
+            transcription.timestamp.ISO8601Format(),
+            decimal(transcription.duration),
+        ]
+    }
+
+    private func csvRow(_ values: [String]) -> String {
+        values
+            .map(escapeCSVString)
+            .joined(separator: ",")
+    }
+
     private func escapeCSVString(_ string: String) -> String {
         let escapedString = string.replacingOccurrences(of: "\"", with: "\"\"")
-        if escapedString.contains(",") || escapedString.contains("\n") {
+        if escapedString.contains(",") || escapedString.contains("\n") || escapedString.contains("\"") {
             return "\"\(escapedString)\""
         }
         return escapedString
@@ -64,5 +117,40 @@ class VoiceInkCSVExportService {
         default:
             return ""
         }
+    }
+
+    private func replacementSummary(_ replacements: [VocoReplacement]) -> String {
+        replacements
+            .map { replacement in
+                "\(replacement.originalText) -> \(replacement.replacementText) [\(replacement.termID), \(percent(replacement.confidence)), \(replacement.reason)]"
+            }
+            .joined(separator: " | ")
+    }
+
+    private func candidateSummary(labels: [String], candidates: [String]) -> String {
+        candidates.enumerated()
+            .map { index, candidate in
+                let label = labels.indices.contains(index) ? labels[index] : "Candidate"
+                return "\(label): \(candidate)"
+            }
+            .joined(separator: " | ")
+    }
+
+    private func joined(_ values: [String]) -> String {
+        values.joined(separator: " | ")
+    }
+
+    private func percent(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return "\(Int((value * 100).rounded()))%"
+    }
+
+    private func decimal(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return decimal(value)
+    }
+
+    private func decimal(_ value: Double) -> String {
+        String(format: "%.3f", value)
     }
 }

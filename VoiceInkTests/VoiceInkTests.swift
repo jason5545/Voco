@@ -265,6 +265,76 @@ struct VoiceInkTests {
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
     }
 
+    @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
+        let transcription = Transcription(
+            text: "我現在用 VoiceInk",
+            duration: 1.25,
+            enhancedText: "他說 \"VOCO, good\"",
+            audioFileURL: nil,
+            transcriptionModelName: "Qwen3-ASR",
+            aiEnhancementModelName: "Local model",
+            promptName: "dictation",
+            transcriptionDuration: 0.5,
+            enhancementDuration: 0.25,
+            rawTranscript: "我現在用 voice ink",
+            normalizedTranscript: "我現在用 VoiceInk",
+            activeContextIDs: [
+                VocoCanonicalizationService.defaultContextPackID,
+                "power-mode:123",
+            ],
+            canonicalizationReplacements: [
+                VocoReplacement(
+                    originalText: "voice ink",
+                    replacementText: "VoiceInk",
+                    termID: "product.voiceink",
+                    confidence: 0.97,
+                    reason: "alias-match",
+                    rangeStart: 4,
+                    rangeLength: 9
+                ),
+            ],
+            canonicalizationSuggestions: [
+                VocoReplacement(
+                    originalText: "voco",
+                    replacementText: "VOCO",
+                    termID: "product.voco",
+                    confidence: 0.55,
+                    reason: "inactive-context-suggestion",
+                    rangeStart: nil,
+                    rangeLength: nil
+                ),
+            ],
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto",
+            confidenceScore: 0.86,
+            selectedCandidate: "我現在用 VoiceInk",
+            userCorrectionDistance: 0.12
+        )
+        transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+        transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
+        transcription.hypothesisLabels = ["Recommended", "Raw ASR"]
+        transcription.hypotheses = ["我現在用 VoiceInk", "我現在用 voice ink"]
+
+        let csv = VoiceInkCSVExportService().generateCSV(for: [transcription])
+
+        #expect(csv.contains("Original Transcript,Raw Transcript,Normalized Transcript"))
+        #expect(csv.contains("ASR Engine ID"))
+        #expect(csv.contains("我現在用 voice ink"))
+        #expect(csv.contains("我現在用 VoiceInk"))
+        #expect(csv.contains("\"他說 \"\"VOCO, good\"\"\""))
+        #expect(csv.contains("qwen3:Qwen3-ASR"))
+        #expect(csv.contains("auto"))
+        #expect(csv.contains("builtin.voco-development | power-mode:123"))
+        #expect(csv.contains("VOCO Development | Power Mode"))
+        #expect(csv.contains("voice ink -> VoiceInk [product.voiceink, 97%, alias-match]"))
+        #expect(csv.contains("voco -> VOCO [product.voco, 55%, inactive-context-suggestion]"))
+        #expect(csv.contains("86%"))
+        #expect(csv.contains("reviewSuggested"))
+        #expect(csv.contains("Alias match | Cleanup drift"))
+        #expect(csv.contains("Recommended: 我現在用 VoiceInk | Raw ASR: 我現在用 voice ink"))
+        #expect(csv.contains("0.120"))
+    }
+
     @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {
         let context = try makeCanonicalizationPipelineContext()
         let transcription = Transcription(text: "", duration: 0)
