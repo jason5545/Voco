@@ -116,14 +116,16 @@ extension VoiceInkEngine {
 
         return await withCheckedContinuation { continuation in
             forkState.pendingCandidateContinuation?.resume(returning: nil)
-            forkState.pendingCandidateReview = VocoCandidateReview(
+            let review = VocoCandidateReview(
                 candidates: assessment.candidates,
                 candidateLabels: assessment.candidateLabels,
                 hypotheses: assessment.hypothesisDetails,
                 confidenceScore: assessment.score,
                 reasons: assessment.reasons
             )
+            forkState.pendingCandidateReview = review
             forkState.pendingCandidateContinuation = continuation
+            startCandidateReviewTimeout(for: review.id)
         }
     }
 
@@ -132,14 +134,32 @@ extension VoiceInkEngine {
     }
 
     func dismissCandidateReview() {
-        resumeCandidateReview(returning: forkState.pendingCandidateReview?.defaultCandidate)
+        resumeCandidateReview(returning: forkState.pendingCandidateReview?.timeoutFallbackCandidate)
     }
 
     private func resumeCandidateReview(returning candidate: String?) {
         let continuation = forkState.pendingCandidateContinuation
+        forkState.pendingCandidateTimeoutTask?.cancel()
+        forkState.pendingCandidateTimeoutTask = nil
         forkState.pendingCandidateContinuation = nil
         forkState.pendingCandidateReview = nil
         continuation?.resume(returning: candidate)
+    }
+
+    private func startCandidateReviewTimeout(for reviewID: UUID) {
+        forkState.pendingCandidateTimeoutTask?.cancel()
+        forkState.pendingCandidateTimeoutTask = Task { @MainActor [weak self] in
+            let nanoseconds = UInt64(VocoCandidateReview.timeoutSeconds * 1_000_000_000)
+            do {
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                return
+            }
+            guard let self,
+                  self.forkState.pendingCandidateReview?.id == reviewID
+            else { return }
+            self.resumeCandidateReview(returning: self.forkState.pendingCandidateReview?.timeoutFallbackCandidate)
+        }
     }
 
     /// Starts a 15-second timer that stages the dictionary entry on expiry (instead of discarding).

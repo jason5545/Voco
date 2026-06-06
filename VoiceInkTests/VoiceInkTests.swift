@@ -240,6 +240,8 @@ struct VoiceInkTests {
         )
 
         #expect(review.defaultCandidate == "今天看到焰很大")
+        #expect(review.timeoutFallbackCandidate == "今天看到焰很大")
+        #expect(VocoCandidateReview.timeoutSeconds == 20)
         #expect(review.labelForCandidate(at: 1) == "With suggestions")
         #expect(review.labelForCandidate(at: 4) == "Candidate")
         #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")

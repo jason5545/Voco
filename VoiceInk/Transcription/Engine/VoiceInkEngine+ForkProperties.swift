@@ -12,6 +12,8 @@ struct WordSubstitution {
 }
 
 struct VocoCandidateReview: Identifiable {
+    static let timeoutSeconds: TimeInterval = 20
+
     let id = UUID()
     let candidates: [String]
     let candidateLabels: [String]
@@ -35,6 +37,10 @@ struct VocoCandidateReview: Identifiable {
 
     var defaultCandidate: String? {
         candidates.first
+    }
+
+    var timeoutFallbackCandidate: String? {
+        defaultCandidate
     }
 
     func labelForCandidate(at index: Int) -> String {
@@ -97,6 +103,7 @@ class ForkEngineState: ObservableObject {
     @Published var pendingDictionaryEntry: WordSubstitution?
     @Published var pendingCandidateReview: VocoCandidateReview?
     var pendingCandidateContinuation: CheckedContinuation<String?, Never>?
+    var pendingCandidateTimeoutTask: Task<Void, Never>?
     /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
     var editModeDetectionTask: Task<Void, Never>?
 
