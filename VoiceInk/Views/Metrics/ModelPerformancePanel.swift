@@ -423,6 +423,7 @@ struct AssistiveSignalSummary: Equatable {
     let reviewTriggerSessionCount: Int
     let reviewTriggerCount: Int
     let reviewTriggerCounts: [String: Int]
+    let reviewTriggerSummaryCounts: [String: Int]
     let confidenceScoreSampleCount: Int
     let averageConfidenceScore: Double?
     let candidateSelectionCount: Int
@@ -459,7 +460,11 @@ struct AssistiveSignalSummary: Equatable {
         reviewSuggestedCount = metrics.filter { $0.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue }.count
 
         let reviewTriggerBreakdowns = metrics.map(\.reviewTriggerIDs).filter { !$0.isEmpty }
-        reviewTriggerSessionCount = reviewTriggerBreakdowns.count
+        reviewTriggerSessionCount = metrics.filter {
+            $0.reviewTriggerCount > 0 ||
+            !$0.reviewTriggerIDs.isEmpty ||
+            !$0.reviewTriggerSummaries.isEmpty
+        }.count
         reviewTriggerCounts = Self.mergedCounts(
             reviewTriggerBreakdowns.map { ids in
                 ids.reduce(into: [:]) { counts, id in
@@ -467,9 +472,20 @@ struct AssistiveSignalSummary: Equatable {
                 }
             }
         )
+        reviewTriggerSummaryCounts = Self.mergedCounts(
+            metrics
+                .map(Self.reviewTriggerDisplayItems)
+                .filter { !$0.isEmpty }
+                .map { summaries in
+                    summaries.reduce(into: [:]) { counts, summary in
+                        counts[summary, default: 0] += 1
+                    }
+                }
+        )
         let storedReviewTriggerCount = metrics.reduce(0) { $0 + $1.reviewTriggerCount }
         let idReviewTriggerCount = reviewTriggerCounts.values.reduce(0, +)
-        reviewTriggerCount = max(storedReviewTriggerCount, idReviewTriggerCount)
+        let summaryReviewTriggerCount = reviewTriggerSummaryCounts.values.reduce(0, +)
+        reviewTriggerCount = max(storedReviewTriggerCount, max(idReviewTriggerCount, summaryReviewTriggerCount))
 
         let confidenceScores = metrics.compactMap(\.confidenceScore)
         confidenceScoreSampleCount = confidenceScores.count
@@ -544,7 +560,11 @@ struct AssistiveSignalSummary: Equatable {
         guard reviewTriggerCount > 0 else { return "No review triggers" }
 
         let sessionText = "\(reviewTriggerSessionCount) \(reviewTriggerSessionCount == 1 ? "session" : "sessions")"
-        let triggerText = Self.reviewTriggerSummary(reviewTriggerCounts, limit: 3)
+        let triggerText = Self.reviewTriggerSummary(
+            reviewTriggerSummaryCounts,
+            fallbackCounts: reviewTriggerCounts,
+            limit: 3
+        )
         guard !triggerText.isEmpty else { return "\(reviewTriggerCount) recorded" }
         return "\(sessionText) / \(triggerText)"
     }
@@ -637,7 +657,36 @@ struct AssistiveSignalSummary: Equatable {
             .joined(separator: ", ")
     }
 
-    private static func reviewTriggerSummary(_ counts: [String: Int], limit: Int) -> String {
+    private static func reviewTriggerSummary(
+        _ summaryCounts: [String: Int],
+        fallbackCounts: [String: Int],
+        limit: Int
+    ) -> String {
+        if !summaryCounts.isEmpty {
+            return sortedReviewTriggerSummaryCounts(summaryCounts, limit: limit)
+                .map { "\($0.key) \($0.value)" }
+                .joined(separator: ", ")
+        }
+
+        return sortedReviewTriggerIDCounts(fallbackCounts, limit: limit)
+            .map { "\(reviewTriggerDisplayName($0.key)) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private static func sortedReviewTriggerSummaryCounts(_ counts: [String: Int], limit: Int) -> [(key: String, value: Int)] {
+        counts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value {
+                    return lhs.value > rhs.value
+                }
+                return lhs.key < rhs.key
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private static func sortedReviewTriggerIDCounts(_ counts: [String: Int], limit: Int) -> [(key: String, value: Int)] {
         counts
             .filter { $0.value > 0 }
             .sorted { lhs, rhs in
@@ -647,8 +696,15 @@ struct AssistiveSignalSummary: Equatable {
                 return reviewTriggerDisplayName(lhs.key) < reviewTriggerDisplayName(rhs.key)
             }
             .prefix(limit)
-            .map { "\(reviewTriggerDisplayName($0.key)) \($0.value)" }
-            .joined(separator: ", ")
+            .map { $0 }
+    }
+
+    private static func reviewTriggerDisplayItems(for metric: SessionMetric) -> [String] {
+        if !metric.reviewTriggerSummaries.isEmpty {
+            return metric.reviewTriggerSummaries
+        }
+
+        return metric.reviewTriggerIDs.map(reviewTriggerDisplayName)
     }
 
     private static func reviewTriggerDisplayName(_ id: String) -> String {

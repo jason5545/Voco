@@ -773,6 +773,10 @@ struct VoiceInkTests {
                 "unresolved-suggestions",
                 "low-confidence-score",
             ],
+            reviewTriggerSummaries: [
+                "Needs choice (3 suggestions)",
+                "Low score (Score 60% below 78%)",
+            ],
             candidateSourceCounts: [
                 VocoHypothesisSource.suggestedRepair.rawValue: 1,
                 VocoHypothesisSource.segmentRescue.rawValue: 1,
@@ -815,7 +819,9 @@ struct VoiceInkTests {
         #expect(summary.reviewTriggerCount == 2)
         #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
         #expect(summary.reviewTriggerCounts["low-confidence-score"] == 1)
-        #expect(summary.reviewTriggerDetail == "1 session / Low score 1, Needs choice 1")
+        #expect(summary.reviewTriggerSummaryCounts["Needs choice (3 suggestions)"] == 1)
+        #expect(summary.reviewTriggerSummaryCounts["Low score (Score 60% below 78%)"] == 1)
+        #expect(summary.reviewTriggerDetail == "1 session / Low score (Score 60% below 78%) 1, Needs choice (3 suggestions) 1")
         #expect(summary.candidateSelectionCount == 2)
         #expect(summary.userSelectionCount == 1)
         #expect(summary.timeoutFallbackCount == 1)
