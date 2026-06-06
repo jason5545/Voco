@@ -375,3 +375,73 @@ struct DictionaryConfirmationView: View {
         .padding(.horizontal, 12)
     }
 }
+
+// MARK: - Candidate Review View
+
+struct CandidateReviewView: View {
+    let review: VocoCandidateReview
+    let onSelect: (String) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.yellow)
+
+                Text("\(confidenceText) review")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+
+                Spacer(minLength: 0)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+            }
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 5) {
+                    ForEach(Array(review.candidates.prefix(5).enumerated()), id: \.offset) { index, candidate in
+                        Button {
+                            onSelect(candidate)
+                        } label: {
+                            HStack(alignment: .top, spacing: 7) {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.black.opacity(0.75))
+                                    .frame(width: 16, height: 16)
+                                    .background(Circle().fill(Color.white.opacity(index == 0 ? 0.9 : 0.55)))
+
+                                Text(candidate)
+                                    .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))
+                                    .foregroundColor(.white.opacity(index == 0 ? 0.95 : 0.78))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Color.white.opacity(index == 0 ? 0.16 : 0.08))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var confidenceText: String {
+        "\(Int((review.confidenceScore * 100).rounded()))%"
+    }
+}

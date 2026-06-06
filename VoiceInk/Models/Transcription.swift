@@ -28,6 +28,44 @@ final class Transcription {
     var powerModeName: String?
     var powerModeEmoji: String?
     var transcriptionStatus: String?
+    var rawTranscript: String?
+    var normalizedTranscript: String?
+    var activeContextIDsJSON: String?
+    var canonicalizationReplacementsJSON: String?
+    var canonicalizationSuggestionsJSON: String?
+    var asrEngineID: String?
+    var languageMode: String?
+    var confidenceScore: Double?
+    var confidenceRoute: String?
+    var confidenceReasonsJSON: String?
+    var hypothesesJSON: String?
+    var selectedCandidate: String?
+    var userCorrectionDistance: Double?
+
+    var activeContextIDs: [String] {
+        get { Self.decodeStringArray(activeContextIDsJSON) }
+        set { activeContextIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var canonicalizationReplacements: [VocoReplacement] {
+        get { Self.decodeReplacements(canonicalizationReplacementsJSON) }
+        set { canonicalizationReplacementsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var canonicalizationSuggestions: [VocoReplacement] {
+        get { Self.decodeReplacements(canonicalizationSuggestionsJSON) }
+        set { canonicalizationSuggestionsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypotheses: [String] {
+        get { Self.decodeStringArray(hypothesesJSON) }
+        set { hypothesesJSON = Self.encodeJSON(newValue) }
+    }
+
+    var confidenceReasons: [String] {
+        get { Self.decodeStringArray(confidenceReasonsJSON) }
+        set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
+    }
 
     init(text: String,
          duration: TimeInterval,
@@ -42,6 +80,18 @@ final class Transcription {
          aiRequestUserMessage: String? = nil,
          powerModeName: String? = nil,
          powerModeEmoji: String? = nil,
+         rawTranscript: String? = nil,
+         normalizedTranscript: String? = nil,
+         activeContextIDs: [String] = [],
+         canonicalizationReplacements: [VocoReplacement] = [],
+         canonicalizationSuggestions: [VocoReplacement] = [],
+         asrEngineID: String? = nil,
+         languageMode: String? = nil,
+         confidenceScore: Double? = nil,
+         confidenceAssessment: VocoConfidenceAssessment? = nil,
+         hypotheses: [String] = [],
+         selectedCandidate: String? = nil,
+         userCorrectionDistance: Double? = nil,
          transcriptionStatus: TranscriptionStatus = .pending) {
         self.id = UUID()
         self.text = text
@@ -58,7 +108,41 @@ final class Transcription {
         self.aiRequestUserMessage = aiRequestUserMessage
         self.powerModeName = powerModeName
         self.powerModeEmoji = powerModeEmoji
+        self.rawTranscript = rawTranscript
+        self.normalizedTranscript = normalizedTranscript
+        self.activeContextIDsJSON = Self.encodeJSON(activeContextIDs)
+        self.canonicalizationReplacementsJSON = Self.encodeJSON(canonicalizationReplacements)
+        self.canonicalizationSuggestionsJSON = Self.encodeJSON(canonicalizationSuggestions)
+        self.asrEngineID = asrEngineID
+        self.languageMode = languageMode
+        self.confidenceScore = confidenceAssessment?.score ?? confidenceScore
+        self.confidenceRoute = confidenceAssessment?.route.rawValue
+        self.confidenceReasonsJSON = Self.encodeJSON(confidenceAssessment?.reasons ?? [])
+        self.hypothesesJSON = Self.encodeJSON(confidenceAssessment?.candidates ?? hypotheses)
+        self.selectedCandidate = confidenceAssessment?.selectedCandidate ?? selectedCandidate
+        self.userCorrectionDistance = userCorrectionDistance
         self.transcriptionStatus = transcriptionStatus.rawValue
+    }
+
+    func recordASRMetadata(
+        rawTranscript: String?,
+        normalizationResult: VocoNormalizationResult,
+        confidenceAssessment: VocoConfidenceAssessment,
+        asrEngineID: String?,
+        languageMode: String?
+    ) {
+        self.rawTranscript = rawTranscript
+        self.normalizedTranscript = normalizationResult.normalizedText
+        self.activeContextIDs = normalizationResult.activeContextIDs
+        self.canonicalizationReplacements = normalizationResult.replacements
+        self.canonicalizationSuggestions = normalizationResult.suggestions
+        self.asrEngineID = asrEngineID
+        self.languageMode = languageMode
+        self.confidenceScore = confidenceAssessment.score
+        self.confidenceRoute = confidenceAssessment.route.rawValue
+        self.confidenceReasons = confidenceAssessment.reasons
+        self.hypotheses = confidenceAssessment.candidates
+        self.selectedCandidate = confidenceAssessment.selectedCandidate
     }
 
     func markAsCanceledTranscription(
@@ -80,5 +164,42 @@ final class Transcription {
         promptName = nil
         aiRequestSystemMessage = nil
         aiRequestUserMessage = nil
+        normalizedTranscript = nil
+        activeContextIDs = []
+        canonicalizationReplacements = []
+        canonicalizationSuggestions = []
+        asrEngineID = nil
+        languageMode = nil
+        confidenceScore = nil
+        confidenceRoute = nil
+        confidenceReasons = []
+        hypotheses = []
+        selectedCandidate = nil
+        userCorrectionDistance = nil
+    }
+
+    private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeStringArray(_ json: String?) -> [String] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([String].self, from: data)
+        else {
+            return []
+        }
+        return values
+    }
+
+    private static func decodeReplacements(_ json: String?) -> [VocoReplacement] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let values = try? JSONDecoder().decode([VocoReplacement].self, from: data)
+        else {
+            return []
+        }
+        return values
     }
 }

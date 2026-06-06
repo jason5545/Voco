@@ -155,6 +155,7 @@ class AudioTranscriptionManager: ObservableObject {
             item.status = .processing(phase: .transcribing)
             let transcriptionStart = Date()
             var text = try await serviceRegistry.transcribe(audioURL: permanentURL, model: currentModel)
+            let rawASRText = text
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
             text = TranscriptionOutputFilter.filter(text)
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -170,6 +171,17 @@ class AudioTranscriptionManager: ObservableObject {
 
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
+            let normalizationResult = VocoCanonicalizationPipeline.normalize(
+                cleanedText,
+                rawTranscript: rawASRText,
+                model: currentModel,
+                modelContext: modelContext
+            )
+            let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
+                for: normalizationResult,
+                rawTranscript: rawASRText
+            )
+            text = normalizationResult.normalizedText
             try Task.checkCancellation()
 
             // Handle enhancement if enabled
@@ -182,7 +194,7 @@ class AudioTranscriptionManager: ObservableObject {
                 do {
                     let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(text)
                     transcription = Transcription(
-                        text: cleanedText,
+                        text: text,
                         duration: duration,
                         enhancedText: enhancedText,
                         audioFileURL: permanentURL.absoluteString,
@@ -194,12 +206,20 @@ class AudioTranscriptionManager: ObservableObject {
                         aiRequestSystemMessage: enhancementService.lastSystemMessageSent,
                         aiRequestUserMessage: enhancementService.lastUserMessageSent,
                         powerModeName: powerModeName,
-                        powerModeEmoji: powerModeEmoji
+                        powerModeEmoji: powerModeEmoji,
+                        rawTranscript: rawASRText,
+                        normalizedTranscript: normalizationResult.normalizedText,
+                        activeContextIDs: normalizationResult.activeContextIDs,
+                        canonicalizationReplacements: normalizationResult.replacements,
+                        canonicalizationSuggestions: normalizationResult.suggestions,
+                        asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: currentModel),
+                        languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                        confidenceAssessment: confidenceAssessment
                     )
                 } catch {
                     logger.error("Enhancement failed: \(error.localizedDescription, privacy: .public)")
                     transcription = Transcription(
-                        text: cleanedText,
+                        text: text,
                         duration: duration,
                         enhancedText: "Enhancement failed: \(error.localizedDescription)",
                         audioFileURL: permanentURL.absoluteString,
@@ -207,19 +227,35 @@ class AudioTranscriptionManager: ObservableObject {
                         promptName: nil,
                         transcriptionDuration: transcriptionDuration,
                         powerModeName: powerModeName,
-                        powerModeEmoji: powerModeEmoji
+                        powerModeEmoji: powerModeEmoji,
+                        rawTranscript: rawASRText,
+                        normalizedTranscript: normalizationResult.normalizedText,
+                        activeContextIDs: normalizationResult.activeContextIDs,
+                        canonicalizationReplacements: normalizationResult.replacements,
+                        canonicalizationSuggestions: normalizationResult.suggestions,
+                        asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: currentModel),
+                        languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                        confidenceAssessment: confidenceAssessment
                     )
                 }
             } else {
                 transcription = Transcription(
-                    text: cleanedText,
+                    text: text,
                     duration: duration,
                     audioFileURL: permanentURL.absoluteString,
                     transcriptionModelName: currentModel.displayName,
                     promptName: nil,
                     transcriptionDuration: transcriptionDuration,
                     powerModeName: powerModeName,
-                    powerModeEmoji: powerModeEmoji
+                    powerModeEmoji: powerModeEmoji,
+                    rawTranscript: rawASRText,
+                    normalizedTranscript: normalizationResult.normalizedText,
+                    activeContextIDs: normalizationResult.activeContextIDs,
+                    canonicalizationReplacements: normalizationResult.replacements,
+                    canonicalizationSuggestions: normalizationResult.suggestions,
+                    asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: currentModel),
+                    languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                    confidenceAssessment: confidenceAssessment
                 )
             }
 

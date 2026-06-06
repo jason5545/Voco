@@ -11,6 +11,17 @@ struct WordSubstitution {
     let replacement: String
 }
 
+struct VocoCandidateReview: Identifiable {
+    let id = UUID()
+    let candidates: [String]
+    let confidenceScore: Double
+    let reasons: [String]
+
+    var defaultCandidate: String? {
+        candidates.first
+    }
+}
+
 // MARK: - Fork-specific stored properties via associated objects
 // Since Swift extensions cannot add stored properties,
 // we use a dedicated holder class initialized in VoiceInkEngine.
@@ -24,6 +35,8 @@ class ForkEngineState: ObservableObject {
     @Published var isEditMode: Bool = false
     @Published var editModeSelectedText: String?
     @Published var pendingDictionaryEntry: WordSubstitution?
+    @Published var pendingCandidateReview: VocoCandidateReview?
+    var pendingCandidateContinuation: CheckedContinuation<String?, Never>?
     /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
     var editModeDetectionTask: Task<Void, Never>?
 
@@ -78,6 +91,11 @@ extension VoiceInkEngine {
     var pendingDictionaryEntry: WordSubstitution? {
         get { forkState.pendingDictionaryEntry }
         set { forkState.pendingDictionaryEntry = newValue }
+    }
+
+    var pendingCandidateReview: VocoCandidateReview? {
+        get { forkState.pendingCandidateReview }
+        set { forkState.pendingCandidateReview = newValue }
     }
 }
 

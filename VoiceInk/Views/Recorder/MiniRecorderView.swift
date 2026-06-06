@@ -14,6 +14,7 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     private let controlBarHeight: CGFloat = 40
     private let compactWidth: CGFloat = 184
     private let expandedWidth: CGFloat = 300
+    private let candidateReviewHeight: CGFloat = 120
     private let compactCornerRadius: CGFloat = 20
     private let expandedCornerRadius: CGFloat = 14
 
@@ -53,6 +54,11 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         .frame(height: controlBarHeight)
     }
 
+    private var contentWidth: CGFloat {
+        if stateProvider.pendingCandidateReview != nil { return expandedWidth }
+        return hasLiveTranscript ? expandedWidth : compactWidth
+    }
+
     private var transcriptSection: some View {
         VStack(spacing: 0) {
             if hasLiveTranscript {
@@ -65,7 +71,14 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     var body: some View {
         if windowManager.isVisible {
             VStack(spacing: 0) {
-                if let entry = stateProvider.pendingDictionaryEntry {
+                if let review = stateProvider.pendingCandidateReview {
+                    CandidateReviewView(
+                        review: review,
+                        onSelect: { stateProvider.selectCandidateReview(candidate: $0) },
+                        onDismiss: { stateProvider.dismissCandidateReview() }
+                    )
+                    .frame(height: candidateReviewHeight)
+                } else if let entry = stateProvider.pendingDictionaryEntry {
                     DictionaryConfirmationView(
                         original: entry.original,
                         replacement: entry.replacement,
@@ -78,10 +91,11 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                     controlBar
                 }
             }
-            .frame(width: hasLiveTranscript ? expandedWidth : compactWidth)
+            .frame(width: contentWidth)
             .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: hasLiveTranscript ? expandedCornerRadius : compactCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: contentWidth == expandedWidth ? expandedCornerRadius : compactCornerRadius, style: .continuous))
             .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
+            .animation(.easeInOut(duration: 0.2), value: stateProvider.pendingCandidateReview?.id)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }

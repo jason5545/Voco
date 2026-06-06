@@ -5,6 +5,7 @@
 //  Created by Prakash Joshi on 15/10/2024.
 //
 
+import Foundation
 import Testing
 @testable import Voco
 
@@ -99,6 +100,103 @@ struct VoiceInkTests {
 
         #expect(result.isValid == false)
         #expect(result.reasons.contains(where: { $0 == "short-edit-budget" }))
+    }
+
+    @Test func canonicalizationNormalizesVocoDevelopmentTerms() async throws {
+        let service = VocoCanonicalizationService()
+
+        #expect(service.normalize("我現在用 voice ink 的 fork 做 voco").normalizedText == "我現在用 VoiceInk 的 fork 做 VOCO")
+        #expect(service.normalize("我現在用 qwen three asr 的 mlx 版本").normalizedText == "我現在用 Qwen3-ASR 的 MLX 版本")
+        #expect(service.normalize("我還是會留 whisper.cpp 支援").normalizedText == "我還是會留 whisper.cpp 支援")
+    }
+
+    @Test func canonicalizationNormalizesMixedLanguageMusicTermsWithContext() async throws {
+        let service = VocoCanonicalizationService()
+
+        #expect(service.normalize("我很喜歡 lisa 的紅蓮花").normalizedText == "我很喜歡 LiSA 的紅蓮華")
+        #expect(service.normalize("我覺得 lisa 的 homura 很難唱").normalizedText == "我覺得 LiSA 的炎很難唱")
+    }
+
+    @Test func canonicalizationDoesNotOverreachAmbiguousTerms() async throws {
+        let service = VocoCanonicalizationService()
+
+        let neutral = service.normalize("今天看到火很大")
+        #expect(neutral.normalizedText == "今天看到火很大")
+        #expect(neutral.replacements.isEmpty)
+
+        let ambiguous = service.normalize("今天看到焰很大")
+        #expect(ambiguous.normalizedText == "今天看到焰很大")
+        #expect(ambiguous.replacements.isEmpty)
+        #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
+    }
+
+    @Test func canonicalizationDoesNotExpandCanonicalCJKPhrases() async throws {
+        let service = VocoCanonicalizationService()
+
+        #expect(service.normalize("我昨天又看了鬼滅之刃").normalizedText == "我昨天又看了鬼滅之刃")
+    }
+
+    @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice ink 的 fork 做 voco")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+
+        #expect(assessment.route == .directInsertion)
+        #expect(assessment.score > 0.85)
+        #expect(assessment.selectedCandidate == "我現在用 VoiceInk 的 fork 做 VOCO")
+        #expect(assessment.candidates.first == "我現在用 VoiceInk 的 fork 做 VOCO")
+    }
+
+    @Test func confidenceGateSuggestsReviewForUnresolvedAmbiguousTerms() async throws {
+        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+
+        #expect(result.normalizedText == "今天看到焰很大")
+        #expect(result.suggestions.contains(where: { $0.replacementText == "炎" }))
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("unresolved-suggestions"))
+        #expect(assessment.candidates.contains("今天看到炎很大"))
+    }
+
+    @Test func confidenceGateSuggestsReviewForHeavyNormalization() async throws {
+        let result = VocoCanonicalizationService().normalize("voice ink voco qwen three asr mlx")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+
+        #expect(result.replacements.count >= 4)
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("heavy-normalization"))
+    }
+
+    @Test func transcriptionStoresConfidenceGateMetadata() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 qwen three asr 的 mlx 版本")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: "", duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        #expect(transcription.normalizedTranscript == "我現在用 Qwen3-ASR 的 MLX 版本")
+        #expect(transcription.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue)
+        #expect(transcription.hypotheses.first == "我現在用 Qwen3-ASR 的 MLX 版本")
+        #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
+    }
+
+    @Test func contextPackEnabledIDsDefaultAndPersist() async throws {
+        let suiteName = "VocoCanonicalizationTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults) == VocoCanonicalizationService.defaultActiveContextIDs)
+
+        VocoCanonicalizationService.setEnabledContextPackIDs([], defaults: defaults)
+        #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults).isEmpty)
+
+        VocoCanonicalizationService.setEnabledContextPackIDs(["custom"], defaults: defaults)
+        #expect(VocoCanonicalizationService.enabledContextPackIDs(defaults: defaults) == ["custom"])
     }
 
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {

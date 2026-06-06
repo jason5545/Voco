@@ -47,6 +47,10 @@ extension VoiceInkEngine {
                 self?.forkState.clearEditMode()
                 self?.recordingState = .idle
                 self?.startDictionaryDismissTimer()
+            },
+            requestCandidateReview: { [weak self] assessment in
+                guard let self else { return assessment.selectedCandidate }
+                return await self.requestCandidateReview(assessment)
             }
         )
 
@@ -99,6 +103,41 @@ extension VoiceInkEngine {
         dictionaryDismissTimer = nil
         forkState.pendingDictionaryEntry = nil
         Task { await recorderUIManager?.dismissMiniRecorder() }
+    }
+
+    // MARK: - Candidate Review
+
+    func requestCandidateReview(_ assessment: VocoConfidenceAssessment) async -> String? {
+        guard assessment.route == .reviewSuggested,
+              assessment.candidates.count > 1
+        else {
+            return assessment.selectedCandidate
+        }
+
+        return await withCheckedContinuation { continuation in
+            forkState.pendingCandidateContinuation?.resume(returning: nil)
+            forkState.pendingCandidateReview = VocoCandidateReview(
+                candidates: assessment.candidates,
+                confidenceScore: assessment.score,
+                reasons: assessment.reasons
+            )
+            forkState.pendingCandidateContinuation = continuation
+        }
+    }
+
+    func selectCandidateReview(candidate: String) {
+        resumeCandidateReview(returning: candidate)
+    }
+
+    func dismissCandidateReview() {
+        resumeCandidateReview(returning: forkState.pendingCandidateReview?.defaultCandidate)
+    }
+
+    private func resumeCandidateReview(returning candidate: String?) {
+        let continuation = forkState.pendingCandidateContinuation
+        forkState.pendingCandidateContinuation = nil
+        forkState.pendingCandidateReview = nil
+        continuation?.resume(returning: candidate)
     }
 
     /// Starts a 15-second timer that stages the dictionary entry on expiry (instead of discarding).

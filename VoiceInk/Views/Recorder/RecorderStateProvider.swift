@@ -8,6 +8,9 @@ protocol RecorderStateProvider: AnyObject {
     var enhancementService: AIEnhancementService? { get }
     var isEditMode: Bool { get }
     var pendingDictionaryEntry: WordSubstitution? { get }
+    var pendingCandidateReview: VocoCandidateReview? { get }
     func confirmDictionaryEntry()
     func dismissDictionaryEntry()
+    func selectCandidateReview(candidate: String)
+    func dismissCandidateReview()
 }

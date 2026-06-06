@@ -59,6 +59,7 @@ enum AppDefaults {
             // Context-Aware Insertion (fork feature)
             "ContextAwareInsertionEnabled": false,
             "ContextAwareLLMMergeEnabled": false,
+            VocoCanonicalizationService.enabledContextPackIDsKey: VocoCanonicalizationService.defaultActiveContextIDs,
 
             // Chinese Post-Processing
             "ChinesePostProcessingEnabled": false,

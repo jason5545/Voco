@@ -8,6 +8,7 @@ struct TranscriptionInfoPanel: View {
     var body: some View {
         Form {
             detailsSection
+            dictationSection
             aiRequestSection
         }
         .formStyle(.grouped)
@@ -85,6 +86,83 @@ struct TranscriptionInfoPanel: View {
         }
     }
 
+    // MARK: - Dictation Section
+
+    @ViewBuilder
+    private var dictationSection: some View {
+        if hasDictationMetadata {
+            Section {
+                if let asrEngineID = transcription.asrEngineID, !asrEngineID.isEmpty {
+                    metadataRow(
+                        icon: "waveform",
+                        label: "ASR Engine",
+                        value: asrEngineID
+                    )
+                }
+
+                if let languageMode = transcription.languageMode, !languageMode.isEmpty {
+                    metadataRow(
+                        icon: "globe.asia.australia.fill",
+                        label: "Language",
+                        value: languageMode
+                    )
+                }
+
+                if let confidenceScore = transcription.confidenceScore {
+                    metadataRow(
+                        icon: "gauge.with.dots.needle.bottom.50percent",
+                        label: "Confidence",
+                        value: confidenceDisplay(score: confidenceScore)
+                    )
+                }
+
+                if let route = transcription.confidenceRoute, !route.isEmpty {
+                    metadataRow(
+                        icon: "arrow.triangle.branch",
+                        label: "Route",
+                        value: routeDisplay(route)
+                    )
+                }
+
+                if !transcription.confidenceReasons.isEmpty {
+                    metadataRow(
+                        icon: "exclamationmark.triangle.fill",
+                        label: "Signals",
+                        value: transcription.confidenceReasons.joined(separator: ", ")
+                    )
+                }
+
+                if !transcription.activeContextIDs.isEmpty {
+                    metadataRow(
+                        icon: "square.stack.3d.up.fill",
+                        label: "Contexts",
+                        value: transcription.activeContextIDs.joined(separator: ", ")
+                    )
+                }
+
+                if !transcription.canonicalizationReplacements.isEmpty {
+                    replacementList(
+                        title: "Replacements",
+                        replacements: transcription.canonicalizationReplacements
+                    )
+                }
+
+                if !transcription.canonicalizationSuggestions.isEmpty {
+                    replacementList(
+                        title: "Suggestions",
+                        replacements: transcription.canonicalizationSuggestions
+                    )
+                }
+
+                if !transcription.hypotheses.isEmpty {
+                    candidateList(transcription.hypotheses)
+                }
+            } header: {
+                Text("Dictation")
+            }
+        }
+    }
+
     // MARK: - AI Request Section
 
     @ViewBuilder
@@ -139,6 +217,18 @@ struct TranscriptionInfoPanel: View {
         return parts.joined(separator: "\n\n")
     }
 
+    private var hasDictationMetadata: Bool {
+        transcription.rawTranscript != nil ||
+        transcription.normalizedTranscript != nil ||
+        transcription.asrEngineID != nil ||
+        transcription.languageMode != nil ||
+        transcription.confidenceScore != nil ||
+        !transcription.activeContextIDs.isEmpty ||
+        !transcription.canonicalizationReplacements.isEmpty ||
+        !transcription.canonicalizationSuggestions.isEmpty ||
+        !transcription.hypotheses.isEmpty
+    }
+
     private func metadataRow(icon: String, label: String, value: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
@@ -155,7 +245,67 @@ struct TranscriptionInfoPanel: View {
             Text(value)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private func replacementList(title: String, replacements: [VocoReplacement]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            ForEach(Array(replacements.enumerated()), id: \.offset) { _, replacement in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(replacement.originalText) -> \(replacement.replacementText)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .textSelection(.enabled)
+
+                    Text("\(confidenceDisplay(score: replacement.confidence)) · \(replacement.reason)")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func candidateList(_ candidates: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Candidates")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Color.secondary.opacity(0.12)))
+
+                    Text(candidate)
+                        .font(.system(size: 12, weight: .regular))
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func confidenceDisplay(score: Double) -> String {
+        "\(Int((score * 100).rounded()))%"
+    }
+
+    private func routeDisplay(_ route: String) -> String {
+        switch VocoConfidenceRoute(rawValue: route) {
+        case .directInsertion:
+            return "Direct insertion"
+        case .reviewSuggested:
+            return "Review suggested"
+        case .none:
+            return route
         }
     }
 

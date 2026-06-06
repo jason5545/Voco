@@ -165,6 +165,7 @@ class RecorderUIManager: ObservableObject {
             engine.forkState.editModeDetectionTask = nil
             engine.forkState.clearEditMode()
             engine.forkState.pendingDictionaryEntry = nil
+            engine.dismissCandidateReview()
             isMiniRecorderVisible = false
         }
 
@@ -192,6 +193,7 @@ class RecorderUIManager: ObservableObject {
             engine.forkState.editModeDetectionTask = nil
             engine.forkState.clearEditMode()
             engine.forkState.pendingDictionaryEntry = nil
+            engine.dismissCandidateReview()
             engine.recordingState = .idle
         }
     }

@@ -18,7 +18,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     }
 
     private var displayState: DisplayState {
-        if stateProvider.pendingDictionaryEntry != nil { return .liveText }
+        if stateProvider.pendingDictionaryEntry != nil || stateProvider.pendingCandidateReview != nil { return .liveText }
         switch stateProvider.recordingState {
         case .recording:
             let shouldShowLive = showLiveTextPreview && !stateProvider.partialTranscript.isEmpty
@@ -53,8 +53,12 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     private let transcriptSideExpansion: CGFloat = 110
     private let activeHeightBonus: CGFloat = 6
     private let transcriptPanelHeight: CGFloat = 57
+    private let candidatePanelHeight: CGFloat = 132
 
     private var mainRowHeight: CGFloat { notchHeight + activeHeightBonus }
+    private var livePanelHeight: CGFloat {
+        stateProvider.pendingCandidateReview == nil ? transcriptPanelHeight : candidatePanelHeight
+    }
 
     // MARK: - Pill Dimensions
 
@@ -70,7 +74,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         switch displayState {
         case .collapsed: return 0
         case .active:    return mainRowHeight
-        case .liveText:  return mainRowHeight + transcriptPanelHeight
+        case .liveText:  return mainRowHeight + livePanelHeight
         }
     }
 
@@ -162,7 +166,14 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         VStack(spacing: 0) {
             if displayState == .liveText {
                 Divider().background(Color.white.opacity(0.15))
-                if let entry = stateProvider.pendingDictionaryEntry {
+                if let review = stateProvider.pendingCandidateReview {
+                    CandidateReviewView(
+                        review: review,
+                        onSelect: { stateProvider.selectCandidateReview(candidate: $0) },
+                        onDismiss: { stateProvider.dismissCandidateReview() }
+                    )
+                    .padding(.vertical, 4)
+                } else if let entry = stateProvider.pendingDictionaryEntry {
                     DictionaryConfirmationView(
                         original: entry.original,
                         replacement: entry.replacement,
@@ -176,7 +187,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                 }
             }
         }
-        .frame(height: displayState == .liveText ? transcriptPanelHeight : 0)
+        .frame(height: displayState == .liveText ? livePanelHeight : 0)
         .clipped()
     }
 }

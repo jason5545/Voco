@@ -17,8 +17,18 @@ struct TranscriptionDetailView: View {
         VStack(spacing: 12) {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let rawTranscript = transcription.rawTranscript,
+                       !rawTranscript.isEmpty,
+                       rawTranscript != transcription.text {
+                        MessageBubble(
+                            label: "Raw ASR",
+                            text: rawTranscript,
+                            isEnhanced: false
+                        )
+                    }
+
                     MessageBubble(
-                        label: "Original",
+                        label: transcription.rawTranscript == nil ? "Original" : "Normalized",
                         text: transcription.text,
                         isEnhanced: false
                     )

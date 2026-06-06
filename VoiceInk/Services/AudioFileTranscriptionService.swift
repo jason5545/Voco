@@ -46,6 +46,7 @@ class AudioTranscriptionService: ObservableObject {
         do {
             let transcriptionStart = Date()
             var text = try await serviceRegistry.transcribe(audioURL: url, model: model)
+            let rawASRText = text
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
             text = TranscriptionOutputFilter.filter(text)
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,6 +63,17 @@ class AudioTranscriptionService: ObservableObject {
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             logger.notice("✅ Word replacements applied")
             let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
+            let normalizationResult = VocoCanonicalizationPipeline.normalize(
+                cleanedText,
+                rawTranscript: rawASRText,
+                model: model,
+                modelContext: modelContext
+            )
+            let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
+                for: normalizationResult,
+                rawTranscript: rawASRText
+            )
+            text = normalizationResult.normalizedText
 
             let audioAsset = AVURLAsset(url: url)
             let duration = CMTimeGetSeconds(try await audioAsset.load(.duration))
@@ -83,7 +95,7 @@ class AudioTranscriptionService: ObservableObject {
             let permanentURLString = permanentURL.absoluteString
 
             // Apply prompt detection for trigger words
-            let originalText = cleanedText
+            let originalText = text
             var promptDetectionResult: PromptDetectionService.PromptDetectionResult? = nil
 
             if let enhancementService = enhancementService, enhancementService.isConfigured {
@@ -112,7 +124,15 @@ class AudioTranscriptionService: ObservableObject {
                         aiRequestSystemMessage: enhancementService.lastSystemMessageSent,
                         aiRequestUserMessage: enhancementService.lastUserMessageSent,
                         powerModeName: powerModeName,
-                        powerModeEmoji: powerModeEmoji
+                        powerModeEmoji: powerModeEmoji,
+                        rawTranscript: rawASRText,
+                        normalizedTranscript: normalizationResult.normalizedText,
+                        activeContextIDs: normalizationResult.activeContextIDs,
+                        canonicalizationReplacements: normalizationResult.replacements,
+                        canonicalizationSuggestions: normalizationResult.suggestions,
+                        asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: model),
+                        languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                        confidenceAssessment: confidenceAssessment
                     )
                     modelContext.insert(newTranscription)
                     do {
@@ -143,7 +163,15 @@ class AudioTranscriptionService: ObservableObject {
                         promptName: nil,
                         transcriptionDuration: transcriptionDuration,
                         powerModeName: powerModeName,
-                        powerModeEmoji: powerModeEmoji
+                        powerModeEmoji: powerModeEmoji,
+                        rawTranscript: rawASRText,
+                        normalizedTranscript: normalizationResult.normalizedText,
+                        activeContextIDs: normalizationResult.activeContextIDs,
+                        canonicalizationReplacements: normalizationResult.replacements,
+                        canonicalizationSuggestions: normalizationResult.suggestions,
+                        asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: model),
+                        languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                        confidenceAssessment: confidenceAssessment
                     )
                     modelContext.insert(newTranscription)
                     do {
@@ -169,7 +197,15 @@ class AudioTranscriptionService: ObservableObject {
                     promptName: nil,
                     transcriptionDuration: transcriptionDuration,
                     powerModeName: powerModeName,
-                    powerModeEmoji: powerModeEmoji
+                    powerModeEmoji: powerModeEmoji,
+                    rawTranscript: rawASRText,
+                    normalizedTranscript: normalizationResult.normalizedText,
+                    activeContextIDs: normalizationResult.activeContextIDs,
+                    canonicalizationReplacements: normalizationResult.replacements,
+                    canonicalizationSuggestions: normalizationResult.suggestions,
+                    asrEngineID: VocoCanonicalizationPipeline.asrEngineID(for: model),
+                    languageMode: VocoCanonicalizationPipeline.selectedLanguageMode(),
+                    confidenceAssessment: confidenceAssessment
                 )
                 modelContext.insert(newTranscription)
                 do {

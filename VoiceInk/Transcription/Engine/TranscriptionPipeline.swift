@@ -40,6 +40,7 @@ class TranscriptionPipeline {
     ///   - onCancel: Called when cancellation is detected to cancel active session state.
     ///   - onDismiss: Called at the end to dismiss the recorder panel.
     ///   - onEditModeComplete: Called when Edit Mode finishes, with optional dictionary suggestion.
+    ///   - requestCandidateReview: Called when confidence routing wants the user to choose among candidates.
     func run(
         transcription: Transcription,
         audioURL: URL,
@@ -52,7 +53,8 @@ class TranscriptionPipeline {
         shouldCancel: () -> Bool,
         onCancel: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
-        onEditModeComplete: ((WordSubstitution?) -> Void)? = nil
+        onEditModeComplete: ((WordSubstitution?) -> Void)? = nil,
+        requestCandidateReview: ((VocoConfidenceAssessment) async -> String?)? = nil
     ) async {
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
@@ -112,6 +114,10 @@ class TranscriptionPipeline {
             } else {
                 text = try await serviceRegistry.transcribe(audioURL: audioURL, model: model)
             }
+            let rawASRText = text
+            transcription.rawTranscript = rawASRText
+            transcription.asrEngineID = VocoCanonicalizationPipeline.asrEngineID(for: model)
+            transcription.languageMode = VocoCanonicalizationPipeline.selectedLanguageMode()
             logger.notice("📝 Transcript: \(text, privacy: .private)")
             text = TranscriptionOutputFilter.filter(text)
             logger.notice("📝 Output filter result: \(text, privacy: .private)")
@@ -184,6 +190,34 @@ class TranscriptionPipeline {
                 logger.notice("📝 User cleanup preferences applied: \(cleanedText, privacy: .private)")
             }
             text = cleanedText
+
+            let normalizationResult = VocoCanonicalizationPipeline.normalize(
+                text,
+                rawTranscript: rawASRText,
+                model: model,
+                modelContext: modelContext,
+                transcription: transcription
+            )
+            text = normalizationResult.normalizedText
+            if !normalizationResult.replacements.isEmpty || !normalizationResult.suggestions.isEmpty {
+                logger.notice(
+                    "📝 Canonicalization: replacements=\(normalizationResult.replacements.count, privacy: .public), suggestions=\(normalizationResult.suggestions.count, privacy: .public), result=\(text, privacy: .private)"
+                )
+            }
+            let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
+                for: normalizationResult,
+                rawTranscript: rawASRText
+            )
+
+            if !isEditMode,
+               confidenceAssessment.route == .reviewSuggested,
+               let requestCandidateReview,
+               let selectedCandidate = await requestCandidateReview(confidenceAssessment),
+               !selectedCandidate.isEmpty {
+                text = selectedCandidate
+                transcription.selectedCandidate = selectedCandidate
+                logger.notice("📝 Candidate review selected text: \(text, privacy: .private)")
+            }
 
             let actualDuration = preAudioDuration
 
