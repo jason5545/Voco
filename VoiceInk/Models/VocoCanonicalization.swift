@@ -124,10 +124,35 @@ struct VocoHypothesis: Codable, Equatable, Identifiable {
     let label: String
     let source: VocoHypothesisSource
     let confidenceScore: Double?
+    let divergenceFromRecommended: Double?
     let reasons: [String]
     let activeContextIDs: [String]
     let appliedTermIDs: [String]
     let requiresReview: Bool
+
+    init(
+        id: String,
+        text: String,
+        label: String,
+        source: VocoHypothesisSource,
+        confidenceScore: Double?,
+        divergenceFromRecommended: Double? = nil,
+        reasons: [String],
+        activeContextIDs: [String],
+        appliedTermIDs: [String],
+        requiresReview: Bool
+    ) {
+        self.id = id
+        self.text = text
+        self.label = label
+        self.source = source
+        self.confidenceScore = confidenceScore
+        self.divergenceFromRecommended = divergenceFromRecommended
+        self.reasons = reasons
+        self.activeContextIDs = activeContextIDs
+        self.appliedTermIDs = appliedTermIDs
+        self.requiresReview = requiresReview
+    }
 
     var sourceDisplayName: String {
         source.displayName
@@ -332,6 +357,11 @@ enum VocoHypothesisDisplayFormatter {
 
         if let confidenceScore = hypothesis.confidenceScore {
             parts.append("Confidence \(percent(confidenceScore))")
+        }
+
+        if let divergence = hypothesis.divergenceFromRecommended,
+           divergence > 0 {
+            parts.append("Delta \(percent(divergence))")
         }
 
         let reasons = VocoSignalDisplayFormatter.displayReasons(for: hypothesis.reasons)

@@ -205,6 +205,7 @@ struct VoiceInkTests {
         #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
         #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .suggestedRepair])
         #expect(assessment.hypothesisDetails[1].appliedTermIDs.contains("song.homura"))
+        #expect((assessment.hypothesisDetails[1].divergenceFromRecommended ?? 0) > 0)
     }
 
     @Test func confidenceGateRoutesInactiveContextSuggestionsToReview() async throws {
@@ -217,6 +218,7 @@ struct VoiceInkTests {
         #expect(assessment.candidates == ["我剛剛用 voice anc 測了一下", "我剛剛用 VoiceInk 測了一下"])
         #expect(assessment.candidateLabels == ["Recommended", "With suggestions"])
         #expect(assessment.hypothesisDetails[1].appliedTermIDs.contains("product.voiceink"))
+        #expect((assessment.hypothesisDetails[1].divergenceFromRecommended ?? 0) > 0)
     }
 
     @Test func confidenceGateSuggestsReviewForHeavyNormalization() async throws {
@@ -280,7 +282,9 @@ struct VoiceInkTests {
         #expect(rescue.appliedTermIDs == ["product.voiceink"])
         #expect(rescue.requiresReview)
         #expect(rescue.reasons.contains("segment-rescue"))
+        #expect((rescue.divergenceFromRecommended ?? 0) > 0)
         #expect(VocoHypothesisDisplayFormatter.summary(for: rescue)?.contains("Segment rescue") == true)
+        #expect(VocoHypothesisDisplayFormatter.summary(for: rescue)?.contains("Delta") == true)
     }
 
     @Test func hypothesisManagerKeepsRawASRAsTraceableCandidate() async throws {
@@ -401,6 +405,7 @@ struct VoiceInkTests {
                 label: "Segment rescue",
                 source: .segmentRescue,
                 confidenceScore: 0.86,
+                divergenceFromRecommended: 0.25,
                 reasons: ["segment-rescue", "raw-cleanup-drift"],
                 activeContextIDs: [
                     VocoCanonicalizationService.defaultContextPackID,
@@ -414,6 +419,7 @@ struct VoiceInkTests {
                 label: "Raw ASR",
                 source: .rawASR,
                 confidenceScore: 0.86,
+                divergenceFromRecommended: 0.18,
                 reasons: ["raw-cleanup-drift"],
                 activeContextIDs: [],
                 appliedTermIDs: [],
@@ -446,11 +452,11 @@ struct VoiceInkTests {
         #expect(csv.contains("Recommended: 我現在用 VoiceInk | Segment rescue: 我現在用 VoiceInk rescue | Raw ASR: 我現在用 voice ink"))
         #expect(csv.contains("Candidate Details"))
         #expect(csv.contains("Recommended / AUTO + context: Confidence 86%"))
-        #expect(csv.contains("Segment rescue / Segment rescue: Confidence 86%"))
+        #expect(csv.contains("Segment rescue / Segment rescue: Confidence 86% · Delta 25%"))
         #expect(csv.contains("Terms product.voiceink"))
         #expect(csv.contains("Contexts VOCO Development, Power Mode"))
         #expect(csv.contains("Review required"))
-        #expect(csv.contains("Raw ASR / Raw ASR: Confidence 86%"))
+        #expect(csv.contains("Raw ASR / Raw ASR: Confidence 86% · Delta 18%"))
         #expect(csv.contains("Candidate Source Counts"))
         #expect(csv.contains("Review Required Candidates"))
         #expect(csv.contains("Candidate Divergence Ratio"))
@@ -932,6 +938,7 @@ struct VoiceInkTests {
             label: "With suggestions",
             source: .suggestedRepair,
             confidenceScore: 0.624,
+            divergenceFromRecommended: 0.18,
             reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"],
             activeContextIDs: [
                 VocoCanonicalizationService.defaultContextPackID,
@@ -944,7 +951,7 @@ struct VoiceInkTests {
 
         #expect(
             VocoHypothesisDisplayFormatter.summary(for: hypothesis) ==
-                "Confidence 62% · Needs choice, High-risk term · Terms song.homura, artist.lisa · Contexts VOCO Development, Power Mode · Review required"
+                "Confidence 62% · Delta 18% · Needs choice, High-risk term · Terms song.homura, artist.lisa · Contexts VOCO Development, Power Mode · Review required"
         )
 
         let empty = VocoHypothesis(
@@ -959,6 +966,28 @@ struct VoiceInkTests {
             requiresReview: false
         )
         #expect(VocoHypothesisDisplayFormatter.summary(for: empty) == nil)
+    }
+
+    @Test func hypothesisDecodesLegacyPayloadWithoutDivergence() async throws {
+        let json = """
+        {
+          "id": "autoContext",
+          "text": "我現在用 VoiceInk",
+          "label": "Recommended",
+          "source": "autoContext",
+          "confidenceScore": 0.9,
+          "reasons": ["alias-match"],
+          "activeContextIDs": ["builtin.voco-development"],
+          "appliedTermIDs": ["product.voiceink"],
+          "requiresReview": false
+        }
+        """
+
+        let hypothesis = try JSONDecoder().decode(VocoHypothesis.self, from: Data(json.utf8))
+
+        #expect(hypothesis.source == .autoContext)
+        #expect(hypothesis.divergenceFromRecommended == nil)
+        #expect(hypothesis.text == "我現在用 VoiceInk")
     }
 
     @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {

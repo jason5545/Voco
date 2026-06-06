@@ -80,6 +80,10 @@ enum VocoHypothesisManagerService {
                     label: draft.label,
                     source: draft.source,
                     confidenceScore: confidenceScore,
+                    divergenceFromRecommended: divergenceFromRecommended(
+                        for: draft.text,
+                        recommended: normalized
+                    ),
                     reasons: draft.source == .segmentRescue ? ["segment-rescue"] + reasons : reasons,
                     activeContextIDs: normalizationResult.activeContextIDs,
                     appliedTermIDs: deduplicated(draft.termIDs),
@@ -166,6 +170,27 @@ enum VocoHypothesisManagerService {
         }
 
         return result
+    }
+
+    private static func divergenceFromRecommended(
+        for candidate: String,
+        recommended: String
+    ) -> Double? {
+        let candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recommended = recommended.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty,
+              !recommended.isEmpty,
+              candidate.localizedCaseInsensitiveCompare(recommended) != .orderedSame
+        else {
+            return nil
+        }
+
+        return RetranscriptionAnalyticsService.analyze(
+            sourceText: recommended,
+            retranscribedText: candidate,
+            sourceConfidenceScore: nil,
+            retranscribedConfidenceScore: nil
+        ).changeRatio
     }
 
     private static func deduplicated(_ values: [String]) -> [String] {

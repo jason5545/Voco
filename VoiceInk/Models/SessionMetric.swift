@@ -184,6 +184,11 @@ final class SessionMetric {
     }
 
     static func candidateDivergenceRatio(in hypotheses: [VocoHypothesis]) -> Double? {
+        let storedRatios = hypotheses.compactMap(\.divergenceFromRecommended)
+        if let maxStoredRatio = storedRatios.max() {
+            return maxStoredRatio
+        }
+
         let candidates = uniqueCandidateTexts(from: hypotheses)
         guard candidates.count > 1 else { return nil }
 
