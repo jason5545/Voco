@@ -1152,6 +1152,70 @@ struct VoiceInkTests {
         #expect(transcription.languageMode == VocoCanonicalizationPipeline.selectedLanguageMode())
     }
 
+    @Test @MainActor func canonicalizationPipelineIncludesCorrectionRiskWithoutExistingTranscription() async throws {
+        let context = try makeCanonicalizationPipelineContext()
+        let replacement = WordReplacement(
+            originalText: "jay son",
+            replacementText: "Jason",
+            isEnabled: true
+        )
+        context.insert(replacement)
+        let termID = "word-replacement.\(replacement.id.uuidString.lowercased())"
+
+        let now = Date()
+        for (index, text) in ["jay son", "j son"].enumerated() {
+            let transcription = Transcription(text: text, duration: 0, transcriptionStatus: .completed)
+            transcription.timestamp = now.addingTimeInterval(TimeInterval(-index * 60))
+            transcription.recordCorrectionFeedback(
+                CorrectionFeedbackSignal(
+                    kind: .candidateSelection,
+                    sourceText: text,
+                    proposedText: "Jason",
+                    acceptedText: "Jason",
+                    reason: "candidate-override",
+                    termIDs: [termID]
+                )
+            )
+            context.insert(transcription)
+        }
+        let confirmed = Transcription(text: "jay son", duration: 0, transcriptionStatus: .completed)
+        confirmed.timestamp = now.addingTimeInterval(-180)
+        confirmed.recordCorrectionFeedback(
+            CorrectionFeedbackSignal(
+                kind: .candidateSelection,
+                sourceText: "jay son",
+                proposedText: "Jason",
+                acceptedText: "Jason",
+                reason: "candidate-confirmed",
+                termIDs: [termID]
+            )
+        )
+        context.insert(confirmed)
+
+        let clean = Transcription(text: "沒有修正", duration: 0, transcriptionStatus: .completed)
+        clean.timestamp = now.addingTimeInterval(-240)
+        context.insert(clean)
+        try context.save()
+
+        let model = try #require(TranscriptionModelRegistry.models.first)
+        let output = VocoCanonicalizationPipeline.normalizeWithAssessment(
+            "我現在用 jay son 做測試",
+            rawTranscript: "我現在用 jay son 做測試",
+            model: model,
+            modelContext: context
+        )
+
+        #expect(output.normalizationResult.normalizedText == "我現在用 Jason 做測試")
+        #expect(output.confidenceAssessment.route == .reviewSuggested)
+        #expect(output.confidenceAssessment.correctionRiskProfile?.recentSessionCount == 4)
+        #expect(output.confidenceAssessment.correctionRiskProfile?.correctedSessionCount == 2)
+        #expect(output.confidenceAssessment.correctionRiskProfile?.highRiskTermIDs == [termID])
+        #expect(output.confidenceAssessment.reasons.contains("recent-correction-rate"))
+        #expect(output.confidenceAssessment.reasons.contains("recent-term-corrections"))
+        #expect(output.confidenceAssessment.reviewTriggers.map(\.id).contains("recent-correction-rate"))
+        #expect(output.confidenceAssessment.reviewTriggers.map(\.id).contains("recent-term-corrections"))
+    }
+
     @Test func candidateReviewDisplaysReadableReasonsAndLabels() async throws {
         let hypothesis = VocoHypothesis(
             id: "suggestedRepair",

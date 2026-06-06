@@ -65,16 +65,14 @@ class AudioTranscriptionService: ObservableObject {
             }
 
             let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
-            let normalizationResult = VocoCanonicalizationPipeline.normalize(
+            let normalizedOutput = VocoCanonicalizationPipeline.normalizeWithAssessment(
                 cleanedText,
                 rawTranscript: rawASRText,
                 model: model,
                 modelContext: modelContext
             )
-            let confidenceAssessment = VocoCanonicalizationPipeline.confidenceAssessment(
-                for: normalizationResult,
-                rawTranscript: rawASRText
-            )
+            let normalizationResult = normalizedOutput.normalizationResult
+            let confidenceAssessment = normalizedOutput.confidenceAssessment
             text = normalizationResult.normalizedText
 
             let audioAsset = AVURLAsset(url: url)
