@@ -129,7 +129,7 @@ final class AutoCorrectionStagingService {
                 type: .info,
                 duration: 4.0
             )
-        case 3...:
+        case WordReplacement.learningPromotionThreshold...:
             entry.isEnabled = true
             NotificationManager.shared.showNotification(
                 title: "「\(entry.originalText)」→「\(entry.replacementText)」已自動加入辭典",

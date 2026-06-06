@@ -160,8 +160,12 @@ struct WordReplacementView: View {
                                 ReplacementRow(
                                     original: replacement.originalText,
                                     replacement: replacement.replacementText,
+                                    isEnabled: replacement.isEnabled,
+                                    sourceDisplayName: replacement.sourceDisplayName,
+                                    learningProgressLabel: replacement.learningProgressLabel,
                                     onDelete: { removeReplacement(replacement) },
-                                    onEdit: { editingReplacement = replacement }
+                                    onEdit: { editingReplacement = replacement },
+                                    onApprove: replacement.isLearningCandidate ? { approveReplacement(replacement) } : nil
                                 )
 
                                 if replacement.id != sortedReplacements.last?.id {
@@ -207,6 +211,18 @@ struct WordReplacementView: View {
             // Rollback the delete to restore UI consistency
             modelContext.rollback()
             alertMessage = "Failed to remove replacement: \(error.localizedDescription)"
+            showAlert = true
+        }
+    }
+
+    private func approveReplacement(_ replacement: WordReplacement) {
+        replacement.approveLearningCandidate()
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            alertMessage = "Failed to approve replacement: \(error.localizedDescription)"
             showAlert = true
         }
     }
@@ -299,17 +315,26 @@ struct WordReplacementInfoPopover: View {
 struct ReplacementRow: View {
     let original: String
     let replacement: String
+    let isEnabled: Bool
+    let sourceDisplayName: String
+    let learningProgressLabel: String?
     let onDelete: () -> Void
     let onEdit: () -> Void
+    let onApprove: (() -> Void)?
     @State private var isEditHovered = false
     @State private var isDeleteHovered = false
+    @State private var isApproveHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(original)
-                .font(.system(size: 13))
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(original)
+                    .font(.system(size: 13))
+                    .lineLimit(2)
+
+                statusBadges
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Image(systemName: "arrow.right")
                 .foregroundColor(.secondary)
@@ -321,9 +346,25 @@ struct ReplacementRow: View {
                     .font(.system(size: 13))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 50)
+                    .padding(.trailing, onApprove == nil ? 50 : 78)
 
                 HStack(spacing: 6) {
+                    if let onApprove {
+                        Button(action: onApprove) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundColor(isApproveHovered ? .green : .secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Approve learning candidate")
+                        .onHover { hover in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isApproveHovered = hover
+                            }
+                        }
+                    }
+
                     Button(action: onEdit) {
                         Image(systemName: "pencil.circle.fill")
                             .symbolRenderingMode(.hierarchical)
@@ -358,4 +399,52 @@ struct ReplacementRow: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
     }
-} 
+
+    @ViewBuilder
+    private var statusBadges: some View {
+        HStack(spacing: 6) {
+            badge(
+                icon: isEnabled ? "checkmark.seal.fill" : "pause.circle.fill",
+                text: isEnabled ? "Active" : (learningProgressLabel == nil ? "Inactive" : "Learning"),
+                tint: isEnabled ? .green : .orange
+            )
+
+            if let learningProgressLabel {
+                badge(
+                    icon: "chart.bar.fill",
+                    text: learningProgressLabel,
+                    tint: .orange
+                )
+            }
+
+            badge(
+                icon: sourceIcon,
+                text: sourceDisplayName,
+                tint: .secondary
+            )
+        }
+    }
+
+    private var sourceIcon: String {
+        switch sourceDisplayName {
+        case "Feedback":
+            return "arrow.triangle.2.circlepath"
+        case "Edit Mode":
+            return "text.cursor"
+        default:
+            return "person.fill"
+        }
+    }
+
+    private func badge(icon: String, text: String, tint: Color) -> some View {
+        Label {
+            Text(text)
+                .font(.system(size: 10, weight: .medium))
+        } icon: {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundStyle(tint)
+        .labelStyle(.titleAndIcon)
+    }
+}

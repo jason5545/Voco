@@ -433,6 +433,27 @@ struct VoiceInkTests {
         #expect(entry.isEnabled)
     }
 
+    @Test func wordReplacementLearningStateDisplaysProgressAndApproves() async throws {
+        let replacement = WordReplacement(
+            originalText: "voice anc",
+            replacementText: "VoiceInk",
+            isEnabled: false,
+            source: WordReplacement.sourceCorrectionFeedback
+        )
+        replacement.hitCount = 2
+
+        #expect(replacement.isLearningCandidate)
+        #expect(replacement.sourceDisplayName == "Feedback")
+        #expect(replacement.learningProgressLabel == "2/3")
+
+        replacement.approveLearningCandidate()
+
+        #expect(replacement.isEnabled)
+        #expect(replacement.source == WordReplacement.sourceUser)
+        #expect(replacement.sourceDisplayName == "User")
+        #expect(replacement.learningProgressLabel == nil)
+    }
+
     @Test func editModePollingStateCoalescesAcrossRestartWhilePollIsInFlight() async throws {
         var state = EditModePollingState()
 
