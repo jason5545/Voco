@@ -535,6 +535,8 @@ private struct HistoryCardRow: View {
                             .lineLimit(2)
                             .foregroundColor(.primary)
                     }
+
+                    TranscriptionAssistiveBadgeRow(transcription: transcription)
                 }
 
                 Spacer()

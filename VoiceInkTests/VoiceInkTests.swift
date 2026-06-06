@@ -361,6 +361,77 @@ struct VoiceInkTests {
         #expect(csv.contains("0.200"))
     }
 
+    @Test func historyAssistiveBadgesSummarizeContextAwareSignals() async throws {
+        let replacement = VocoReplacement(
+            originalText: "voice ink",
+            replacementText: "VoiceInk",
+            termID: "product.voiceink",
+            confidence: 0.97,
+            reason: "alias-match",
+            rangeStart: 4,
+            rangeLength: 9
+        )
+        let suggestion = VocoReplacement(
+            originalText: "焰",
+            replacementText: "炎",
+            termID: "song.homura",
+            confidence: 0.68,
+            reason: "context-required",
+            rangeStart: 4,
+            rangeLength: 1
+        )
+        let transcription = Transcription(
+            text: "我現在用 VoiceInk",
+            duration: 1.25,
+            activeContextIDs: [
+                VocoCanonicalizationService.defaultContextPackID,
+                "power-mode:123",
+            ],
+            canonicalizationReplacements: [replacement, replacement],
+            canonicalizationSuggestions: [suggestion],
+            selectedCandidate: "我現在用 VoiceInk",
+            candidateSelectionSource: .timeoutFallback,
+            retranscriptionAnalysis: RetranscriptionAnalysis(
+                editDistance: 6,
+                changeRatio: 0.24,
+                confidenceDelta: 0.18,
+                changeCategory: .meaningfulChange
+            )
+        )
+        transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+
+        let allBadges = TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
+        #expect(allBadges.map(\.title) == [
+            "Review",
+            "Timeout",
+            "Re-run 24%",
+            "2 fixes",
+            "1 choice",
+            "2 contexts",
+        ])
+        #expect(allBadges.map(\.tone) == [
+            .orange,
+            .orange,
+            .purple,
+            .accent,
+            .orange,
+            .secondary,
+        ])
+        #expect(TranscriptionAssistiveBadge.badges(for: transcription).map(\.title) == [
+            "Review",
+            "Timeout",
+            "Re-run 24%",
+        ])
+
+        let directCanonicalized = Transcription(
+            text: "我現在用 VoiceInk",
+            duration: 0.5,
+            canonicalizationReplacements: [replacement]
+        )
+
+        #expect(TranscriptionAssistiveBadge.badges(for: directCanonicalized).map(\.title) == ["1 fix"])
+    }
+
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
         let context = try makeSessionMetricContext()
         let output = makeSessionMetricDictationOutput()
