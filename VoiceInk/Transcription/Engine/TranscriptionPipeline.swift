@@ -54,7 +54,7 @@ class TranscriptionPipeline {
         onCancel: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
         onEditModeComplete: ((WordSubstitution?) -> Void)? = nil,
-        requestCandidateReview: ((VocoConfidenceAssessment) async -> String?)? = nil
+        requestCandidateReview: ((VocoConfidenceAssessment) async -> VocoCandidateSelection?)? = nil
     ) async {
         var finalPastedText: String?
         var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
@@ -211,14 +211,15 @@ class TranscriptionPipeline {
             if !isEditMode,
                confidenceAssessment.route == .reviewSuggested,
                let requestCandidateReview,
-               let selectedCandidate = await requestCandidateReview(confidenceAssessment),
-               !selectedCandidate.isEmpty {
+               let selection = await requestCandidateReview(confidenceAssessment),
+               !selection.candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let feedbackSignal = VocoCandidateReviewService.acceptCandidate(
-                    selectedCandidate,
+                    selection.candidate,
                     for: transcription,
                     normalizationResult: normalizationResult,
                     confidenceAssessment: confidenceAssessment,
-                    rawTranscript: rawASRText
+                    rawTranscript: rawASRText,
+                    selectionSource: selection.source
                 )
                 text = transcription.text
                 CorrectionFeedbackLearningService.stageLearningCandidates(

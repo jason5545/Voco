@@ -49,7 +49,9 @@ extension VoiceInkEngine {
                 self?.startDictionaryDismissTimer()
             },
             requestCandidateReview: { [weak self] assessment in
-                guard let self else { return assessment.selectedCandidate }
+                guard let self else {
+                    return VocoCandidateSelection(candidate: assessment.selectedCandidate, source: .automaticFallback)
+                }
                 return await self.requestCandidateReview(assessment)
             }
         )
@@ -107,9 +109,9 @@ extension VoiceInkEngine {
 
     // MARK: - Candidate Review
 
-    func requestCandidateReview(_ assessment: VocoConfidenceAssessment) async -> String? {
+    func requestCandidateReview(_ assessment: VocoConfidenceAssessment) async -> VocoCandidateSelection? {
         guard let review = VocoCandidateReviewService.review(for: assessment) else {
-            return assessment.selectedCandidate
+            return VocoCandidateSelection(candidate: assessment.selectedCandidate, source: .automaticFallback)
         }
 
         return await withCheckedContinuation { continuation in
@@ -121,20 +123,25 @@ extension VoiceInkEngine {
     }
 
     func selectCandidateReview(candidate: String) {
-        resumeCandidateReview(returning: candidate)
+        resumeCandidateReview(returning: VocoCandidateSelection(candidate: candidate, source: .userSelection))
     }
 
     func dismissCandidateReview() {
-        resumeCandidateReview(returning: forkState.pendingCandidateReview?.timeoutFallbackCandidate)
+        resumeCandidateReview(returning: fallbackSelection(source: .dismissedFallback))
     }
 
-    private func resumeCandidateReview(returning candidate: String?) {
+    private func resumeCandidateReview(returning selection: VocoCandidateSelection?) {
         let continuation = forkState.pendingCandidateContinuation
         forkState.pendingCandidateTimeoutTask?.cancel()
         forkState.pendingCandidateTimeoutTask = nil
         forkState.pendingCandidateContinuation = nil
         forkState.pendingCandidateReview = nil
-        continuation?.resume(returning: candidate)
+        continuation?.resume(returning: selection)
+    }
+
+    private func fallbackSelection(source: VocoCandidateSelectionSource) -> VocoCandidateSelection? {
+        guard let candidate = forkState.pendingCandidateReview?.timeoutFallbackCandidate else { return nil }
+        return VocoCandidateSelection(candidate: candidate, source: source)
     }
 
     private func startCandidateReviewTimeout(for reviewID: UUID) {
@@ -149,7 +156,7 @@ extension VoiceInkEngine {
             guard let self,
                   self.forkState.pendingCandidateReview?.id == reviewID
             else { return }
-            self.resumeCandidateReview(returning: self.forkState.pendingCandidateReview?.timeoutFallbackCandidate)
+            self.resumeCandidateReview(returning: self.fallbackSelection(source: .timeoutFallback))
         }
     }
 

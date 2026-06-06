@@ -83,7 +83,7 @@ class ForkEngineState: ObservableObject {
     @Published var editModeSelectedText: String?
     @Published var pendingDictionaryEntry: WordSubstitution?
     @Published var pendingCandidateReview: VocoCandidateReview?
-    var pendingCandidateContinuation: CheckedContinuation<String?, Never>?
+    var pendingCandidateContinuation: CheckedContinuation<VocoCandidateSelection?, Never>?
     var pendingCandidateTimeoutTask: Task<Void, Never>?
     /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
     var editModeDetectionTask: Task<Void, Never>?

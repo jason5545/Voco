@@ -24,7 +24,7 @@ enum CorrectionFeedbackLearningService {
     static func learningSubstitutions(from signal: CorrectionFeedbackSignal) -> [WordSubstitution] {
         switch signal.kind {
         case .candidateSelection:
-            guard signal.reason != "candidate-confirmed" else { return [] }
+            guard signal.isCorrectiveSignal else { return [] }
             return extractedSubstitutions(from: signal)
         case .retranscriptionChange:
             return extractedSubstitutions(from: signal)

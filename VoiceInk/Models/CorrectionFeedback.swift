@@ -31,9 +31,21 @@ struct CorrectionFeedbackSignal: Codable, Equatable {
     var isCorrectiveSignal: Bool {
         switch kind {
         case .candidateSelection:
-            return reason != "candidate-confirmed" && acceptedTextDiffersFromSource
+            return !isPassiveCandidateSelection && acceptedTextDiffersFromSource
         case .retranscriptionChange, .userSubstitution:
             return acceptedTextDiffersFromSource
+        }
+    }
+
+    private var isPassiveCandidateSelection: Bool {
+        switch reason {
+        case "candidate-confirmed",
+             "candidate-dismissed-fallback",
+             "candidate-timeout-fallback",
+             "candidate-auto-fallback":
+            return true
+        default:
+            return false
         }
     }
 
@@ -83,7 +95,8 @@ enum CorrectionFeedbackService {
         normalizationResult: VocoNormalizationResult,
         assessment: VocoConfidenceAssessment,
         selectedCandidate: String,
-        rawTranscript: String? = nil
+        rawTranscript: String? = nil,
+        selectionSource: VocoCandidateSelectionSource = .userSelection
     ) -> CorrectionFeedbackSignal? {
         let accepted = selectedCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !accepted.isEmpty else { return nil }
@@ -99,12 +112,21 @@ enum CorrectionFeedbackService {
         )
 
         let reason: String
-        if accepted == assessment.selectedCandidate {
-            reason = "candidate-confirmed"
-        } else if assessment.candidates.contains(accepted) {
-            reason = "candidate-override"
-        } else {
-            reason = "candidate-custom"
+        switch selectionSource {
+        case .dismissedFallback:
+            reason = "candidate-dismissed-fallback"
+        case .timeoutFallback:
+            reason = "candidate-timeout-fallback"
+        case .automaticFallback:
+            reason = "candidate-auto-fallback"
+        case .userSelection:
+            if accepted == assessment.selectedCandidate {
+                reason = "candidate-confirmed"
+            } else if assessment.candidates.contains(accepted) {
+                reason = "candidate-override"
+            } else {
+                reason = "candidate-custom"
+            }
         }
 
         return CorrectionFeedbackSignal(

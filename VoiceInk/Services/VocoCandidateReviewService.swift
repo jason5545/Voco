@@ -65,7 +65,8 @@ enum VocoCandidateReviewService {
         for transcription: Transcription,
         normalizationResult: VocoNormalizationResult,
         confidenceAssessment: VocoConfidenceAssessment,
-        rawTranscript: String?
+        rawTranscript: String?,
+        selectionSource: VocoCandidateSelectionSource = .userSelection
     ) -> CorrectionFeedbackSignal? {
         let accepted = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !accepted.isEmpty else { return nil }
@@ -74,7 +75,8 @@ enum VocoCandidateReviewService {
             normalizationResult: normalizationResult,
             assessment: confidenceAssessment,
             selectedCandidate: accepted,
-            rawTranscript: rawTranscript
+            rawTranscript: rawTranscript,
+            selectionSource: selectionSource
         )
 
         transcription.text = accepted

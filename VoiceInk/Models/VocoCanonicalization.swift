@@ -186,6 +186,23 @@ struct VocoConfidenceAssessment: Codable, Equatable {
     }
 }
 
+enum VocoCandidateSelectionSource: String, Codable, Equatable {
+    case userSelection
+    case dismissedFallback
+    case timeoutFallback
+    case automaticFallback
+}
+
+struct VocoCandidateSelection: Codable, Equatable {
+    let candidate: String
+    let source: VocoCandidateSelectionSource
+
+    init(candidate: String, source: VocoCandidateSelectionSource = .userSelection) {
+        self.candidate = candidate
+        self.source = source
+    }
+}
+
 enum VocoSignalDisplayFormatter {
     static func displayReasons(for reasons: [String]) -> [String] {
         var seen: Set<String> = []
@@ -206,8 +223,14 @@ enum VocoSignalDisplayFormatter {
             return "Candidate confirmed"
         case "candidate-custom":
             return "Custom candidate"
+        case "candidate-dismissed-fallback":
+            return "Dismissed fallback"
         case "candidate-override":
             return "Candidate changed"
+        case "candidate-timeout-fallback":
+            return "Timeout fallback"
+        case "candidate-auto-fallback":
+            return "Automatic fallback"
         case "case-normalization":
             return "Case normalization"
         case "context-required":

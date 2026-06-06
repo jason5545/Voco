@@ -289,6 +289,9 @@ struct VoiceInkTests {
             "alias-match",
             "candidate-override",
             "candidate-confirmed",
+            "candidate-timeout-fallback",
+            "candidate-dismissed-fallback",
+            "candidate-auto-fallback",
             "retranscription-meaningfulChange",
             "user-substitution",
             "unknown-signal",
@@ -302,6 +305,9 @@ struct VoiceInkTests {
             "Alias match",
             "Candidate changed",
             "Candidate confirmed",
+            "Timeout fallback",
+            "Dismissed fallback",
+            "Automatic fallback",
             "Retranscription meaningful",
             "User substitution",
             "Unknown signal",
@@ -381,7 +387,7 @@ struct VoiceInkTests {
     }
 
     @Test func correctionFeedbackClassifiesCandidateConfirmationAsNonCorrective() async throws {
-        let result = VocoCanonicalizationService().normalize("我現在用 voice ink")
+        let result = VocoCanonicalizationService().normalize("我現在用 voice anc")
         let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
         let signal = try #require(
             CorrectionFeedbackService.candidateSelectionSignal(
@@ -395,6 +401,26 @@ struct VoiceInkTests {
         #expect(signal.kind == .candidateSelection)
         #expect(signal.reason == "candidate-confirmed")
         #expect(signal.acceptedText == "我現在用 VoiceInk")
+        #expect(signal.isCorrectiveSignal == false)
+    }
+
+    @Test func correctionFeedbackClassifiesCandidateTimeoutFallbackAsNonCorrective() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice anc")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let signal = try #require(
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: "我現在用 VoiceInk",
+                rawTranscript: result.originalText,
+                selectionSource: .timeoutFallback
+            )
+        )
+
+        #expect(signal.kind == .candidateSelection)
+        #expect(signal.reason == "candidate-timeout-fallback")
+        #expect(signal.acceptedText == "我現在用 VoiceInk")
+        #expect((signal.changeRatio ?? 0) > 0)
         #expect(signal.isCorrectiveSignal == false)
     }
 
@@ -473,6 +499,39 @@ struct VoiceInkTests {
         )
 
         #expect(signal.reason == "candidate-confirmed")
+        #expect(signal.isCorrectiveSignal == false)
+        #expect(transcription.text == "我現在用 VoiceInk")
+        #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
+        #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
+        #expect(transcription.userCorrectionDistance == nil)
+        #expect(transcription.correctionFeedback.count == 1)
+    }
+
+    @Test func candidateReviewTimeoutFallbackUpdatesTranscriptWithoutCorrectionDistance() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 voice anc")
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
+        let transcription = Transcription(text: result.originalText, duration: 0)
+
+        transcription.recordASRMetadata(
+            rawTranscript: result.originalText,
+            normalizationResult: result,
+            confidenceAssessment: assessment,
+            asrEngineID: "qwen3:Qwen3-ASR",
+            languageMode: "auto"
+        )
+
+        let signal = try #require(
+            VocoCandidateReviewService.acceptCandidate(
+                "我現在用 VoiceInk",
+                for: transcription,
+                normalizationResult: result,
+                confidenceAssessment: assessment,
+                rawTranscript: result.originalText,
+                selectionSource: .timeoutFallback
+            )
+        )
+
+        #expect(signal.reason == "candidate-timeout-fallback")
         #expect(signal.isCorrectiveSignal == false)
         #expect(transcription.text == "我現在用 VoiceInk")
         #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
@@ -850,6 +909,25 @@ struct VoiceInkTests {
             confidenceScore: 0.82,
             changeRatio: 0.1,
             reason: "candidate-confirmed"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsCandidateTimeoutFallback() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我剛剛用 voice anc 測一下",
+            proposedText: "我剛剛用 VoiceInk 測一下",
+            acceptedText: "我剛剛用 VoiceInk 測一下",
+            confidenceScore: 0.64,
+            changeRatio: 0.12,
+            reason: "candidate-timeout-fallback"
         )
 
         let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
