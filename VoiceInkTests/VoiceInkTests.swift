@@ -345,6 +345,18 @@ struct VoiceInkTests {
 
     @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
         let sourceTranscriptionID = try #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
+        let feedbackCreatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let correctionFeedback = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "我現在用 voice anc",
+            proposedText: "我現在用 VoiceInk",
+            acceptedText: "我現在用 VoiceInk",
+            confidenceScore: 0.86,
+            changeRatio: 0.12,
+            reason: "candidate-override",
+            termIDs: ["product.voiceink"],
+            createdAt: feedbackCreatedAt
+        )
         let transcription = Transcription(
             text: "我現在用 VoiceInk",
             duration: 1.25,
@@ -398,7 +410,15 @@ struct VoiceInkTests {
                 changeRatio: 0.3333,
                 confidenceDelta: 0.2,
                 changeCategory: .meaningfulChange
-            )
+            ),
+            correctionFeedback: [correctionFeedback]
+        )
+        transcription.recordStyleGuardRejection(
+            response: "以下是我整理後的版本：我現在用 VoiceInk。",
+            reasons: [
+                "assistant-opener:以下是",
+                "dropped-mixed-language-term:Qwen3-ASR",
+            ]
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
         transcription.confidenceReasons = ["alias-match", "raw-cleanup-drift"]
@@ -500,6 +520,13 @@ struct VoiceInkTests {
         #expect(csv.contains("Candidate Selection Source"))
         #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
+        #expect(csv.contains("Correction Feedback"))
+        #expect(csv.contains("Style Guard Reasons"))
+        #expect(csv.contains("Style Guard Rejected Text"))
+        #expect(csv.contains("Candidate selection · Candidate changed · 86% · change 12% · Terms product.voiceink"))
+        #expect(csv.contains("Source: 我現在用 voice anc; Proposed: 我現在用 VoiceInk; Accepted: 我現在用 VoiceInk"))
+        #expect(csv.contains("assistant-opener:以下是 | dropped-mixed-language-term:Qwen3-ASR"))
+        #expect(csv.contains("以下是我整理後的版本：我現在用 VoiceInk。"))
         #expect(csv.contains("Retranscription Source ID"))
         #expect(csv.contains("11111111-2222-3333-4444-555555555555"))
         #expect(csv.contains("我現在用 voice anc"))

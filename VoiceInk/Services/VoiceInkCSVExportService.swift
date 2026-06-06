@@ -65,6 +65,9 @@ class VoiceInkCSVExportService {
         "Selected Candidate Source",
         "Candidate Selection Source",
         "User Correction Distance",
+        "Correction Feedback",
+        "Style Guard Reasons",
+        "Style Guard Rejected Text",
         "Retranscription Source ID",
         "Retranscription Source Text",
         "Retranscription Change Category",
@@ -114,6 +117,9 @@ class VoiceInkCSVExportService {
             ),
             selectionSourceDisplay(transcription.candidateSelectionSource),
             decimal(transcription.userCorrectionDistance),
+            correctionFeedbackSummary(transcription.correctionFeedback),
+            joined(transcription.styleGuardReasons),
+            transcription.styleGuardRejectedText ?? "",
             transcription.sourceTranscriptionID?.uuidString ?? "",
             transcription.retranscriptionSourceText ?? "",
             retranscriptionAnalysis?.changeCategory.rawValue ?? "",
@@ -183,6 +189,36 @@ class VoiceInkCSVExportService {
                 let prefix = "\(label) / \(hypothesis.sourceDisplayName)"
                 guard let summary, !summary.isEmpty else { return prefix }
                 return "\(prefix): \(summary)"
+            }
+            .joined(separator: " | ")
+    }
+
+    private func correctionFeedbackSummary(_ signals: [CorrectionFeedbackSignal]) -> String {
+        signals
+            .map { signal in
+                var metadata = [
+                    signal.kind.displayName,
+                    VocoSignalDisplayFormatter.displayReason(for: signal.reason),
+                ]
+
+                if let confidenceScore = signal.confidenceScore {
+                    metadata.append(percent(confidenceScore))
+                }
+                if let changeRatio = signal.changeRatio {
+                    metadata.append("change \(percent(changeRatio))")
+                }
+                if !signal.termIDs.isEmpty {
+                    metadata.append("Terms \(signal.termIDs.joined(separator: ", "))")
+                }
+                metadata.append(signal.createdAt.ISO8601Format())
+
+                var textParts = ["Source: \(signal.sourceText)"]
+                if let proposedText = signal.proposedText, !proposedText.isEmpty {
+                    textParts.append("Proposed: \(proposedText)")
+                }
+                textParts.append("Accepted: \(signal.acceptedText)")
+
+                return "\(metadata.joined(separator: " · ")) - \(textParts.joined(separator: "; "))"
             }
             .joined(separator: " | ")
     }
