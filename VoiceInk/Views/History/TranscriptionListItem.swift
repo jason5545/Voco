@@ -90,15 +90,8 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
     static func badges(for transcription: Transcription, limit: Int = 3) -> [TranscriptionAssistiveBadge] {
         var badges: [TranscriptionAssistiveBadge] = []
 
-        if transcription.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue {
-            badges.append(
-                TranscriptionAssistiveBadge(
-                    id: "review",
-                    icon: "exclamationmark.triangle.fill",
-                    title: "Review",
-                    tone: .orange
-                )
-            )
+        if let reviewBadge = reviewBadge(for: transcription) {
+            badges.append(reviewBadge)
         }
 
         if let selectionSource = VocoCandidateSelectionSource(rawValue: transcription.candidateSelectionSource ?? "") {
@@ -179,6 +172,40 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 tone: .secondary
             )
         }
+    }
+
+    private static func reviewBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
+        guard transcription.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue else {
+            return nil
+        }
+
+        return TranscriptionAssistiveBadge(
+            id: "review",
+            icon: "exclamationmark.triangle.fill",
+            title: reviewBadgeTitle(for: transcription.reviewTriggers),
+            tone: .orange
+        )
+    }
+
+    private static func reviewBadgeTitle(for triggers: [VocoReviewTrigger]) -> String {
+        let displayNames = uniqueReviewTriggerDisplayNames(for: triggers)
+        switch displayNames.count {
+        case 0:
+            return "Review"
+        case 1:
+            return displayNames[0]
+        default:
+            return countLabel(displayNames.count, singular: "signal", plural: "signals")
+        }
+    }
+
+    private static func uniqueReviewTriggerDisplayNames(for triggers: [VocoReviewTrigger]) -> [String] {
+        var seenIDs: Set<String> = []
+        var seenNames: Set<String> = []
+        return triggers
+            .filter { seenIDs.insert($0.id).inserted }
+            .map(\.displayName)
+            .filter { seenNames.insert($0).inserted }
     }
 
     private static func retranscriptionBadge(for analysis: RetranscriptionAnalysis?) -> TranscriptionAssistiveBadge? {

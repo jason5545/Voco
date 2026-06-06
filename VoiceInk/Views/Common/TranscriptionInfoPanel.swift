@@ -97,7 +97,7 @@ struct TranscriptionInfoPanel: View {
 
     @ViewBuilder
     private var dictationSection: some View {
-        if hasDictationMetadata {
+        if transcription.hasDictationMetadata {
             Section {
                 if let asrEngineID = transcription.asrEngineID, !asrEngineID.isEmpty {
                     metadataRow(
@@ -382,23 +382,6 @@ struct TranscriptionInfoPanel: View {
             parts.append("User Message:\n\(user)")
         }
         return parts.joined(separator: "\n\n")
-    }
-
-    private var hasDictationMetadata: Bool {
-        transcription.rawTranscript != nil ||
-        transcription.normalizedTranscript != nil ||
-        transcription.finalPastedText != nil ||
-        transcription.pasteCommandPosted != nil ||
-        transcription.asrEngineID != nil ||
-        transcription.languageMode != nil ||
-        transcription.confidenceScore != nil ||
-        transcription.correctionRiskRate != nil ||
-        !transcription.correctionRiskTermIDs.isEmpty ||
-        transcription.candidateSelectionSource != nil ||
-        !transcription.activeContextIDs.isEmpty ||
-        !transcription.canonicalizationReplacements.isEmpty ||
-        !transcription.canonicalizationSuggestions.isEmpty ||
-        !transcription.hypotheses.isEmpty
     }
 
     private func metadataRow(icon: String, label: String, value: String) -> some View {

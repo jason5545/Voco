@@ -528,10 +528,17 @@ struct VoiceInkTests {
             )
         )
         transcription.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+        transcription.reviewTriggers = [
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "1 suggestion"
+            ),
+        ]
 
         let allBadges = TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
         #expect(allBadges.map(\.title) == [
-            "Review",
+            "Needs choice",
             "Timeout",
             "Re-run 24%",
             "2 fixes",
@@ -547,7 +554,7 @@ struct VoiceInkTests {
             .secondary,
         ])
         #expect(TranscriptionAssistiveBadge.badges(for: transcription).map(\.title) == [
-            "Review",
+            "Needs choice",
             "Timeout",
             "Re-run 24%",
         ])
@@ -559,6 +566,53 @@ struct VoiceInkTests {
         )
 
         #expect(TranscriptionAssistiveBadge.badges(for: directCanonicalized).map(\.title) == ["1 fix"])
+    }
+
+    @Test func historyReviewBadgeSummarizesTriggerSpecificity() async throws {
+        let review = Transcription(text: "今天看到焰很大", duration: 0.4)
+        review.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+        review.reviewTriggers = [
+            VocoReviewTrigger(
+                id: "low-confidence-score",
+                reason: "low-confidence-score",
+                detail: "Score 60% below 78%"
+            ),
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "1 suggestion"
+            ),
+            VocoReviewTrigger(
+                id: "unresolved-suggestions",
+                reason: "unresolved-suggestions",
+                detail: "duplicate ignored"
+            ),
+        ]
+
+        let legacyReview = Transcription(text: "今天看到焰很大", duration: 0.4)
+        legacyReview.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+
+        #expect(TranscriptionAssistiveBadge.badges(for: review, limit: 1).first?.title == "2 signals")
+        #expect(TranscriptionAssistiveBadge.badges(for: legacyReview, limit: 1).first?.title == "Review")
+    }
+
+    @Test func transcriptionDictationMetadataIncludesReviewSignals() async throws {
+        let empty = Transcription(text: "一般歷史", duration: 0.2)
+        let routeOnly = Transcription(text: "需要確認", duration: 0.2)
+        routeOnly.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
+
+        let triggerOnly = Transcription(text: "需要確認", duration: 0.2)
+        triggerOnly.reviewTriggers = [
+            VocoReviewTrigger(
+                id: "low-confidence-score",
+                reason: "low-confidence-score",
+                detail: "Score 60% below 78%"
+            ),
+        ]
+
+        #expect(!empty.hasDictationMetadata)
+        #expect(routeOnly.hasDictationMetadata)
+        #expect(triggerOnly.hasDictationMetadata)
     }
 
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {

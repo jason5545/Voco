@@ -118,6 +118,29 @@ final class Transcription {
         set { correctionFeedbackJSON = Self.encodeJSON(newValue) }
     }
 
+    var hasDictationMetadata: Bool {
+        Self.hasText(rawTranscript) ||
+        Self.hasText(normalizedTranscript) ||
+        Self.hasText(finalPastedText) ||
+        pasteCommandPosted != nil ||
+        Self.hasText(asrEngineID) ||
+        Self.hasText(languageMode) ||
+        confidenceScore != nil ||
+        Self.hasText(confidenceRoute) ||
+        !confidenceReasons.isEmpty ||
+        !reviewTriggers.isEmpty ||
+        correctionRiskRate != nil ||
+        !correctionRiskTermIDs.isEmpty ||
+        Self.hasText(selectedCandidate) ||
+        Self.hasText(candidateSelectionSource) ||
+        userCorrectionDistance != nil ||
+        !activeContextIDs.isEmpty ||
+        !canonicalizationReplacements.isEmpty ||
+        !canonicalizationSuggestions.isEmpty ||
+        !hypotheses.isEmpty ||
+        !hypothesisDetails.isEmpty
+    }
+
     init(text: String,
          duration: TimeInterval,
          enhancedText: String? = nil,
@@ -370,6 +393,10 @@ final class Transcription {
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    private static func hasText(_ value: String?) -> Bool {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
     private static func decodeStringArray(_ json: String?) -> [String] {
