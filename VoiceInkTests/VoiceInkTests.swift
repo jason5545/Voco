@@ -592,6 +592,7 @@ struct VoiceInkTests {
         #expect(abs((summary.averageRetranscriptionChangeRatio ?? 0) - 0.12) < 0.001)
         #expect(summary.retranscriptionConfidenceDeltaSampleCount == 2)
         #expect(abs((summary.averageRetranscriptionConfidenceDelta ?? 0) - 0.10) < 0.001)
+        #expect(summary.retranscriptionDetail == "1 meaningful / 2 analyzed, avg change 12%, avg confidence +10%")
         #expect(summary.pasteCommandSampleCount == 2)
         #expect(summary.pasteCommandPostedCount == 1)
         #expect(summary.pasteCommandPostedRate == 0.5)

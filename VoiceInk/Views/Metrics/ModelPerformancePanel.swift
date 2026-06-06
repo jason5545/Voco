@@ -212,7 +212,7 @@ private struct ModelPerformancePanelContent: View {
                     icon: "arrow.triangle.2.circlepath",
                     title: "Retranscriptions",
                     value: formatPercent(assistiveSummary.meaningfulRetranscriptionRate),
-                    detail: "\(assistiveSummary.meaningfulRetranscriptionCount) meaningful / \(assistiveSummary.retranscriptionSampleCount) analyzed",
+                    detail: assistiveSummary.retranscriptionDetail,
                     color: .pink
                 )
 
@@ -496,6 +496,22 @@ struct AssistiveSignalSummary: Equatable {
         rate(meaningfulRetranscriptionCount, retranscriptionSampleCount)
     }
 
+    var retranscriptionDetail: String {
+        var parts = [
+            "\(meaningfulRetranscriptionCount) meaningful / \(retranscriptionSampleCount) analyzed"
+        ]
+
+        if let averageRetranscriptionChangeRatio {
+            parts.append("avg change \(Self.percent(averageRetranscriptionChangeRatio))")
+        }
+
+        if let averageRetranscriptionConfidenceDelta {
+            parts.append("avg confidence \(Self.signedPercent(averageRetranscriptionConfidenceDelta))")
+        }
+
+        return parts.joined(separator: ", ")
+    }
+
     var pasteCommandPostedRate: Double? {
         rate(pasteCommandPostedCount, pasteCommandSampleCount)
     }
@@ -503,6 +519,15 @@ struct AssistiveSignalSummary: Equatable {
     private func rate(_ numerator: Int, _ denominator: Int) -> Double? {
         guard denominator > 0 else { return nil }
         return Double(numerator) / Double(denominator)
+    }
+
+    private static func percent(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
+    }
+
+    private static func signedPercent(_ value: Double) -> String {
+        let sign = value >= 0 ? "+" : ""
+        return "\(sign)\(percent(value))"
     }
 }
 
