@@ -1195,9 +1195,10 @@ struct VoiceInkTests {
             correctionFeedbackCount: 2,
             correctiveFeedbackCount: 2,
             correctionFeedbackReasons: ["candidate-override", "candidate-custom"],
-            styleGuardReasonCount: 2,
+            styleGuardReasonCount: 3,
             styleGuardReasons: [
                 "assistant-opener:以下是",
+                "assistant-opener:總而言之",
                 "dropped-mixed-language-term:Qwen3-ASR",
             ],
             styleGuardRejectedCharacterCount: 20,
@@ -1249,11 +1250,12 @@ struct VoiceInkTests {
         #expect(summary.correctionFeedbackReasonCounts["candidate-custom"] == 1)
         #expect(summary.correctionFeedbackDetail == "2 corrective / 2 sessions / Candidate changed 1, Candidate confirmed 1")
         #expect(summary.styleGuardRejectionSessionCount == 1)
-        #expect(summary.styleGuardReasonCount == 2)
+        #expect(summary.styleGuardReasonCount == 3)
         #expect(summary.styleGuardReasonCounts["assistant-opener:以下是"] == 1)
+        #expect(summary.styleGuardReasonCounts["assistant-opener:總而言之"] == 1)
         #expect(summary.styleGuardReasonCounts["dropped-mixed-language-term:Qwen3-ASR"] == 1)
         #expect(summary.styleGuardRejectedCharacterCount == 20)
-        #expect(summary.styleGuardDetail == "1 session / 20 chars rejected / Assistant opener 1, Dropped mixed language term 1")
+        #expect(summary.styleGuardDetail == "1 session / 20 chars rejected / Assistant opener 2, Dropped mixed language term 1")
         #expect(summary.candidateSourceSampleCount == 2)
         #expect(summary.candidateSourceCandidateCount == 4)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
@@ -1480,6 +1482,23 @@ struct VoiceInkTests {
             "User substitution",
             "Unknown signal",
         ])
+
+        let styleGuardReasons = VocoSignalDisplayFormatter.displayStyleGuardReasons(for: [
+            "assistant-opener:以下是",
+            "dropped-mixed-language-term:Qwen3-ASR",
+            "introduced-structured-format",
+            "style-expansion",
+            "assistant-opener:以下是",
+        ])
+
+        #expect(styleGuardReasons == [
+            "Assistant opener (以下是)",
+            "Dropped mixed language term (Qwen3-ASR)",
+            "Structured formatting",
+            "Style expansion",
+        ])
+        #expect(VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "assistant-opener:總而言之") == "Assistant opener")
+        #expect(VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "dropped-mixed-language-term:Qwen3-ASR") == "Dropped mixed language term")
     }
 
     @Test func hypothesisDisplayFormatterSummarizesPersistedCandidateDetails() async throws {

@@ -319,6 +319,13 @@ enum VocoSignalDisplayFormatter {
             .filter { seen.insert($0).inserted }
     }
 
+    static func displayStyleGuardReasons(for reasons: [String]) -> [String] {
+        var seen: Set<String> = []
+        return reasons
+            .map(displayStyleGuardReason(for:))
+            .filter { seen.insert($0).inserted }
+    }
+
     static func displayReason(for reason: String) -> String {
         switch reason {
         case "alias-match":
@@ -374,6 +381,46 @@ enum VocoSignalDisplayFormatter {
                 return retranscriptionReason
             }
             return fallbackDisplayReason(for: reason)
+        }
+    }
+
+    static func displayStyleGuardReason(for reason: String) -> String {
+        styleGuardReasonDisplayComponents(for: reason).detail
+    }
+
+    static func displayStyleGuardReasonCategory(for reason: String) -> String {
+        styleGuardReasonDisplayComponents(for: reason).category
+    }
+
+    private static func styleGuardReasonDisplayComponents(for reason: String) -> (category: String, detail: String) {
+        let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmed.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        let categoryID = parts.first.map(String.init) ?? trimmed
+        let category = styleGuardCategoryDisplayName(for: categoryID)
+        guard parts.count > 1 else {
+            return (category, category)
+        }
+
+        let payload = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !payload.isEmpty else {
+            return (category, category)
+        }
+
+        return (category, "\(category) (\(payload))")
+    }
+
+    private static func styleGuardCategoryDisplayName(for category: String) -> String {
+        switch category {
+        case "assistant-opener":
+            return "Assistant opener"
+        case "dropped-mixed-language-term":
+            return "Dropped mixed language term"
+        case "introduced-structured-format":
+            return "Structured formatting"
+        case "style-expansion":
+            return "Style expansion"
+        default:
+            return displayReason(for: category)
         }
     }
 

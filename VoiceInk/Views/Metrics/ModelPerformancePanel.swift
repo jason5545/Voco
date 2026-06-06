@@ -737,8 +737,13 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     private static func styleGuardReasonSummary(_ counts: [String: Int], limit: Int) -> String {
-        sortedReasonCounts(counts, displayName: styleGuardDisplayReason(for:), limit: limit)
-            .map { "\(styleGuardDisplayReason(for: $0.key)) \($0.value)" }
+        let categoryCounts = counts.reduce(into: [String: Int]()) { totals, entry in
+            let category = VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: entry.key)
+            totals[category, default: 0] += entry.value
+        }
+
+        return sortedReasonCounts(categoryCounts, displayName: { $0 }, limit: limit)
+            .map { "\($0.key) \($0.value)" }
             .joined(separator: ", ")
     }
 
@@ -757,11 +762,6 @@ struct AssistiveSignalSummary: Equatable {
             }
             .prefix(limit)
             .map { $0 }
-    }
-
-    private static func styleGuardDisplayReason(for reason: String) -> String {
-        let category = reason.split(separator: ":", maxSplits: 1).first.map(String.init) ?? reason
-        return VocoSignalDisplayFormatter.displayReason(for: category)
     }
 
     private static func sourceSummary(_ counts: [String: Int], limit: Int) -> String {

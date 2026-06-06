@@ -309,8 +309,10 @@ struct TranscriptionInfoPanel: View {
                 if !transcription.styleGuardReasons.isEmpty {
                     metadataRow(
                         icon: "shield.lefthalf.filled",
-                        label: "Reason",
-                        value: transcription.styleGuardReasons.joined(separator: ", ")
+                        label: transcription.styleGuardReasons.count == 1 ? "Reason" : "Reasons",
+                        value: VocoSignalDisplayFormatter
+                            .displayStyleGuardReasons(for: transcription.styleGuardReasons)
+                            .joined(separator: ", ")
                     )
                 }
 
