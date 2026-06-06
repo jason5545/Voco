@@ -766,6 +766,11 @@ struct VoiceInkTests {
             canonicalizationSuggestionCount: 3,
             confidenceScore: 0.6,
             confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
+            reviewTriggerCount: 2,
+            reviewTriggerIDs: [
+                "unresolved-suggestions",
+                "low-confidence-score",
+            ],
             candidateSourceCounts: [
                 VocoHypothesisSource.suggestedRepair.rawValue: 1,
                 VocoHypothesisSource.segmentRescue.rawValue: 1,
@@ -804,6 +809,11 @@ struct VoiceInkTests {
         #expect(summary.reviewSuggestedRate == 0.5)
         #expect(summary.confidenceScoreSampleCount == 2)
         #expect(abs((summary.averageConfidenceScore ?? 0) - 0.75) < 0.001)
+        #expect(summary.reviewTriggerSessionCount == 1)
+        #expect(summary.reviewTriggerCount == 2)
+        #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
+        #expect(summary.reviewTriggerCounts["low-confidence-score"] == 1)
+        #expect(summary.reviewTriggerDetail == "1 session / Low score 1, Needs choice 1")
         #expect(summary.candidateSelectionCount == 2)
         #expect(summary.userSelectionCount == 1)
         #expect(summary.timeoutFallbackCount == 1)

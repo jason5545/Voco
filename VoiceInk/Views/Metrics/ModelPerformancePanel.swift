@@ -185,6 +185,14 @@ private struct ModelPerformancePanelContent: View {
                 )
 
                 assistiveTile(
+                    icon: "list.bullet.clipboard",
+                    title: "Review Triggers",
+                    value: "\(assistiveSummary.reviewTriggerCount)",
+                    detail: assistiveSummary.reviewTriggerDetail,
+                    color: .red
+                )
+
+                assistiveTile(
                     icon: "slider.horizontal.3",
                     title: "Average Confidence",
                     value: formatPercent(assistiveSummary.averageConfidenceScore),
@@ -412,6 +420,9 @@ struct AssistiveSignalSummary: Equatable {
     let confidenceRouteSampleCount: Int
     let directInsertionCount: Int
     let reviewSuggestedCount: Int
+    let reviewTriggerSessionCount: Int
+    let reviewTriggerCount: Int
+    let reviewTriggerCounts: [String: Int]
     let confidenceScoreSampleCount: Int
     let averageConfidenceScore: Double?
     let candidateSelectionCount: Int
@@ -446,6 +457,19 @@ struct AssistiveSignalSummary: Equatable {
         confidenceRouteSampleCount = metrics.filter { $0.confidenceRoute != nil }.count
         directInsertionCount = metrics.filter { $0.confidenceRoute == VocoConfidenceRoute.directInsertion.rawValue }.count
         reviewSuggestedCount = metrics.filter { $0.confidenceRoute == VocoConfidenceRoute.reviewSuggested.rawValue }.count
+
+        let reviewTriggerBreakdowns = metrics.map(\.reviewTriggerIDs).filter { !$0.isEmpty }
+        reviewTriggerSessionCount = reviewTriggerBreakdowns.count
+        reviewTriggerCounts = Self.mergedCounts(
+            reviewTriggerBreakdowns.map { ids in
+                ids.reduce(into: [:]) { counts, id in
+                    counts[id, default: 0] += 1
+                }
+            }
+        )
+        let storedReviewTriggerCount = metrics.reduce(0) { $0 + $1.reviewTriggerCount }
+        let idReviewTriggerCount = reviewTriggerCounts.values.reduce(0, +)
+        reviewTriggerCount = max(storedReviewTriggerCount, idReviewTriggerCount)
 
         let confidenceScores = metrics.compactMap(\.confidenceScore)
         confidenceScoreSampleCount = confidenceScores.count
@@ -501,6 +525,7 @@ struct AssistiveSignalSummary: Equatable {
 
     var hasData: Bool {
         confidenceRouteSampleCount > 0 ||
+        reviewTriggerCount > 0 ||
         confidenceScoreSampleCount > 0 ||
         candidateSelectionCount > 0 ||
         candidateSourceSampleCount > 0 ||
@@ -513,6 +538,15 @@ struct AssistiveSignalSummary: Equatable {
 
     var fallbackSelectionCount: Int {
         dismissedFallbackCount + timeoutFallbackCount + automaticFallbackCount
+    }
+
+    var reviewTriggerDetail: String {
+        guard reviewTriggerCount > 0 else { return "No review triggers" }
+
+        let sessionText = "\(reviewTriggerSessionCount) \(reviewTriggerSessionCount == 1 ? "session" : "sessions")"
+        let triggerText = Self.reviewTriggerSummary(reviewTriggerCounts, limit: 3)
+        guard !triggerText.isEmpty else { return "\(reviewTriggerCount) recorded" }
+        return "\(sessionText) / \(triggerText)"
     }
 
     var candidateSourceDetail: String {
@@ -601,6 +635,24 @@ struct AssistiveSignalSummary: Equatable {
             .prefix(limit)
             .map { "\(sourceDisplayName($0.key)) \($0.value)" }
             .joined(separator: ", ")
+    }
+
+    private static func reviewTriggerSummary(_ counts: [String: Int], limit: Int) -> String {
+        counts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value {
+                    return lhs.value > rhs.value
+                }
+                return reviewTriggerDisplayName(lhs.key) < reviewTriggerDisplayName(rhs.key)
+            }
+            .prefix(limit)
+            .map { "\(reviewTriggerDisplayName($0.key)) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private static func reviewTriggerDisplayName(_ id: String) -> String {
+        VocoSignalDisplayFormatter.displayReason(for: id)
     }
 
     private static func sourceDisplayName(_ source: String) -> String {
