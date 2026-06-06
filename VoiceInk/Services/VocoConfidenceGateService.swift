@@ -42,8 +42,14 @@ final class VocoConfidenceGateService {
         if let rawTranscript,
            !rawTranscript.isEmpty,
            rawTranscript != normalizationResult.originalText {
-            score -= 0.02
-            reasons.append("raw-cleanup-drift")
+            let drift = rawCleanupDrift(rawTranscript: rawTranscript, cleanedText: normalizationResult.originalText)
+            if drift.isSignificant {
+                score -= min(0.20, 0.06 + drift.changeRatio * 0.5)
+                reasons.append("raw-cleanup-significant")
+            } else {
+                score -= 0.02
+                reasons.append("raw-cleanup-drift")
+            }
         }
 
         if let correctionRiskProfile,
@@ -99,9 +105,23 @@ final class VocoConfidenceGateService {
         if !normalizationResult.suggestions.isEmpty { return true }
         if reasons.contains("heavy-normalization") { return true }
         if reasons.contains("low-confidence-replacement") { return true }
+        if reasons.contains("raw-cleanup-significant") { return true }
         if reasons.contains("recent-term-corrections") { return true }
         if reasons.contains("recent-correction-rate"), !normalizationResult.replacements.isEmpty { return true }
         return false
+    }
+
+    private func rawCleanupDrift(rawTranscript: String, cleanedText: String) -> RawCleanupDrift {
+        let analysis = RetranscriptionAnalyticsService.analyze(
+            sourceText: rawTranscript,
+            retranscribedText: cleanedText,
+            sourceConfidenceScore: nil,
+            retranscribedConfidenceScore: nil
+        )
+        return RawCleanupDrift(
+            changeRatio: analysis.changeRatio,
+            isSignificant: analysis.changeCategory == .meaningfulChange
+        )
     }
 
     private func hasHighRiskAcceptedTerm(in replacements: [VocoReplacement]) -> Bool {
@@ -124,5 +144,10 @@ final class VocoConfidenceGateService {
         return (result.replacements + result.suggestions)
             .map(\.termID)
             .filter { seen.insert($0).inserted }
+    }
+
+    private struct RawCleanupDrift {
+        let changeRatio: Double
+        let isSignificant: Bool
     }
 }

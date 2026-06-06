@@ -247,6 +247,8 @@ enum VocoSignalDisplayFormatter {
             return "Low confidence"
         case "raw-cleanup-drift":
             return "Cleanup drift"
+        case "raw-cleanup-significant":
+            return "Cleanup changed text"
         case "recent-correction-rate":
             return "Recent corrections"
         case "recent-term-corrections":

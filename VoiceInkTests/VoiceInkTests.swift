@@ -201,6 +201,35 @@ struct VoiceInkTests {
         #expect(assessment.reasons.contains("heavy-normalization"))
     }
 
+    @Test func confidenceGateKeepsMinorRawCleanupDriftOnDirectRoute() async throws {
+        let result = VocoCanonicalizationService().normalize("我現在用 VoiceInk")
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: "我現在用 VoiceInk。"
+        )
+
+        #expect(assessment.route == .directInsertion)
+        #expect(assessment.reasons.contains("raw-cleanup-drift"))
+        #expect(!assessment.reasons.contains("raw-cleanup-significant"))
+    }
+
+    @Test func confidenceGateRoutesSignificantRawCleanupDriftToReview() async throws {
+        let result = VocoCanonicalizationService().normalize("我今天要測 VoiceInk")
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: "我今天要測 voice anc 然後後面還有一大段錯字"
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("raw-cleanup-significant"))
+        #expect(assessment.candidates == [
+            "我今天要測 VoiceInk",
+            "我今天要測 voice anc 然後後面還有一大段錯字",
+        ])
+        #expect(assessment.candidateLabels == ["Recommended", "Raw ASR"])
+        #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .rawASR])
+    }
+
     @Test func hypothesisManagerKeepsRawASRAsTraceableCandidate() async throws {
         let result = VocoCanonicalizationService().normalize("我現在用 voice ink 的 fork 做 voco")
         let assessment = VocoConfidenceGateService().assess(
@@ -292,6 +321,7 @@ struct VoiceInkTests {
             "candidate-timeout-fallback",
             "candidate-dismissed-fallback",
             "candidate-auto-fallback",
+            "raw-cleanup-significant",
             "retranscription-meaningfulChange",
             "user-substitution",
             "unknown-signal",
@@ -308,6 +338,7 @@ struct VoiceInkTests {
             "Timeout fallback",
             "Dismissed fallback",
             "Automatic fallback",
+            "Cleanup changed text",
             "Retranscription meaningful",
             "User substitution",
             "Unknown signal",
