@@ -422,6 +422,8 @@ struct VoiceInkTests {
         ]
 
         let csv = VoiceInkCSVExportService().generateCSV(for: [transcription])
+        let candidateDivergence = try #require(SessionMetric.candidateDivergenceRatio(in: transcription.hypothesisDetails))
+        let candidateDivergenceText = String(format: "%.3f", candidateDivergence)
 
         #expect(csv.contains("Original Transcript,Raw Transcript,Normalized Transcript"))
         #expect(csv.contains("Final Pasted Text"))
@@ -451,9 +453,10 @@ struct VoiceInkTests {
         #expect(csv.contains("Raw ASR / Raw ASR: Confidence 86%"))
         #expect(csv.contains("Candidate Source Counts"))
         #expect(csv.contains("Review Required Candidates"))
+        #expect(csv.contains("Candidate Divergence Ratio"))
         #expect(csv.contains("Selected Candidate Source"))
         #expect(csv.contains("AUTO + context: 1 | Segment rescue: 1 | Raw ASR: 1"))
-        #expect(csv.contains("2,我現在用 VoiceInk,AUTO + context,Timeout fallback"))
+        #expect(csv.contains("2,\(candidateDivergenceText),我現在用 VoiceInk,AUTO + context,Timeout fallback"))
         #expect(csv.contains("Candidate Selection Source"))
         #expect(csv.contains("Timeout fallback"))
         #expect(csv.contains("0.120"))
@@ -591,6 +594,8 @@ struct VoiceInkTests {
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
         #expect(metric.candidateSourceCounts[VocoHypothesisSource.originalCleaned.rawValue] == 1)
         #expect(metric.reviewRequiredCandidateCount == 2)
+        #expect(metric.candidateDivergenceRatio != nil)
+        #expect((metric.candidateDivergenceRatio ?? 0) > 0)
         #expect(metric.selectedCandidateHypothesisSource == VocoHypothesisSource.autoContext.rawValue)
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
         #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
@@ -742,6 +747,7 @@ struct VoiceInkTests {
                 VocoHypothesisSource.rawASR.rawValue: 1,
             ],
             reviewRequiredCandidateCount: 2,
+            candidateDivergenceRatio: 0.25,
             selectedCandidateHypothesisSource: VocoHypothesisSource.suggestedRepair.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
             retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
@@ -784,9 +790,11 @@ struct VoiceInkTests {
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.segmentRescue.rawValue] == 1)
         #expect(summary.candidateSourceCounts[VocoHypothesisSource.rawASR.rawValue] == 1)
         #expect(summary.reviewRequiredCandidateCount == 2)
+        #expect(summary.candidateDivergenceRatioSampleCount == 1)
+        #expect(abs((summary.averageCandidateDivergenceRatio ?? 0) - 0.25) < 0.001)
         #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
         #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
-        #expect(summary.candidateSourceDetail == "2 review / AUTO + context 1, Suggestion pass 1, Segment rescue 1")
+        #expect(summary.candidateSourceDetail == "2 review / AUTO + context 1, Suggestion pass 1, Segment rescue 1 / avg delta 25%")
         #expect(summary.canonicalizedSessionCount == 1)
         #expect(summary.suggestedSessionCount == 1)
         #expect(summary.totalCanonicalizationReplacementCount == 2)

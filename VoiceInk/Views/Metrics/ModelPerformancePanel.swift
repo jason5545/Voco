@@ -423,6 +423,8 @@ struct AssistiveSignalSummary: Equatable {
     let candidateSourceCandidateCount: Int
     let candidateSourceCounts: [String: Int]
     let reviewRequiredCandidateCount: Int
+    let candidateDivergenceRatioSampleCount: Int
+    let averageCandidateDivergenceRatio: Double?
     let selectedCandidateSourceCounts: [String: Int]
     let canonicalizedSessionCount: Int
     let suggestedSessionCount: Int
@@ -462,6 +464,11 @@ struct AssistiveSignalSummary: Equatable {
         candidateSourceCounts = Self.mergedCounts(sourceBreakdowns)
         candidateSourceCandidateCount = candidateSourceCounts.values.reduce(0, +)
         reviewRequiredCandidateCount = metrics.reduce(0) { $0 + $1.reviewRequiredCandidateCount }
+        let candidateDivergenceRatios = metrics.compactMap(\.candidateDivergenceRatio)
+        candidateDivergenceRatioSampleCount = candidateDivergenceRatios.count
+        averageCandidateDivergenceRatio = candidateDivergenceRatios.isEmpty
+            ? nil
+            : candidateDivergenceRatios.reduce(0, +) / Double(candidateDivergenceRatios.count)
         selectedCandidateSourceCounts = Self.mergedCounts(
             metrics.compactMap(\.selectedCandidateHypothesisSource).map { [$0: 1] }
         )
@@ -497,6 +504,7 @@ struct AssistiveSignalSummary: Equatable {
         confidenceScoreSampleCount > 0 ||
         candidateSelectionCount > 0 ||
         candidateSourceSampleCount > 0 ||
+        candidateDivergenceRatioSampleCount > 0 ||
         canonicalizedSessionCount > 0 ||
         suggestedSessionCount > 0 ||
         retranscriptionSampleCount > 0 ||
@@ -512,8 +520,14 @@ struct AssistiveSignalSummary: Equatable {
 
         let reviewText = "\(reviewRequiredCandidateCount) review"
         let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 3)
-        guard !sourceText.isEmpty else { return reviewText }
-        return "\(reviewText) / \(sourceText)"
+        var parts = [reviewText]
+        if !sourceText.isEmpty {
+            parts.append(sourceText)
+        }
+        if let averageCandidateDivergenceRatio {
+            parts.append("avg delta \(Self.percent(averageCandidateDivergenceRatio))")
+        }
+        return parts.joined(separator: " / ")
     }
 
     var directInsertionRate: Double? {

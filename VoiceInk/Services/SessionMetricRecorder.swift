@@ -61,6 +61,7 @@ enum SessionMetricRecorder {
             candidateCount: transcription.hypotheses.count,
             candidateSourceCounts: SessionMetric.candidateSourceCounts(from: transcription.hypothesisDetails),
             reviewRequiredCandidateCount: SessionMetric.reviewRequiredCandidateCount(in: transcription.hypothesisDetails),
+            candidateDivergenceRatio: SessionMetric.candidateDivergenceRatio(in: transcription.hypothesisDetails),
             selectedCandidateHypothesisSource: SessionMetric.selectedCandidateHypothesisSource(
                 in: transcription.hypothesisDetails,
                 selectedCandidate: transcription.selectedCandidate

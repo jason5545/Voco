@@ -26,6 +26,7 @@ final class SessionMetric {
     var candidateCount: Int = 0
     var candidateSourceCountsJSON: String?
     var reviewRequiredCandidateCount: Int = 0
+    var candidateDivergenceRatio: Double?
     var selectedCandidateHypothesisSource: String?
     var selectedCandidate: String?
     var candidateSelectionSource: String?
@@ -77,6 +78,7 @@ final class SessionMetric {
         candidateCount: Int = 0,
         candidateSourceCounts: [String: Int] = [:],
         reviewRequiredCandidateCount: Int = 0,
+        candidateDivergenceRatio: Double? = nil,
         selectedCandidateHypothesisSource: String? = nil,
         selectedCandidate: String? = nil,
         candidateSelectionSource: String? = nil,
@@ -113,6 +115,7 @@ final class SessionMetric {
         self.candidateCount = candidateCount
         self.candidateSourceCountsJSON = Self.encodeJSON(candidateSourceCounts)
         self.reviewRequiredCandidateCount = reviewRequiredCandidateCount
+        self.candidateDivergenceRatio = candidateDivergenceRatio
         self.selectedCandidateHypothesisSource = selectedCandidateHypothesisSource
         self.selectedCandidate = selectedCandidate
         self.candidateSelectionSource = candidateSelectionSource
@@ -139,6 +142,7 @@ final class SessionMetric {
         candidateCount = transcription.hypotheses.count
         candidateSourceCounts = Self.candidateSourceCounts(from: transcription.hypothesisDetails)
         reviewRequiredCandidateCount = Self.reviewRequiredCandidateCount(in: transcription.hypothesisDetails)
+        candidateDivergenceRatio = Self.candidateDivergenceRatio(in: transcription.hypothesisDetails)
         selectedCandidateHypothesisSource = Self.selectedCandidateHypothesisSource(
             in: transcription.hypothesisDetails,
             selectedCandidate: transcription.selectedCandidate
@@ -179,6 +183,34 @@ final class SessionMetric {
         hypotheses.filter(\.requiresReview).count
     }
 
+    static func candidateDivergenceRatio(in hypotheses: [VocoHypothesis]) -> Double? {
+        let candidates = uniqueCandidateTexts(from: hypotheses)
+        guard candidates.count > 1 else { return nil }
+
+        let base = hypotheses.first { $0.source == .autoContext }?.text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let comparisonBase: String
+        if let base, !base.isEmpty {
+            comparisonBase = base
+        } else {
+            comparisonBase = candidates[0]
+        }
+
+        let ratios = candidates
+            .filter { $0.localizedCaseInsensitiveCompare(comparisonBase) != .orderedSame }
+            .map {
+                RetranscriptionAnalyticsService.analyze(
+                    sourceText: comparisonBase,
+                    retranscribedText: $0,
+                    sourceConfidenceScore: nil,
+                    retranscribedConfidenceScore: nil
+                ).changeRatio
+            }
+
+        guard let maxRatio = ratios.max() else { return nil }
+        return maxRatio
+    }
+
     static func selectedCandidateHypothesisSource(
         in hypotheses: [VocoHypothesis],
         selectedCandidate: String?
@@ -192,6 +224,14 @@ final class SessionMetric {
         return hypotheses.first { hypothesis in
             hypothesis.text.trimmingCharacters(in: .whitespacesAndNewlines) == selectedCandidate
         }?.source.rawValue
+    }
+
+    private static func uniqueCandidateTexts(from hypotheses: [VocoHypothesis]) -> [String] {
+        var seen: Set<String> = []
+        return hypotheses
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0.lowercased()).inserted }
     }
 
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {

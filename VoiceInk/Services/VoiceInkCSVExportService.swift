@@ -59,6 +59,7 @@ class VoiceInkCSVExportService {
         "Candidate Details",
         "Candidate Source Counts",
         "Review Required Candidates",
+        "Candidate Divergence Ratio",
         "Selected Candidate",
         "Selected Candidate Source",
         "Candidate Selection Source",
@@ -103,6 +104,7 @@ class VoiceInkCSVExportService {
             candidateDetailSummary(labels: transcription.hypothesisLabels, hypotheses: transcription.hypothesisDetails),
             candidateSourceSummary(transcription.hypothesisDetails),
             reviewRequiredCandidateCount(transcription.hypothesisDetails),
+            decimal(SessionMetric.candidateDivergenceRatio(in: transcription.hypothesisDetails)),
             transcription.selectedCandidate ?? "",
             selectedCandidateSource(
                 hypotheses: transcription.hypothesisDetails,
