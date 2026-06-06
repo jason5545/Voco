@@ -364,6 +364,13 @@ struct VoiceInkTests {
     @Test @MainActor func sessionMetricRecorderCapturesDictationMetadata() async throws {
         let context = try makeSessionMetricContext()
         let output = makeSessionMetricDictationOutput()
+        let sourceTranscriptionID = UUID()
+        let retranscriptionAnalysis = RetranscriptionAnalysis(
+            editDistance: 4,
+            changeRatio: 0.25,
+            confidenceDelta: 0.18,
+            changeCategory: .meaningfulChange
+        )
         let transcription = Transcription(
             text: output.result.normalizedText,
             duration: 2.0,
@@ -379,6 +386,8 @@ struct VoiceInkTests {
             confidenceAssessment: output.assessment,
             candidateSelectionSource: .userSelection,
             userCorrectionDistance: 0.12,
+            sourceTranscriptionID: sourceTranscriptionID,
+            retranscriptionAnalysis: retranscriptionAnalysis,
             transcriptionStatus: .completed
         )
         context.insert(transcription)
@@ -405,6 +414,11 @@ struct VoiceInkTests {
         #expect(metric.selectedCandidate == output.assessment.selectedCandidate)
         #expect(metric.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
         #expect(metric.userCorrectionDistance == 0.12)
+        #expect(metric.sourceTranscriptionID == sourceTranscriptionID)
+        #expect(metric.retranscriptionChangeCategory == RetranscriptionChangeCategory.meaningfulChange.rawValue)
+        #expect(metric.retranscriptionChangeRatio == 0.25)
+        #expect(metric.retranscriptionEditDistance == 4)
+        #expect(metric.retranscriptionConfidenceDelta == 0.18)
     }
 
     @Test @MainActor func sessionMetricRecorderCountsFinalPastedTextWhenAvailable() async throws {
@@ -437,6 +451,13 @@ struct VoiceInkTests {
     @Test func sessionMetricBackfillCapturesDictationMetadataFromTranscription() async throws {
         let output = makeSessionMetricDictationOutput()
         let finalPastedText = "hello world "
+        let sourceTranscriptionID = UUID()
+        let retranscriptionAnalysis = RetranscriptionAnalysis(
+            editDistance: 1,
+            changeRatio: 0.08,
+            confidenceDelta: -0.05,
+            changeCategory: .minorChange
+        )
         let transcription = Transcription(
             text: output.result.normalizedText,
             duration: 2.0,
@@ -451,6 +472,8 @@ struct VoiceInkTests {
             languageMode: "auto",
             confidenceAssessment: output.assessment,
             candidateSelectionSource: .timeoutFallback,
+            sourceTranscriptionID: sourceTranscriptionID,
+            retranscriptionAnalysis: retranscriptionAnalysis,
             transcriptionStatus: .completed
         )
         let metric = SessionMetric(
@@ -479,6 +502,11 @@ struct VoiceInkTests {
         #expect(metric.finalPastedWordCount == 2)
         #expect(metric.finalPastedCharacterCount == finalPastedText.count)
         #expect(metric.pasteCommandPosted == false)
+        #expect(metric.sourceTranscriptionID == sourceTranscriptionID)
+        #expect(metric.retranscriptionChangeCategory == RetranscriptionChangeCategory.minorChange.rawValue)
+        #expect(metric.retranscriptionChangeRatio == 0.08)
+        #expect(metric.retranscriptionEditDistance == 1)
+        #expect(metric.retranscriptionConfidenceDelta == -0.05)
     }
 
     @Test func assistiveSignalSummaryCountsContextAwareMetrics() async throws {
@@ -497,6 +525,10 @@ struct VoiceInkTests {
             confidenceScore: 0.9,
             confidenceRoute: VocoConfidenceRoute.directInsertion.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.userSelection.rawValue,
+            retranscriptionChangeCategory: RetranscriptionChangeCategory.unchanged.rawValue,
+            retranscriptionChangeRatio: 0,
+            retranscriptionEditDistance: 0,
+            retranscriptionConfidenceDelta: 0.02,
             pasteCommandPosted: true
         )
         let review = SessionMetric(
@@ -514,6 +546,10 @@ struct VoiceInkTests {
             confidenceScore: 0.6,
             confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
             candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
+            retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
+            retranscriptionChangeRatio: 0.24,
+            retranscriptionEditDistance: 6,
+            retranscriptionConfidenceDelta: 0.18,
             pasteCommandPosted: false
         )
         let legacy = SessionMetric(
@@ -547,6 +583,15 @@ struct VoiceInkTests {
         #expect(summary.suggestedSessionCount == 1)
         #expect(summary.totalCanonicalizationReplacementCount == 2)
         #expect(summary.totalCanonicalizationSuggestionCount == 3)
+        #expect(summary.retranscriptionSampleCount == 2)
+        #expect(summary.unchangedRetranscriptionCount == 1)
+        #expect(summary.minorRetranscriptionCount == 0)
+        #expect(summary.meaningfulRetranscriptionCount == 1)
+        #expect(summary.meaningfulRetranscriptionRate == 0.5)
+        #expect(summary.retranscriptionChangeRatioSampleCount == 2)
+        #expect(abs((summary.averageRetranscriptionChangeRatio ?? 0) - 0.12) < 0.001)
+        #expect(summary.retranscriptionConfidenceDeltaSampleCount == 2)
+        #expect(abs((summary.averageRetranscriptionConfidenceDelta ?? 0) - 0.10) < 0.001)
         #expect(summary.pasteCommandSampleCount == 2)
         #expect(summary.pasteCommandPostedCount == 1)
         #expect(summary.pasteCommandPostedRate == 0.5)

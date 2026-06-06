@@ -209,6 +209,14 @@ private struct ModelPerformancePanelContent: View {
                 )
 
                 assistiveTile(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "Retranscriptions",
+                    value: formatPercent(assistiveSummary.meaningfulRetranscriptionRate),
+                    detail: "\(assistiveSummary.meaningfulRetranscriptionCount) meaningful / \(assistiveSummary.retranscriptionSampleCount) analyzed",
+                    color: .pink
+                )
+
+                assistiveTile(
                     icon: "doc.on.clipboard",
                     title: "Paste Commands",
                     value: formatPercent(assistiveSummary.pasteCommandPostedRate),
@@ -407,6 +415,14 @@ struct AssistiveSignalSummary: Equatable {
     let suggestedSessionCount: Int
     let totalCanonicalizationReplacementCount: Int
     let totalCanonicalizationSuggestionCount: Int
+    let retranscriptionSampleCount: Int
+    let unchangedRetranscriptionCount: Int
+    let minorRetranscriptionCount: Int
+    let meaningfulRetranscriptionCount: Int
+    let retranscriptionChangeRatioSampleCount: Int
+    let averageRetranscriptionChangeRatio: Double?
+    let retranscriptionConfidenceDeltaSampleCount: Int
+    let averageRetranscriptionConfidenceDelta: Double?
     let pasteCommandSampleCount: Int
     let pasteCommandPostedCount: Int
 
@@ -433,6 +449,23 @@ struct AssistiveSignalSummary: Equatable {
         totalCanonicalizationReplacementCount = metrics.reduce(0) { $0 + $1.canonicalizationReplacementCount }
         totalCanonicalizationSuggestionCount = metrics.reduce(0) { $0 + $1.canonicalizationSuggestionCount }
 
+        retranscriptionSampleCount = metrics.filter { ($0.retranscriptionChangeCategory ?? "").isEmpty == false }.count
+        unchangedRetranscriptionCount = metrics.filter { $0.retranscriptionChangeCategory == RetranscriptionChangeCategory.unchanged.rawValue }.count
+        minorRetranscriptionCount = metrics.filter { $0.retranscriptionChangeCategory == RetranscriptionChangeCategory.minorChange.rawValue }.count
+        meaningfulRetranscriptionCount = metrics.filter { $0.retranscriptionChangeCategory == RetranscriptionChangeCategory.meaningfulChange.rawValue }.count
+
+        let retranscriptionChangeRatios = metrics.compactMap(\.retranscriptionChangeRatio)
+        retranscriptionChangeRatioSampleCount = retranscriptionChangeRatios.count
+        averageRetranscriptionChangeRatio = retranscriptionChangeRatios.isEmpty
+            ? nil
+            : retranscriptionChangeRatios.reduce(0, +) / Double(retranscriptionChangeRatios.count)
+
+        let retranscriptionConfidenceDeltas = metrics.compactMap(\.retranscriptionConfidenceDelta)
+        retranscriptionConfidenceDeltaSampleCount = retranscriptionConfidenceDeltas.count
+        averageRetranscriptionConfidenceDelta = retranscriptionConfidenceDeltas.isEmpty
+            ? nil
+            : retranscriptionConfidenceDeltas.reduce(0, +) / Double(retranscriptionConfidenceDeltas.count)
+
         pasteCommandSampleCount = metrics.filter { $0.pasteCommandPosted != nil }.count
         pasteCommandPostedCount = metrics.filter { $0.pasteCommandPosted == true }.count
     }
@@ -443,6 +476,7 @@ struct AssistiveSignalSummary: Equatable {
         candidateSelectionCount > 0 ||
         canonicalizedSessionCount > 0 ||
         suggestedSessionCount > 0 ||
+        retranscriptionSampleCount > 0 ||
         pasteCommandSampleCount > 0
     }
 
@@ -456,6 +490,10 @@ struct AssistiveSignalSummary: Equatable {
 
     var reviewSuggestedRate: Double? {
         rate(reviewSuggestedCount, confidenceRouteSampleCount)
+    }
+
+    var meaningfulRetranscriptionRate: Double? {
+        rate(meaningfulRetranscriptionCount, retranscriptionSampleCount)
     }
 
     var pasteCommandPostedRate: Double? {

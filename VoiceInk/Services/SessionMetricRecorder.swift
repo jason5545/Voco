@@ -62,6 +62,11 @@ enum SessionMetricRecorder {
             selectedCandidate: transcription.selectedCandidate,
             candidateSelectionSource: transcription.candidateSelectionSource,
             userCorrectionDistance: transcription.userCorrectionDistance,
+            sourceTranscriptionID: transcription.sourceTranscriptionID,
+            retranscriptionChangeCategory: transcription.retranscriptionAnalysis?.changeCategory.rawValue,
+            retranscriptionChangeRatio: transcription.retranscriptionAnalysis?.changeRatio,
+            retranscriptionEditDistance: transcription.retranscriptionAnalysis?.editDistance,
+            retranscriptionConfidenceDelta: transcription.retranscriptionAnalysis?.confidenceDelta,
             finalPastedCharacterCount: finalPastedCharacterCount(from: transcription),
             finalPastedWordCount: finalPastedWordCount(from: transcription),
             pasteCommandPosted: transcription.pasteCommandPosted

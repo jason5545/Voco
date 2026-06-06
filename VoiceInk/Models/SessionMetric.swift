@@ -27,6 +27,11 @@ final class SessionMetric {
     var selectedCandidate: String?
     var candidateSelectionSource: String?
     var userCorrectionDistance: Double?
+    var sourceTranscriptionID: UUID?
+    var retranscriptionChangeCategory: String?
+    var retranscriptionChangeRatio: Double?
+    var retranscriptionEditDistance: Int?
+    var retranscriptionConfidenceDelta: Double?
     var finalPastedCharacterCount: Int = 0
     var finalPastedWordCount: Int = 0
     var pasteCommandPosted: Bool?
@@ -65,6 +70,11 @@ final class SessionMetric {
         selectedCandidate: String? = nil,
         candidateSelectionSource: String? = nil,
         userCorrectionDistance: Double? = nil,
+        sourceTranscriptionID: UUID? = nil,
+        retranscriptionChangeCategory: String? = nil,
+        retranscriptionChangeRatio: Double? = nil,
+        retranscriptionEditDistance: Int? = nil,
+        retranscriptionConfidenceDelta: Double? = nil,
         finalPastedCharacterCount: Int = 0,
         finalPastedWordCount: Int = 0,
         pasteCommandPosted: Bool? = nil
@@ -93,6 +103,11 @@ final class SessionMetric {
         self.selectedCandidate = selectedCandidate
         self.candidateSelectionSource = candidateSelectionSource
         self.userCorrectionDistance = userCorrectionDistance
+        self.sourceTranscriptionID = sourceTranscriptionID
+        self.retranscriptionChangeCategory = retranscriptionChangeCategory
+        self.retranscriptionChangeRatio = retranscriptionChangeRatio
+        self.retranscriptionEditDistance = retranscriptionEditDistance
+        self.retranscriptionConfidenceDelta = retranscriptionConfidenceDelta
         self.finalPastedCharacterCount = finalPastedCharacterCount
         self.finalPastedWordCount = finalPastedWordCount
         self.pasteCommandPosted = pasteCommandPosted
@@ -111,7 +126,16 @@ final class SessionMetric {
         selectedCandidate = transcription.selectedCandidate
         candidateSelectionSource = transcription.candidateSelectionSource
         userCorrectionDistance = transcription.userCorrectionDistance
+        recordRetranscriptionMetadata(from: transcription)
         recordFinalPasteMetadata(from: transcription)
+    }
+
+    func recordRetranscriptionMetadata(from transcription: Transcription) {
+        sourceTranscriptionID = transcription.sourceTranscriptionID
+        retranscriptionChangeCategory = transcription.retranscriptionAnalysis?.changeCategory.rawValue
+        retranscriptionChangeRatio = transcription.retranscriptionAnalysis?.changeRatio
+        retranscriptionEditDistance = transcription.retranscriptionAnalysis?.editDistance
+        retranscriptionConfidenceDelta = transcription.retranscriptionAnalysis?.confidenceDelta
     }
 
     func recordFinalPasteMetadata(from transcription: Transcription) {
