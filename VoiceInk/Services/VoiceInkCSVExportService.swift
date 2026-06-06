@@ -57,7 +57,10 @@ class VoiceInkCSVExportService {
         "Candidate Labels",
         "Candidates",
         "Candidate Details",
+        "Candidate Source Counts",
+        "Review Required Candidates",
         "Selected Candidate",
+        "Selected Candidate Source",
         "Candidate Selection Source",
         "User Correction Distance",
         "Retranscription Source ID",
@@ -98,7 +101,13 @@ class VoiceInkCSVExportService {
             joined(transcription.hypothesisLabels),
             candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
             candidateDetailSummary(labels: transcription.hypothesisLabels, hypotheses: transcription.hypothesisDetails),
+            candidateSourceSummary(transcription.hypothesisDetails),
+            reviewRequiredCandidateCount(transcription.hypothesisDetails),
             transcription.selectedCandidate ?? "",
+            selectedCandidateSource(
+                hypotheses: transcription.hypothesisDetails,
+                selectedCandidate: transcription.selectedCandidate
+            ),
             selectionSourceDisplay(transcription.candidateSelectionSource),
             decimal(transcription.userCorrectionDistance),
             transcription.sourceTranscriptionID?.uuidString ?? "",
@@ -168,6 +177,72 @@ class VoiceInkCSVExportService {
                 return "\(prefix): \(summary)"
             }
             .joined(separator: " | ")
+    }
+
+    private func candidateSourceSummary(_ hypotheses: [VocoHypothesis]) -> String {
+        let counts = SessionMetric.candidateSourceCounts(from: hypotheses)
+        return sortedSourceCounts(counts)
+            .map { "\(sourceDisplayName($0.key)): \($0.value)" }
+            .joined(separator: " | ")
+    }
+
+    private func reviewRequiredCandidateCount(_ hypotheses: [VocoHypothesis]) -> String {
+        let count = SessionMetric.reviewRequiredCandidateCount(in: hypotheses)
+        return count > 0 ? "\(count)" : ""
+    }
+
+    private func selectedCandidateSource(
+        hypotheses: [VocoHypothesis],
+        selectedCandidate: String?
+    ) -> String {
+        guard let source = SessionMetric.selectedCandidateHypothesisSource(
+            in: hypotheses,
+            selectedCandidate: selectedCandidate
+        ) else {
+            return ""
+        }
+        return sourceDisplayName(source)
+    }
+
+    private func sortedSourceCounts(_ counts: [String: Int]) -> [(key: String, value: Int)] {
+        counts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value {
+                    return lhs.value > rhs.value
+                }
+
+                let lhsOrder = sourceSortOrder(lhs.key)
+                let rhsOrder = sourceSortOrder(rhs.key)
+                if lhsOrder != rhsOrder {
+                    return lhsOrder < rhsOrder
+                }
+
+                return sourceDisplayName(lhs.key) < sourceDisplayName(rhs.key)
+            }
+    }
+
+    private func sourceDisplayName(_ source: String) -> String {
+        VocoHypothesisSource(rawValue: source)?.displayName ?? source
+    }
+
+    private func sourceSortOrder(_ source: String) -> Int {
+        switch VocoHypothesisSource(rawValue: source) {
+        case .autoContext:
+            return 0
+        case .suggestedRepair:
+            return 1
+        case .originalCleaned:
+            return 2
+        case .rawASR:
+            return 3
+        case .segmentRescue:
+            return 4
+        case .customRescue:
+            return 5
+        case nil:
+            return 99
+        }
     }
 
     private func joined(_ values: [String]) -> String {
