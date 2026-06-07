@@ -83,6 +83,7 @@ struct ModelPerformancePanel: View {
 // MARK: - Content (owns @Query, reacts to filter)
 
 private struct ModelPerformancePanelContent: View {
+    @AppStorage("modelPerfPanelShowsDiagnostics") private var showsDiagnostics = false
     @Query private var metrics: [SessionMetric]
 
     init(filter: TimeFilter) {
@@ -135,14 +136,14 @@ private struct ModelPerformancePanelContent: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if assistiveSummary.hasData {
-                        assistiveSection
-                    }
                     if !modelStats.isEmpty {
                         modelsSection
                     }
                     if !enhancementStats.isEmpty {
                         enhancementSection
+                    }
+                    if assistiveSummary.hasData {
+                        assistiveSection
                     }
                 }
                 .padding(16)
@@ -165,25 +166,96 @@ private struct ModelPerformancePanelContent: View {
     // MARK: - Assistive signals
 
     private var assistiveSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if assistiveSummary.hasPrimaryData {
+                primaryAssistiveSection
+            }
+            if assistiveSummary.hasDiagnosticData {
+                diagnosticAssistiveSection
+            }
+        }
+    }
+
+    private var primaryAssistiveSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Assistive Signals")
+            sectionHeader("Key Signals")
             LazyVGrid(columns: gridColumns, spacing: 12) {
-                assistiveTile(
-                    icon: "checkmark.shield",
-                    title: "Direct Insertions",
-                    value: formatPercent(assistiveSummary.directInsertionRate),
-                    detail: "\(assistiveSummary.directInsertionCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
-                    color: .mint
-                )
+                if assistiveSummary.confidenceRouteSampleCount > 0 {
+                    assistiveTile(
+                        icon: "checkmark.shield",
+                        title: "Direct Insertions",
+                        value: formatPercent(assistiveSummary.directInsertionRate),
+                        detail: "\(assistiveSummary.directInsertionCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                        color: .mint
+                    )
 
-                assistiveTile(
-                    icon: "exclamationmark.bubble",
-                    title: "Review Suggested",
-                    value: formatPercent(assistiveSummary.reviewSuggestedRate),
-                    detail: "\(assistiveSummary.reviewSuggestedCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
-                    color: .orange
-                )
+                    assistiveTile(
+                        icon: "exclamationmark.bubble",
+                        title: "Review Suggested",
+                        value: formatPercent(assistiveSummary.reviewSuggestedRate),
+                        detail: "\(assistiveSummary.reviewSuggestedCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                        color: .orange
+                    )
+                }
 
+                if assistiveSummary.confidenceScoreSampleCount > 0 {
+                    assistiveTile(
+                        icon: "slider.horizontal.3",
+                        title: "Average Confidence",
+                        value: formatPercent(assistiveSummary.averageConfidenceScore),
+                        detail: "\(assistiveSummary.confidenceScoreSampleCount) scored sessions",
+                        color: .teal
+                    )
+                }
+
+                if assistiveSummary.retranscriptionSampleCount > 0 {
+                    assistiveTile(
+                        icon: "arrow.triangle.2.circlepath",
+                        title: "Retranscriptions",
+                        value: formatPercent(assistiveSummary.meaningfulRetranscriptionRate),
+                        detail: assistiveSummary.retranscriptionDetail,
+                        color: .pink
+                    )
+                }
+            }
+        }
+    }
+
+    private var diagnosticAssistiveSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showsDiagnostics.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: showsDiagnostics ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 14, height: 14)
+                    sectionHeader("Advanced Diagnostics")
+                    Spacer()
+                    Text("\(assistiveSummary.diagnosticTileCount)")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if showsDiagnostics {
+                diagnosticTiles
+            }
+        }
+    }
+
+    private var diagnosticTiles: some View {
+        LazyVGrid(columns: gridColumns, spacing: 12) {
+            if assistiveSummary.reviewTriggerCount > 0 {
                 assistiveTile(
                     icon: "list.bullet.clipboard",
                     title: "Review Triggers",
@@ -191,15 +263,9 @@ private struct ModelPerformancePanelContent: View {
                     detail: assistiveSummary.reviewTriggerDetail,
                     color: .red
                 )
+            }
 
-                assistiveTile(
-                    icon: "slider.horizontal.3",
-                    title: "Average Confidence",
-                    value: formatPercent(assistiveSummary.averageConfidenceScore),
-                    detail: "\(assistiveSummary.confidenceScoreSampleCount) scored sessions",
-                    color: .teal
-                )
-
+            if assistiveSummary.candidateSelectionCount > 0 {
                 assistiveTile(
                     icon: "cursorarrow.click.2",
                     title: "Candidate Selections",
@@ -207,7 +273,9 @@ private struct ModelPerformancePanelContent: View {
                     detail: "\(assistiveSummary.userSelectionCount) user / \(assistiveSummary.fallbackSelectionCount) fallback",
                     color: .indigo
                 )
+            }
 
+            if assistiveSummary.correctionFeedbackSessionCount > 0 {
                 assistiveTile(
                     icon: "text.badge.checkmark",
                     title: "Feedback",
@@ -215,7 +283,9 @@ private struct ModelPerformancePanelContent: View {
                     detail: assistiveSummary.correctionFeedbackDetail,
                     color: .brown
                 )
+            }
 
+            if assistiveSummary.styleGuardRejectionSessionCount > 0 {
                 assistiveTile(
                     icon: "shield.lefthalf.filled",
                     title: "Style Guard",
@@ -223,7 +293,9 @@ private struct ModelPerformancePanelContent: View {
                     detail: assistiveSummary.styleGuardDetail,
                     color: .green
                 )
+            }
 
+            if assistiveSummary.candidateSourceSampleCount > 0 {
                 assistiveTile(
                     icon: "rectangle.stack",
                     title: "Candidate Sources",
@@ -231,7 +303,19 @@ private struct ModelPerformancePanelContent: View {
                     detail: assistiveSummary.candidateSourceDetail,
                     color: .cyan
                 )
+            }
 
+            if assistiveSummary.candidateDivergenceRatioSampleCount > 0 {
+                assistiveTile(
+                    icon: "arrow.left.and.right",
+                    title: "Candidate Divergence",
+                    value: formatPercent(assistiveSummary.averageCandidateDivergenceRatio),
+                    detail: "\(assistiveSummary.candidateDivergenceRatioSampleCount) compared sessions",
+                    color: .blue
+                )
+            }
+
+            if assistiveSummary.canonicalizedSessionCount > 0 || assistiveSummary.suggestedSessionCount > 0 {
                 assistiveTile(
                     icon: "text.magnifyingglass",
                     title: "Canonicalization",
@@ -239,15 +323,9 @@ private struct ModelPerformancePanelContent: View {
                     detail: "\(assistiveSummary.totalCanonicalizationReplacementCount) replacements / \(assistiveSummary.totalCanonicalizationSuggestionCount) suggestions",
                     color: .purple
                 )
+            }
 
-                assistiveTile(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Retranscriptions",
-                    value: formatPercent(assistiveSummary.meaningfulRetranscriptionRate),
-                    detail: assistiveSummary.retranscriptionDetail,
-                    color: .pink
-                )
-
+            if assistiveSummary.pasteCommandSampleCount > 0 {
                 assistiveTile(
                     icon: "doc.on.clipboard",
                     title: "Paste Commands",
@@ -590,18 +668,30 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     var hasData: Bool {
+        hasPrimaryData || hasDiagnosticData
+    }
+
+    var hasPrimaryData: Bool {
         confidenceRouteSampleCount > 0 ||
-            reviewTriggerCount > 0 ||
             confidenceScoreSampleCount > 0 ||
-            candidateSelectionCount > 0 ||
-            correctionFeedbackCount > 0 ||
-            styleGuardRejectionSessionCount > 0 ||
-            candidateSourceSampleCount > 0 ||
-            candidateDivergenceRatioSampleCount > 0 ||
-            canonicalizedSessionCount > 0 ||
-            suggestedSessionCount > 0 ||
-            retranscriptionSampleCount > 0 ||
-            pasteCommandSampleCount > 0
+            retranscriptionSampleCount > 0
+    }
+
+    var hasDiagnosticData: Bool {
+        diagnosticTileCount > 0
+    }
+
+    var diagnosticTileCount: Int {
+        var count = 0
+        if reviewTriggerCount > 0 { count += 1 }
+        if candidateSelectionCount > 0 { count += 1 }
+        if correctionFeedbackSessionCount > 0 { count += 1 }
+        if styleGuardRejectionSessionCount > 0 { count += 1 }
+        if candidateSourceSampleCount > 0 { count += 1 }
+        if candidateDivergenceRatioSampleCount > 0 { count += 1 }
+        if canonicalizedSessionCount > 0 || suggestedSessionCount > 0 { count += 1 }
+        if pasteCommandSampleCount > 0 { count += 1 }
+        return count
     }
 
     var fallbackSelectionCount: Int {
@@ -609,7 +699,7 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     var correctionFeedbackDetail: String {
-        guard correctionFeedbackCount > 0 else { return "No feedback recorded" }
+        guard correctionFeedbackSessionCount > 0 || correctionFeedbackCount > 0 else { return "No feedback recorded" }
 
         var parts = [
             "\(correctiveFeedbackCount) corrective / \(Self.unitCount(correctionFeedbackSessionCount, singular: "session", plural: "sessions"))",
