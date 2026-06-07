@@ -139,8 +139,9 @@ final class PersonalCorrectionEngine {
             if orig.count == 1, let ch = orig.first, Self.skipChars.contains(ch) { continue }
             if corr.count == 1, let ch = corr.first, Self.skipChars.contains(ch) { continue }
 
-            // Skip protected words
-            if CorrectionProtectionList.shared.contains(orig) { continue }
+            // Skip protected words or broader learned fragments containing them.
+            let protection = CorrectionProtectionList.shared
+            if protection.contains(orig) || protection.containsSubstring(in: orig) { continue }
 
             let sim = pinyinSimilarity(orig, corr)
             guard sim >= minPinyinSimilarity else { continue }
@@ -453,7 +454,8 @@ extension PersonalCorrectionEngine: CorrectionEngine {
 
         for rule in currentRules {
             guard result.contains(rule.original) else { continue }
-            if CorrectionProtectionList.shared.contains(rule.original) { continue }
+            let protection = CorrectionProtectionList.shared
+            if protection.contains(rule.original) || protection.containsSubstring(in: rule.original) { continue }
 
             let replaced = applyRule(result, rule: rule)
             if replaced != result {

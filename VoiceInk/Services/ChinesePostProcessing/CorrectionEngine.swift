@@ -111,6 +111,8 @@ final class CorrectionProtectionList {
         "自家",
         "M5 Max",
         "M5 Max 128GB",
+        "鑑定",
+        "身心障礙鑑定",
     ]
     private var words: Set<String>
 

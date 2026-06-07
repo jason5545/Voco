@@ -151,6 +151,18 @@ struct VoiceInkTests {
                 length: 1
             ) == true
         )
+
+        let assessmentChars = Array("身心障礙鑑定")
+        let assessmentOffset = try #require(assessmentChars.firstIndex(of: "鑑"))
+
+        #expect(CorrectionProtectionList.shared.contains("鑑定") == true)
+        #expect(
+            CorrectionProtectionList.shared.containsProtectedPhrase(
+                in: assessmentChars,
+                covering: assessmentOffset,
+                length: 1
+            ) == true
+        )
     }
 
     @Test func validatorRejectsAggressiveShortRewrite() async throws {
