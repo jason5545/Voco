@@ -453,6 +453,11 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("資料的，新就不重要了。", context: dataImportContext).text == "資料的新舊不重要了。")
         #expect(PinyinCorrector.shared.correct("闌尾的名稱。", context: dataImportContext).text == "欄位的名稱。")
         #expect(PinyinCorrector.shared.correct("雖然一比而已，看不出來什麼東西。", context: dataImportContext).text == "雖然一筆而已，看不出來什麼東西。")
+        #expect(PinyinCorrector.shared.correct("他藍位的藍位辨識不出來。", context: dataImportContext).text == "他欄位的欄位辨識不出來。")
+        #expect(PinyinCorrector.shared.correct("會變質成浪費，還有狼狽。", context: correctionContext).text == "會辨識成浪費，還有狼狽。")
+        #expect(PinyinCorrector.shared.correct("浪費的名稱。", context: dataImportContext).text == "欄位的名稱。")
+        #expect(PinyinCorrector.shared.correct("狼狽格式不對。", context: dataImportContext).text == "欄位格式不對。")
+        #expect(PinyinCorrector.shared.correct("不少的浪費。", context: dataImportContext).text == "不少的浪費。")
         #expect(PinyinCorrector.shared.correct("目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。", context: cloudflareContext).text == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。")
     }
 

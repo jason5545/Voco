@@ -121,6 +121,7 @@ class PinyinCorrector {
         let loadingKeywords = ["Loading", "loading", "load", "卡", "卡死", "Activity Monitor"] + systemResourceKeywords + appleHardwareKeywords
         let dataImportKeywords = ["資料", "檔案", "Excel", "demo", "欄位", "欄位格式", "名稱", "匯入", "去年", "今年", "中元節", "單位"]
         let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
+        let fieldRecognitionKeywords = dataImportKeywords + correctionKeywords + ["表格", "格式", "藍位", "浪費", "狼狽", "辨識成", "變質成"]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -161,6 +162,15 @@ class PinyinCorrector {
             ("新就不重要", "新舊不重要", dataImportKeywords),
             ("闌尾的名稱", "欄位的名稱", dataImportKeywords),
             ("一比而已", "一筆而已", dataImportKeywords),
+            ("藍位的", "欄位的", fieldRecognitionKeywords),
+            ("藍位辨識", "欄位辨識", fieldRecognitionKeywords),
+            ("藍位格式", "欄位格式", fieldRecognitionKeywords),
+            ("藍位", "欄位", fieldRecognitionKeywords),
+            ("浪費的名稱", "欄位的名稱", dataImportKeywords),
+            ("狼狽的名稱", "欄位的名稱", dataImportKeywords),
+            ("浪費格式", "欄位格式", dataImportKeywords),
+            ("狼狽格式", "欄位格式", dataImportKeywords),
+            ("變質成", "辨識成", fieldRecognitionKeywords),
             ("Load Fail", "Cloudflare", cloudflareKeywords),
             ("D One", "D1", cloudflareKeywords),
         ]
