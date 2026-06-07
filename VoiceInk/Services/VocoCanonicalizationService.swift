@@ -79,6 +79,8 @@ final class VocoCanonicalizationService {
                       !aliases.isEmpty
                 else { return nil }
 
+                guard !aliases.contains(where: containsProtectedWord) else { return nil }
+
                 return VocoCanonicalTerm(
                     id: "word-replacement.\(replacement.id.uuidString.lowercased())",
                     canonical: canonical,
@@ -89,6 +91,17 @@ final class VocoCanonicalizationService {
                     autoReplaceThreshold: 0.97
                 )
             }
+    }
+
+    private static func containsProtectedWord(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let protection = CorrectionProtectionList.shared
+        if protection.containsSubstring(in: trimmed) { return true }
+
+        let converted = OpenCCConverter.shared.convert(trimmed)
+        return converted != trimmed && protection.containsSubstring(in: converted)
     }
 
     static func powerModeContextHints(from config: PowerModeConfig?) -> [String] {

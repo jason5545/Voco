@@ -41,6 +41,13 @@ final class VocoConfidenceGateService {
             reasons.append("heavy-normalization")
         }
 
+        if hasProtectedTermReplacement(normalizationResult.replacements) {
+            score -= 0.22
+            reasons.append("protected-term-replacement")
+            rawCleanupRescueCandidate = normalizationResult.originalText
+            selectedCandidate = normalizationResult.originalText
+        }
+
         if let rawTranscript,
            !rawTranscript.isEmpty,
            rawTranscript != normalizationResult.originalText {
@@ -183,6 +190,16 @@ final class VocoConfidenceGateService {
             )
         }
 
+        if reasons.contains("protected-term-replacement") {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "protected-term-replacement",
+                    reason: "protected-term-replacement",
+                    detail: "Replacement changed a protected term"
+                )
+            )
+        }
+
         if reasons.contains("recent-term-corrections") {
             let riskIDs = correctionRiskProfile?.highRiskTermIDs ?? []
             let overlappingIDs = affectedTermIDs.filter { riskIDs.contains($0) }
@@ -308,6 +325,23 @@ final class VocoConfidenceGateService {
             replacement.termID == "song.homura" ||
             (replacement.termID.hasPrefix("song.") && replacement.replacementText.count == 1)
         }
+    }
+
+    private func hasProtectedTermReplacement(_ replacements: [VocoReplacement]) -> Bool {
+        replacements.contains { replacement in
+            containsProtectedTerm(replacement.originalText)
+        }
+    }
+
+    private func containsProtectedTerm(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let protection = CorrectionProtectionList.shared
+        if protection.containsSubstring(in: trimmed) { return true }
+
+        let converted = OpenCCConverter.shared.convert(trimmed)
+        return converted != trimmed && protection.containsSubstring(in: converted)
     }
 
     private func isHeavyNormalization(_ result: VocoNormalizationResult) -> Bool {

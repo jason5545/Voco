@@ -362,6 +362,8 @@ enum VocoSignalDisplayFormatter {
             return "Low confidence"
         case "low-confidence-score":
             return "Low score"
+        case "protected-term-replacement":
+            return "Protected term changed"
         case "raw-cleanup-drift":
             return "Cleanup drift"
         case "raw-cleanup-local-regression":

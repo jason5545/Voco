@@ -165,6 +165,38 @@ struct VoiceInkTests {
         )
     }
 
+    @Test @MainActor func chinesePostProcessingPreservesAssessmentTerms() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = ChinesePostProcessingService.shared
+        let oldOpenCC = service.isOpenCCEnabled
+        let oldPinyin = service.isPinyinCorrectionEnabled
+        let oldDataDriven = service.isDataDrivenCorrectionEnabled
+        let oldNasal = service.isNasalCorrectionEnabled
+        let oldPersonal = service.isPersonalCorrectionEnabled
+        defer {
+            service.isOpenCCEnabled = oldOpenCC
+            service.isPinyinCorrectionEnabled = oldPinyin
+            service.isDataDrivenCorrectionEnabled = oldDataDriven
+            service.isNasalCorrectionEnabled = oldNasal
+            service.isPersonalCorrectionEnabled = oldPersonal
+        }
+
+        service.isOpenCCEnabled = true
+        service.isPinyinCorrectionEnabled = true
+        service.isDataDrivenCorrectionEnabled = true
+        service.isNasalCorrectionEnabled = true
+        service.isPersonalCorrectionEnabled = true
+
+        _ = service.process("先觸發個人校正規則載入。")
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+
+        let result = service.process("我不是要你鉴定什么的。如果真的要鉴定，我还有一个更严重的CP呢。")
+
+        #expect(result.processedText.contains("鑑定"))
+        #expect(!result.processedText.contains("簡訊"))
+    }
+
     @Test func validatorRejectsAggressiveShortRewrite() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "網葉斑",
@@ -558,6 +590,37 @@ struct VoiceInkTests {
         ])
         #expect(assessment.candidateLabels == ["Recommended", "Raw ASR"])
         #expect(assessment.hypothesisDetails.map(\.source) == [.autoContext, .rawASR])
+    }
+
+    @Test func confidenceGateRoutesProtectedTermReplacementToReview() async throws {
+        let result = VocoNormalizationResult(
+            originalText: "我是要說鑑定的鑑定哦。",
+            normalizedText: "我是要說簡訊的簡訊哦。",
+            activeContextIDs: ["builtin.voco-development"],
+            replacements: [
+                VocoReplacement(
+                    originalText: "鑑定",
+                    replacementText: "簡訊",
+                    termID: "word-replacement.51aff0ef-3162-4f62-8f67-ed132b2b9053",
+                    confidence: 0.97,
+                    reason: "alias-match",
+                    rangeStart: 4,
+                    rangeLength: 2
+                ),
+            ],
+            suggestions: []
+        )
+
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: result,
+            rawTranscript: "我是要说鉴定的鉴定哦。"
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("protected-term-replacement"))
+        #expect(assessment.reviewTriggers.contains { $0.reason == "protected-term-replacement" })
+        #expect(assessment.selectedCandidate == "我是要說鑑定的鑑定哦。")
+        #expect(assessment.candidates.contains("我是要說鑑定的鑑定哦。"))
     }
 
     @Test func hypothesisManagerAddsSegmentRescueForRawDriftWithCanonicalTerms() async throws {
@@ -1759,6 +1822,7 @@ struct VoiceInkTests {
             "candidate-timeout-fallback",
             "candidate-dismissed-fallback",
             "candidate-auto-fallback",
+            "protected-term-replacement",
             "raw-cleanup-significant",
             "retranscription-meaningfulChange",
             "user-substitution",
@@ -1776,6 +1840,7 @@ struct VoiceInkTests {
             "Timeout fallback",
             "Dismissed fallback",
             "Automatic fallback",
+            "Protected term changed",
             "Cleanup changed text",
             "Retranscription meaningful",
             "User substitution",
@@ -2905,6 +2970,25 @@ struct VoiceInkTests {
         #expect(result.replacements.first?.originalText == "snow mode")
         #expect(result.replacements.first?.replacementText == "SnowMode")
         #expect(result.replacements.first?.termID.hasPrefix("word-replacement.") == true)
+    }
+
+    @Test func canonicalizationSkipsWordReplacementsThatTouchProtectedTerms() async throws {
+        let terms = VocoCanonicalizationService.wordReplacementTerms(
+            from: [
+                WordReplacement(originalText: "鑑定", replacementText: "簡訊"),
+                WordReplacement(originalText: "鉴定", replacementText: "简讯"),
+            ]
+        )
+
+        #expect(terms.isEmpty)
+
+        let result = VocoCanonicalizationService(contextPacks: []).normalize(
+            "我是要說鑑定的鑑定哦。",
+            activeContextIDs: [],
+            additionalTerms: terms
+        )
+        #expect(result.normalizedText == "我是要說鑑定的鑑定哦。")
+        #expect(result.replacements.isEmpty)
     }
 
     @Test func personalStyleGuardEnabledDefaultsToTrueAndPersists() throws {
