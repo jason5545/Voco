@@ -119,6 +119,8 @@ class PinyinCorrector {
         let systemResourceKeywords = ["macOS", "Mac OS", "Activity Monitor", "資源", "耗盡", "卡死", "提示窗", "記憶體", "Memory Pressure", "系統"]
         let appleHardwareKeywords = ["Mac", "macOS", "Mac OS", "Apple", "硬體", "配備", "最頂", "基本版", "Max", "M5", "晶片", "筆電"]
         let loadingKeywords = ["Loading", "loading", "load", "卡", "卡死", "Activity Monitor"] + systemResourceKeywords + appleHardwareKeywords
+        let dataImportKeywords = ["資料", "檔案", "Excel", "demo", "欄位", "欄位格式", "名稱", "匯入", "去年", "今年", "中元節", "單位"]
+        let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -153,6 +155,14 @@ class PinyinCorrector {
             ("M 五的", "M5 的", appleHardwareKeywords),
             ("M 五來", "M5 來", appleHardwareKeywords),
             ("M 五", "M5", appleHardwareKeywords),
+            ("開始說吧，然後照流程", "開始修正吧，然後照流程", correctionKeywords + ["流程", "部署"]),
+            ("西成的總長", "session 的總長", sessionKeywords + ["SESSION", "總長", "輪", "push"]),
+            ("資料的，新就", "資料的新舊", dataImportKeywords),
+            ("新就不重要", "新舊不重要", dataImportKeywords),
+            ("闌尾的名稱", "欄位的名稱", dataImportKeywords),
+            ("一比而已", "一筆而已", dataImportKeywords),
+            ("Load Fail", "Cloudflare", cloudflareKeywords),
+            ("D One", "D1", cloudflareKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(

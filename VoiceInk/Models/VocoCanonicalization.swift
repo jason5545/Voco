@@ -364,6 +364,8 @@ enum VocoSignalDisplayFormatter {
             return "Low score"
         case "raw-cleanup-drift":
             return "Cleanup drift"
+        case "raw-cleanup-local-regression":
+            return "Cleanup local regression"
         case "raw-cleanup-significant":
             return "Cleanup changed text"
         case "recent-correction-rate":

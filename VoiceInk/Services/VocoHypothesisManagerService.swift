@@ -4,6 +4,7 @@ enum VocoHypothesisManagerService {
     static func buildHypotheses(
         normalizationResult: VocoNormalizationResult,
         rawTranscript: String?,
+        rawCleanupRescueCandidate: String? = nil,
         confidenceScore: Double?,
         route: VocoConfidenceRoute,
         reasons: [String]
@@ -43,6 +44,18 @@ enum VocoHypothesisManagerService {
                 "Segment rescue",
                 .segmentRescue,
                 segmentRescue.termIDs,
+                true
+            ))
+        }
+
+        if let rawCleanupRescueCandidate = rawCleanupRescueCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !rawCleanupRescueCandidate.isEmpty,
+           rawCleanupRescueCandidate != normalized {
+            drafts.append((
+                rawCleanupRescueCandidate,
+                "Raw cleanup rescue",
+                .customRescue,
+                [],
                 true
             ))
         }

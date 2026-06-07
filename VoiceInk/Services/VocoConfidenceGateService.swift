@@ -10,6 +10,8 @@ final class VocoConfidenceGateService {
     ) -> VocoConfidenceAssessment {
         var score = 1.0
         var reasons: [String] = []
+        var rawCleanupRescueCandidate: String?
+        var selectedCandidate = normalizationResult.normalizedText
 
         let replacementCount = normalizationResult.replacements.count
         let suggestionCount = normalizationResult.suggestions.count
@@ -50,6 +52,17 @@ final class VocoConfidenceGateService {
                 score -= 0.02
                 reasons.append("raw-cleanup-drift")
             }
+
+            if drift.prefersRawFallback {
+                let fallback = rawCleanupFallbackCandidate(from: rawTranscript)
+                if !fallback.isEmpty,
+                   fallback != normalizationResult.normalizedText {
+                    score -= 0.16
+                    reasons.append("raw-cleanup-local-regression")
+                    rawCleanupRescueCandidate = fallback
+                    selectedCandidate = fallback
+                }
+            }
         }
 
         if let correctionRiskProfile,
@@ -82,6 +95,7 @@ final class VocoConfidenceGateService {
         let hypothesisDetails = VocoHypothesisManagerService.buildHypotheses(
             normalizationResult: normalizationResult,
             rawTranscript: rawTranscript,
+            rawCleanupRescueCandidate: rawCleanupRescueCandidate,
             confidenceScore: boundedScore,
             route: route,
             reasons: reasons
@@ -96,7 +110,7 @@ final class VocoConfidenceGateService {
             candidateLabels: hypothesisDetails.map(\.label),
             hypothesisDetails: hypothesisDetails,
             correctionRiskProfile: correctionRiskProfile,
-            selectedCandidate: normalizationResult.normalizedText
+            selectedCandidate: selectedCandidate
         )
     }
 
@@ -159,6 +173,16 @@ final class VocoConfidenceGateService {
             )
         }
 
+        if reasons.contains("raw-cleanup-local-regression") {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: "raw-cleanup-local-regression",
+                    reason: "raw-cleanup-local-regression",
+                    detail: "Raw cleanup changed a higher-confidence local phrase"
+                )
+            )
+        }
+
         if reasons.contains("recent-term-corrections") {
             let riskIDs = correctionRiskProfile?.highRiskTermIDs ?? []
             let overlappingIDs = affectedTermIDs.filter { riskIDs.contains($0) }
@@ -193,8 +217,90 @@ final class VocoConfidenceGateService {
         )
         return RawCleanupDrift(
             changeRatio: analysis.changeRatio,
-            isSignificant: analysis.changeCategory == .meaningfulChange
+            isSignificant: analysis.changeCategory == .meaningfulChange,
+            prefersRawFallback: rawCleanupPrefersRawFallback(
+                rawTranscript: rawTranscript,
+                cleanedText: cleanedText
+            )
         )
+    }
+
+    private func rawCleanupPrefersRawFallback(rawTranscript: String, cleanedText: String) -> Bool {
+        let raw = normalizedForCleanupRisk(rawTranscript)
+        let cleaned = normalizedForCleanupRisk(cleanedText)
+        guard raw != cleaned else { return false }
+
+        let rawChars = Array(raw)
+        let cleanedChars = Array(cleaned)
+
+        var prefix = 0
+        while prefix < rawChars.count,
+              prefix < cleanedChars.count,
+              rawChars[prefix] == cleanedChars[prefix] {
+            prefix += 1
+        }
+
+        var rawEnd = rawChars.count
+        var cleanedEnd = cleanedChars.count
+        while rawEnd > prefix,
+              cleanedEnd > prefix,
+              rawChars[rawEnd - 1] == cleanedChars[cleanedEnd - 1] {
+            rawEnd -= 1
+            cleanedEnd -= 1
+        }
+
+        let rawMiddle = String(rawChars[prefix..<rawEnd])
+        let cleanedMiddle = String(cleanedChars[prefix..<cleanedEnd])
+        guard !rawMiddle.isEmpty,
+              !cleanedMiddle.isEmpty,
+              rawMiddle.count <= 6,
+              cleanedMiddle.count <= 6,
+              rawMiddle.contains(where: \.isCJK),
+              cleanedMiddle.contains(where: \.isCJK)
+        else {
+            return false
+        }
+
+        return phraseLooksSafer(rawMiddle, than: cleanedMiddle)
+    }
+
+    private func phraseLooksSafer(_ rawPhrase: String, than cleanedPhrase: String) -> Bool {
+        let rawFrequency = phraseFrequency(rawPhrase)
+        let cleanedFrequency = phraseFrequency(cleanedPhrase)
+        guard rawFrequency >= 100 else { return false }
+
+        if cleanedFrequency == 0 {
+            return true
+        }
+
+        return rawFrequency >= max(cleanedFrequency * 2, cleanedFrequency + 500)
+    }
+
+    private func phraseFrequency(_ phrase: String) -> Int {
+        let converted = OpenCCConverter.shared.convert(phrase)
+        guard PinyinDatabase.shared.isLoaded else { return 0 }
+
+        let wordFrequency = PinyinDatabase.shared.frequency(of: converted)
+        if wordFrequency > 0 { return wordFrequency }
+
+        if converted.count == 2 {
+            return PinyinDatabase.shared.bigramFrequency(of: converted)
+        }
+
+        return 0
+    }
+
+    private func normalizedForCleanupRisk(_ text: String) -> String {
+        OpenCCConverter.shared.convert(text)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    private func rawCleanupFallbackCandidate(from rawTranscript: String) -> String {
+        let converted = OpenCCConverter.shared.convert(rawTranscript)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !converted.isEmpty { return converted }
+        return rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func hasHighRiskAcceptedTerm(in replacements: [VocoReplacement]) -> Bool {
@@ -230,5 +336,6 @@ final class VocoConfidenceGateService {
     private struct RawCleanupDrift {
         let changeRatio: Double
         let isSignificant: Bool
+        let prefersRawFallback: Bool
     }
 }

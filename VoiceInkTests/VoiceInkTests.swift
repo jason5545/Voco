@@ -221,6 +221,50 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
+    @Test func confidenceGateFallsBackToRawForLocalCleanupRegression() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let result = VocoNormalizationResult(
+            originalText: "這邊又有語音，語音辨識錯誤，所以你自己小振",
+            normalizedText: "這邊又有語音，語音辨識錯誤，所以你自己小振",
+            activeContextIDs: ["builtin.voco-development"],
+            replacements: [],
+            suggestions: []
+        )
+
+        let assessment = VocoConfidenceGateService.shared.assess(
+            normalizationResult: result,
+            rawTranscript: "这边又有语音，语音辨识错误，所以你自己修正。"
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("raw-cleanup-local-regression"))
+        #expect(assessment.selectedCandidate == "這邊又有語音，語音辨識錯誤，所以你自己修正。")
+        #expect(assessment.hypothesisDetails.contains { $0.source == .customRescue })
+    }
+
+    @Test func confidenceGateFallsBackToRawForSystemResourceCleanupRegression() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let result = VocoNormalizationResult(
+            originalText: "而且，今天你知道 Mac OS 應該會有個支援耗盡的提示窗吧？但是現在的情況是完全沒有誒，是直接卡死呢。",
+            normalizedText: "而且，今天你知道 Mac OS 應該會有個支援耗盡的提示窗吧？但是現在的情況是完全沒有誒，是直接卡死呢。",
+            activeContextIDs: ["builtin.voco-development"],
+            replacements: [],
+            suggestions: []
+        )
+
+        let assessment = VocoConfidenceGateService.shared.assess(
+            normalizationResult: result,
+            rawTranscript: "而且，今天你知道 Mac OS 应该会有个资源耗尽的提示窗吧？但是现在的情况是完全没有诶，是直接卡死呢。"
+        )
+
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains("raw-cleanup-local-regression"))
+        #expect(assessment.selectedCandidate.contains("資源耗盡"))
+        #expect(!assessment.selectedCandidate.contains("支援耗盡"))
+    }
+
     @Test func canonicalizationTreatsVocalAsContextRequiredVocoAlias() async throws {
         let service = VocoCanonicalizationService()
 
@@ -384,11 +428,32 @@ struct VoiceInkTests {
             appName: nil,
             windowTitle: "macOS resource issue"
         )
+        let dataImportContext = CorrectionContext(
+            recentTranscriptions: ["demo 的資料只有一筆", "欄位格式", "去年今年檔案", "準備匯入作業"],
+            appName: nil,
+            windowTitle: nil
+        )
+        let cloudflareContext = CorrectionContext(
+            recentTranscriptions: ["Cloudflare Workers 用 D1 處理", "GitHub repo", "專案部署"],
+            appName: "Codex",
+            windowTitle: nil
+        )
+        let sessionContext = CorrectionContext(
+            recentTranscriptions: ["SESSION 跑了七十幾輪", "Codex session 已經很長"],
+            appName: "Codex",
+            windowTitle: nil
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
         #expect(PinyinCorrector.shared.correct("Mac OS 應該會有個支援耗盡的提示窗。", context: systemContext).text == "Mac OS 應該會有個資源耗盡的提示窗。")
         #expect(PinyinCorrector.shared.correct("漏頂對基本版的 M 五來說太大了。", context: systemContext).text == "loading 對基本版的 M5 來說太大了。")
+        #expect(PinyinCorrector.shared.correct("你開始說吧，然後照流程後面再部署。", context: correctionContext).text == "你開始修正吧，然後照流程後面再部署。")
+        #expect(PinyinCorrector.shared.correct("西成的總長是十三個小時四十九分鐘。", context: sessionContext).text == "session 的總長是十三個小時四十九分鐘。")
+        #expect(PinyinCorrector.shared.correct("資料的，新就不重要了。", context: dataImportContext).text == "資料的新舊不重要了。")
+        #expect(PinyinCorrector.shared.correct("闌尾的名稱。", context: dataImportContext).text == "欄位的名稱。")
+        #expect(PinyinCorrector.shared.correct("雖然一比而已，看不出來什麼東西。", context: dataImportContext).text == "雖然一筆而已，看不出來什麼東西。")
+        #expect(PinyinCorrector.shared.correct("目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。", context: cloudflareContext).text == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
