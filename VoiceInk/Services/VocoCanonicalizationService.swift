@@ -109,6 +109,17 @@ final class VocoCanonicalizationService {
         return uniqueHints(hints)
     }
 
+    static func contextHints(
+        powerMode: PowerModeConfig?,
+        appName: String?,
+        windowTitle: String?
+    ) -> [String] {
+        var hints = powerModeContextHints(from: powerMode)
+        appendHint(appName, to: &hints)
+        appendHint(windowTitle, to: &hints)
+        return uniqueHints(hints)
+    }
+
     static func enabledContextPackIDs(defaults: UserDefaults = .standard) -> [String] {
         guard let storedIDs = defaults.array(forKey: enabledContextPackIDsKey) as? [String] else {
             return defaultActiveContextIDs

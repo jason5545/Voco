@@ -164,6 +164,7 @@ enum AIPrompts {
         如果有提供 <CUSTOM_VOCABULARY>，請優先使用其中的拼寫。
         如果有提供 <RECENT_TRANSCRIPTIONS>，這是最近的語音辨識原文（可能有同音字錯誤），僅供主題和領域參考，不可逐字匹配替換。
         如果有提供 <UNCERTAIN_WORDS>，這些詞彙的辨識信心度低，優先檢查是否為同音字錯誤。
+        如果 <UNCERTAIN_WORDS> 中的詞剛好出現在「數字 + 個 + 詞」且中文語感不合理，先視為可能的 ASR 錯詞；請用 ACTIVE_APPLICATION、CURRENT_WINDOW_CONTEXT 和發音線索判斷是否是英文術語。沒有上下文或近音證據就保留原文。
         如果有提供 <KNOWN_ASR_ERRORS>，這些是使用者回報的常見辨識錯誤對照表，遇到類似模式請參考修正。
         """)
 

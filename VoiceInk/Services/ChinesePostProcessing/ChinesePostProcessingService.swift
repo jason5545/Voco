@@ -265,6 +265,7 @@ class ChinesePostProcessingService: ObservableObject {
     private static let wordLowConfidenceThreshold: Float = 0.5
     private static let wordHighConfidenceThreshold: Float = 0.8
     private static let lowConfidenceRatioLimit: Double = 0.3
+    private static let suspiciousCountedTermMaxFrequency = 500
 
     /// Determine if LLM enhancement should be skipped based on confidence metrics
     func shouldSkipLLMEnhancement(text: String, repetitionInfo: RepetitionDetector.RepetitionInfo? = nil) -> Bool {
@@ -301,7 +302,16 @@ class ChinesePostProcessingService: ObservableObject {
             return false
         }
 
-        if lastModelProvider == .qwen3, containsSuspiciousTerminologyPattern(text) {
+        if isQwen3Provider(lastModelProvider) {
+            let countedTerms = suspiciousCountedTerms(in: text)
+            if !countedTerms.isEmpty {
+                mergeHeuristicUncertainWords(countedTerms)
+                Self.debugLog("FORCE LLM: suspicious counted term(s) \(countedTerms.joined(separator: ",")) | text(\(text.count)): \(text)")
+                return false
+            }
+        }
+
+        if isQwen3Provider(lastModelProvider), containsSuspiciousTerminologyPattern(text) {
             Self.debugLog("FORCE LLM: suspicious terminology/code-switch pattern | text(\(text.count)): \(text)")
             return false
         }
@@ -606,6 +616,57 @@ class ChinesePostProcessingService: ObservableObject {
 
         let spacedTechnicalPattern = #"\b[A-Za-z][A-Za-z0-9]*\s+[A-Z]{2,}\b"#
         return text.range(of: spacedTechnicalPattern, options: .regularExpression) != nil
+    }
+
+    private func isQwen3Provider(_ provider: ModelProvider?) -> Bool {
+        provider == .qwen3 || provider == .qwen3CoreML
+    }
+
+    private func suspiciousCountedTerms(in text: String) -> [String] {
+        let pattern = #"([0-9零〇○一二兩两三四五六七八九十百千萬万億亿點点]+)\s*[個个]\s*([\p{Han}]{2,6})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        var seen: Set<String> = []
+        var terms: [String] = []
+
+        for match in matches {
+            guard match.numberOfRanges >= 3,
+                  let range = Range(match.range(at: 2), in: text)
+            else { continue }
+
+            let run = Array(String(text[range]))
+            guard run.count >= 2 else { continue }
+
+            for length in 2...min(4, run.count) {
+                let term = String(run.prefix(length))
+                guard isSuspiciousCountedTerm(term) else { continue }
+                if seen.insert(term).inserted {
+                    terms.append(term)
+                }
+                break
+            }
+        }
+
+        return terms
+    }
+
+    private func isSuspiciousCountedTerm(_ term: String) -> Bool {
+        let db = PinyinDatabase.shared
+        guard db.isLoaded else { return false }
+
+        let normalized = openCCConverter.convert(term)
+        let frequency = db.frequency(of: normalized)
+        return frequency > 0 && frequency <= Self.suspiciousCountedTermMaxFrequency
+    }
+
+    private func mergeHeuristicUncertainWords(_ terms: [String]) {
+        var seen = Set(lastUncertainWords.map(\.text))
+        for term in terms where seen.insert(term).inserted {
+            lastUncertainWords.append(UncertainWord(text: term, logProb: -2.0))
+        }
+        lastUncertainWords = Array(lastUncertainWords.sorted { $0.logProb < $1.logProb }.prefix(8))
     }
 
     /// Check if text has excessive or repeated filler words (語助詞)

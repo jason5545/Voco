@@ -12,6 +12,15 @@ import Testing
 
 struct VoiceInkTests {
 
+    private func requireLoadedPinyinDatabase() async throws {
+        for _ in 0..<100 {
+            if PinyinDatabase.shared.isLoaded { return }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        try #require(PinyinDatabase.shared.isLoaded)
+    }
+
     @Test func validatorRejectsPromptLeakage() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "這是正體中文語音輸入，請修正。",
@@ -62,6 +71,25 @@ struct VoiceInkTests {
         #expect(result.isValid == true)
     }
 
+    @Test func validatorAllowsCorrectionToExplicitlySpelledLatinTerm() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "那個飛馳其實是英文的 phase，就是 phase 那個 phase。",
+            original: "那個飛馳其實是英文的face，就是p h a s e那個face。"
+        )
+
+        #expect(result.isValid == true)
+    }
+
+    @Test func validatorStillRejectsLatinTermSwapWithoutSpellingEvidence() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "那個詞其實是 phase。",
+            original: "那個詞其實是 face。"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains(where: { $0.contains("dropped-term:face") }))
+    }
+
     @Test func validatorAllowsSingleChineseNumeralConvertedToDigit() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "它的 M 跟 Max 之間少了一個 5。",
@@ -69,6 +97,38 @@ struct VoiceInkTests {
         )
 
         #expect(result.isValid == true)
+    }
+
+    @Test func validatorAllowsChineseTensConvertedToDigits() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "因為你之前已經跑過 69 個飛馳了。",
+            original: "因為你之前已經跑過六十九個飛馳了。"
+        )
+
+        #expect(result.isValid == true)
+    }
+
+    @Test func validatorAllowsLatinReplacementForSuspiciousCountedTerm() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let result = LLMResponseValidator.shared.validate(
+            response: "我就問你一句話嘛，69 個 phase 到底有沒有這個詞嘛？",
+            original: "我就問你一句話嘛，六十九個飛馳到底有沒有這個詞嘛？"
+        )
+
+        #expect(result.isValid == true)
+    }
+
+    @Test func validatorStillRejectsCommonCountedNounToLatin() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let result = LLMResponseValidator.shared.validate(
+            response: "我有 69 個 phase 要處理。",
+            original: "我有六十九個問題要處理。"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains(where: { $0.contains("cross-script-substitution") }))
     }
 
     @Test func validatorAllowsChineseDecimalConvertedToDigits() async throws {
@@ -195,10 +255,53 @@ struct VoiceInkTests {
         #expect(contextual.replacements.first?.replacementText == "炎")
     }
 
+    @Test func canonicalizationUsesAppWindowContextHintsForAmbiguousTerms() async throws {
+        let service = VocoCanonicalizationService()
+        let text = "今天看到 homura 很亮"
+        let hints = VocoCanonicalizationService.contextHints(
+            powerMode: nil,
+            appName: "Music",
+            windowTitle: "LiSA playlist"
+        )
+        let contextual = service.normalize(text, contextHints: hints)
+
+        #expect(contextual.normalizedText == "今天看到炎很亮")
+        #expect(contextual.replacements.first?.termID == "song.homura")
+    }
+
     @Test func canonicalizationDoesNotExpandCanonicalCJKPhrases() async throws {
         let service = VocoCanonicalizationService()
 
         #expect(service.normalize("我昨天又看了鬼滅之刃").normalizedText == "我昨天又看了鬼滅之刃")
+    }
+
+    @Test @MainActor func chinesePostProcessingRoutesSuspiciousCountedTermToLLM() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = ChinesePostProcessingService.shared
+        let oldRouting = service.isConfidenceRoutingEnabled
+        let oldProvider = service.lastModelProvider
+        let oldAvgLogProb = service.lastAvgLogProb
+        let oldUncertainWords = service.lastUncertainWords
+        let oldWordConfidences = service.lastWordConfidences
+        defer {
+            service.isConfidenceRoutingEnabled = oldRouting
+            service.lastModelProvider = oldProvider
+            service.lastAvgLogProb = oldAvgLogProb
+            service.lastUncertainWords = oldUncertainWords
+            service.lastWordConfidences = oldWordConfidences
+        }
+
+        service.isConfidenceRoutingEnabled = true
+        service.lastModelProvider = .qwen3
+        service.lastAvgLogProb = -0.1
+        service.lastUncertainWords = []
+        service.lastWordConfidences = []
+
+        let shouldSkip = service.shouldSkipLLMEnhancement(text: "我有六十九個飛馳要跑。")
+
+        #expect(shouldSkip == false)
+        #expect(service.lastUncertainWords.contains(where: { $0.text == "飛馳" }))
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
@@ -1315,6 +1418,23 @@ struct VoiceInkTests {
         #expect(transcription.selectedCandidate == output.confidenceAssessment.selectedCandidate)
         #expect(transcription.asrEngineID == VocoCanonicalizationPipeline.asrEngineID(for: model))
         #expect(transcription.languageMode == VocoCanonicalizationPipeline.selectedLanguageMode())
+    }
+
+    @Test @MainActor func canonicalizationPipelinePassesAppWindowContextHints() async throws {
+        let context = try makeCanonicalizationPipelineContext()
+        let model = try #require(TranscriptionModelRegistry.models.first)
+
+        let output = VocoCanonicalizationPipeline.normalizeWithAssessment(
+            "今天看到 homura 很亮",
+            rawTranscript: "今天看到 homura 很亮",
+            model: model,
+            modelContext: context,
+            appName: "Music",
+            windowTitle: "LiSA playlist"
+        )
+
+        #expect(output.normalizationResult.normalizedText == "今天看到炎很亮")
+        #expect(output.normalizationResult.replacements.first?.termID == "song.homura")
     }
 
     @Test @MainActor func canonicalizationPipelineIncludesCorrectionRiskWithoutExistingTranscription() async throws {

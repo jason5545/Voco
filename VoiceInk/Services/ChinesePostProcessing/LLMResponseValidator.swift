@@ -40,6 +40,7 @@ class LLMResponseValidator {
     /// Medium utterances can change more, but not drift into a rewrite.
     private let mediumContentLengthThreshold = 24
     private let mediumContentEditRatioThreshold = 0.55
+    private let suspiciousCountedTermMaxFrequency = 500
 
     private let listMarkers = ["第一", "第二", "第三", "首先", "其次", "最後", "1.", "2.", "3.", "（1）", "(1)"]
     private let chineseDigitMap: [Character: Character] = [
@@ -87,10 +88,16 @@ class LLMResponseValidator {
         }
 
         let termsToPreserve = collectProtectedTerms(original: trimmedOriginal, extras: protectedTerms)
-        let allowedVariantTerms = protectedTerms + customVocabulary
+        let explicitSpellings = Set(explicitSpelledLatinTerms(from: trimmedOriginal).map(normalizeEquivalentText))
+        let allowedVariantTerms = protectedTerms + customVocabulary + Array(explicitSpellings)
         for term in termsToPreserve where containsEquivalent(term, in: trimmedOriginal)
             && !containsEquivalent(term, in: trimmedResponse)
-            && !containsAllowedTechnicalVariant(of: term, in: trimmedResponse, allowedTerms: allowedVariantTerms) {
+            && !containsAllowedTechnicalVariant(
+                of: term,
+                in: trimmedResponse,
+                allowedTerms: allowedVariantTerms,
+                explicitSpellings: explicitSpellings
+            ) {
             reasons.append("dropped-term:\(term)")
         }
 
@@ -192,7 +199,35 @@ class LLMResponseValidator {
         return normalizeEquivalentText(text).contains(normalizedTerm)
     }
 
-    private func containsAllowedTechnicalVariant(of term: String, in text: String, allowedTerms: [String]) -> Bool {
+    private func explicitSpelledLatinTerms(from text: String) -> [String] {
+        let pattern = #"(?i)(?:\b[A-Za-z]\b[\s._\-/]*){3,}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        var seen: Set<String> = []
+        var terms: [String] = []
+
+        for match in matches {
+            let raw = nsText.substring(with: match.range)
+            let spelled = raw.filter { char in
+                char.unicodeScalars.allSatisfy { $0.isASCII && CharacterSet.letters.contains($0) }
+            }
+            guard spelled.count >= 3 else { continue }
+            let normalized = normalizeEquivalentText(String(spelled))
+            guard seen.insert(normalized).inserted else { continue }
+            terms.append(String(spelled))
+        }
+
+        return terms
+    }
+
+    private func containsAllowedTechnicalVariant(
+        of term: String,
+        in text: String,
+        allowedTerms: [String],
+        explicitSpellings: Set<String>
+    ) -> Bool {
         let normalizedTerm = normalizeEquivalentText(term)
         let termWithoutDigits = normalizedTerm.filter { !$0.isNumber }
 
@@ -203,6 +238,12 @@ class LLMResponseValidator {
         for allowedTerm in allowedTerms where containsEquivalent(allowedTerm, in: text) {
             let normalizedAllowed = normalizeEquivalentText(allowedTerm)
             let allowedWithoutDigits = normalizedAllowed.filter { !$0.isNumber }
+
+            if explicitSpellings.contains(normalizedAllowed),
+               normalizedAllowed != normalizedTerm,
+               normalizedAllowed.count >= 3 {
+                return true
+            }
 
             if allowedWithoutDigits == termWithoutDigits, normalizedAllowed.count >= normalizedTerm.count {
                 return true
@@ -288,10 +329,12 @@ class LLMResponseValidator {
         wordReplacements: [(original: String, replacement: String)],
         customVocabulary: [String]
     ) -> Int {
-        if normalizedNumericContent(original) == normalizedNumericContent(response) {
+        let originalNumericContent = normalizedNumericContent(original)
+        if originalNumericContent == normalizedNumericContent(response) {
             return 0
         }
 
+        let suspiciousCountedTerms = suspiciousCountedTerms(in: original)
         let origSegments = segmentByScript(original)
         let respSegments = segmentByScript(response)
 
@@ -351,6 +394,18 @@ class LLMResponseValidator {
             let latinLower = normalizeLatinSegment(newLatin.text)
             guard !latinLower.isEmpty else { continue }
 
+            // Numeric normalization ("六十九" → "69") is allowed even when another
+            // nearby term changed, so mixed fixes do not get rejected as a package.
+            if isNumericOnlyLatin(latinLower), originalNumericContent.contains(latinLower) {
+                continue
+            }
+
+            if !suspiciousCountedTerms.isEmpty,
+               latinLower.contains(where: \.isLetter),
+               responseContainsCountedLatinSlot(response, latin: latinLower) {
+                continue
+            }
+
             // Check WordReplacement whitelist
             let whitelisted = whitelistPairs.contains { pair in
                 let normalizedPair = normalizeLatinSegment(pair.latin)
@@ -384,6 +439,70 @@ class LLMResponseValidator {
         return violations
     }
 
+    private func isNumericOnlyLatin(_ text: String) -> Bool {
+        !text.isEmpty && text.allSatisfy(\.isNumber)
+    }
+
+    private func suspiciousCountedTerms(in text: String) -> [String] {
+        let pattern = #"([0-9零〇○一二兩两三四五六七八九十百千萬万億亿點点]+)\s*[個个]\s*([\p{Han}]{2,6})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        var seen: Set<String> = []
+        var terms: [String] = []
+
+        for match in matches {
+            guard match.numberOfRanges >= 3,
+                  let range = Range(match.range(at: 2), in: text)
+            else { continue }
+
+            let run = Array(String(text[range]))
+            guard run.count >= 2 else { continue }
+
+            for length in 2...min(4, run.count) {
+                let term = String(run.prefix(length))
+                guard isSuspiciousCountedTerm(term) else { continue }
+                if seen.insert(term).inserted {
+                    terms.append(term)
+                }
+                break
+            }
+        }
+
+        return terms
+    }
+
+    private func isSuspiciousCountedTerm(_ term: String) -> Bool {
+        let db = PinyinDatabase.shared
+        guard db.isLoaded else { return false }
+
+        let normalized = OpenCCConverter.shared.convert(term)
+        let frequency = db.frequency(of: normalized)
+        return frequency > 0 && frequency <= suspiciousCountedTermMaxFrequency
+    }
+
+    private func responseContainsCountedLatinSlot(_ response: String, latin: String) -> Bool {
+        let pattern = #"([0-9]+|[零〇○一二兩两三四五六七八九十百千萬万億亿點点]+)\s*[個个]\s*([A-Za-z][A-Za-z0-9._+\-/ ]{0,40})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+
+        let nsResponse = response as NSString
+        let matches = regex.matches(in: response, range: NSRange(location: 0, length: nsResponse.length))
+
+        for match in matches {
+            guard match.numberOfRanges >= 3,
+                  let range = Range(match.range(at: 2), in: response)
+            else { continue }
+
+            let slot = normalizeLatinSegment(String(response[range]))
+            if slot == latin || slot.contains(latin) || latin.contains(slot) {
+                return true
+            }
+        }
+
+        return false
+    }
+
     private func normalizeLatinSegment(_ text: String) -> String {
         text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
@@ -392,8 +511,16 @@ class LLMResponseValidator {
         let converted = OpenCCConverter.shared.convert(text).lowercased()
         var result = ""
         let chars = Array(converted)
+        var index = 0
 
-        for (index, char) in chars.enumerated() {
+        while index < chars.count {
+            let char = chars[index]
+            if let numeric = consumeChineseNumber(in: chars, from: index) {
+                result.append(numeric.text)
+                index = numeric.endIndex
+                continue
+            }
+
             if let digit = chineseDigitMap[char], shouldNormalizeChineseDigit(char, at: index, in: chars) {
                 result.append(digit)
             } else if isChineseNumericPoint(char, at: index, in: chars) {
@@ -401,9 +528,93 @@ class LLMResponseValidator {
             } else if char.isLetter || char.isNumber {
                 result.append(char)
             }
+            index += 1
         }
 
         return result
+    }
+
+    private func consumeChineseNumber(in chars: [Character], from startIndex: Int) -> (text: String, endIndex: Int)? {
+        guard startIndex < chars.count, isChineseNumericCharacter(chars[startIndex]) else { return nil }
+
+        var endIndex = startIndex
+        var numberChars: [Character] = []
+        while endIndex < chars.count, isChineseNumericCharacter(chars[endIndex]) {
+            numberChars.append(chars[endIndex])
+            endIndex += 1
+        }
+
+        if numberChars.count == 1,
+           chineseDigitMap[numberChars[0]] != nil,
+           !shouldNormalizeChineseDigit(numberChars[0], at: startIndex, in: chars) {
+            return nil
+        }
+
+        if numberChars.contains(where: { $0 == "點" || $0 == "点" }) {
+            let normalized = numberChars.compactMap { chineseDigitMap[$0] }.map(String.init).joined()
+            return normalized.isEmpty ? nil : (normalized, endIndex)
+        }
+
+        if numberChars.contains(where: isChineseNumericUnit) {
+            guard let value = parseChineseInteger(numberChars) else { return nil }
+            return (String(value), endIndex)
+        }
+
+        let digits = numberChars.compactMap { chineseDigitMap[$0] }.map(String.init).joined()
+        return digits.isEmpty ? nil : (digits, endIndex)
+    }
+
+    private func isChineseNumericCharacter(_ char: Character) -> Bool {
+        chineseDigitMap[char] != nil || isChineseNumericUnit(char) || char == "點" || char == "点"
+    }
+
+    private func isChineseNumericUnit(_ char: Character) -> Bool {
+        chineseNumericUnitValue(char) != nil
+    }
+
+    private func chineseNumericUnitValue(_ char: Character) -> Int? {
+        switch char {
+        case "十", "拾":
+            return 10
+        case "百", "佰":
+            return 100
+        case "千", "仟":
+            return 1_000
+        case "萬", "万":
+            return 10_000
+        case "億", "亿":
+            return 100_000_000
+        default:
+            return nil
+        }
+    }
+
+    private func parseChineseInteger(_ chars: [Character]) -> Int? {
+        var total = 0
+        var section = 0
+        var currentDigit: Int?
+
+        for char in chars {
+            if let digitChar = chineseDigitMap[char],
+               let digit = Int(String(digitChar)) {
+                currentDigit = digit
+                continue
+            }
+
+            guard let unit = chineseNumericUnitValue(char) else { return nil }
+            if unit >= 10_000 {
+                section += currentDigit ?? 0
+                total += max(section, 1) * unit
+                section = 0
+                currentDigit = nil
+            } else {
+                let digit = currentDigit ?? (unit == 10 ? 1 : 0)
+                section += digit * unit
+                currentDigit = nil
+            }
+        }
+
+        return total + section + (currentDigit ?? 0)
     }
 
     private func shouldNormalizeChineseDigit(_ char: Character, at index: Int, in chars: [Character]) -> Bool {

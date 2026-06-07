@@ -8,14 +8,18 @@ enum VocoCanonicalizationPipeline {
         rawTranscript: String?,
         model: any TranscriptionModel,
         modelContext: ModelContext,
-        transcription: Transcription? = nil
+        transcription: Transcription? = nil,
+        appName: String? = nil,
+        windowTitle: String? = nil
     ) -> VocoNormalizationResult {
         normalizeWithAssessment(
             text,
             rawTranscript: rawTranscript,
             model: model,
             modelContext: modelContext,
-            transcription: transcription
+            transcription: transcription,
+            appName: appName,
+            windowTitle: windowTitle
         ).normalizationResult
     }
 
@@ -24,14 +28,20 @@ enum VocoCanonicalizationPipeline {
         rawTranscript: String?,
         model: any TranscriptionModel,
         modelContext: ModelContext,
-        transcription: Transcription? = nil
+        transcription: Transcription? = nil,
+        appName: String? = nil,
+        windowTitle: String? = nil
     ) -> (normalizationResult: VocoNormalizationResult, confidenceAssessment: VocoConfidenceAssessment) {
         let activePowerMode = PowerModeManager.shared.currentActiveConfiguration
         let result = VocoCanonicalizationService.shared.normalize(
             text,
             activeContextIDs: activeContextIDs(powerMode: activePowerMode),
             additionalTerms: dictionaryTerms(in: modelContext),
-            contextHints: VocoCanonicalizationService.powerModeContextHints(from: activePowerMode)
+            contextHints: VocoCanonicalizationService.contextHints(
+                powerMode: activePowerMode,
+                appName: appName,
+                windowTitle: windowTitle
+            )
         )
         let assessment = confidenceAssessment(
             for: result,

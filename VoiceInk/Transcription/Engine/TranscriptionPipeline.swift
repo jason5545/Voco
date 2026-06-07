@@ -193,7 +193,9 @@ class TranscriptionPipeline {
                 rawTranscript: rawASRText,
                 model: model,
                 modelContext: modelContext,
-                transcription: transcription
+                transcription: transcription,
+                appName: enhancementService?.cachedAppName,
+                windowTitle: enhancementService?.cachedWindowTitle
             )
             let normalizationResult = normalizedOutput.normalizationResult
             let confidenceAssessment = normalizedOutput.confidenceAssessment
