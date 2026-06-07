@@ -114,6 +114,11 @@ class PinyinCorrector {
         let therapyKeywords = ["心理", "心理諮商", "心理智商", "諮商", "諮商師", "心理師", "焦慮", "療程", "治療", "下個禮拜帶給他"]
         let sessionKeywords = ["session", "Codex", "Claude", "十個小時", "開一個新的", "接過來", "爆掉"]
         let uiKeywords = ["UI", "U I", "Codex", "Server", "app server", "第三方 UI", "介面", "網頁版"]
+        let imageGenerationKeywords = [
+            "ComfyUI", "comfyui", "Stable Diffusion", "Draw Things",
+            "產圖", "生圖", "圖片生成", "AI 繪圖", "workflow", "流程圖",
+            "節點", "node", "nodes", "連線", "連來連去"
+        ]
         let correctionKeywords = ["語音辨識", "語音", "辨識", "ASR", "轉錄", "錯誤", "修正", "校正", "更正", "Codex", "Claude", "AI", "文字", "用字遣詞"]
         let keyboardFreezeKeywords = ["鍵盤", "滑鼠", "不動", "卡死", "畫面", "Caps", "caps lock", "大寫鍵", "按鍵"]
         let systemResourceKeywords = ["macOS", "Mac OS", "Activity Monitor", "資源", "耗盡", "卡死", "提示窗", "記憶體", "Memory Pressure", "系統"]
@@ -151,6 +156,13 @@ class PinyinCorrector {
             ("個氣聲", "個 session", sessionKeywords),
             ("並非有微弱", "並非 UI 問題", uiKeywords),
             ("並非無微", "並非 UI 問題", uiKeywords),
+            ("Config UI", "ComfyUI", imageGenerationKeywords),
+            ("config UI", "ComfyUI", imageGenerationKeywords),
+            ("config ui", "ComfyUI", imageGenerationKeywords),
+            ("ConfigUI", "ComfyUI", imageGenerationKeywords),
+            ("Confi UI", "ComfyUI", imageGenerationKeywords),
+            ("confi ui", "ComfyUI", imageGenerationKeywords),
+            ("config.yml", "ComfyUI", imageGenerationKeywords),
             ("小振", "修正", correctionKeywords),
             ("大小雪", "大寫鍵", keyboardFreezeKeywords),
             ("支援耗盡", "資源耗盡", systemResourceKeywords),

@@ -113,6 +113,10 @@ final class CorrectionProtectionList {
         "M5 Max 128GB",
         "鑑定",
         "身心障礙鑑定",
+        "轉錄",
+        "語音轉錄",
+        "retranscribe",
+        "Retranscribe",
     ]
     private var words: Set<String>
 
@@ -134,6 +138,17 @@ final class CorrectionProtectionList {
             }
             return false
         }
+    }
+
+    /// Check protected words after the same script normalization used by the ASR cleanup pipeline.
+    func containsProtectedTerm(in text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        if containsSubstring(in: trimmed) { return true }
+
+        let converted = OpenCCConverter.shared.convert(trimmed)
+        return converted != trimmed && containsSubstring(in: converted)
     }
 
     /// Check whether the word at a known offset sits inside a protected phrase.

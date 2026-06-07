@@ -97,11 +97,7 @@ final class VocoCanonicalizationService {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
-        let protection = CorrectionProtectionList.shared
-        if protection.containsSubstring(in: trimmed) { return true }
-
-        let converted = OpenCCConverter.shared.convert(trimmed)
-        return converted != trimmed && protection.containsSubstring(in: converted)
+        return CorrectionProtectionList.shared.containsProtectedTerm(in: trimmed)
     }
 
     static func powerModeContextHints(from config: PowerModeConfig?) -> [String] {
@@ -418,6 +414,12 @@ final class VocoCanonicalizationService {
             indicators.append(contentsOf: Self.vocoDevelopmentContextIndicators)
         }
 
+        if contexts.contains("image-generation") ||
+            contexts.contains("node-graph") ||
+            term.canonical == "ComfyUI" {
+            indicators.append(contentsOf: Self.imageGenerationContextIndicators)
+        }
+
         indicators.append(contentsOf: term.contexts)
         return Self.uniqueHints(indicators)
     }
@@ -711,6 +713,16 @@ extension VocoCanonicalizationService {
                     autoReplaceThreshold: 0.95
                 ),
                 VocoCanonicalTerm(
+                    id: "app.comfyui",
+                    canonical: "ComfyUI",
+                    aliases: ["Config UI", "config UI", "config ui", "ConfigUI", "Confi UI", "confi ui", "config.yml"],
+                    type: "application",
+                    contexts: ["image-generation", "workflow", "node-graph"],
+                    caseSensitive: true,
+                    autoReplaceThreshold: 0.95,
+                    requiresContextForAutoReplace: true
+                ),
+                VocoCanonicalTerm(
                     id: "platform.macos",
                     canonical: "macOS",
                     aliases: ["Mac OS", "MacOS", "mac os"],
@@ -822,5 +834,25 @@ extension VocoCanonicalizationService {
         "語音",
         "候選",
         "信心",
+    ]
+
+    fileprivate static let imageGenerationContextIndicators = [
+        "ComfyUI",
+        "comfyui",
+        "Stable Diffusion",
+        "Draw Things",
+        "diffusion",
+        "產圖",
+        "生圖",
+        "圖片生成",
+        "AI 繪圖",
+        "workflow",
+        "流程圖",
+        "節點",
+        "node",
+        "nodes",
+        "連線",
+        "連來連去",
+        "node graph",
     ]
 }

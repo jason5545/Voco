@@ -244,6 +244,7 @@ class AIEnhancementService: ObservableObject {
                 let orig = r.originalText.split(separator: ",").first?
                     .trimmingCharacters(in: .whitespaces) ?? ""
                 guard !orig.isEmpty, !r.replacementText.isEmpty else { return nil }
+                guard !CorrectionProtectionList.shared.containsProtectedTerm(in: orig) else { return nil }
                 // Latin→Latin pairs are handled by WordReplacementService before LLM.
                 // Only inject CJK-origin entries (homophone errors the LLM needs).
                 guard orig.contains(where: \.isCJK) else { return nil }

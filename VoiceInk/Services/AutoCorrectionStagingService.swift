@@ -83,6 +83,10 @@ final class AutoCorrectionStagingService {
     ) {
         let coreOriginal = sub.original
         let coreReplacement = sub.replacement
+        guard !CorrectionProtectionList.shared.containsProtectedTerm(in: coreOriginal) else {
+            logger.info("Skipped staged correction touching protected source term: \(coreOriginal, privacy: .private)")
+            return
+        }
 
         let descriptor = FetchDescriptor<WordReplacement>(
             predicate: #Predicate<WordReplacement> {

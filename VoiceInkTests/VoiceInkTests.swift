@@ -156,6 +156,9 @@ struct VoiceInkTests {
         let assessmentOffset = try #require(assessmentChars.firstIndex(of: "鑑"))
 
         #expect(CorrectionProtectionList.shared.contains("鑑定") == true)
+        #expect(CorrectionProtectionList.shared.contains("轉錄") == true)
+        #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "语音转录") == true)
+        #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "retranscribe skill") == true)
         #expect(
             CorrectionProtectionList.shared.containsProtectedPhrase(
                 in: assessmentChars,
@@ -335,6 +338,18 @@ struct VoiceInkTests {
         #expect(result.replacements.first?.termID == "term.edge-case")
     }
 
+    @Test func canonicalizationNormalizesComfyUIOnlyWithImageGenerationContext() async throws {
+        let service = VocoCanonicalizationService()
+
+        let contextual = service.normalize("我記得那個 Config UI 它的用法就是流程圖這樣連來連去的，然後要一堆的 workflow。")
+        #expect(contextual.normalizedText == "我記得那個 ComfyUI 它的用法就是流程圖這樣連來連去的，然後要一堆的 workflow。")
+        #expect(contextual.replacements.first?.termID == "app.comfyui")
+
+        let neutral = service.normalize("請先打開 config.yml 那個設定檔。")
+        #expect(neutral.normalizedText == "請先打開 config.yml 那個設定檔。")
+        #expect(neutral.replacements.isEmpty)
+    }
+
     @Test func canonicalizationUsesPowerModeContextHintsForAmbiguousTerms() async throws {
         let service = VocoCanonicalizationService()
         let text = "今天看到 homura 很亮"
@@ -492,6 +507,11 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: nil
         )
+        let imageGenerationContext = CorrectionContext(
+            recentTranscriptions: ["產圖介面是節點 workflow", "流程圖這樣連來連去"],
+            appName: "Draw Things",
+            windowTitle: nil
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -513,6 +533,9 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("Windows Virtual Machine 的 BM 很卡。", context: virtualizationContext).text == "Windows Virtual Machine 的 VM 很卡。")
         #expect(PinyinCorrector.shared.correct("語音系統很容易把 Windows Virtual Machine 的 VM 變吃成 BM。", context: virtualizationContext).text == "語音系統很容易把 Windows Virtual Machine 的 VM 辨識成 BM。")
         #expect(PinyinCorrector.shared.correct("這個 BM 是別的縮寫。", context: virtualizationContext).text == "這個 BM 是別的縮寫。")
+        #expect(PinyinCorrector.shared.correct("我記得那個 Config UI 是流程圖這樣連來連去的。", context: imageGenerationContext).text == "我記得那個 ComfyUI 是流程圖這樣連來連去的。")
+        #expect(PinyinCorrector.shared.correct("第一個要討論的是config.yml那邊。", context: imageGenerationContext).text == "第一個要討論的是ComfyUI那邊。")
+        #expect(PinyinCorrector.shared.correct("請先打開 config.yml 那個設定檔。").text == "請先打開 config.yml 那個設定檔。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
@@ -2977,6 +3000,9 @@ struct VoiceInkTests {
             from: [
                 WordReplacement(originalText: "鑑定", replacementText: "簡訊"),
                 WordReplacement(originalText: "鉴定", replacementText: "简讯"),
+                WordReplacement(originalText: "轉錄", replacementText: "專案"),
+                WordReplacement(originalText: "语音转录", replacementText: "語音專案"),
+                WordReplacement(originalText: "retranscribe", replacementText: "專案"),
             ]
         )
 
@@ -3222,6 +3248,27 @@ struct VoiceInkTests {
         let entries = try context.fetch(FetchDescriptor<WordReplacement>())
 
         #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsProtectedSourceTerms() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "你再跑一次轉錄的技能",
+            proposedText: "你再跑一次專案的技能",
+            acceptedText: "你再跑一次專案的技能",
+            confidenceScore: 0.79,
+            changeRatio: 0.2,
+            reason: "candidate-override"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.count == 1)
+        #expect(staged.first?.original == "轉錄")
+        #expect(staged.first?.replacement == "專案")
         #expect(entries.isEmpty)
     }
 
