@@ -438,6 +438,11 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: nil
         )
+        let virtualizationContext = CorrectionContext(
+            recentTranscriptions: ["Windows VM", "Virtual Machine", "虛擬機器", "串流日誌"],
+            appName: "Codex",
+            windowTitle: nil
+        )
         let sessionContext = CorrectionContext(
             recentTranscriptions: ["SESSION 跑了七十幾輪", "Codex session 已經很長"],
             appName: "Codex",
@@ -459,6 +464,11 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("狼狽格式不對。", context: dataImportContext).text == "欄位格式不對。")
         #expect(PinyinCorrector.shared.correct("不少的浪費。", context: dataImportContext).text == "不少的浪費。")
         #expect(PinyinCorrector.shared.correct("目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。", context: cloudflareContext).text == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。")
+        #expect(PinyinCorrector.shared.correct("查 Windows B M 有沒有問題。", context: virtualizationContext).text == "查 Windows VM 有沒有問題。")
+        #expect(PinyinCorrector.shared.correct("Windows BM 跟本地的串流日誌都特別卡。", context: virtualizationContext).text == "Windows VM 跟本地的串流日誌都特別卡。")
+        #expect(PinyinCorrector.shared.correct("Windows Virtual Machine 的 BM 很卡。", context: virtualizationContext).text == "Windows Virtual Machine 的 VM 很卡。")
+        #expect(PinyinCorrector.shared.correct("語音系統很容易把 Windows Virtual Machine 的 VM 變吃成 BM。", context: virtualizationContext).text == "語音系統很容易把 Windows Virtual Machine 的 VM 辨識成 BM。")
+        #expect(PinyinCorrector.shared.correct("這個 BM 是別的縮寫。", context: virtualizationContext).text == "這個 BM 是別的縮寫。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

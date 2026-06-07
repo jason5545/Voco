@@ -122,6 +122,10 @@ class PinyinCorrector {
         let dataImportKeywords = ["資料", "檔案", "Excel", "demo", "欄位", "欄位格式", "名稱", "匯入", "去年", "今年", "中元節", "單位"]
         let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
         let fieldRecognitionKeywords = dataImportKeywords + correctionKeywords + ["表格", "格式", "藍位", "浪費", "狼狽", "辨識成", "變質成"]
+        let virtualizationKeywords = [
+            "Windows", "Virtual Machine", "VM", "V M", "B M", "BM",
+            "虛擬機", "虛擬機器", "PVE", "Proxmox", "Apollo", "串流", "遠端"
+        ]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -171,6 +175,15 @@ class PinyinCorrector {
             ("浪費格式", "欄位格式", dataImportKeywords),
             ("狼狽格式", "欄位格式", dataImportKeywords),
             ("變質成", "辨識成", fieldRecognitionKeywords),
+            ("變吃成", "辨識成", correctionKeywords + virtualizationKeywords),
+            ("Windows B M", "Windows VM", virtualizationKeywords),
+            ("Windows BM", "Windows VM", virtualizationKeywords),
+            ("Virtual Machine 的 B M", "Virtual Machine 的 VM", virtualizationKeywords),
+            ("Virtual Machine 的 BM", "Virtual Machine 的 VM", virtualizationKeywords),
+            ("virtual machine 的 B M", "virtual machine 的 VM", virtualizationKeywords),
+            ("virtual machine 的 BM", "virtual machine 的 VM", virtualizationKeywords),
+            ("虛擬機器的 B M", "虛擬機器的 VM", virtualizationKeywords),
+            ("虛擬機器的 BM", "虛擬機器的 VM", virtualizationKeywords),
             ("Load Fail", "Cloudflare", cloudflareKeywords),
             ("D One", "D1", cloudflareKeywords),
         ]
