@@ -163,12 +163,24 @@ struct VoiceInkTests {
         #expect(result.reasons.contains(where: { $0 == "short-edit-budget" }))
     }
 
+    @Test func validatorRejectsCJKInsertionIntoLatinOnlyInput() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "Loading.\n漏頂",
+            original: "Loading."
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.isRetryable == true)
+        #expect(result.reasons.contains(where: { $0 == "latin-cjk-insertion" }))
+    }
+
     @Test func canonicalizationNormalizesVocoDevelopmentTerms() async throws {
         let service = VocoCanonicalizationService()
 
         #expect(service.normalize("我現在用 voice ink 的 fork 做 voco").normalizedText == "我現在用 VoiceInk 的 fork 做 VOCO")
         #expect(service.normalize("我現在用 qwen three asr 的 mlx 版本").normalizedText == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(service.normalize("我還是會留 whisper.cpp 支援").normalizedText == "我還是會留 whisper.cpp 支援")
+        #expect(service.normalize("我現在跑 Mac OS 26 Tahoe").normalizedText == "我現在跑 macOS 26 Tahoe")
     }
 
     @Test func canonicalizationSuggestsInactiveContextTermsWithoutAutoReplacing() async throws {
@@ -352,6 +364,31 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("結果昨天八點多才回到夾，蘋果店早就關了。").text == "結果昨天八點多才回到家，蘋果店早就關了。")
         #expect(PinyinCorrector.shared.correct("這是從之前的氣聲接過來的。", context: sessionContext).text == "這是從之前的 session 接過來的。")
         #expect(PinyinCorrector.shared.correct("或許這並非有微弱，原因到底是什麼？", context: uiContext).text == "或許這並非 UI 問題，原因到底是什麼？")
+    }
+
+    @Test func pinyinCorrectorFixesRecentRetranscribeContextMisses() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let correctionContext = CorrectionContext(
+            recentTranscriptions: ["這邊有語音辨識的錯誤"],
+            appName: "Codex",
+            windowTitle: "Voco retranscribe"
+        )
+        let freezeContext = CorrectionContext(
+            recentTranscriptions: ["畫面全部都不動，連鍵盤、連滑鼠，什麼都不動"],
+            appName: nil,
+            windowTitle: nil
+        )
+        let systemContext = CorrectionContext(
+            recentTranscriptions: ["Activity Monitor 正常，但是系統直接卡死"],
+            appName: nil,
+            windowTitle: "macOS resource issue"
+        )
+
+        #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
+        #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
+        #expect(PinyinCorrector.shared.correct("Mac OS 應該會有個支援耗盡的提示窗。", context: systemContext).text == "Mac OS 應該會有個資源耗盡的提示窗。")
+        #expect(PinyinCorrector.shared.correct("漏頂對基本版的 M 五來說太大了。", context: systemContext).text == "loading 對基本版的 M5 來說太大了。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

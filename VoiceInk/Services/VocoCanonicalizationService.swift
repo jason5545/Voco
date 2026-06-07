@@ -698,6 +698,15 @@ extension VocoCanonicalizationService {
                     autoReplaceThreshold: 0.95
                 ),
                 VocoCanonicalTerm(
+                    id: "platform.macos",
+                    canonical: "macOS",
+                    aliases: ["Mac OS", "MacOS", "mac os"],
+                    type: "platform",
+                    contexts: ["development", "system"],
+                    caseSensitive: true,
+                    autoReplaceThreshold: 0.95
+                ),
+                VocoCanonicalTerm(
                     id: "artist.lisa",
                     canonical: "LiSA",
                     aliases: ["Lisa", "LISA", "lisa", "莉莎", "リサ"],

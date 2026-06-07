@@ -9,7 +9,7 @@ struct LLMValidationResult {
     /// and dropped-term may succeed with a more conservative approach.
     var isRetryable: Bool {
         guard !isValid else { return false }
-        let retryablePrefixes = ["content-drift", "short-edit-budget", "dropped-term", "cross-script-substitution"]
+        let retryablePrefixes = ["content-drift", "short-edit-budget", "dropped-term", "cross-script-substitution", "latin-cjk-insertion"]
         return reasons.allSatisfy { reason in
             retryablePrefixes.contains { reason.hasPrefix($0) }
         }
@@ -85,6 +85,10 @@ class LLMResponseValidator {
 
         if Double(trimmedResponse.count) > Double(trimmedOriginal.count) * maxLengthRatio {
             reasons.append("length-ratio")
+        }
+
+        if shouldRejectLatinOnlyCJKInsertion(original: trimmedOriginal, response: trimmedResponse) {
+            reasons.append("latin-cjk-insertion")
         }
 
         let termsToPreserve = collectProtectedTerms(original: trimmedOriginal, extras: protectedTerms)
@@ -256,6 +260,33 @@ class LLMResponseValidator {
     private func normalizeEquivalentText(_ text: String) -> String {
         let converted = OpenCCConverter.shared.convert(text).lowercased()
         return converted.filter { $0.isLetter || $0.isNumber }
+    }
+
+    private func shouldRejectLatinOnlyCJKInsertion(original: String, response: String) -> Bool {
+        let originalContent = original.filter { $0.isLetter || $0.isNumber }
+        guard !originalContent.isEmpty else { return false }
+        guard originalContent.contains(where: isASCIIAlphanumeric) else { return false }
+        guard !containsCJKOrKana(original) else { return false }
+        return containsCJKOrKana(response)
+    }
+
+    private func containsCJKOrKana(_ text: String) -> Bool {
+        text.contains { char in
+            char.unicodeScalars.contains { scalar in
+                switch scalar.value {
+                case 0x3040...0x309F, 0x30A0...0x30FF, 0x4E00...0x9FFF, 0x3400...0x4DBF, 0x20000...0x2A6DF:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
+    }
+
+    private func isASCIIAlphanumeric(_ char: Character) -> Bool {
+        char.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && (CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar))
+        }
     }
 
     private func normalizedContent(_ text: String) -> String {
