@@ -228,6 +228,13 @@ struct VoiceInkTests {
         #expect(contextualReplacement.termID == "product.voco.ambiguous-vocal")
     }
 
+    @Test func canonicalizationNormalizesEdgeCaseMisrecognition() async throws {
+        let result = VocoCanonicalizationService().normalize("但是剛才就出現了一個 H case")
+
+        #expect(result.normalizedText == "但是剛才就出現了一個 edge case")
+        #expect(result.replacements.first?.termID == "term.edge-case")
+    }
+
     @Test func canonicalizationUsesPowerModeContextHintsForAmbiguousTerms() async throws {
         let service = VocoCanonicalizationService()
         let text = "今天看到 homura 很亮"
@@ -302,6 +309,49 @@ struct VoiceInkTests {
 
         #expect(shouldSkip == false)
         #expect(service.lastUncertainWords.contains(where: { $0.text == "飛馳" }))
+    }
+
+    @Test func pinyinCorrectorFixesObviousTherapyMisrecognitions() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let therapyContext = CorrectionContext(
+            recentTranscriptions: ["心理智商", "下個禮拜帶給他", "焦慮"],
+            appName: nil,
+            windowTitle: nil
+        )
+
+        #expect(PinyinCorrector.shared.correct("心理智商。").text == "心理諮商。")
+        #expect(
+            PinyinCorrector.shared.correct(
+                "目前討論的結果是再努力一個月，同時繼續去做持倉。",
+                context: therapyContext
+            ).text == "目前討論的結果是再努力一個月，同時繼續去做諮商。"
+        )
+        #expect(
+            PinyinCorrector.shared.correct(
+                "但是我對智障是就不會這樣啊！",
+                context: therapyContext
+            ).text == "但是我對諮商師就不會這樣啊！"
+        )
+    }
+
+    @Test func pinyinCorrectorFixesContextualSessionAndUITerms() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let sessionContext = CorrectionContext(
+            recentTranscriptions: ["十個小時的 session 已經爆掉了"],
+            appName: "Codex",
+            windowTitle: "Voco retranscribe"
+        )
+        let uiContext = CorrectionContext(
+            recentTranscriptions: ["app server 的 UI", "第三方 UI 接 Codex Server"],
+            appName: "Codex",
+            windowTitle: nil
+        )
+
+        #expect(PinyinCorrector.shared.correct("結果昨天八點多才回到夾，蘋果店早就關了。").text == "結果昨天八點多才回到家，蘋果店早就關了。")
+        #expect(PinyinCorrector.shared.correct("這是從之前的氣聲接過來的。", context: sessionContext).text == "這是從之前的 session 接過來的。")
+        #expect(PinyinCorrector.shared.correct("或許這並非有微弱，原因到底是什麼？", context: uiContext).text == "或許這並非 UI 問題，原因到底是什麼？")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

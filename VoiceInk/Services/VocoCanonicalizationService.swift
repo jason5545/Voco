@@ -690,6 +690,14 @@ extension VocoCanonicalizationService {
                     autoReplaceThreshold: 0.95
                 ),
                 VocoCanonicalTerm(
+                    id: "term.edge-case",
+                    canonical: "edge case",
+                    aliases: ["H case", "H Case", "h case"],
+                    type: "technical-term",
+                    contexts: ["development", "debugging"],
+                    autoReplaceThreshold: 0.95
+                ),
+                VocoCanonicalTerm(
                     id: "artist.lisa",
                     canonical: "LiSA",
                     aliases: ["Lisa", "LISA", "lisa", "莉莎", "リサ"],

@@ -97,6 +97,9 @@ class PinyinCorrector {
             ("Cloud code", "Claude Code"),
             ("cloud code", "Claude Code"),
             ("可以推測了", "可以推送了"),
+            ("心理智商", "心理諮商"),
+            ("心理資商", "心理諮商"),
+            ("回到夾", "回到家"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
@@ -108,6 +111,9 @@ class PinyinCorrector {
         // ── contextDependent rules ──
         let programmingKeywords = ["程式", "程式碼", "開發", "寫", "code", "Xcode", "Terminal", "Claude", "編譯", "build"]
         let aiKeywords = ["AI", "助理", "模型", "語音", "ASR", "轉錄", "Prompt", "prompt", "Claude", "ChatGPT", "Whisper", "Qwen", "OpenAI"]
+        let therapyKeywords = ["心理", "心理諮商", "心理智商", "諮商", "諮商師", "心理師", "焦慮", "療程", "治療", "下個禮拜帶給他"]
+        let sessionKeywords = ["session", "Codex", "Claude", "十個小時", "開一個新的", "接過來", "爆掉"]
+        let uiKeywords = ["UI", "U I", "Codex", "Server", "app server", "第三方 UI", "介面", "網頁版"]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -122,6 +128,17 @@ class PinyinCorrector {
             ("差點被統一", "ChatGPT", aiKeywords),
             ("Swiffer", "Whisper", ["Whisper", "語音", "ASR", "轉錄", "模型"]),
             ("千萬的 ASR", "Qwen 的 ASR", ["Qwen", "ASR", "模型", "語音", "千問"]),
+            ("做持倉", "做諮商", therapyKeywords),
+            ("對智障是就", "對諮商師就", therapyKeywords),
+            ("智障是就", "諮商師就", therapyKeywords),
+            ("執商師", "諮商師", therapyKeywords),
+            ("智商的過程", "諮商的過程", therapyKeywords),
+            ("在智商", "在諮商", therapyKeywords),
+            ("的氣聲接", "的 session 接", sessionKeywords),
+            ("氣聲接", "session 接", sessionKeywords),
+            ("個氣聲", "個 session", sessionKeywords),
+            ("並非有微弱", "並非 UI 問題", uiKeywords),
+            ("並非無微", "並非 UI 問題", uiKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(
