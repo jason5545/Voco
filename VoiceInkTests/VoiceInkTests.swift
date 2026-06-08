@@ -157,7 +157,9 @@ struct VoiceInkTests {
 
         #expect(CorrectionProtectionList.shared.contains("鑑定") == true)
         #expect(CorrectionProtectionList.shared.contains("轉錄") == true)
+        #expect(CorrectionProtectionList.shared.contains("轉路") == true)
         #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "语音转录") == true)
+        #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "你再跑一次转路的技能") == true)
         #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "retranscribe skill") == true)
         #expect(
             CorrectionProtectionList.shared.containsProtectedPhrase(
@@ -3001,6 +3003,7 @@ struct VoiceInkTests {
                 WordReplacement(originalText: "鑑定", replacementText: "簡訊"),
                 WordReplacement(originalText: "鉴定", replacementText: "简讯"),
                 WordReplacement(originalText: "轉錄", replacementText: "專案"),
+                WordReplacement(originalText: "转路", replacementText: "專案"),
                 WordReplacement(originalText: "语音转录", replacementText: "語音專案"),
                 WordReplacement(originalText: "retranscribe", replacementText: "專案"),
             ]
@@ -3270,6 +3273,24 @@ struct VoiceInkTests {
         #expect(staged.first?.original == "轉錄")
         #expect(staged.first?.replacement == "專案")
         #expect(entries.isEmpty)
+
+        let nearMissSignal = CorrectionFeedbackSignal(
+            kind: .candidateSelection,
+            sourceText: "你再跑一次转路的技能",
+            proposedText: "你再跑一次專案的技能",
+            acceptedText: "你再跑一次專案的技能",
+            confidenceScore: 0.79,
+            changeRatio: 0.2,
+            reason: "candidate-override"
+        )
+
+        let nearMissStaged = CorrectionFeedbackLearningService.stageLearningCandidates(from: nearMissSignal, in: context)
+        let entriesAfterNearMiss = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(nearMissStaged.count == 1)
+        #expect(nearMissStaged.first?.original == "转路")
+        #expect(nearMissStaged.first?.replacement == "專案")
+        #expect(entriesAfterNearMiss.isEmpty)
     }
 
     @Test @MainActor func correctionFeedbackLearningSkipsCandidateConfirmation() async throws {

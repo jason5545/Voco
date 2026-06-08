@@ -393,7 +393,7 @@ struct TranscriptionInfoPanel: View {
                 .foregroundColor(.secondary)
                 .frame(width: 20, height: 20)
 
-            Text(label)
+            Text(String(localized: String.LocalizationValue(label)))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.secondary)
 
@@ -409,7 +409,7 @@ struct TranscriptionInfoPanel: View {
 
     private func replacementList(title: String, replacements: [VocoReplacement]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(String(localized: String.LocalizationValue(title)))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
 
@@ -532,8 +532,10 @@ struct TranscriptionInfoPanel: View {
     }
 
     private func candidateLabel(at index: Int, labels: [String]) -> String {
-        guard labels.indices.contains(index) else { return "Candidate" }
-        return labels[index]
+        guard labels.indices.contains(index) else {
+            return VocoCandidateLabelDisplayFormatter.displayName(for: "Candidate")
+        }
+        return VocoCandidateLabelDisplayFormatter.displayName(for: labels[index])
     }
 
     private func hypothesisSource(at index: Int, hypotheses: [VocoHypothesis]) -> String? {
@@ -575,7 +577,7 @@ struct TranscriptionInfoPanel: View {
 
     private func feedbackText(label: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
+            Text(String(localized: String.LocalizationValue(label)))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
             Text(text)
@@ -603,7 +605,7 @@ struct TranscriptionInfoPanel: View {
             parts.append(confidenceDisplay(score: confidenceScore))
         }
         if let changeRatio = signal.changeRatio {
-            parts.append("change \(Int((changeRatio * 100).rounded()))%")
+            parts.append(String(localized: "change \(Int((changeRatio * 100).rounded()))%"))
         }
         return parts.joined(separator: " · ")
     }
@@ -615,15 +617,15 @@ struct TranscriptionInfoPanel: View {
     private func correctionRiskDisplay(rate: Double, sampleCount: Int?, correctedCount: Int?) -> String {
         let rateText = confidenceDisplay(score: rate)
         guard let sampleCount, let correctedCount else { return rateText }
-        return "\(rateText) · \(correctedCount)/\(sampleCount) corrected"
+        return String(localized: "\(rateText) · \(correctedCount)/\(sampleCount) corrected")
     }
 
     private func routeDisplay(_ route: String) -> String {
         switch VocoConfidenceRoute(rawValue: route) {
         case .directInsertion:
-            return "Direct insertion"
+            return String(localized: "Direct insertion")
         case .reviewSuggested:
-            return "Review suggested"
+            return String(localized: "Review suggested")
         case .none:
             return route
         }

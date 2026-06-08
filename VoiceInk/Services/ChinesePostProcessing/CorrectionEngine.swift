@@ -114,6 +114,8 @@ final class CorrectionProtectionList {
         "鑑定",
         "身心障礙鑑定",
         "轉錄",
+        "轉路",
+        "转路",
         "語音轉錄",
         "retranscribe",
         "Retranscribe",

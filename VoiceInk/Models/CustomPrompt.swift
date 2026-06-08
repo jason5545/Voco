@@ -289,11 +289,11 @@ extension CustomPrompt {
                 if let onDelete = onDelete, !isPredefined {
                     Button(role: .destructive) {
                         let alert = NSAlert()
-                        alert.messageText = "Delete Prompt?"
-                        alert.informativeText = "Are you sure you want to delete '\(self.title)' prompt? This action cannot be undone."
+                        alert.messageText = String(localized: "Delete Prompt?")
+                        alert.informativeText = String(localized: "Are you sure you want to delete '\(self.title)' prompt? This action cannot be undone.")
                         alert.alertStyle = .warning
-                        alert.addButton(withTitle: "Delete")
-                        alert.addButton(withTitle: "Cancel")
+                        alert.addButton(withTitle: String(localized: "Delete"))
+                        alert.addButton(withTitle: String(localized: "Cancel"))
                         
                         let response = alert.runModal()
                         if response == .alertFirstButtonReturn {

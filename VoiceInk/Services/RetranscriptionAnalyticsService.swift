@@ -8,11 +8,11 @@ enum RetranscriptionChangeCategory: String, Codable, Equatable {
     var displayName: String {
         switch self {
         case .unchanged:
-            return "Unchanged"
+            return String(localized: "Unchanged")
         case .minorChange:
-            return "Minor"
+            return String(localized: "Minor")
         case .meaningfulChange:
-            return "Meaningful"
+            return String(localized: "Meaningful")
         }
     }
 }

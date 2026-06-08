@@ -14,7 +14,8 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     private let controlBarHeight: CGFloat = 40
     private let compactWidth: CGFloat = 184
     private let expandedWidth: CGFloat = 300
-    private let candidateReviewHeight: CGFloat = 150
+    private let candidateReviewWidth: CGFloat = RecorderCandidateReviewLayout.miniWidth
+    private let candidateReviewHeight: CGFloat = RecorderCandidateReviewLayout.miniHeight
     private let compactCornerRadius: CGFloat = 20
     private let expandedCornerRadius: CGFloat = 14
 
@@ -55,7 +56,7 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     }
 
     private var contentWidth: CGFloat {
-        if stateProvider.pendingCandidateReview != nil { return expandedWidth }
+        if stateProvider.pendingCandidateReview != nil { return candidateReviewWidth }
         return hasLiveTranscript ? expandedWidth : compactWidth
     }
 
@@ -94,9 +95,15 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
             }
             .frame(width: contentWidth)
             .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: contentWidth == expandedWidth ? expandedCornerRadius : compactCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: contentWidth == compactWidth ? compactCornerRadius : expandedCornerRadius, style: .continuous))
             .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
             .animation(.easeInOut(duration: 0.2), value: stateProvider.pendingCandidateReview?.id)
+            .onAppear {
+                windowManager.updateLayout(isCandidateReviewVisible: stateProvider.pendingCandidateReview != nil)
+            }
+            .onChange(of: stateProvider.pendingCandidateReview?.id) { _, newValue in
+                windowManager.updateLayout(isCandidateReviewVisible: newValue != nil)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }

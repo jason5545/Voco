@@ -2,7 +2,9 @@ import SwiftUI
 import AppKit
 
 class MiniRecorderPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    var allowsKeyboardInput = false
+
+    override var canBecomeKey: Bool { allowsKeyboardInput }
     override var canBecomeMain: Bool { false }
     
     init(contentRect: NSRect) {
@@ -30,14 +32,14 @@ class MiniRecorderPanel: NSPanel {
         standardWindowButton(.closeButton)?.isHidden = true
     }
     
-    static func calculateWindowMetrics() -> NSRect {
+    static func calculateWindowMetrics(width requestedWidth: CGFloat? = nil, height requestedHeight: CGFloat? = nil) -> NSRect {
         guard let screen = NSScreen.main else {
-            return NSRect(x: 0, y: 0, width: 300, height: 120)
+            return NSRect(x: 0, y: 0, width: requestedWidth ?? 300, height: requestedHeight ?? 120)
         }
 
         // Fixed window size — large enough to accommodate live transcript content
-        let width: CGFloat = 300
-        let height: CGFloat = 120
+        let width: CGFloat = requestedWidth ?? 300
+        let height: CGFloat = requestedHeight ?? 120
         let padding: CGFloat = 24
 
         let visibleFrame = screen.visibleFrame
@@ -62,4 +64,4 @@ class MiniRecorderPanel: NSPanel {
     func hide(completion: @escaping () -> Void) {
         completion()
     }
-} 
+}

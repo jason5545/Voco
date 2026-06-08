@@ -7085,6 +7085,1256 @@
         }
       }
     },
+    "%lld session": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次工作階段"
+          }
+        }
+      }
+    },
+    "Key Signals": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關鍵訊號"
+          }
+        }
+      }
+    },
+    "Direct Insertions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接輸入"
+          }
+        }
+      }
+    },
+    "Review Suggested": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議審查"
+          }
+        }
+      }
+    },
+    "Average Confidence": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均信心"
+          }
+        }
+      }
+    },
+    "Retranscriptions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄"
+          }
+        }
+      }
+    },
+    "Advanced Diagnostics": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進階診斷"
+          }
+        }
+      }
+    },
+    "Review Triggers": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "審查觸發"
+          }
+        }
+      }
+    },
+    "Candidate Selections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選選擇"
+          }
+        }
+      }
+    },
+    "Feedback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回饋"
+          }
+        }
+      }
+    },
+    "Style Guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風格守門"
+          }
+        }
+      }
+    },
+    "Candidate Sources": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選來源"
+          }
+        }
+      }
+    },
+    "Candidate Divergence": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選差異"
+          }
+        }
+      }
+    },
+    "Canonicalization": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙標準化"
+          }
+        }
+      }
+    },
+    "Paste Commands": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上指令"
+          }
+        }
+      }
+    },
+    "%lld of %lld routed sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld / %2$lld 次已路由工作階段"
+          }
+        }
+      }
+    },
+    "%lld scored sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次已評分工作階段"
+          }
+        }
+      }
+    },
+    "%lld user / %lld fallback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 次手動 / %2$lld 次備援"
+          }
+        }
+      }
+    },
+    "%lld compared sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次已比較工作階段"
+          }
+        }
+      }
+    },
+    "%lld replacements / %lld suggestions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 個替換 / %2$lld 個建議"
+          }
+        }
+      }
+    },
+    "%lld of %lld recorded": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld / %2$lld 次已記錄"
+          }
+        }
+      }
+    },
+    "No feedback recorded": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚無回饋紀錄"
+          }
+        }
+      }
+    },
+    "%lld corrective / %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 次修正 / %2$@"
+          }
+        }
+      }
+    },
+    "No style rejections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有風格拒絕"
+          }
+        }
+      }
+    },
+    "%lld char rejected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒絕 %lld 個字元"
+          }
+        }
+      }
+    },
+    "%lld chars rejected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒絕 %lld 個字元"
+          }
+        }
+      }
+    },
+    "No review triggers": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有審查觸發"
+          }
+        }
+      }
+    },
+    "%lld recorded": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已記錄 %lld 次"
+          }
+        }
+      }
+    },
+    "No source breakdown": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有來源分布"
+          }
+        }
+      }
+    },
+    "%lld review": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個需審查"
+          }
+        }
+      }
+    },
+    "avg delta %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均差異 %@"
+          }
+        }
+      }
+    },
+    "%lld meaningful / %lld analyzed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 次有意義變更 / %2$lld 次已分析"
+          }
+        }
+      }
+    },
+    "avg change %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均變更 %@"
+          }
+        }
+      }
+    },
+    "avg confidence %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均信心 %@"
+          }
+        }
+      }
+    },
+    "Review needed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要審查"
+          }
+        }
+      }
+    },
+    "%@ confidence": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信心 %@"
+          }
+        }
+      }
+    },
+    "Type correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入修正內容"
+          }
+        }
+      }
+    },
+    "Use typed correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用輸入的修正"
+          }
+        }
+      }
+    },
+    "Candidates": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選"
+          }
+        }
+      }
+    },
+    "Selected candidate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選候選"
+          }
+        }
+      }
+    },
+    "Accept candidate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受候選"
+          }
+        }
+      }
+    },
+    "Candidate selection": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選選擇"
+          }
+        }
+      }
+    },
+    "Retranscription change": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄變更"
+          }
+        }
+      }
+    },
+    "User substitution": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用者替換"
+          }
+        }
+      }
+    },
+    "Unchanged": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未變更"
+          }
+        }
+      }
+    },
+    "Minor": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕微"
+          }
+        }
+      }
+    },
+    "Meaningful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有意義"
+          }
+        }
+      }
+    },
+    "AUTO + context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動 + 脈絡"
+          }
+        }
+      }
+    },
+    "Suggestion pass": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議修補"
+          }
+        }
+      }
+    },
+    "Cleaned ASR": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理後 ASR"
+          }
+        }
+      }
+    },
+    "Raw ASR": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始 ASR"
+          }
+        }
+      }
+    },
+    "Segment rescue": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "片段 rescue"
+          }
+        }
+      }
+    },
+    "Custom rescue": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂 rescue"
+          }
+        }
+      }
+    },
+    "With suggestions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "含建議"
+          }
+        }
+      }
+    },
+    "Raw cleanup rescue": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始清理 rescue"
+          }
+        }
+      }
+    },
+    "Typed correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入修正"
+          }
+        }
+      }
+    },
+    "Candidate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選"
+          }
+        }
+      }
+    },
+    "User selection": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用者選擇"
+          }
+        }
+      }
+    },
+    "Dismissed fallback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉後備援"
+          }
+        }
+      }
+    },
+    "Timeout fallback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逾時備援"
+          }
+        }
+      }
+    },
+    "Automatic fallback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動備援"
+          }
+        }
+      }
+    },
+    "Alias match": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別名符合"
+          }
+        }
+      }
+    },
+    "Already canonical": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已是標準詞"
+          }
+        }
+      }
+    },
+    "Clean": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "乾淨"
+          }
+        }
+      }
+    },
+    "Candidate confirmed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選已確認"
+          }
+        }
+      }
+    },
+    "Custom candidate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂候選"
+          }
+        }
+      }
+    },
+    "Candidate changed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候選已變更"
+          }
+        }
+      }
+    },
+    "Case normalization": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大小寫標準化"
+          }
+        }
+      }
+    },
+    "Needs context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要脈絡"
+          }
+        }
+      }
+    },
+    "Context match": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脈絡符合"
+          }
+        }
+      }
+    },
+    "Heavy normalization": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重度標準化"
+          }
+        }
+      }
+    },
+    "High-risk term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高風險詞"
+          }
+        }
+      }
+    },
+    "Inactive context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未啟用脈絡"
+          }
+        }
+      }
+    },
+    "Low confidence": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低信心"
+          }
+        }
+      }
+    },
+    "Low score": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低分"
+          }
+        }
+      }
+    },
+    "Protected term changed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保護詞被變更"
+          }
+        }
+      }
+    },
+    "Cleanup drift": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理後偏移"
+          }
+        }
+      }
+    },
+    "Cleanup local regression": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理局部退化"
+          }
+        }
+      }
+    },
+    "Cleanup changed text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理變更文字"
+          }
+        }
+      }
+    },
+    "Recent corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "近期修正偏高"
+          }
+        }
+      }
+    },
+    "Term was corrected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞曾被修正"
+          }
+        }
+      }
+    },
+    "Needs choice": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要選擇"
+          }
+        }
+      }
+    },
+    "Assistant opener": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "助理式開場"
+          }
+        }
+      }
+    },
+    "Dropped mixed language term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "漏掉中英混用詞"
+          }
+        }
+      }
+    },
+    "Structured formatting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入結構化格式"
+          }
+        }
+      }
+    },
+    "Style expansion": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風格擴寫"
+          }
+        }
+      }
+    },
+    "Retranscription unchanged": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄未變更"
+          }
+        }
+      }
+    },
+    "Retranscription minor": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄輕微變更"
+          }
+        }
+      }
+    },
+    "Retranscription meaningful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄有意義變更"
+          }
+        }
+      }
+    },
+    "Confidence %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信心 %@"
+          }
+        }
+      }
+    },
+    "Delta %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差異 %@"
+          }
+        }
+      }
+    },
+    "Terms %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞：%@"
+          }
+        }
+      }
+    },
+    "Contexts %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脈絡：%@"
+          }
+        }
+      }
+    },
+    "Review required": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要審查"
+          }
+        }
+      }
+    },
+    "Direct insertion": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接輸入"
+          }
+        }
+      }
+    },
+    "Review suggested": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議審查"
+          }
+        }
+      }
+    },
+    "change %lld%%": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變更 %lld%%"
+          }
+        }
+      }
+    },
+    "%@ · %lld/%lld corrected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld/%3$lld 已修正"
+          }
+        }
+      }
+    },
+    "Source": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來源"
+          }
+        }
+      }
+    },
+    "Proposed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議"
+          }
+        }
+      }
+    },
+    "Accepted": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受"
+          }
+        }
+      }
+    },
+    "Terms": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞"
+          }
+        }
+      }
+    },
+    "Correction Feedback": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正回饋"
+          }
+        }
+      }
+    },
+    "Retranscription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新轉錄"
+          }
+        }
+      }
+    },
+    "Change": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變更"
+          }
+        }
+      }
+    },
+    "Edit Distance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯距離"
+          }
+        }
+      }
+    },
+    "Confidence Delta": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信心差異"
+          }
+        }
+      }
+    },
+    "Source Text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來源文字"
+          }
+        }
+      }
+    },
+    "Reason": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原因"
+          }
+        }
+      }
+    },
+    "Reasons": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原因"
+          }
+        }
+      }
+    },
+    "Rejected Output": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拒絕輸出"
+          }
+        }
+      }
+    },
+    "Selection Source": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇來源"
+          }
+        }
+      }
+    },
+    "Recent Correction Risk": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "近期修正風險"
+          }
+        }
+      }
+    },
+    "Risk Terms": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風險詞"
+          }
+        }
+      }
+    },
+    "Signals": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訊號"
+          }
+        }
+      }
+    },
+    "Contexts": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脈絡"
+          }
+        }
+      }
+    },
+    "Replacements": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替換"
+          }
+        }
+      }
+    },
+    "Suggestions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議"
+          }
+        }
+      }
+    },
+    "Paste Command": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上指令"
+          }
+        }
+      }
+    },
+    "Posted": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已送出"
+          }
+        }
+      }
+    },
+    "Not posted": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未送出"
+          }
+        }
+      }
+    },
+    "Route": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "路由"
+          }
+        }
+      }
+    },
+    "Confidence": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信心"
+          }
+        }
+      }
+    },
+    "ASR Engine": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ASR 引擎"
+          }
+        }
+      }
+    },
+    "Final Pasted Text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最終貼上文字"
+          }
+        }
+      }
+    },
     "Avg. Processing": {
       "localizations": {
         "zh-Hant": {
@@ -7221,6 +8471,1186 @@
           "stringUnit": {
             "state": "translated",
             "value": "重試 Apple 語音語言下載"
+          }
+        }
+      }
+    },
+    "120s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "120 秒"
+          }
+        }
+      }
+    },
+    "15s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 秒"
+          }
+        }
+      }
+    },
+    "180s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "180 秒"
+          }
+        }
+      }
+    },
+    "300s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "300 秒"
+          }
+        }
+      }
+    },
+    "30s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 秒"
+          }
+        }
+      }
+    },
+    "45s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "45 秒"
+          }
+        }
+      }
+    },
+    "60s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60 秒"
+          }
+        }
+      }
+    },
+    "90s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "90 秒"
+          }
+        }
+      }
+    },
+    "ANE + GPU": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ANE + GPU"
+          }
+        }
+      }
+    },
+    "All settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有設定"
+          }
+        }
+      }
+    },
+    "Apple Silicon": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Silicon"
+          }
+        }
+      }
+    },
+    "Approve learning candidate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核准學習候選"
+          }
+        }
+      }
+    },
+    "Cancel Recording": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消錄音"
+          }
+        }
+      }
+    },
+    "Choose a settings backup, then select what you want to import.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇設定備份，然後選取要匯入的內容。"
+          }
+        }
+      }
+    },
+    "Choose what to import from this backup.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要從這份備份匯入的內容。"
+          }
+        }
+      }
+    },
+    "Coming Soon": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即將推出"
+          }
+        }
+      }
+    },
+    "Command": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指令"
+          }
+        }
+      }
+    },
+    "Configure API Keys": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定 API Keys"
+          }
+        }
+      }
+    },
+    "Context Packs": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脈絡包"
+          }
+        }
+      }
+    },
+    "Context required": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要脈絡"
+          }
+        }
+      }
+    },
+    "CoreML ANE": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML ANE"
+          }
+        }
+      }
+    },
+    "Could not get the file URL from the open panel.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法從開啟面板取得檔案 URL。"
+          }
+        }
+      }
+    },
+    "Custom Model Definitions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂模型定義"
+          }
+        }
+      }
+    },
+    "Custom Prompts": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂提示詞"
+          }
+        }
+      }
+    },
+    "Dictation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽寫"
+          }
+        }
+      }
+    },
+    "Enhancement settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強設定"
+          }
+        }
+      }
+    },
+    "Environment variables available: VOICEINK_SYSTEM_PROMPT, VOICEINK_USER_PROMPT, VOICEINK_FULL_PROMPT. VoiceInk also writes VOICEINK_FULL_PROMPT to stdin for every command.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。VoiceInk 也會在每次執行指令時把 VOICEINK_FULL_PROMPT 寫入 stdin。"
+          }
+        }
+      }
+    },
+    "Export all settings, or choose specific categories when importing a backup.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出所有設定，或在匯入備份時選擇特定類別。"
+          }
+        }
+      }
+    },
+    "General Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一般設定"
+          }
+        }
+      }
+    },
+    "IMPORTANT: If you were using AI enhancement features, please make sure to reconfigure your API keys in the Enhancement section.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重要：如果你使用 AI 增強功能，請記得到「增強」區重新設定 API key。"
+          }
+        }
+      }
+    },
+    "Import Canceled": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入已取消"
+          }
+        }
+      }
+    },
+    "Import Error": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入錯誤"
+          }
+        }
+      }
+    },
+    "Import Successful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入成功"
+          }
+        }
+      }
+    },
+    "Import Voco Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入 Voco 設定"
+          }
+        }
+      }
+    },
+    "Info": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資訊"
+          }
+        }
+      }
+    },
+    "It is recommended to restart Voco for all changes to take full effect.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議重新啟動 Voco，讓所有變更完整生效。"
+          }
+        }
+      }
+    },
+    "Load Template": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入範本"
+          }
+        }
+      }
+    },
+    "Load a template or enter a command to enable Local CLI enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入範本或輸入指令來啟用 Local CLI 增強。"
+          }
+        }
+      }
+    },
+    "Lowercase output": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸出小寫"
+          }
+        }
+      }
+    },
+    "MLX GPU": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX GPU"
+          }
+        }
+      }
+    },
+    "Model Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型設定"
+          }
+        }
+      }
+    },
+    "No Recorder Sessions Yet": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有錄音工作階段"
+          }
+        }
+      }
+    },
+    "No settings were imported.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有匯入任何設定。"
+          }
+        }
+      }
+    },
+    "Paragraph breaks": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "段落換行"
+          }
+        }
+      }
+    },
+    "Paste Method": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上方式"
+          }
+        }
+      }
+    },
+    "Persist Configured Preferences": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留已設定偏好"
+          }
+        }
+      }
+    },
+    "Personal Correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人修正"
+          }
+        }
+      }
+    },
+    "Personal Style Guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人風格守門"
+          }
+        }
+      }
+    },
+    "Primary Shortcut": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主要快捷鍵"
+          }
+        }
+      }
+    },
+    "Punctuation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標點符號"
+          }
+        }
+      }
+    },
+    "Reorder Power Modes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新排序強力模式"
+          }
+        }
+      }
+    },
+    "Save to file": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存到檔案"
+          }
+        }
+      }
+    },
+    "Search transcriptions...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋轉錄..."
+          }
+        }
+      }
+    },
+    "Secondary Shortcut": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次要快捷鍵"
+          }
+        }
+      }
+    },
+    "Select at least one category to import.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請至少選擇一個要匯入的類別。"
+          }
+        }
+      }
+    },
+    "Select sound": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇音效"
+          }
+        }
+      }
+    },
+    "Show Live Text Preview": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示即時文字預覽"
+          }
+        }
+      }
+    },
+    "Sound": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音效"
+          }
+        }
+      }
+    },
+    "The settings import operation was canceled.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定匯入作業已取消。"
+          }
+        }
+      }
+    },
+    "This is an English-optimized model and only supports English transcription.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是針對英文最佳化的模型，只支援英文轉錄。"
+          }
+        }
+      }
+    },
+    "This model supports multiple languages. Select a specific language or auto-detect(if available)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此模型支援多種語言。請選擇特定語言，或使用自動偵測（若支援）。"
+          }
+        }
+      }
+    },
+    "Timeout": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逾時"
+          }
+        }
+      }
+    },
+    "Tip: Use ⌃⌘Space for emoji picker or paste an emoji.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示：使用 ⌃⌘Space 開啟表情符號選擇器，或貼上表情符號。"
+          }
+        }
+      }
+    },
+    "Transcript Formatting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄格式"
+          }
+        }
+      }
+    },
+    "Version Mismatch": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本不符"
+          }
+        }
+      }
+    },
+    "View details": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看詳細資料"
+          }
+        }
+      }
+    },
+    "View transcription and enhancement model performance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看轉錄與增強模型效能"
+          }
+        }
+      }
+    },
+    "Voco Insights": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 洞察"
+          }
+        }
+      }
+    },
+    "e.g. Prakash, VoiceInk": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：Prakash、VoiceInk"
+          }
+        }
+      }
+    },
+    "e.g. gemini-3.1-pro-preview, gpt-5.5": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：gemini-3.1-pro-preview、gpt-5.5"
+          }
+        }
+      }
+    },
+    "e.g. https://api.openai.com/v1/chat/completions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：https://api.openai.com/v1/chat/completions"
+          }
+        }
+      }
+    },
+    "e.g. my email, my mail": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：my email、my mail"
+          }
+        }
+      }
+    },
+    "e.g. support@tryvoiceink.com": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：support@tryvoiceink.com"
+          }
+        }
+      }
+    },
+    "➕": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "➕"
+          }
+        }
+      }
+    },
+    "AI Model: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 模型：%@"
+          }
+        }
+      }
+    },
+    "AI Provider: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 供應商：%@"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete the '%@' power mode? This action cannot be undone.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除「%@」強力模式嗎？此操作無法復原。"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete the custom model '%@'?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除自訂模型「%@」嗎？"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete the model '%@'?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除模型「%@」嗎？"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete '%@' prompt? This action cannot be undone.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除「%@」提示詞嗎？此操作無法復原。"
+          }
+        }
+      }
+    },
+    "Custom: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂：%@"
+          }
+        }
+      }
+    },
+    "Delete %lld Files": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除 %lld 個檔案"
+          }
+        }
+      }
+    },
+    "Deleted %lld audio files.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已刪除 %lld 個音訊檔。"
+          }
+        }
+      }
+    },
+    "Deleted %lld files. Failed: %lld.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已刪除 %1$lld 個檔案。失敗：%2$lld。"
+          }
+        }
+      }
+    },
+    "Editing: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在編輯：%@"
+          }
+        }
+      }
+    },
+    "Enhancement failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強失敗：%@"
+          }
+        }
+      }
+    },
+    "Enter your %@ API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入你的 %@ API key"
+          }
+        }
+      }
+    },
+    "Error importing settings: %@. The file might be corrupted or not in the correct format.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入設定時發生錯誤：%@。檔案可能已損毀或格式不正確。"
+          }
+        }
+      }
+    },
+    "Language: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言：%@"
+          }
+        }
+      }
+    },
+    "No audio files found older than %lld day%@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到超過 %1$lld 天的音訊檔。"
+          }
+        }
+      }
+    },
+    "Prompt: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示詞：%@"
+          }
+        }
+      }
+    },
+    "Server: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器：%@"
+          }
+        }
+      }
+    },
+    "Settings imported successfully from %@.\n\nImported: %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已從 %1$@ 成功匯入設定。\n\n已匯入：%2$@。"
+          }
+        }
+      }
+    },
+    "The emoji \"%@\" is currently used by one or more Power Modes and cannot be removed.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表情符號「%@」目前有一個或多個強力模式正在使用，無法移除。"
+          }
+        }
+      }
+    },
+    "The imported settings file (version %@) is from a different version than your application (version %@). Proceeding with import, but be aware of potential incompatibilities.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入的設定檔版本（%1$@）與目前 app 版本（%2$@）不同。會繼續匯入，但可能有相容性問題。"
+          }
+        }
+      }
+    },
+    "This action cannot be undone. Are you sure you want to delete %lld item%@?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作無法復原。確定要刪除 %1$lld 個項目嗎？"
+          }
+        }
+      }
+    },
+    "This license can be activated on up to %lld devices": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此授權最多可在 %lld 台裝置上啟用"
+          }
+        }
+      }
+    },
+    "This will delete %lld audio files (%@).": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將刪除 %1$lld 個音訊檔（%2$@）。"
+          }
+        }
+      }
+    },
+    "Transcription Model: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄模型：%@"
+          }
+        }
+      }
+    },
+    "Vocabulary Words (%lld)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙（%lld）"
+          }
+        }
+      }
+    },
+    "v%@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%@"
+          }
+        }
+      }
+    },
+    "Keep Clipboard Content": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留剪貼簿內容"
+          }
+        }
+      }
+    },
+    "VoiceInk temporarily uses the clipboard to paste transcription. When enabled, it restores your previous clipboard content after the selected delay. When disabled, the pasted transcription stays on your clipboard.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VoiceInk 會暫時使用剪貼簿來貼上轉錄文字。啟用後，會在指定延遲後復原你原本的剪貼簿內容。停用時，貼上的轉錄文字會留在剪貼簿。"
+          }
+        }
+      }
+    },
+    "Default uses simulated Cmd+V key events. AppleScript can help when custom keyboard layouts do not paste correctly.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設會模擬 Cmd+V 按鍵事件。若自訂鍵盤配置無法正確貼上，AppleScript 可能會有幫助。"
+          }
+        }
+      }
+    },
+    "AppleScript": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppleScript"
+          }
+        }
+      }
+    },
+    "Press shortcut": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下快捷鍵"
+          }
+        }
+      }
+    },
+    "Record shortcut": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製快捷鍵"
+          }
+        }
+      }
+    },
+    "Record": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製"
+          }
+        }
+      }
+    },
+    "Shortcut not allowed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不允許使用此快捷鍵：%@"
+          }
+        }
+      }
+    },
+    "Shortcut reserved by macOS: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此快捷鍵已由 macOS 保留：%@"
+          }
+        }
+      }
+    },
+    "Shortcut already used by %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此快捷鍵已被「%@」使用"
+          }
+        }
+      }
+    },
+    "Paste Last Transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上上次轉錄"
+          }
+        }
+      }
+    },
+    "Paste Last Enhanced Transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上上次增強轉錄"
+          }
+        }
+      }
+    },
+    "Mini Recorder Cancel": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消迷你錄音器"
+          }
+        }
+      }
+    },
+    "%@ Power Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 強力模式"
+          }
+        }
+      }
+    },
+    "Select Prompt %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇提示詞 %@"
+          }
+        }
+      }
+    },
+    "Select Power Mode %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇強力模式 %@"
+          }
+        }
+      }
+    },
+    "Toggle Enhancement": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換增強"
           }
         }
       }

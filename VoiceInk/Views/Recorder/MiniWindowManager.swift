@@ -52,6 +52,7 @@ class MiniWindowManager: ObservableObject {
     func hide() {
         guard isVisible else { return }
         isVisible = false
+        panel?.allowsKeyboardInput = false
         panel?.orderOut(nil)
     }
 
@@ -87,5 +88,21 @@ class MiniWindowManager: ObservableObject {
 
     func toggle() {
         isVisible ? hide() : show()
+    }
+
+    func updateLayout(isCandidateReviewVisible: Bool) {
+        guard let panel else { return }
+        panel.allowsKeyboardInput = isCandidateReviewVisible
+        let metrics = MiniRecorderPanel.calculateWindowMetrics(
+            width: isCandidateReviewVisible ? RecorderCandidateReviewLayout.miniWidth : nil,
+            height: isCandidateReviewVisible ? RecorderCandidateReviewLayout.miniHeight : nil
+        )
+        panel.setFrame(metrics, display: true, animate: true)
+
+        if isCandidateReviewVisible {
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
     }
 }

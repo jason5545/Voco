@@ -48,6 +48,7 @@ class NotchWindowManager: ObservableObject {
     func hide() {
         guard isVisible else { return }
         isVisible = false
+        panel?.allowsKeyboardInput = false
         panel?.orderOut(nil)
     }
 
@@ -77,5 +78,21 @@ class NotchWindowManager: ObservableObject {
 
     func toggle() {
         isVisible ? hide() : show()
+    }
+
+    func updateLayout(isCandidateReviewVisible: Bool) {
+        guard let panel else { return }
+        panel.allowsKeyboardInput = isCandidateReviewVisible
+        let metrics = NotchRecorderPanel.calculateWindowMetrics(
+            maxSideExpansion: isCandidateReviewVisible ? RecorderCandidateReviewLayout.notchSideExpansion : nil,
+            maxContentHeight: isCandidateReviewVisible ? RecorderCandidateReviewLayout.notchWindowHeight : nil
+        )
+        panel.setFrame(metrics.frame, display: true, animate: true)
+
+        if isCandidateReviewVisible {
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
     }
 }

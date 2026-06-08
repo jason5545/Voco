@@ -10,15 +10,15 @@ enum BackupCategory: String, CaseIterable, Hashable {
     var title: String {
         switch self {
         case .general:
-            return "General Settings"
+            return String(localized: "General Settings")
         case .prompts:
-            return "Custom Prompts"
+            return String(localized: "Custom Prompts")
         case .powerMode:
-            return "Power Mode"
+            return String(localized: "Power Mode")
         case .dictionary:
-            return "Dictionary"
+            return String(localized: "Dictionary")
         case .customModels:
-            return "Custom Model Definitions"
+            return String(localized: "Custom Model Definitions")
         }
     }
 }

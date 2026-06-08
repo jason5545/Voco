@@ -102,17 +102,17 @@ enum VocoHypothesisSource: String, Codable, Equatable {
     var displayName: String {
         switch self {
         case .autoContext:
-            return "AUTO + context"
+            return String(localized: "AUTO + context")
         case .suggestedRepair:
-            return "Suggestion pass"
+            return String(localized: "Suggestion pass")
         case .originalCleaned:
-            return "Cleaned ASR"
+            return String(localized: "Cleaned ASR")
         case .rawASR:
-            return "Raw ASR"
+            return String(localized: "Raw ASR")
         case .segmentRescue:
-            return "Segment rescue"
+            return String(localized: "Segment rescue")
         case .customRescue:
-            return "Custom rescue"
+            return String(localized: "Custom rescue")
         }
     }
 
@@ -271,8 +271,10 @@ struct VocoConfidenceAssessment: Codable, Equatable {
     }
 
     func labelForCandidate(at index: Int) -> String {
-        guard candidateLabels.indices.contains(index) else { return "Candidate" }
-        return candidateLabels[index]
+        guard candidateLabels.indices.contains(index) else {
+            return VocoCandidateLabelDisplayFormatter.displayName(for: "Candidate")
+        }
+        return VocoCandidateLabelDisplayFormatter.displayName(for: candidateLabels[index])
     }
 
     func hypothesisForCandidate(at index: Int) -> VocoHypothesis? {
@@ -290,13 +292,38 @@ enum VocoCandidateSelectionSource: String, Codable, Equatable {
     var displayName: String {
         switch self {
         case .userSelection:
-            return "User selection"
+            return String(localized: "User selection")
         case .dismissedFallback:
-            return "Dismissed fallback"
+            return String(localized: "Dismissed fallback")
         case .timeoutFallback:
-            return "Timeout fallback"
+            return String(localized: "Timeout fallback")
         case .automaticFallback:
-            return "Automatic fallback"
+            return String(localized: "Automatic fallback")
+        }
+    }
+}
+
+enum VocoCandidateLabelDisplayFormatter {
+    static func displayName(for label: String) -> String {
+        switch label {
+        case "Recommended":
+            return String(localized: "Recommended")
+        case "With suggestions":
+            return String(localized: "With suggestions")
+        case "Segment rescue":
+            return String(localized: "Segment rescue")
+        case "Raw cleanup rescue":
+            return String(localized: "Raw cleanup rescue")
+        case "Original":
+            return String(localized: "Original")
+        case "Raw ASR":
+            return String(localized: "Raw ASR")
+        case "Typed correction":
+            return String(localized: "Typed correction")
+        case "Candidate":
+            return String(localized: "Candidate")
+        default:
+            return label
         }
     }
 }
@@ -329,57 +356,57 @@ enum VocoSignalDisplayFormatter {
     static func displayReason(for reason: String) -> String {
         switch reason {
         case "alias-match":
-            return "Alias match"
+            return String(localized: "Alias match")
         case "canonical-match":
-            return "Already canonical"
+            return String(localized: "Already canonical")
         case "canonicalization-clean":
-            return "Clean"
+            return String(localized: "Clean")
         case "candidate-confirmed":
-            return "Candidate confirmed"
+            return String(localized: "Candidate confirmed")
         case "candidate-custom":
-            return "Custom candidate"
+            return String(localized: "Custom candidate")
         case "candidate-dismissed-fallback":
-            return "Dismissed fallback"
+            return String(localized: "Dismissed fallback")
         case "candidate-override":
-            return "Candidate changed"
+            return String(localized: "Candidate changed")
         case "candidate-timeout-fallback":
-            return "Timeout fallback"
+            return String(localized: "Timeout fallback")
         case "candidate-auto-fallback":
-            return "Automatic fallback"
+            return String(localized: "Automatic fallback")
         case "case-normalization":
-            return "Case normalization"
+            return String(localized: "Case normalization")
         case "context-required":
-            return "Needs context"
+            return String(localized: "Needs context")
         case "contextual-alias-match":
-            return "Context match"
+            return String(localized: "Context match")
         case "heavy-normalization":
-            return "Heavy normalization"
+            return String(localized: "Heavy normalization")
         case "high-risk-term":
-            return "High-risk term"
+            return String(localized: "High-risk term")
         case "inactive-context-suggestion":
-            return "Inactive context"
+            return String(localized: "Inactive context")
         case "low-confidence-replacement":
-            return "Low confidence"
+            return String(localized: "Low confidence")
         case "low-confidence-score":
-            return "Low score"
+            return String(localized: "Low score")
         case "protected-term-replacement":
-            return "Protected term changed"
+            return String(localized: "Protected term changed")
         case "raw-cleanup-drift":
-            return "Cleanup drift"
+            return String(localized: "Cleanup drift")
         case "raw-cleanup-local-regression":
-            return "Cleanup local regression"
+            return String(localized: "Cleanup local regression")
         case "raw-cleanup-significant":
-            return "Cleanup changed text"
+            return String(localized: "Cleanup changed text")
         case "recent-correction-rate":
-            return "Recent corrections"
+            return String(localized: "Recent corrections")
         case "recent-term-corrections":
-            return "Term was corrected"
+            return String(localized: "Term was corrected")
         case "segment-rescue":
-            return "Segment rescue"
+            return String(localized: "Segment rescue")
         case "unresolved-suggestions":
-            return "Needs choice"
+            return String(localized: "Needs choice")
         case "user-substitution":
-            return "User substitution"
+            return String(localized: "User substitution")
         default:
             if let retranscriptionReason = retranscriptionDisplayReason(for: reason) {
                 return retranscriptionReason
@@ -416,13 +443,13 @@ enum VocoSignalDisplayFormatter {
     private static func styleGuardCategoryDisplayName(for category: String) -> String {
         switch category {
         case "assistant-opener":
-            return "Assistant opener"
+            return String(localized: "Assistant opener")
         case "dropped-mixed-language-term":
-            return "Dropped mixed language term"
+            return String(localized: "Dropped mixed language term")
         case "introduced-structured-format":
-            return "Structured formatting"
+            return String(localized: "Structured formatting")
         case "style-expansion":
-            return "Style expansion"
+            return String(localized: "Style expansion")
         default:
             return displayReason(for: category)
         }
@@ -433,9 +460,16 @@ enum VocoSignalDisplayFormatter {
 
         let rawCategory = String(reason.dropFirst("retranscription-".count))
         guard let category = RetranscriptionChangeCategory(rawValue: rawCategory) else {
-            return "Retranscription change"
+            return String(localized: "Retranscription change")
         }
-        return "Retranscription \(category.displayName.lowercased())"
+        switch category {
+        case .unchanged:
+            return String(localized: "Retranscription unchanged")
+        case .minorChange:
+            return String(localized: "Retranscription minor")
+        case .meaningfulChange:
+            return String(localized: "Retranscription meaningful")
+        }
     }
 
     private static func fallbackDisplayReason(for reason: String) -> String {
@@ -477,12 +511,12 @@ enum VocoHypothesisDisplayFormatter {
         var parts: [String] = []
 
         if let confidenceScore = hypothesis.confidenceScore {
-            parts.append("Confidence \(percent(confidenceScore))")
+            parts.append(String(localized: "Confidence \(percent(confidenceScore))"))
         }
 
         if let divergence = hypothesis.divergenceFromRecommended,
            divergence > 0 {
-            parts.append("Delta \(percent(divergence))")
+            parts.append(String(localized: "Delta \(percent(divergence))"))
         }
 
         let reasons = VocoSignalDisplayFormatter.displayReasons(for: hypothesis.reasons)
@@ -492,18 +526,18 @@ enum VocoHypothesisDisplayFormatter {
 
         let termIDs = uniqueNonEmpty(hypothesis.appliedTermIDs)
         if !termIDs.isEmpty {
-            parts.append("Terms \(termIDs.joined(separator: ", "))")
+            parts.append(String(localized: "Terms \(termIDs.joined(separator: ", "))"))
         }
 
         let contexts = uniqueNonEmpty(
             VocoCanonicalizationService.contextDisplayNames(for: hypothesis.activeContextIDs)
         )
         if !contexts.isEmpty {
-            parts.append("Contexts \(contexts.joined(separator: ", "))")
+            parts.append(String(localized: "Contexts \(contexts.joined(separator: ", "))"))
         }
 
         if hypothesis.requiresReview {
-            parts.append("Review required")
+            parts.append(String(localized: "Review required"))
         }
 
         guard !parts.isEmpty else { return nil }

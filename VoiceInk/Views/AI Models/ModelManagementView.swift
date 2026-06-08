@@ -184,16 +184,16 @@ struct ModelManagementView: View {
                             isWarming: isWarming,
                             deleteAction: {
                                 if let customModel = model as? CustomCloudModel {
-                                    alertTitle = "Delete Custom Model"
-                                    alertMessage = "Are you sure you want to delete the custom model '\(customModel.displayName)'?"
+                                    alertTitle = String(localized: "Delete Custom Model")
+                                    alertMessage = String(localized: "Are you sure you want to delete the custom model '\(customModel.displayName)'?")
                                     deleteActionClosure = {
                                         customModelManager.removeCustomModel(withId: customModel.id)
                                         transcriptionModelManager.refreshAllAvailableModels()
                                     }
                                     isShowingDeleteAlert = true
                                 } else if let downloadedModel = whisperModelManager.availableModels.first(where: { $0.name == model.name }) {
-                                    alertTitle = "Delete Model"
-                                    alertMessage = "Are you sure you want to delete the model '\(downloadedModel.name)'?"
+                                    alertTitle = String(localized: "Delete Model")
+                                    alertMessage = String(localized: "Are you sure you want to delete the model '\(downloadedModel.name)'?")
                                     deleteActionClosure = {
                                         Task {
                                             await whisperModelManager.deleteModel(downloadedModel)

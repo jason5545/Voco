@@ -1,5 +1,13 @@
 import SwiftUI
 
+enum RecorderCandidateReviewLayout {
+    static let miniWidth: CGFloat = 460
+    static let miniHeight: CGFloat = 320
+    static let notchSideExpansion: CGFloat = 230
+    static let notchPanelHeight: CGFloat = 320
+    static let notchWindowHeight: CGFloat = 380
+}
+
 // MARK: - Shared Popover State
 
 enum ActivePopoverState {
@@ -385,101 +393,140 @@ struct CandidateReviewView: View {
     let onDismiss: () -> Void
 
     @State private var typedCandidate = ""
+    @FocusState private var isTypedCandidateFocused: Bool
 
     var body: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.yellow)
-
-                Text("\(confidenceText) review")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-
-                Spacer(minLength: 0)
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.45))
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-            }
+        VStack(spacing: 0) {
+            header
 
             if !review.displayReviewSignals.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 5) {
-                        ForEach(review.displayReviewSignals, id: \.self) { signal in
-                            Text(signal)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.72))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.1))
-                                )
-                        }
-                    }
-                }
+                signalStrip
+                    .padding(.top, 7)
             }
 
-            typedRescueRow
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 5) {
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(spacing: 7) {
                     ForEach(Array(review.candidates.prefix(5).enumerated()), id: \.offset) { index, candidate in
-                        let shortcut = review.keyboardShortcutForCandidate(at: index) ?? "\(index + 1)"
-                        Button {
-                            onSelect(candidate)
-                        } label: {
-                            HStack(alignment: .top, spacing: 7) {
-                                Text(shortcut)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.black.opacity(0.75))
-                                    .frame(width: 16, height: 16)
-                                    .background(Circle().fill(Color.white.opacity(index == 0 ? 0.9 : 0.55)))
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 5) {
-                                        Text(review.labelForCandidate(at: index))
-                                            .font(.system(size: 9, weight: .bold))
-                                            .foregroundColor(.white.opacity(index == 0 ? 0.85 : 0.58))
-
-                                        if let source = review.sourceDisplayNameForCandidate(at: index) {
-                                            Text(source)
-                                                .font(.system(size: 9, weight: .medium))
-                                                .foregroundColor(.white.opacity(0.42))
-                                                .lineLimit(1)
-                                        }
-                                    }
-
-                                    Text(candidate)
-                                        .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))
-                                        .foregroundColor(.white.opacity(index == 0 ? 0.95 : 0.78))
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                }
-
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color.white.opacity(index == 0 ? 0.16 : 0.08))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [])
+                        candidateButton(index: index, candidate: candidate)
                     }
+                }
+                .padding(.vertical, 9)
+            }
+            .frame(maxHeight: .infinity)
+            .onHover { hovering in
+                if hovering { onInteraction() }
+            }
+
+            Divider()
+                .background(Color.white.opacity(0.14))
+
+            typedRescueRow
+                .padding(.top, 9)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 11)
+        .padding(.bottom, 12)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.yellow)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Review needed")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.92))
+
+                Text("\(confidenceText) confidence")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.54))
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+        }
+    }
+
+    private var signalStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 5) {
+                ForEach(review.displayReviewSignals, id: \.self) { signal in
+                    Text(signal)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.1))
+                        )
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+    }
+
+    private func candidateButton(index: Int, candidate: String) -> some View {
+        let shortcut = review.keyboardShortcutForCandidate(at: index) ?? "\(index + 1)"
+        return Button {
+            onSelect(candidate)
+        } label: {
+            HStack(alignment: .top, spacing: 9) {
+                Text(shortcut)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.black.opacity(0.76))
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(Color.white.opacity(index == 0 ? 0.92 : 0.62)))
+                    .padding(.top, 1)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(review.labelForCandidate(at: index))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white.opacity(index == 0 ? 0.86 : 0.62))
+                            .lineLimit(1)
+
+                        if let source = review.sourceDisplayNameForCandidate(at: index) {
+                            Text(source)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.46))
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Text(candidate)
+                        .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
+                        .foregroundColor(.white.opacity(index == 0 ? 0.96 : 0.82))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(index == 0 ? 0.16 : 0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.white.opacity(index == 0 ? 0.2 : 0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [])
     }
 
     private var confidenceText: String {
@@ -491,19 +538,28 @@ struct CandidateReviewView: View {
     }
 
     private var typedRescueRow: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .bottom, spacing: 8) {
             TextField("Type correction", text: $typedCandidate, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.white.opacity(0.9))
-                .lineLimit(1...2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .lineLimit(1...3)
+                .focused($isTypedCandidateFocused)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.09))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(isTypedCandidateFocused ? 0.14 : 0.09))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(isTypedCandidateFocused ? 0.28 : 0.09), lineWidth: 1)
                 )
                 .onSubmit(submitTypedCandidate)
+                .onTapGesture {
+                    onInteraction()
+                    isTypedCandidateFocused = true
+                }
                 .onChange(of: typedCandidate) { _, newValue in
                     if VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: newValue) {
                         onInteraction()
@@ -512,9 +568,9 @@ struct CandidateReviewView: View {
 
             Button(action: submitTypedCandidate) {
                 Image(systemName: "arrow.turn.down.left")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(trimmedTypedCandidate.isEmpty ? .white.opacity(0.25) : .black.opacity(0.78))
-                    .frame(width: 24, height: 24)
+                    .frame(width: 30, height: 30)
                     .background(
                         Circle()
                             .fill(trimmedTypedCandidate.isEmpty ? Color.white.opacity(0.08) : Color.white.opacity(0.86))

@@ -58,8 +58,10 @@ struct VocoCandidateReview: Identifiable {
     }
 
     func labelForCandidate(at index: Int) -> String {
-        guard candidateLabels.indices.contains(index) else { return "Candidate" }
-        return candidateLabels[index]
+        guard candidateLabels.indices.contains(index) else {
+            return VocoCandidateLabelDisplayFormatter.displayName(for: "Candidate")
+        }
+        return VocoCandidateLabelDisplayFormatter.displayName(for: candidateLabels[index])
     }
 
     func hypothesisForCandidate(at index: Int) -> VocoHypothesis? {

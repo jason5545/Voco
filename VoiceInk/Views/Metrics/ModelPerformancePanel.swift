@@ -185,7 +185,7 @@ private struct ModelPerformancePanelContent: View {
                         icon: "checkmark.shield",
                         title: "Direct Insertions",
                         value: formatPercent(assistiveSummary.directInsertionRate),
-                        detail: "\(assistiveSummary.directInsertionCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                        detail: String(localized: "\(assistiveSummary.directInsertionCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions"),
                         color: .mint
                     )
 
@@ -193,7 +193,7 @@ private struct ModelPerformancePanelContent: View {
                         icon: "exclamationmark.bubble",
                         title: "Review Suggested",
                         value: formatPercent(assistiveSummary.reviewSuggestedRate),
-                        detail: "\(assistiveSummary.reviewSuggestedCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions",
+                        detail: String(localized: "\(assistiveSummary.reviewSuggestedCount) of \(assistiveSummary.confidenceRouteSampleCount) routed sessions"),
                         color: .orange
                     )
                 }
@@ -203,7 +203,7 @@ private struct ModelPerformancePanelContent: View {
                         icon: "slider.horizontal.3",
                         title: "Average Confidence",
                         value: formatPercent(assistiveSummary.averageConfidenceScore),
-                        detail: "\(assistiveSummary.confidenceScoreSampleCount) scored sessions",
+                        detail: String(localized: "\(assistiveSummary.confidenceScoreSampleCount) scored sessions"),
                         color: .teal
                     )
                 }
@@ -270,7 +270,7 @@ private struct ModelPerformancePanelContent: View {
                     icon: "cursorarrow.click.2",
                     title: "Candidate Selections",
                     value: "\(assistiveSummary.candidateSelectionCount)",
-                    detail: "\(assistiveSummary.userSelectionCount) user / \(assistiveSummary.fallbackSelectionCount) fallback",
+                    detail: String(localized: "\(assistiveSummary.userSelectionCount) user / \(assistiveSummary.fallbackSelectionCount) fallback"),
                     color: .indigo
                 )
             }
@@ -310,7 +310,7 @@ private struct ModelPerformancePanelContent: View {
                     icon: "arrow.left.and.right",
                     title: "Candidate Divergence",
                     value: formatPercent(assistiveSummary.averageCandidateDivergenceRatio),
-                    detail: "\(assistiveSummary.candidateDivergenceRatioSampleCount) compared sessions",
+                    detail: String(localized: "\(assistiveSummary.candidateDivergenceRatioSampleCount) compared sessions"),
                     color: .blue
                 )
             }
@@ -320,7 +320,7 @@ private struct ModelPerformancePanelContent: View {
                     icon: "text.magnifyingglass",
                     title: "Canonicalization",
                     value: "\(assistiveSummary.canonicalizedSessionCount)",
-                    detail: "\(assistiveSummary.totalCanonicalizationReplacementCount) replacements / \(assistiveSummary.totalCanonicalizationSuggestionCount) suggestions",
+                    detail: String(localized: "\(assistiveSummary.totalCanonicalizationReplacementCount) replacements / \(assistiveSummary.totalCanonicalizationSuggestionCount) suggestions"),
                     color: .purple
                 )
             }
@@ -330,7 +330,7 @@ private struct ModelPerformancePanelContent: View {
                     icon: "doc.on.clipboard",
                     title: "Paste Commands",
                     value: formatPercent(assistiveSummary.pasteCommandPostedRate),
-                    detail: "\(assistiveSummary.pasteCommandPostedCount) of \(assistiveSummary.pasteCommandSampleCount) recorded",
+                    detail: String(localized: "\(assistiveSummary.pasteCommandPostedCount) of \(assistiveSummary.pasteCommandSampleCount) recorded"),
                     color: .blue
                 )
             }
@@ -699,10 +699,12 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     var correctionFeedbackDetail: String {
-        guard correctionFeedbackSessionCount > 0 || correctionFeedbackCount > 0 else { return "No feedback recorded" }
+        guard correctionFeedbackSessionCount > 0 || correctionFeedbackCount > 0 else {
+            return String(localized: "No feedback recorded")
+        }
 
         var parts = [
-            "\(correctiveFeedbackCount) corrective / \(Self.unitCount(correctionFeedbackSessionCount, singular: "session", plural: "sessions"))",
+            String(localized: "\(correctiveFeedbackCount) corrective / \(Self.sessionCount(correctionFeedbackSessionCount))"),
         ]
         let reasonText = Self.signalReasonSummary(correctionFeedbackReasonCounts, limit: 2)
         if !reasonText.isEmpty {
@@ -712,13 +714,15 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     var styleGuardDetail: String {
-        guard styleGuardRejectionSessionCount > 0 else { return "No style rejections" }
+        guard styleGuardRejectionSessionCount > 0 else {
+            return String(localized: "No style rejections")
+        }
 
         var parts = [
-            Self.unitCount(styleGuardRejectionSessionCount, singular: "session", plural: "sessions"),
+            Self.sessionCount(styleGuardRejectionSessionCount),
         ]
         if styleGuardRejectedCharacterCount > 0 {
-            parts.append("\(Self.unitCount(styleGuardRejectedCharacterCount, singular: "char", plural: "chars")) rejected")
+            parts.append(Self.rejectedCharacterCount(styleGuardRejectedCharacterCount))
         }
 
         let reasonText = Self.styleGuardReasonSummary(styleGuardReasonCounts, limit: 2)
@@ -729,29 +733,35 @@ struct AssistiveSignalSummary: Equatable {
     }
 
     var reviewTriggerDetail: String {
-        guard reviewTriggerCount > 0 else { return "No review triggers" }
+        guard reviewTriggerCount > 0 else {
+            return String(localized: "No review triggers")
+        }
 
-        let sessionText = "\(reviewTriggerSessionCount) \(reviewTriggerSessionCount == 1 ? "session" : "sessions")"
+        let sessionText = Self.sessionCount(reviewTriggerSessionCount)
         let triggerText = Self.reviewTriggerSummary(
             reviewTriggerSummaryCounts,
             fallbackCounts: reviewTriggerCounts,
             limit: 3
         )
-        guard !triggerText.isEmpty else { return "\(reviewTriggerCount) recorded" }
+        guard !triggerText.isEmpty else {
+            return String(localized: "\(reviewTriggerCount) recorded")
+        }
         return "\(sessionText) / \(triggerText)"
     }
 
     var candidateSourceDetail: String {
-        guard candidateSourceCandidateCount > 0 else { return "No source breakdown" }
+        guard candidateSourceCandidateCount > 0 else {
+            return String(localized: "No source breakdown")
+        }
 
-        let reviewText = "\(reviewRequiredCandidateCount) review"
+        let reviewText = String(localized: "\(reviewRequiredCandidateCount) review")
         let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 3)
         var parts = [reviewText]
         if !sourceText.isEmpty {
             parts.append(sourceText)
         }
         if let averageCandidateDivergenceRatio {
-            parts.append("avg delta \(Self.percent(averageCandidateDivergenceRatio))")
+            parts.append(String(localized: "avg delta \(Self.percent(averageCandidateDivergenceRatio))"))
         }
         return parts.joined(separator: " / ")
     }
@@ -770,15 +780,15 @@ struct AssistiveSignalSummary: Equatable {
 
     var retranscriptionDetail: String {
         var parts = [
-            "\(meaningfulRetranscriptionCount) meaningful / \(retranscriptionSampleCount) analyzed"
+            String(localized: "\(meaningfulRetranscriptionCount) meaningful / \(retranscriptionSampleCount) analyzed")
         ]
 
         if let averageRetranscriptionChangeRatio {
-            parts.append("avg change \(Self.percent(averageRetranscriptionChangeRatio))")
+            parts.append(String(localized: "avg change \(Self.percent(averageRetranscriptionChangeRatio))"))
         }
 
         if let averageRetranscriptionConfidenceDelta {
-            parts.append("avg confidence \(Self.signedPercent(averageRetranscriptionConfidenceDelta))")
+            parts.append(String(localized: "avg confidence \(Self.signedPercent(averageRetranscriptionConfidenceDelta))"))
         }
 
         return parts.joined(separator: ", ")
@@ -802,8 +812,18 @@ struct AssistiveSignalSummary: Equatable {
         return "\(sign)\(percent(value))"
     }
 
-    private static func unitCount(_ count: Int, singular: String, plural: String) -> String {
-        "\(count) \(count == 1 ? singular : plural)"
+    private static func sessionCount(_ count: Int) -> String {
+        if count == 1 {
+            return String(localized: "\(count) session")
+        }
+        return String(localized: "\(count) sessions")
+    }
+
+    private static func rejectedCharacterCount(_ count: Int) -> String {
+        if count == 1 {
+            return String(localized: "\(count) char rejected")
+        }
+        return String(localized: "\(count) chars rejected")
     }
 
     private static func mergedCounts(_ counts: [[String: Int]]) -> [String: Int] {
