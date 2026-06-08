@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 import SwiftData
 import Testing
 @testable import Voco
@@ -3409,6 +3410,63 @@ struct VoiceInkTests {
         #expect(state.shouldContinuePolling(expectedGeneration: generation) == false)
         #expect(state.shouldApplyResult(for: generation) == false)
         #expect(state.enqueueRefresh() == .ignoredStopped)
+    }
+
+    @Test @MainActor func toggleShortcutAllowsSecondStopTapInsideCancelWindow() async throws {
+        var isRecorderVisible = false
+        var recordingState: RecordingState = .idle
+        var toggleCount = 0
+
+        let handler = RecordingShortcutModeHandler(
+            logger: Logger(subsystem: "com.jasonchien.VocoTests", category: "ShortcutMode"),
+            canHandleShortcutAction: { true },
+            isRecorderVisible: { isRecorderVisible },
+            recordingState: { recordingState },
+            toggleMiniRecorder: { _ in
+                toggleCount += 1
+                if toggleCount == 1 {
+                    isRecorderVisible = true
+                    recordingState = .recording
+                }
+            },
+            cancelRecording: {}
+        )
+
+        await handler.handleKeyDown(
+            action: .primaryRecording,
+            eventTime: 1.0,
+            mode: .toggle
+        )
+        await handler.handleKeyUp(
+            action: .primaryRecording,
+            eventTime: 1.05,
+            mode: .toggle
+        )
+        #expect(toggleCount == 1)
+
+        try await Task.sleep(nanoseconds: 600_000_000)
+
+        await handler.handleKeyDown(
+            action: .primaryRecording,
+            eventTime: 2.0,
+            mode: .toggle
+        )
+        await handler.handleKeyUp(
+            action: .primaryRecording,
+            eventTime: 2.05,
+            mode: .toggle
+        )
+        #expect(toggleCount == 2)
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        await handler.handleKeyDown(
+            action: .primaryRecording,
+            eventTime: 2.2,
+            mode: .toggle
+        )
+
+        #expect(toggleCount == 3)
     }
 
 }

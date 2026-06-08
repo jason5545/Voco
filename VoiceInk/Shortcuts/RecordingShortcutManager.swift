@@ -358,7 +358,9 @@ final class RecordingShortcutModeHandler {
     private var activeShortcutCanCancelAccidentalStart = false
     private var lastShortcutPressTime: Date?
 
-    private let shortcutPressCooldown: TimeInterval = 0.5
+    // Keep this below RecorderUIManager's 0.4s double-press cancel window.
+    // Held-key repeats are already gated by isShortcutPressed.
+    private let shortcutPressCooldown: TimeInterval = 0.08
     private let hybridPressThreshold: TimeInterval = 0.5
 
     init(
