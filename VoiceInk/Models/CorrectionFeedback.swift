@@ -42,7 +42,8 @@ struct CorrectionFeedbackSignal: Codable, Equatable {
         case "candidate-confirmed",
              "candidate-dismissed-fallback",
              "candidate-timeout-fallback",
-             "candidate-auto-fallback":
+             "candidate-auto-fallback",
+             "candidate-final-paste":
             return true
         default:
             return false
@@ -119,6 +120,8 @@ enum CorrectionFeedbackService {
             reason = "candidate-timeout-fallback"
         case .automaticFallback:
             reason = "candidate-auto-fallback"
+        case .finalPaste:
+            reason = "candidate-final-paste"
         case .userSelection:
             if isSameCandidate(accepted, assessment.selectedCandidate) {
                 reason = "candidate-confirmed"

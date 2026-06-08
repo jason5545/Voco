@@ -179,6 +179,13 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 title: "Auto",
                 tone: .secondary
             )
+        case .finalPaste:
+            return TranscriptionAssistiveBadge(
+                id: "candidate-final-paste",
+                icon: "doc.on.clipboard.fill",
+                title: String(localized: "Pasted"),
+                tone: .accent
+            )
         }
     }
 

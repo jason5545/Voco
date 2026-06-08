@@ -271,6 +271,42 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
+    @Test func canonicalizationSuppressesKnownAmbiguousWordReplacementPair() async throws {
+        let service = VocoCanonicalizationService(contextPacks: [])
+        let projectTerm = VocoCanonicalTerm(
+            id: "word-replacement.test-project",
+            canonical: "專案",
+            aliases: ["圖案"],
+            type: "word-replacement",
+            contexts: ["personal-dictionary"],
+            caseSensitive: true,
+            autoReplaceThreshold: 0.97
+        )
+        let fileTerm = VocoCanonicalTerm(
+            id: "word-replacement.test-file",
+            canonical: "檔案",
+            aliases: ["答案"],
+            type: "word-replacement",
+            contexts: ["personal-dictionary"],
+            caseSensitive: true,
+            autoReplaceThreshold: 0.97
+        )
+
+        let poster = service.normalize(
+            "你沒有什麼特別的圖案或者是拍板要放上去嗎？",
+            additionalTerms: [projectTerm]
+        )
+        #expect(poster.normalizedText == "你沒有什麼特別的圖案或者是拍板要放上去嗎？")
+        #expect(poster.replacements.isEmpty)
+
+        let importText = service.normalize(
+            "把答案給我匯入會比較安全。",
+            additionalTerms: [fileTerm]
+        )
+        #expect(importText.normalizedText == "把檔案給我匯入會比較安全。")
+        #expect(importText.replacements.first?.replacementText == "檔案")
+    }
+
     @Test func confidenceGateFallsBackToRawForLocalCleanupRegression() async throws {
         try await requireLoadedPinyinDatabase()
 
@@ -515,6 +551,11 @@ struct VoiceInkTests {
             appName: "Draw Things",
             windowTitle: nil
         )
+        let templeDataContext = CorrectionContext(
+            recentTranscriptions: ["廟裡的中元節資料", "功德金跟香油錢", "去年 Excel 檔案"],
+            appName: nil,
+            windowTitle: nil
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -539,6 +580,12 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("我記得那個 Config UI 是流程圖這樣連來連去的。", context: imageGenerationContext).text == "我記得那個 ComfyUI 是流程圖這樣連來連去的。")
         #expect(PinyinCorrector.shared.correct("第一個要討論的是config.yml那邊。", context: imageGenerationContext).text == "第一個要討論的是ComfyUI那邊。")
         #expect(PinyinCorrector.shared.correct("請先打開 config.yml 那個設定檔。").text == "請先打開 config.yml 那個設定檔。")
+        #expect(PinyinCorrector.shared.correct("再跑一次轉怒的技能吧。", context: correctionContext).text == "再跑一次轉錄的技能吧。")
+        #expect(PinyinCorrector.shared.correct("再跑一次轉路的技能吧。", context: correctionContext).text == "再跑一次轉錄的技能吧。")
+        #expect(PinyinCorrector.shared.correct("就等您莊園前一星期的資料。", context: templeDataContext).text == "就等您中元節前一星期的資料。")
+        #expect(PinyinCorrector.shared.correct("那您可以跟妙芳討論一下。", context: templeDataContext).text == "那您可以跟廟方討論一下。")
+        #expect(PinyinCorrector.shared.correct("妙方的人去用用看。", context: templeDataContext).text == "廟方的人去用用看。")
+        #expect(PinyinCorrector.shared.correct("這是一個妙方。").text == "這是一個妙方。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
@@ -712,6 +759,37 @@ struct VoiceInkTests {
         #expect(transcription.hypothesisDetails.first?.appliedTermIDs.contains("model.qwen3-asr") == true)
         #expect(transcription.selectedCandidate == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(transcription.candidateSelectionSource == nil)
+    }
+
+    @Test func transcriptionSyncsSelectedCandidateWithFinalPaste() async throws {
+        let transcription = Transcription(
+            text: "再跑一次轉怒的技能吧。",
+            duration: 0,
+            selectedCandidate: "再跑一次轉怒的技能吧。"
+        )
+
+        transcription.recordPasteAttempt(
+            text: "再跑一次轉錄的技能吧。",
+            didPostCommand: true
+        )
+
+        #expect(transcription.finalPastedText == "再跑一次轉錄的技能吧。")
+        #expect(transcription.selectedCandidate == "再跑一次轉錄的技能吧。")
+        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.finalPaste.rawValue)
+
+        let reviewed = Transcription(
+            text: "今天看到焰很大",
+            duration: 0,
+            selectedCandidate: "今天看到炎很大",
+            candidateSelectionSource: .userSelection
+        )
+        reviewed.recordPasteAttempt(
+            text: "今天看到炎很大。",
+            didPostCommand: true
+        )
+
+        #expect(reviewed.selectedCandidate == "今天看到炎很大。")
+        #expect(reviewed.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
     }
 
     @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
@@ -1590,11 +1668,23 @@ struct VoiceInkTests {
             aiEnhancementModelName: nil,
             enhancementDuration: nil
         )
+        let finalPaste = SessionMetric(
+            transcriptionId: UUID(),
+            wordCount: 3,
+            audioDuration: 1.5,
+            transcriptionModelName: "Qwen3-ASR",
+            transcriptionDuration: nil,
+            speedFactor: nil,
+            powerModeName: nil,
+            aiEnhancementModelName: nil,
+            enhancementDuration: nil,
+            candidateSelectionSource: VocoCandidateSelectionSource.finalPaste.rawValue
+        )
 
-        let summary = AssistiveSignalSummary(metrics: [direct, review, legacy])
+        let summary = AssistiveSignalSummary(metrics: [direct, review, legacy, finalPaste])
 
         #expect(summary.hasData)
-        #expect(summary.sessionCount == 3)
+        #expect(summary.sessionCount == 4)
         #expect(summary.confidenceRouteSampleCount == 2)
         #expect(summary.directInsertionCount == 1)
         #expect(summary.reviewSuggestedCount == 1)

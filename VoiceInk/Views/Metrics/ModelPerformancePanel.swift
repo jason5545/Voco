@@ -595,11 +595,11 @@ struct AssistiveSignalSummary: Equatable {
             ? nil
             : confidenceScores.reduce(0, +) / Double(confidenceScores.count)
 
-        candidateSelectionCount = metrics.filter { ($0.candidateSelectionSource ?? "").isEmpty == false }.count
         userSelectionCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue }.count
         dismissedFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.dismissedFallback.rawValue }.count
         timeoutFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue }.count
         automaticFallbackCount = metrics.filter { $0.candidateSelectionSource == VocoCandidateSelectionSource.automaticFallback.rawValue }.count
+        candidateSelectionCount = userSelectionCount + dismissedFallbackCount + timeoutFallbackCount + automaticFallbackCount
 
         correctionFeedbackSessionCount = metrics.filter {
             $0.correctionFeedbackCount > 0 || !$0.correctionFeedbackReasons.isEmpty

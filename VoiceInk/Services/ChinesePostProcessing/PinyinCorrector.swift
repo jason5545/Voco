@@ -125,6 +125,10 @@ class PinyinCorrector {
         let appleHardwareKeywords = ["Mac", "macOS", "Mac OS", "Apple", "硬體", "配備", "最頂", "基本版", "Max", "M5", "晶片", "筆電"]
         let loadingKeywords = ["Loading", "loading", "load", "卡", "卡死", "Activity Monitor"] + systemResourceKeywords + appleHardwareKeywords
         let dataImportKeywords = ["資料", "檔案", "Excel", "demo", "欄位", "欄位格式", "名稱", "匯入", "去年", "今年", "中元節", "單位"]
+        let templeDataKeywords = [
+            "廟", "廟方", "中元節", "功德金", "香油錢",
+            "春節", "資料", "檔案", "Excel", "匯入", "去年", "今年", "查詢", "單位"
+        ]
         let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
         let fieldRecognitionKeywords = dataImportKeywords + correctionKeywords + ["表格", "格式", "藍位", "浪費", "狼狽", "辨識成", "變質成"]
         let virtualizationKeywords = [
@@ -140,6 +144,8 @@ class PinyinCorrector {
             ("專欄", "專案", ["專案", "project", "開發", "GitHub", "repo", "資料夾"]),
             ("單字", "單指", ["手指", "輸入", "打字", "鍵盤", "操作"]),
             ("轉入", "轉錄", ["轉錄", "語音", "錄音", "transcri", "Whisper", "辨識"]),
+            ("轉怒", "轉錄", ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"]),
+            ("轉路", "轉錄", ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"]),
             ("推測", "推送", ["推送", "通知", "notification", "push", "訊息"]),
             ("差值被統一", "ChatGPT", aiKeywords),
             ("差點被統一", "ChatGPT", aiKeywords),
@@ -178,6 +184,9 @@ class PinyinCorrector {
             ("新就不重要", "新舊不重要", dataImportKeywords),
             ("闌尾的名稱", "欄位的名稱", dataImportKeywords),
             ("一比而已", "一筆而已", dataImportKeywords),
+            ("莊園前一星期", "中元節前一星期", templeDataKeywords),
+            ("妙方", "廟方", templeDataKeywords),
+            ("妙芳", "廟方", templeDataKeywords),
             ("藍位的", "欄位的", fieldRecognitionKeywords),
             ("藍位辨識", "欄位辨識", fieldRecognitionKeywords),
             ("藍位格式", "欄位格式", fieldRecognitionKeywords),
@@ -232,7 +241,10 @@ class PinyinCorrector {
             guard result.contains(rule.wrong) else { continue }
 
             // Skip if the wrong word is in the protection list
-            if CorrectionProtectionList.shared.contains(rule.wrong) { continue }
+            if CorrectionProtectionList.shared.contains(rule.wrong),
+               !allowsProtectedOverride(rule) {
+                continue
+            }
 
             switch rule.tier {
             case .alwaysApply:
@@ -265,6 +277,12 @@ class PinyinCorrector {
     }
 
     // MARK: - Private
+
+    private func allowsProtectedOverride(_ rule: PinyinCorrectionRule) -> Bool {
+        rule.tier == .contextDependent &&
+            rule.wrong == "轉路" &&
+            rule.correct == "轉錄"
+    }
 
     /// Apply a rule with CJK boundary protection for short rules (≤ 2 chars).
     ///

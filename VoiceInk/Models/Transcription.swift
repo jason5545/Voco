@@ -385,6 +385,14 @@ final class Transcription {
     func recordPasteAttempt(text: String, didPostCommand: Bool) {
         finalPastedText = text
         pasteCommandPosted = didPostCommand
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        selectedCandidate = trimmed
+        if candidateSelectionSource?.isEmpty != false {
+            candidateSelectionSource = VocoCandidateSelectionSource.finalPaste.rawValue
+        }
     }
 
     @discardableResult

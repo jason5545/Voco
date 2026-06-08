@@ -234,6 +234,10 @@ final class VocoCanonicalizationService {
                         continue
                     }
 
+                    if shouldSuppressAmbiguousWordReplacement(original: original, replacement: term.canonical, term: term) {
+                        continue
+                    }
+
                     let hasContext = hasStrongContext(
                         for: term,
                         in: text,
@@ -338,6 +342,23 @@ final class VocoCanonicalizationService {
             if window == canonical {
                 return true
             }
+        }
+
+        return false
+    }
+
+    private func shouldSuppressAmbiguousWordReplacement(
+        original: String,
+        replacement: String,
+        term: VocoCanonicalTerm
+    ) -> Bool {
+        guard term.type == "word-replacement" else { return false }
+
+        // Both words are common valid nouns. Recent retranscribe audits showed
+        // this pair being learned too broadly and corrupting QR-code poster text.
+        if ["圖案", "图案"].contains(original),
+           replacement == "專案" {
+            return true
         }
 
         return false

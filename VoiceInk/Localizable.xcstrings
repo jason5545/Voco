@@ -7695,6 +7695,16 @@
         }
       }
     },
+    "Final pasted text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最終貼出文字"
+          }
+        }
+      }
+    },
     "Alias match": {
       "localizations": {
         "zh-Hant": {
@@ -8921,6 +8931,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "貼上方式"
+          }
+        }
+      }
+    },
+    "Pasted": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已貼上"
           }
         }
       }

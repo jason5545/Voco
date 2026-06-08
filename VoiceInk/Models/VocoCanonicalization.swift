@@ -288,6 +288,7 @@ enum VocoCandidateSelectionSource: String, Codable, Equatable {
     case dismissedFallback
     case timeoutFallback
     case automaticFallback
+    case finalPaste
 
     var displayName: String {
         switch self {
@@ -299,6 +300,8 @@ enum VocoCandidateSelectionSource: String, Codable, Equatable {
             return String(localized: "Timeout fallback")
         case .automaticFallback:
             return String(localized: "Automatic fallback")
+        case .finalPaste:
+            return String(localized: "Final pasted text")
         }
     }
 }
