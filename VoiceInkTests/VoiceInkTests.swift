@@ -612,6 +612,14 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("Apple 的防雷圈 Moto 在這種情況下幫不幫得上忙？", context: appleFoundationModelContext).text == "Apple 的 Foundation Model 在這種情況下幫不幫得上忙？")
         #expect(PinyinCorrector.shared.correct("Foundation motto。", context: appleFoundationModelContext).text == "Foundation model。")
         #expect(PinyinCorrector.shared.correct("這款機車的 motto 是省電。", context: appleFoundationModelContext).text == "這款機車的 motto 是省電。")
+        #expect(PinyinCorrector.shared.correct("不過，先跟我承認一下。").text == "不過，先跟我確認一下。")
+        #expect(PinyinCorrector.shared.correct("不用重跑，重重新辨析。").text == "不用重跑，重新辨識。")
+        #expect(PinyinCorrector.shared.correct("如果他就確定是often，那我們就可以刪了。").text == "如果他就確定是 orphan，那我們就可以刪了。")
+        #expect(PinyinCorrector.shared.correct("現在的這個應該也沒有到很凹頭。").text == "現在的這個應該也沒有到很 auto。")
+        #expect(PinyinCorrector.shared.correct("這三天又補了屬於自己的失重。").text == "這三天又補了屬於自己的實作。")
+        #expect(PinyinCorrector.shared.correct("而且還做了一些work on the resources.").text == "而且還做了一些Workaround 與實作.")
+        #expect(PinyinCorrector.shared.correct("我承認這是失重造成的。").text == "我承認這是失重造成的。")
+        #expect(PinyinCorrector.shared.correct("之前那個 69 輪的東西。").text == "之前那個 69 輪的東西。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

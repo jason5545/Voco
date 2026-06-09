@@ -100,6 +100,14 @@ class PinyinCorrector {
             ("心理智商", "心理諮商"),
             ("心理資商", "心理諮商"),
             ("回到夾", "回到家"),
+            ("先跟我承認一下", "先跟我確認一下"),
+            ("重重新辨析", "重新辨識"),
+            ("重新辨析", "重新辨識"),
+            ("確定是often", "確定是 orphan"),
+            ("確定是 often", "確定是 orphan"),
+            ("很凹頭", "很 auto"),
+            ("屬於自己的失重", "屬於自己的實作"),
+            ("work on the resources", "Workaround 與實作"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
