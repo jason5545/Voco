@@ -11804,6 +11804,16 @@
           }
         }
       }
+    },
+    "Microphone Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麥克風模式"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
