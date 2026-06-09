@@ -239,6 +239,9 @@ struct VoiceInkApp: App {
                 for suffix in ["", "-shm", "-wal"] {
                     try? FileManager.default.removeItem(atPath: statsStoreURL.path + suffix)
                 }
+                // Reset migration key so stats get backfilled from existing transcriptions
+                UserDefaults.standard.removeObject(forKey: "HasCompletedStatsMigration")
+                UserDefaults.standard.removeObject(forKey: "SessionMetricBackfillVersion")
                 return try ModelContainer(
                     for: schema,
                     configurations: transcriptConfig, dictionaryConfig, statsConfig
