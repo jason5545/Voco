@@ -137,11 +137,6 @@ struct DashboardContent: View {
 
                             voiceInkStatsSection
 
-                            HStack(alignment: .top, spacing: 18) {
-                                HelpAndResourcesSection()
-                                DashboardPromotionsSection(licenseState: licenseState)
-                            }
-
                             Spacer(minLength: 20)
 
                             HStack {
@@ -365,7 +360,7 @@ struct DashboardContent: View {
     }
 
     @ViewBuilder
-    private func footerActionLabel(icon: String, title: String, color: Color) -> some View {
+    private func footerActionLabel(icon: String, title: LocalizedStringKey, color: Color) -> some View {
         HStack(alignment: .center, spacing: 8) {
             DashboardIconGlyph(systemName: icon, color: color, size: 13, frameSize: 16)
 
