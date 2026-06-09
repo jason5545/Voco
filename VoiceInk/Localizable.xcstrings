@@ -10804,6 +10804,26 @@
           }
         }
       }
+    },
+    "Audio": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音訊"
+          }
+        }
+      }
+    },
+    "Transcribe": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
