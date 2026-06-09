@@ -270,17 +270,26 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         }
 
         let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-        if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
+        let currentPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let cacheMatchesFrontmostApp = EditModeDetectionPolicy.cacheMatchesFrontmostApp(
+            cachedPID: snapshot.pid,
+            currentPID: currentPID
+        )
+
+        if cacheMatchesFrontmostApp,
+           snapshot.isEditable,
+           let selectedText = snapshot.selectedText,
+           !selectedText.isEmpty {
             engine.forkState.isEditMode = true
             engine.forkState.editModeSelectedText = selectedText
-        } else if snapshot.isEditable {
+        } else if cacheMatchesFrontmostApp, snapshot.isEditable {
             if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
                 engine.forkState.isEditMode = true
                 engine.forkState.editModeSelectedText = selectedText
             } else {
                 engine.forkState.clearEditMode()
             }
-        } else if snapshot.focusedElementUnavailable {
+        } else if !cacheMatchesFrontmostApp || snapshot.focusedElementUnavailable {
             engine.forkState.clearEditMode()
             engine.forkState.editModeDetectionTask = Task { @MainActor [weak engine] in
                 guard let engine else { return }
@@ -326,5 +335,12 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
                 await dismissRecorderPanel()
             }
         }
+    }
+}
+
+enum EditModeDetectionPolicy {
+    static func cacheMatchesFrontmostApp(cachedPID: pid_t?, currentPID: pid_t?) -> Bool {
+        guard let cachedPID, let currentPID else { return false }
+        return cachedPID == currentPID
     }
 }

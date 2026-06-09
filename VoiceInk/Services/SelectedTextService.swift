@@ -62,9 +62,9 @@ final class SelectedTextService {
         return editableRoles.contains(role)
     }
 
-    private static func normalized(_ text: String?) -> String? {
+    static func normalized(_ text: String?) -> String? {
         guard let text else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return trimmed.isEmpty ? nil : text
     }
 }

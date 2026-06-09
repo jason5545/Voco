@@ -49,6 +49,7 @@ final class EditModeCacheService: @unchecked Sendable {
         let isEditable: Bool
         let focusedElementUnavailable: Bool
         let selectedText: String?
+        let pid: pid_t?
     }
 
     func snapshotEditModeState() -> EditModeSnapshot {
@@ -56,7 +57,8 @@ final class EditModeCacheService: @unchecked Sendable {
             EditModeSnapshot(
                 isEditable: _cachedIsEditable,
                 focusedElementUnavailable: _cachedFocusedElementUnavailable,
-                selectedText: _cachedSelectedText
+                selectedText: _cachedSelectedText,
+                pid: _cachedPid
             )
         }
     }

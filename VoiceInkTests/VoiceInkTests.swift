@@ -389,7 +389,7 @@ struct VoiceInkTests {
         #expect(neutral.replacements.isEmpty)
     }
 
-    @Test func canonicalizationUsesPowerModeContextHintsForAmbiguousTerms() async throws {
+    @Test func canonicalizationUsesModeContextHintsForAmbiguousTerms() async throws {
         let service = VocoCanonicalizationService()
         let text = "今天看到 homura 很亮"
 
@@ -398,9 +398,9 @@ struct VoiceInkTests {
         #expect(neutral.replacements.isEmpty)
         #expect(neutral.suggestions.contains(where: { $0.replacementText == "炎" }))
 
-        let powerMode = PowerModeConfig(
+        let mode = ModeConfig(
             name: "LiSA music notes",
-            emoji: "M",
+            icon: .emoji("M"),
             appConfigs: [AppConfig(bundleIdentifier: "com.apple.Music", appName: "Music")],
             urlConfigs: [URLConfig(url: "youtube.com")],
             isAIEnhancementEnabled: false,
@@ -408,7 +408,7 @@ struct VoiceInkTests {
         )
         let contextual = service.normalize(
             text,
-            contextHints: VocoCanonicalizationService.powerModeContextHints(from: powerMode)
+            contextHints: VocoCanonicalizationService.modeContextHints(from: mode)
         )
 
         #expect(contextual.normalizedText == "今天看到炎很亮")
@@ -420,7 +420,7 @@ struct VoiceInkTests {
         let service = VocoCanonicalizationService()
         let text = "今天看到 homura 很亮"
         let hints = VocoCanonicalizationService.contextHints(
-            powerMode: nil,
+            mode: nil,
             appName: "Music",
             windowTitle: "LiSA playlist"
         )
@@ -1491,7 +1491,7 @@ struct VoiceInkTests {
             transcriptionModelName: "Qwen3-ASR",
             transcriptionDuration: 0.5,
             speedFactor: 4.0,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil
         )
@@ -1562,7 +1562,7 @@ struct VoiceInkTests {
             transcriptionModelName: "Qwen3-ASR",
             transcriptionDuration: nil,
             speedFactor: nil,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil
         )
@@ -1613,7 +1613,7 @@ struct VoiceInkTests {
             transcriptionModelName: "Qwen3-ASR",
             transcriptionDuration: 0.5,
             speedFactor: 4.0,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil,
             canonicalizationReplacementCount: 2,
@@ -1642,7 +1642,7 @@ struct VoiceInkTests {
             transcriptionModelName: "Qwen3-ASR",
             transcriptionDuration: 0.8,
             speedFactor: 3.75,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil,
             canonicalizationReplacementCount: 0,
@@ -1690,7 +1690,7 @@ struct VoiceInkTests {
             transcriptionModelName: nil,
             transcriptionDuration: nil,
             speedFactor: nil,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil
         )
@@ -1701,7 +1701,7 @@ struct VoiceInkTests {
             transcriptionModelName: "Qwen3-ASR",
             transcriptionDuration: nil,
             speedFactor: nil,
-            powerModeName: nil,
+            modeName: nil,
             aiEnhancementModelName: nil,
             enhancementDuration: nil,
             candidateSelectionSource: VocoCandidateSelectionSource.finalPaste.rawValue
@@ -2952,8 +2952,8 @@ struct VoiceInkTests {
         let backup = BackupFile(
             version: "1.79",
             customPrompts: [],
-            powerModeConfigs: [],
-            powerModeShortcuts: nil,
+            modeConfigs: [],
+            modeShortcuts: nil,
             vocabularyWords: nil,
             wordReplacements: [
                 replacement.originalText: replacement.replacementText,
@@ -3003,8 +3003,8 @@ struct VoiceInkTests {
         let backup = BackupFile(
             version: "1.79",
             customPrompts: [],
-            powerModeConfigs: [],
-            powerModeShortcuts: nil,
+            modeConfigs: [],
+            modeShortcuts: nil,
             vocabularyWords: nil,
             wordReplacements: [
                 "voice anc, voice inc": "VoiceInk",
@@ -3045,9 +3045,16 @@ struct VoiceInkTests {
         #expect(names == ["VOCO Development", "Power Mode", "custom.context"])
     }
 
-    @Test func powerModeDefaultLanguageStaysAutoFirst() throws {
-        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: nil) == TranscriptionLanguageSupport.defaultLanguageCode)
-        #expect(PowerModeConfig.defaultSelectedLanguage(storedLanguage: "ja") == "ja")
+    @Test func modeDefaultLanguageStaysAutoFirst() throws {
+        let defaultMode = ModeConfig(name: "Default", isAIEnhancementEnabled: false)
+        let japaneseMode = ModeConfig(
+            name: "Japanese",
+            isAIEnhancementEnabled: false,
+            selectedLanguage: "ja"
+        )
+
+        #expect(defaultMode.selectedLanguage == TranscriptionLanguageSupport.defaultLanguageCode)
+        #expect(japaneseMode.selectedLanguage == "ja")
     }
 
     @Test @MainActor func appDefaultsRegisterAutoFirstLanguage() throws {
@@ -3528,17 +3535,29 @@ struct VoiceInkTests {
         #expect(state.enqueueRefresh() == .ignoredStopped)
     }
 
+    @Test func editModeCacheMustBelongToFrontmostApp() {
+        #expect(EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: 42, currentPID: 42))
+        #expect(!EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: 42, currentPID: 43))
+        #expect(!EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: nil, currentPID: 42))
+        #expect(!EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: 42, currentPID: nil))
+    }
+
+    @Test @MainActor func selectedTextNormalizationPreservesSelectionBoundaries() {
+        #expect(SelectedTextService.normalized("  hello\n") == "  hello\n")
+        #expect(SelectedTextService.normalized("\n\t ") == nil)
+        #expect(SelectedTextService.normalized(nil) == nil)
+    }
+
     @Test @MainActor func toggleShortcutAllowsSecondStopTapInsideCancelWindow() async throws {
         var isRecorderVisible = false
         var recordingState: RecordingState = .idle
         var toggleCount = 0
 
         let handler = RecordingShortcutModeHandler(
-            logger: Logger(subsystem: "com.jasonchien.VocoTests", category: "ShortcutMode"),
             canHandleShortcutAction: { true },
             isRecorderVisible: { isRecorderVisible },
             recordingState: { recordingState },
-            toggleMiniRecorder: { _ in
+            toggleRecorderPanel: { _ in
                 toggleCount += 1
                 if toggleCount == 1 {
                     isRecorderVisible = true
