@@ -227,11 +227,23 @@ struct VoiceInkApp: App {
                 cloudKitDatabase: .none
             )
 
-            // Initialize container
-            return try ModelContainer(
-                for: schema,
-                configurations: transcriptConfig, dictionaryConfig, statsConfig
-            )
+            // Initialize container — try persistent first, then recreate stats if migration fails
+            do {
+                return try ModelContainer(
+                    for: schema,
+                    configurations: transcriptConfig, dictionaryConfig, statsConfig
+                )
+            } catch {
+                logger.warning("Persistent ModelContainer failed, recreating stats store: \(error.localizedDescription)")
+                // Recreate stats store — SessionMetric is derived/cache data
+                for suffix in ["", "-shm", "-wal"] {
+                    try? FileManager.default.removeItem(atPath: statsStoreURL.path + suffix)
+                }
+                return try ModelContainer(
+                    for: schema,
+                    configurations: transcriptConfig, dictionaryConfig, statsConfig
+                )
+            }
         } catch {
             logger.error("❌ Failed to create persistent ModelContainer: \(error.localizedDescription, privacy: .public)")
             return nil
@@ -247,7 +259,8 @@ struct VoiceInkApp: App {
             let transcriptConfig = ModelConfiguration(
                 "default",
                 schema: transcriptSchema,
-                isStoredInMemoryOnly: true
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
             )
 
             // Dictionary configuration
@@ -255,14 +268,16 @@ struct VoiceInkApp: App {
             let dictionaryConfig = ModelConfiguration(
                 "dictionary",
                 schema: dictionarySchema,
-                isStoredInMemoryOnly: true
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
             )
 
             let statsSchema = Schema([SessionMetric.self])
             let statsConfig = ModelConfiguration(
                 "stats",
                 schema: statsSchema,
-                isStoredInMemoryOnly: true
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
             )
 
             return try ModelContainer(for: schema, configurations: transcriptConfig, dictionaryConfig, statsConfig)
