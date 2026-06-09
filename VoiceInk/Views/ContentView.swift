@@ -10,7 +10,6 @@ enum ViewType: String, CaseIterable, Identifiable {
     case audio = "Audio"
     case dictionary = "Dictionary"
     case settings = "Settings"
-    case license = "Voco Pro"
 
     var id: String { rawValue }
 }
@@ -82,8 +81,6 @@ struct ContentView: View {
             ModeView()
         case .settings:
             SettingsView()
-        case .license:
-            LicenseManagementView()
         }
     }
 }

@@ -26,7 +26,7 @@ struct DashboardPromotionsSection: View {
     }
 
     private var shouldShowPromotions: Bool {
-        shouldShowUpgradePromotion || shouldShowAffiliatePromotion
+        false
     }
 
     var body: some View {

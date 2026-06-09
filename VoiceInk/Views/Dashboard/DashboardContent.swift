@@ -129,8 +129,6 @@ struct DashboardContent: View {
                 GeometryReader { geometry in
                     ScrollView {
                         VStack(spacing: 24) {
-                            licenseStatusMessage
-
                             heroSection
 
                             if !isAccessibilityEnabled {
@@ -229,8 +227,6 @@ struct DashboardContent: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 24) {
-                    licenseStatusMessage
-
                     VStack(spacing: 20) {
                         Image(systemName: "waveform")
                             .font(.system(size: 56, weight: .semibold))
@@ -254,32 +250,6 @@ struct DashboardContent: View {
     }
 
     // MARK: - Sections
-
-    @ViewBuilder
-    private var licenseStatusMessage: some View {
-        switch licenseState {
-        case .unlicensed:
-            TrialMessageView(
-                message: "Activate a license to continue using Voco.",
-                type: .licenseRequired,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .trial(let daysRemaining):
-            TrialMessageView(
-                message: "You have \(daysRemaining) days left in your trial",
-                type: daysRemaining <= 2 ? .warning : .info,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .trialExpired:
-            TrialMessageView(
-                message: "Your trial has expired. Upgrade to continue using Voco",
-                type: .expired,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .licensed:
-            EmptyView()
-        }
-    }
 
     private var heroSection: some View {
         VStack(spacing: 10) {

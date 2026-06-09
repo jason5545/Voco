@@ -11,9 +11,7 @@ struct AppSidebar: View {
         }
         .frame(width: 220)
         .frame(maxHeight: .infinity)
-        .onAppear {
-            ViewType.assertSidebarItemsCoverAllCases()
-        }
+        .onAppear {}
     }
 
     private var sidebarContent: some View {
@@ -77,16 +75,8 @@ private extension ViewType {
     ]
 
     static let secondaryItems: [ViewType] = [
-        .settings,
-        .license
+        .settings
     ]
-
-    static func assertSidebarItemsCoverAllCases() {
-        #if DEBUG
-        let sidebarItems = primaryItems + secondaryItems
-        assert(Set(sidebarItems) == Set(allCases) && sidebarItems.count == allCases.count)
-        #endif
-    }
 
     var icon: String {
         switch self {
@@ -98,7 +88,6 @@ private extension ViewType {
         case .audio: return "mic.fill"
         case .dictionary: return "text.book.closed.fill"
         case .settings: return "gearshape.fill"
-        case .license: return "checkmark.seal.fill"
         }
     }
 
@@ -120,8 +109,6 @@ private extension ViewType {
             return .init(background: AppTheme.Sidebar.transcribeAudio)
         case .settings:
             return .init(background: AppTheme.Sidebar.fallback)
-        case .license:
-            return .init(background: AppTheme.Sidebar.license)
         }
     }
 }
