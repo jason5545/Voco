@@ -566,3 +566,55 @@ private struct AssistantMessageBubble: View {
         }
     }
 }
+
+// MARK: - Dictionary Confirmation View (Edit Mode)
+
+struct DictionaryConfirmationView: View {
+    let original: String
+    let replacement: String
+    let onConfirm: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(original) → \(replacement)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Button(action: onConfirm) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+    }
+}
+
+enum RecorderSupplementaryPresentation: Equatable {
+    case idle
+    case liveTranscript
+    case dictionaryConfirmation
+    case assistant
+
+    static func resolve(
+        hasDictionaryConfirmation: Bool,
+        hasAssistantResponse: Bool,
+        hasLiveTranscript: Bool
+    ) -> Self {
+        if hasDictionaryConfirmation { return .dictionaryConfirmation }
+        if hasAssistantResponse { return .assistant }
+        if hasLiveTranscript { return .liveTranscript }
+        return .idle
+    }
+}

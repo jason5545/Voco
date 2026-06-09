@@ -3542,6 +3542,23 @@ struct VoiceInkTests {
         #expect(!EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: 42, currentPID: nil))
     }
 
+    @Test func editModeDictionaryConfirmationTakesPriorityInRecorder() {
+        #expect(
+            RecorderSupplementaryPresentation.resolve(
+                hasDictionaryConfirmation: true,
+                hasAssistantResponse: true,
+                hasLiveTranscript: true
+            ) == .dictionaryConfirmation
+        )
+        #expect(
+            RecorderSupplementaryPresentation.resolve(
+                hasDictionaryConfirmation: false,
+                hasAssistantResponse: true,
+                hasLiveTranscript: true
+            ) == .assistant
+        )
+    }
+
     @Test @MainActor func selectedTextNormalizationPreservesSelectionBoundaries() {
         #expect(SelectedTextService.normalized("  hello\n") == "  hello\n")
         #expect(SelectedTextService.normalized("\n\t ") == nil)

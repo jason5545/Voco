@@ -14,10 +14,15 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         case collapsed
         case active
         case liveText
+        case confirmation
         case assistant
     }
 
     private var displayState: DisplayState {
+        if stateProvider.pendingDictionaryEntry != nil {
+            return .confirmation
+        }
+
         if assistantSession.isVisible {
             return .assistant
         }
@@ -67,7 +72,8 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         switch displayState {
         case .collapsed: return notchWidth
         case .active:    return notchWidth + recordingSideExpansion * 2
-        case .liveText:  return notchWidth + transcriptSideExpansion * 2
+        case .liveText, .confirmation:
+            return notchWidth + transcriptSideExpansion * 2
         case .assistant: return notchWidth + assistantSideExpansion * 2
         }
     }
@@ -76,14 +82,15 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         switch displayState {
         case .collapsed: return 0
         case .active:    return mainRowHeight
-        case .liveText:  return mainRowHeight + transcriptPanelHeight
+        case .liveText, .confirmation:
+            return mainRowHeight + transcriptPanelHeight
         case .assistant: return mainRowHeight + assistantPanelHeight
         }
     }
 
     private var sideExpansion: CGFloat {
         switch displayState {
-        case .liveText:
+        case .liveText, .confirmation:
             return transcriptSideExpansion
         case .assistant:
             return assistantSideExpansion
@@ -93,7 +100,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     }
 
     private var sideEdgePadding: CGFloat {
-        displayState == .liveText || displayState == .assistant ? 20 : 16
+        displayState == .liveText || displayState == .confirmation || displayState == .assistant ? 20 : 16
     }
 
     private var shouldShowCloseButton: Bool {
@@ -137,8 +144,8 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         .background(Color.black)
         .clipShape(
             NotchShape(
-                topCornerRadius: displayState == .liveText ? 12 : 8,
-                bottomCornerRadius: displayState == .liveText || displayState == .assistant ? 22 : 16
+                topCornerRadius: displayState == .liveText || displayState == .confirmation ? 12 : 8,
+                bottomCornerRadius: displayState == .liveText || displayState == .confirmation || displayState == .assistant ? 22 : 16
             )
         )
     }
@@ -195,13 +202,23 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     private var liveTextPanel: some View {
         VStack(spacing: 0) {
-            if displayState == .liveText {
+            if displayState == .liveText || displayState == .confirmation {
                 Divider().background(Color.white.opacity(0.15))
-                LiveTranscriptView(text: stateProvider.partialTranscript)
-                    .padding(.horizontal, 8)
+                if let entry = stateProvider.pendingDictionaryEntry {
+                    DictionaryConfirmationView(
+                        original: entry.original,
+                        replacement: entry.replacement,
+                        onConfirm: { stateProvider.confirmDictionaryEntry() },
+                        onDismiss: { stateProvider.dismissDictionaryEntry() }
+                    )
+                    .padding(.vertical, 5)
+                } else {
+                    LiveTranscriptView(text: stateProvider.partialTranscript)
+                        .padding(.horizontal, 8)
+                }
             }
         }
-        .frame(height: displayState == .liveText ? transcriptPanelHeight : 0)
+        .frame(height: displayState == .liveText || displayState == .confirmation ? transcriptPanelHeight : 0)
         .clipped()
     }
 

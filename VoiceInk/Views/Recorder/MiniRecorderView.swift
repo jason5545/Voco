@@ -27,6 +27,14 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         assistantSession.isVisible
     }
 
+    private var presentation: RecorderSupplementaryPresentation {
+        RecorderSupplementaryPresentation.resolve(
+            hasDictionaryConfirmation: stateProvider.pendingDictionaryEntry != nil,
+            hasAssistantResponse: hasAssistantResponse,
+            hasLiveTranscript: hasLiveTranscript
+        )
+    }
+
     private var shouldShowCloseButton: Bool {
         hasAssistantResponse &&
             stateProvider.recordingState == .idle &&
@@ -82,7 +90,15 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if hasAssistantResponse {
+            if let entry = stateProvider.pendingDictionaryEntry {
+                DictionaryConfirmationView(
+                    original: entry.original,
+                    replacement: entry.replacement,
+                    onConfirm: { stateProvider.confirmDictionaryEntry() },
+                    onDismiss: { stateProvider.dismissDictionaryEntry() }
+                )
+                .frame(height: controlBarHeight)
+            } else if hasAssistantResponse {
                 AssistantPanelView(
                     session: assistantSession,
                     liveFollowUpText: liveAssistantFollowUpText,
@@ -94,11 +110,12 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
             }
             controlBar
         }
-        .frame(width: hasAssistantResponse ? assistantWidth : (hasLiveTranscript ? expandedWidth : compactWidth))
+        .frame(width: presentation == .assistant ? assistantWidth : (presentation == .idle ? compactWidth : expandedWidth))
         .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: hasLiveTranscript || hasAssistantResponse ? expandedCornerRadius : compactCornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: presentation == .idle ? compactCornerRadius : expandedCornerRadius, style: .continuous))
         .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
         .animation(.easeInOut(duration: 0.3), value: hasAssistantResponse)
+        .animation(.easeInOut(duration: 0.2), value: stateProvider.pendingDictionaryEntry != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 }
