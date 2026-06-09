@@ -253,7 +253,7 @@ struct PerformanceAnalysisPanelView: View {
 
     // MARK: - Helpers
 
-    private func sectionHeader(_ title: String) -> some View {
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.secondary)

@@ -45,7 +45,7 @@ struct AppIconButton: View {
 }
 
 struct AppPanelHeader: View {
-    let title: String
+    let title: LocalizedStringKey
     let onClose: () -> Void
 
     var body: some View {
