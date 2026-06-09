@@ -3,6 +3,9 @@ import SwiftUI
 struct DictionarySettingsView: View {
     @State private var selectedSection: DictionarySection = .replacements
     @State private var isShowingSettings = false
+    @State private var isSearchVisible = false
+    @State private var searchText = ""
+    @State private var searchField: WordReplacementView.SearchField = .original
     private let dictionaryInfoMessage = "Word Replacements run after transcription. Vocabulary is used with AI enhancement to better understand names, technical terms, and unique spellings in your transcript."
 
     enum DictionarySection: String, CaseIterable, Hashable {
@@ -54,7 +57,27 @@ struct DictionarySettingsView: View {
 
     private var headerSection: some View {
         AppScreenHeader(title: "Dictionary", infoMessage: dictionaryInfoMessage) {
-            settingsButton
+            HStack(spacing: 8) {
+                searchButton
+                settingsButton
+            }
+        }
+    }
+
+    private var searchButton: some View {
+        AppIconButton(
+            systemName: "magnifyingglass",
+            help: "Search word replacements"
+        ) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if !isSearchVisible {
+                    selectedSection = .replacements
+                }
+                isSearchVisible.toggle()
+                if !isSearchVisible {
+                    searchText = ""
+                }
+            }
         }
     }
 
@@ -84,7 +107,11 @@ struct DictionarySettingsView: View {
         case .spellings:
             VocabularyView()
         case .replacements:
-            WordReplacementView()
+            WordReplacementView(
+                isSearchVisible: $isSearchVisible,
+                searchText: $searchText,
+                searchField: $searchField
+            )
         }
     }
 }

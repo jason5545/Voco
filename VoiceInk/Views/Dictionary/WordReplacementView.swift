@@ -13,6 +13,13 @@ enum SortColumn {
     case replacement
 }
 
+extension WordReplacementView {
+    enum SearchField: String, CaseIterable {
+        case original = "Original"
+        case replacement = "Replacement"
+    }
+}
+
 struct WordReplacementView: View {
     @Query private var wordReplacements: [WordReplacement]
     @Environment(\.modelContext) private var modelContext
@@ -23,8 +30,14 @@ struct WordReplacementView: View {
     @State private var originalWord = ""
     @State private var replacementWord = ""
     @State private var showInfoPopover = false
+    @Binding var isSearchVisible: Bool
+    @Binding var searchText: String
+    @Binding var searchField: SearchField
 
-    init() {
+    init(isSearchVisible: Binding<Bool>, searchText: Binding<String>, searchField: Binding<SearchField>) {
+        self._isSearchVisible = isSearchVisible
+        self._searchText = searchText
+        self._searchField = searchField
         if let savedSort = UserDefaults.standard.string(forKey: "wordReplacementSortMode"),
            let mode = SortMode(rawValue: savedSort) {
             _sortMode = State(initialValue: mode)
@@ -41,6 +54,19 @@ struct WordReplacementView: View {
             return wordReplacements.sorted { $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedAscending }
         case .replacementDesc:
             return wordReplacements.sorted { $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedDescending }
+        }
+    }
+
+    private var filteredReplacements: [WordReplacement] {
+        guard isSearchVisible, !searchText.isEmpty else { return sortedReplacements }
+        let query = searchText.lowercased()
+        return sortedReplacements.filter { replacement in
+            switch searchField {
+            case .original:
+                return replacement.originalText.lowercased().contains(query)
+            case .replacement:
+                return replacement.replacementText.lowercased().contains(query)
+            }
         }
     }
 
@@ -98,6 +124,10 @@ struct WordReplacementView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: shouldShowAddButton)
 
+            if isSearchVisible {
+                searchBar
+            }
+
             if !wordReplacements.isEmpty {
                 VStack(spacing: 0) {
                     HStack(spacing: 8) {
@@ -145,17 +175,30 @@ struct WordReplacementView: View {
 
                     Divider()
 
-                    LazyVStack(spacing: 0) {
-                        ForEach(sortedReplacements, id: \.persistentModelID) { replacement in
-                            ReplacementRow(
-                                original: replacement.originalText,
-                                replacement: replacement.replacementText,
-                                onDelete: { removeReplacement(replacement) },
-                                onEdit: { editingReplacement = replacement }
-                            )
+                    if filteredReplacements.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            Text("No replacements match your search.")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredReplacements, id: \.persistentModelID) { replacement in
+                                ReplacementRow(
+                                    original: replacement.originalText,
+                                    replacement: replacement.replacementText,
+                                    onDelete: { removeReplacement(replacement) },
+                                    onEdit: { editingReplacement = replacement }
+                                )
 
-                            if replacement.persistentModelID != sortedReplacements.last?.persistentModelID {
-                                Divider()
+                                if replacement.persistentModelID != filteredReplacements.last?.persistentModelID {
+                                    Divider()
+                                }
                             }
                         }
                     }
@@ -210,6 +253,50 @@ struct WordReplacementView: View {
                 }
             }
         )
+    }
+
+    private var searchBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 14))
+
+                TextField("Search...", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13))
+
+                HStack(spacing: 6) {
+                    ForEach(SearchField.allCases, id: \.self) { field in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                searchField = field
+                            }
+                        } label: {
+                            Text(LocalizedStringKey(field.rawValue))
+                                .font(.system(size: 12, weight: searchField == field ? .semibold : .medium))
+                                .foregroundStyle(searchField == field ? Color.primary : Color.secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    AppCardBackground(isSelected: searchField == field, cornerRadius: 14)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppTheme.Surface.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(AppTheme.Border.control.opacity(0.16), lineWidth: 1)
+            )
+        }
     }
 }
 

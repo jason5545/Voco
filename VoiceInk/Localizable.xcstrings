@@ -11824,6 +11824,36 @@
           }
         }
       }
+    },
+    "Search word replacements": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋字詞取代"
+          }
+        }
+      }
+    },
+    "Search...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋⋯"
+          }
+        }
+      }
+    },
+    "No replacements match your search.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有符合搜尋條件的字詞取代。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
