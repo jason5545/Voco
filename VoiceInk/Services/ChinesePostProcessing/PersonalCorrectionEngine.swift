@@ -5,8 +5,8 @@ import SQLite3
 /// Personal correction engine that learns phonetic error patterns from the user's
 /// transcription history.
 ///
-/// Mines (original_text, enhanced_text) pairs from the database, extracts character-level
-/// replacements, filters by pinyin similarity, and applies recurring patterns as corrections.
+/// Mines user-confirmed correction candidates from the database, filters by pinyin
+/// similarity, and applies recurring patterns as corrections.
 ///
 /// Pipeline position: Step 3, Layer 3 (after HomophoneCorrectionEngine).
 final class PersonalCorrectionEngine {
@@ -107,33 +107,15 @@ final class PersonalCorrectionEngine {
         }
         defer { sqlite3_close(dbHandle) }
 
-        // Fetch transcription pairs
-        let pairs = fetchPairs(db: dbHandle!)
-        logger.info("Mining \(pairs.count) transcription pairs")
-
-        // Extract replacements and count
-        var counter: [String: (corrected: String, count: Int)] = [:]
-        for (original, enhanced) in pairs {
-            let repls = extractReplacements(original: original, enhanced: enhanced)
-            for (orig, enh) in repls {
-                let key = "\(orig)→\(enh)"
-                if let existing = counter[key] {
-                    counter[key] = (corrected: existing.corrected, count: existing.count + 1)
-                } else {
-                    counter[key] = (corrected: enh, count: 1)
-                }
-            }
-        }
+        let candidates = fetchTrustedCandidates(db: dbHandle!)
+        logger.info("Mining \(candidates.count) trusted correction candidates")
 
         // Filter by count and pinyin similarity
         var newRules: [PersonalRule] = []
-        for (key, value) in counter {
-            guard value.count >= minCount else { continue }
-
-            let parts = key.split(separator: "→", maxSplits: 1)
-            guard parts.count == 2 else { continue }
-            let orig = String(parts[0])
-            let corr = String(parts[1])
+        for candidate in candidates {
+            guard candidate.count >= minCount else { continue }
+            let orig = candidate.original
+            let corr = candidate.corrected
 
             // Skip single skip-chars
             if orig.count == 1, let ch = orig.first, Self.skipChars.contains(ch) { continue }
@@ -149,7 +131,7 @@ final class PersonalCorrectionEngine {
             newRules.append(PersonalRule(
                 original: orig,
                 corrected: corr,
-                count: value.count,
+                count: candidate.count,
                 pinyinSimilarity: sim
             ))
         }
@@ -190,8 +172,9 @@ final class PersonalCorrectionEngine {
         isLoaded = true
         loadLock.unlock()
 
-        UserDefaults.standard.set(pairs.count, forKey: lastMinedCountKey)
-        logger.info("Mined \(newRules.count) personal correction rules from \(pairs.count) records")
+        let evidenceCount = candidates.reduce(0) { $0 + $1.count }
+        UserDefaults.standard.set(evidenceCount, forKey: lastMinedCountKey)
+        logger.info("Mined \(newRules.count) personal correction rules from \(evidenceCount) trusted observations")
         for rule in newRules.prefix(10) {
             logger.info("  \(rule.original) → \(rule.corrected) (\(rule.count)x, sim=\(String(format: "%.2f", rule.pinyinSimilarity)))")
         }
@@ -212,7 +195,10 @@ final class PersonalCorrectionEngine {
         defer { sqlite3_close(dbHandle) }
 
         var stmt: OpaquePointer?
-        let sql = "SELECT COUNT(*) FROM ZTRANSCRIPTION WHERE ZTEXT IS NOT NULL AND ZENHANCEDTEXT IS NOT NULL AND ZTEXT != ZENHANCEDTEXT"
+        let sql = """
+            SELECT COALESCE(SUM(ZHITCOUNT), 0) FROM ZWORDREPLACEMENT
+            WHERE ZSOURCE IN ('editMode', 'correctionFeedback')
+        """
         guard sqlite3_prepare_v2(dbHandle, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
         defer { sqlite3_finalize(stmt) }
 
@@ -222,26 +208,41 @@ final class PersonalCorrectionEngine {
         return 0
     }
 
-    private func fetchPairs(db dbHandle: OpaquePointer) -> [(original: String, enhanced: String)] {
+    private struct TrustedCandidate {
+        let original: String
+        let corrected: String
+        let count: Int
+    }
+
+    private func fetchTrustedCandidates(db dbHandle: OpaquePointer) -> [TrustedCandidate] {
         var stmt: OpaquePointer?
         let sql = """
-            SELECT ZTEXT, ZENHANCEDTEXT FROM ZTRANSCRIPTION
-            WHERE ZTEXT IS NOT NULL AND ZENHANCEDTEXT IS NOT NULL AND ZTEXT != ZENHANCEDTEXT
-            ORDER BY ZTIMESTAMP DESC
+            SELECT ZORIGINALTEXT, ZREPLACEMENTTEXT, COALESCE(SUM(ZHITCOUNT), 0)
+            FROM ZWORDREPLACEMENT
+            WHERE ZSOURCE IN ('editMode', 'correctionFeedback')
+              AND ZORIGINALTEXT IS NOT NULL
+              AND ZREPLACEMENTTEXT IS NOT NULL
+              AND ZORIGINALTEXT != ZREPLACEMENTTEXT
+            GROUP BY ZORIGINALTEXT, ZREPLACEMENTTEXT
+            ORDER BY COALESCE(SUM(ZHITCOUNT), 0) DESC
             """
         guard sqlite3_prepare_v2(dbHandle, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
 
-        var pairs: [(String, String)] = []
+        var candidates: [TrustedCandidate] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let textPtr = sqlite3_column_text(stmt, 0),
-                  let enhPtr = sqlite3_column_text(stmt, 1) else { continue }
-            let text = String(cString: textPtr).trimmingCharacters(in: .whitespaces)
-            let enhanced = String(cString: enhPtr).trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty, !enhanced.isEmpty, text != enhanced else { continue }
-            pairs.append((text, enhanced))
+            guard let originalPtr = sqlite3_column_text(stmt, 0),
+                  let correctedPtr = sqlite3_column_text(stmt, 1) else { continue }
+            let original = String(cString: originalPtr).trimmingCharacters(in: .whitespaces)
+            let corrected = String(cString: correctedPtr).trimmingCharacters(in: .whitespaces)
+            guard !original.isEmpty, !corrected.isEmpty, original != corrected else { continue }
+            candidates.append(TrustedCandidate(
+                original: original,
+                corrected: corrected,
+                count: Int(sqlite3_column_int(stmt, 2))
+            ))
         }
-        return pairs
+        return candidates
     }
 
     // MARK: - Diff Algorithm
