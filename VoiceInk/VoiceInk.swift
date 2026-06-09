@@ -45,6 +45,8 @@ struct VoiceInkApp: App {
         OnboardingV2Migration.prepareIfNeeded()
 
         let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Initialization")
+        // Migrate from original VoiceInk data before creating container
+        Task { await VoiceInkMigrationService.shared.migrateIfNeeded() }
         // Keep existing model order stable; append new models after synced entities.
         let schema = Schema([
             Transcription.self,
@@ -104,7 +106,7 @@ struct VoiceInkApp: App {
 
         // 1. Create modelsDirectory URL
         let appSupportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.prakashjoshipax.VoiceInk")
+            .appendingPathComponent(AppIdentifiers.bundleID)
         let modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
 
         // 2. Create model managers
@@ -185,7 +187,7 @@ struct VoiceInkApp: App {
         do {
             // Create app-specific Application Support directory URL
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("com.prakashjoshipax.VoiceInk", isDirectory: true)
+                .appendingPathComponent(AppIdentifiers.bundleID, isDirectory: true)
 
             // Create the directory if it doesn't exist
             try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
@@ -208,11 +210,7 @@ struct VoiceInkApp: App {
 
             // Dictionary configuration
             let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
-            #if LOCAL_BUILD
-            let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .none
-            #else
             let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .private(AppIdentifiers.cloudKitContainer)
-            #endif
             let dictionaryConfig = ModelConfiguration(
                 "dictionary",
                 schema: dictionarySchema,
