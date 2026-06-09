@@ -11814,6 +11814,16 @@
           }
         }
       }
+    },
+    "Pasting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
