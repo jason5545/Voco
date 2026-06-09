@@ -74,7 +74,7 @@ struct AppPanelHeader: View {
 }
 
 struct AppScreenHeader<Trailing: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     var infoMessage: String?
     var infoURL: String?
     @ViewBuilder let trailing: () -> Trailing
@@ -108,7 +108,7 @@ struct AppScreenHeader<Trailing: View>: View {
 }
 
 extension AppScreenHeader where Trailing == EmptyView {
-    init(title: String, infoMessage: String? = nil, infoURL: String? = nil) {
+    init(title: LocalizedStringKey, infoMessage: String? = nil, infoURL: String? = nil) {
         self.title = title
         self.infoMessage = infoMessage
         self.infoURL = infoURL
