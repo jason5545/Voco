@@ -135,6 +135,14 @@ class PinyinCorrector {
             "Windows", "Virtual Machine", "VM", "V M", "B M", "BM",
             "虛擬機", "虛擬機器", "PVE", "Proxmox", "Apollo", "串流", "遠端"
         ]
+        let aiWritingKeywords = [
+            "AI", "Gemini", "Google", "人工", "味道", "文章", "這篇",
+            "去 AI", "去AI", "de-AI", "檢測器", "偵測器"
+        ]
+        let jobApplicationKeywords = [
+            "招聘", "求職", "工作", "應徵", "履歷", "自傳", "PDF",
+            "提供", "繳交", "提交", "寄出", "信箱", "電子郵件"
+        ]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -207,6 +215,22 @@ class PinyinCorrector {
             ("虛擬機器的 BM", "虛擬機器的 VM", virtualizationKeywords),
             ("Load Fail", "Cloudflare", cloudflareKeywords),
             ("D One", "D1", cloudflareKeywords),
+            ("目標是整車漆", "目標是偵測器", aiWritingKeywords),
+            ("這片AI的味道", "這篇AI的味道", aiWritingKeywords),
+            ("這片 AI 的味道", "這篇 AI 的味道", aiWritingKeywords),
+            ("去一下AI好了", "去 AI 化好了", aiWritingKeywords),
+            ("去一下 AI 好了", "去 AI 化好了", aiWritingKeywords),
+            ("交給居民", "交給 Gemini", aiWritingKeywords),
+            ("去 DAI 為", "去 de-AI 化", aiWritingKeywords),
+            ("去DAI為", "去 de-AI 化", aiWritingKeywords),
+            ("個人自傳跟找教的方式", "個人自傳跟繳交的方式", jobApplicationKeywords),
+            ("個人自傳跟找工作的方式", "個人自傳跟繳交的方式", jobApplicationKeywords),
+            ("個人自傳跟找教的方法", "個人自傳跟繳交的方法", jobApplicationKeywords),
+            ("個人自傳跟找工作的方法", "個人自傳跟繳交的方法", jobApplicationKeywords),
+            ("教教的方式", "繳交的方式", jobApplicationKeywords),
+            ("怎麼角標自轉", "怎麼繳交自傳", jobApplicationKeywords),
+            ("要自轉", "要自傳", jobApplicationKeywords),
+            ("用新相機出去", "用信箱寄出去", jobApplicationKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(

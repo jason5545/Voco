@@ -556,6 +556,16 @@ struct VoiceInkTests {
             appName: nil,
             windowTitle: nil
         )
+        let aiWritingContext = CorrectionContext(
+            recentTranscriptions: ["Google Gemini", "這篇文章要去 AI 化", "AI 檢測器"],
+            appName: "Codex",
+            windowTitle: nil
+        )
+        let jobApplicationContext = CorrectionContext(
+            recentTranscriptions: ["招聘 PDF", "個人自傳", "履歷要怎麼繳交"],
+            appName: "Codex",
+            windowTitle: nil
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -586,6 +596,14 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("那您可以跟妙芳討論一下。", context: templeDataContext).text == "那您可以跟廟方討論一下。")
         #expect(PinyinCorrector.shared.correct("妙方的人去用用看。", context: templeDataContext).text == "廟方的人去用用看。")
         #expect(PinyinCorrector.shared.correct("這是一個妙方。").text == "這是一個妙方。")
+        #expect(PinyinCorrector.shared.correct("目標是整車漆，跟人工看起來都不像是AI。", context: aiWritingContext).text == "目標是偵測器，跟人工看起來都不像是AI。")
+        #expect(PinyinCorrector.shared.correct("以你的角度的話，這片AI的味道有多重？如果有很重的話，去一下AI好了。", context: aiWritingContext).text == "以你的角度的話，這篇AI的味道有多重？如果有很重的話，去 AI 化好了。")
+        #expect(PinyinCorrector.shared.correct("你寫一個完整的，然後我交給居民，你去 DAI 為。", context: aiWritingContext).text == "你寫一個完整的，然後我交給 Gemini，你去 de-AI 化。")
+        #expect(PinyinCorrector.shared.correct("個人自傳跟找教的方式。", context: jobApplicationContext).text == "個人自傳跟繳交的方式。")
+        #expect(PinyinCorrector.shared.correct("個人自傳跟找工作的方法。", context: jobApplicationContext).text == "個人自傳跟繳交的方法。")
+        #expect(PinyinCorrector.shared.correct("教教的方式。", context: jobApplicationContext).text == "繳交的方式。")
+        #expect(PinyinCorrector.shared.correct("要自轉，或者是要怎麼角標自轉？是用新相機出去嗎？", context: jobApplicationContext).text == "要自傳，或者是要怎麼繳交自傳？是用信箱寄出去嗎？")
+        #expect(PinyinCorrector.shared.correct("附近居民最近在做汽車整車漆，也會用新相機出去拍照。", context: jobApplicationContext).text == "附近居民最近在做汽車整車漆，也會用新相機出去拍照。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
