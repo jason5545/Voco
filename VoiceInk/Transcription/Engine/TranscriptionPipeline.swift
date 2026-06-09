@@ -370,14 +370,6 @@ class TranscriptionPipeline {
             if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
                 postProcessor.contextMemory.add(transcription.text)
             }
-
-            if let element = AutoLearnVocabularyService.shared.captureFocusedElement() {
-                AutoLearnVocabularyService.shared.prepareMonitoring(
-                    pastedText: preparedText,
-                    element: element,
-                    modelContext: modelContext
-                )
-            }
         }
 
         await delivery.deliver(
