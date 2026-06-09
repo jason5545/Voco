@@ -11304,6 +11304,506 @@
           }
         }
       }
+    },
+    " (drag to reorder)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（拖曳以重新排序）"
+          }
+        }
+      }
+    },
+    "Choose a Language to Remove": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要移除的語言"
+          }
+        }
+      }
+    },
+    "Default mode is used when no app or website matches": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設模式在沒有 App 或網站匹配時使用"
+          }
+        }
+      }
+    },
+    "Dismiss shortcut tip": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉快捷鍵提示"
+          }
+        }
+      }
+    },
+    "Edit mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯模式"
+          }
+        }
+      }
+    },
+    "Edit prompt": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯提示詞"
+          }
+        }
+      }
+    },
+    "Edit trigger group": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯觸發群組"
+          }
+        }
+      }
+    },
+    "Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "Move down": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移"
+          }
+        }
+      }
+    },
+    "Move up": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移"
+          }
+        }
+      }
+    },
+    "NVIDIA": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA"
+          }
+        }
+      }
+    },
+    "No Prompts Available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無可用提示詞"
+          }
+        }
+      }
+    },
+    "No modes available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無可用模式"
+          }
+        }
+      }
+    },
+    "No removable language reservations were found.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到可移除的語言保留。"
+          }
+        }
+      }
+    },
+    "Open Accessibility settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟輔助使用設定"
+          }
+        }
+      }
+    },
+    "Remove API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 API 金鑰"
+          }
+        }
+      }
+    },
+    "Remove Filler Words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除填充詞"
+          }
+        }
+      }
+    },
+    "Remove trigger": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除觸發器"
+          }
+        }
+      }
+    },
+    "Save this prompt and select it.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存此提示詞並選取。"
+          }
+        }
+      }
+    },
+    "Select Prompt": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取提示詞"
+          }
+        }
+      }
+    },
+    "Selected Microphone": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選取的麥克風"
+          }
+        }
+      }
+    },
+    "Send follow up": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送後續訊息"
+          }
+        }
+      }
+    },
+    "Skip onboarding": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過入門導覽"
+          }
+        }
+      }
+    },
+    "Start with a template": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從範本開始"
+          }
+        }
+      }
+    },
+    "Suggested": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議"
+          }
+        }
+      }
+    },
+    "Switch AI provider": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換 AI 服務商"
+          }
+        }
+      }
+    },
+    "Test the connection to continue.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "測試連線以繼續。"
+          }
+        }
+      }
+    },
+    "Triggers": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觸發器"
+          }
+        }
+      }
+    },
+    "Verified": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已驗證"
+          }
+        }
+      }
+    },
+    "Write prompt instructions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撰寫提示詞說明"
+          }
+        }
+      }
+    },
+    "Word replacement examples": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙替換範例"
+          }
+        }
+      }
+    },
+    "Mode: None": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式：無"
+          }
+        }
+      }
+    },
+    "Select a model to download": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要下載的模型"
+          }
+        }
+      }
+    },
+    "Test connection": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "測試連線"
+          }
+        }
+      }
+    },
+    "Testing...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "測試中..."
+          }
+        }
+      }
+    },
+    "Locked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已鎖定"
+          }
+        }
+      }
+    },
+    "Try a Simple Dictation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試試簡單聽寫"
+          }
+        }
+      }
+    },
+    "Uses a local transcription model for ultra-fast dictation.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用本機轉錄模型，超快速聽寫。"
+          }
+        }
+      }
+    },
+    "Try Enhancement": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試試增強功能"
+          }
+        }
+      }
+    },
+    "Write an Email": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫一封電子郵件"
+          }
+        }
+      }
+    },
+    "Turn your spoken note into a clean email draft with Voco.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Voco 將你的語音筆記轉為清晰的郵件草稿。"
+          }
+        }
+      }
+    },
+    "Try Rewrite": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試試改寫"
+          }
+        }
+      }
+    },
+    "Select the text on the screen, tell Voco the changes you want, and Voco will rewrite the text for you.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取螢幕上的文字，告訴 Voco 你想要的修改，Voco 會為你改寫。"
+          }
+        }
+      }
+    },
+    "Voco uses your microphone to capture your voice.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用麥克風擷取你的語音。"
+          }
+        }
+      }
+    },
+    "Voco uses Accessibility to type transcriptions directly into any app.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用輔助功能將轉錄內容直接輸入到任何應用程式。"
+          }
+        }
+      }
+    },
+    "Voco reads visible screen content to improve the accuracy of transcripts.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 讀取可見的螢幕內容以提升轉錄精確度。"
+          }
+        }
+      }
+    },
+    "Verification Successful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證成功"
+          }
+        }
+      }
+    },
+    "Your license key is verified. Voco is ready to use on this Mac.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的授權金鑰已驗證。Voco 已在此 Mac 上準備就緒。"
+          }
+        }
+      }
+    },
+    "Purchase License": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購買授權"
+          }
+        }
+      }
+    },
+    "Lifetime access.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終身使用權。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
