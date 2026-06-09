@@ -566,6 +566,11 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: nil
         )
+        let appleFoundationModelContext = CorrectionContext(
+            recentTranscriptions: ["Apple Intelligence", "LLM 增強", "插電與電池省電"],
+            appName: "Codex",
+            windowTitle: nil
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -604,6 +609,9 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("教教的方式。", context: jobApplicationContext).text == "繳交的方式。")
         #expect(PinyinCorrector.shared.correct("要自轉，或者是要怎麼角標自轉？是用新相機出去嗎？", context: jobApplicationContext).text == "要自傳，或者是要怎麼繳交自傳？是用信箱寄出去嗎？")
         #expect(PinyinCorrector.shared.correct("附近居民最近在做汽車整車漆，也會用新相機出去拍照。", context: jobApplicationContext).text == "附近居民最近在做汽車整車漆，也會用新相機出去拍照。")
+        #expect(PinyinCorrector.shared.correct("Apple 的防雷圈 Moto 在這種情況下幫不幫得上忙？", context: appleFoundationModelContext).text == "Apple 的 Foundation Model 在這種情況下幫不幫得上忙？")
+        #expect(PinyinCorrector.shared.correct("Foundation motto。", context: appleFoundationModelContext).text == "Foundation model。")
+        #expect(PinyinCorrector.shared.correct("這款機車的 motto 是省電。", context: appleFoundationModelContext).text == "這款機車的 motto 是省電。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

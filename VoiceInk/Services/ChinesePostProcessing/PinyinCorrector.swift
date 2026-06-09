@@ -139,6 +139,10 @@ class PinyinCorrector {
             "AI", "Gemini", "Google", "人工", "味道", "文章", "這篇",
             "去 AI", "去AI", "de-AI", "檢測器", "偵測器"
         ]
+        let appleFoundationModelKeywords = [
+            "Apple", "Foundation Models", "Foundation Model", "foundation model",
+            "Apple Intelligence", "LLM", "模型", "省電", "插電", "電池"
+        ]
         let jobApplicationKeywords = [
             "招聘", "求職", "工作", "應徵", "履歷", "自傳", "PDF",
             "提供", "繳交", "提交", "寄出", "信箱", "電子郵件"
@@ -223,6 +227,10 @@ class PinyinCorrector {
             ("交給居民", "交給 Gemini", aiWritingKeywords),
             ("去 DAI 為", "去 de-AI 化", aiWritingKeywords),
             ("去DAI為", "去 de-AI 化", aiWritingKeywords),
+            ("防雷圈 Moto", "Foundation Model", appleFoundationModelKeywords),
+            ("防雷圈 Model", "Foundation Model", appleFoundationModelKeywords),
+            ("Foundation motto", "Foundation model", appleFoundationModelKeywords),
+            ("Foundation Moto", "Foundation Model", appleFoundationModelKeywords),
             ("個人自傳跟找教的方式", "個人自傳跟繳交的方式", jobApplicationKeywords),
             ("個人自傳跟找工作的方式", "個人自傳跟繳交的方式", jobApplicationKeywords),
             ("個人自傳跟找教的方法", "個人自傳跟繳交的方法", jobApplicationKeywords),
