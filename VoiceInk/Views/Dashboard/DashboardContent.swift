@@ -395,17 +395,19 @@ struct DashboardContent: View {
 
     private var heroSubtitle: String {
         guard hasLoadedStatsSnapshot else {
-            return "Your usage summary will appear here."
+            return String(localized: "Your usage summary will appear here.")
         }
 
         guard totalCount > 0 else {
-            return "Your Voco journey starts with your first recording."
+            return String(localized: "Your Voco journey starts with your first recording.")
         }
 
         let wordsText = Formatters.formattedNumber(totalWords)
-        let sessionText = totalCount == 1 ? "session" : "sessions"
+        let sessionText = totalCount == 1
+            ? String(localized: "session")
+            : String(localized: "sessions")
 
-        return "Dictated \(wordsText) words across \(totalCount) \(sessionText)."
+        return String(localized: "Dictated \(wordsText) words across \(totalCount) \(sessionText).")
     }
 
     private var heroGradient: LinearGradient {

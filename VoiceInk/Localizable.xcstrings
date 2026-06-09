@@ -11274,6 +11274,46 @@
           }
         }
       }
+    },
+    "Your usage summary will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的使用摘要會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "session": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作階段"
+          }
+        }
+      }
+    },
+    "sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作階段"
+          }
+        }
+      }
+    },
+    "Dictated %1$@ words across %2$lld %3$@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已聽寫 %1$@ 個字，共 %2$lld 個工作階段。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
