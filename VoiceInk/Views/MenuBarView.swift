@@ -11,112 +11,32 @@ struct MenuBarView: View {
     @EnvironmentObject var updaterViewModel: UpdaterViewModel
     @EnvironmentObject var enhancementService: AIEnhancementService
     @EnvironmentObject var aiService: AIService
-    @ObservedObject private var modeManager = ModeManager.shared
     @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
-    @AppStorage("hasCompletedOnboardingV2") private var hasCompletedOnboardingV2 = false
     @State private var launchAtLoginEnabled = LaunchAtLogin.isEnabled
-    
+
     var body: some View {
         VStack {
-            if hasCompletedOnboardingV2 {
-                completedOnboardingMenu
-            } else {
-                onboardingMenu
-            }
-        }
-    }
-
-    private var onboardingMenu: some View {
-        Group {
-            Button("Complete Onboarding") {
-                menuBarManager.focusMainWindow()
-            }
-
-            Divider()
-
-            Button("Quit Voco") {
-                NSApplication.shared.terminate(nil)
-            }
-        }
-    }
-
-    private var completedOnboardingMenu: some View {
-        Group {
             Button("Toggle Recorder") {
                 recorderUIManager.handleToggleRecorderPanelNotification()
             }
 
             Divider()
 
-            Menu {
-                ForEach(modeManager.enabledConfigurations) { config in
-                    Button {
-                        modeManager.setActiveConfiguration(config)
-                    } label: {
-                        HStack {
-                            ModeIconView(icon: config.icon, size: config.icon.kind == .emoji ? 13 : 11)
-                                .frame(width: 16)
-                            Text(config.name)
-                            if modeManager.currentEffectiveConfiguration?.id == config.id {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
+            transcriptionModelMenu
 
-                if modeManager.enabledConfigurations.isEmpty {
-                    Text("No modes available")
-                        .foregroundColor(.secondary)
-                }
+            Divider()
 
-                Divider()
+            Toggle("AI Enhancement", isOn: $enhancementService.isEnhancementEnabled)
 
-                Button("Manage Modes") {
-                    menuBarManager.openMainWindowAndNavigate(to: "Modes")
-                }
+            aiProviderMenu
 
-                Button("Manage Models") {
-                    menuBarManager.openMainWindowAndNavigate(to: "AI Models")
-                }
-            } label: {
-                HStack {
-                    let activeMode = modeManager.currentEffectiveConfiguration
-                    if let activeMode {
-                        ModeIconView(icon: activeMode.icon, size: activeMode.icon.kind == .emoji ? 13 : 11)
-                        Text("Mode: \(activeMode.name)")
-                    } else {
-                        Text("Mode: None")
-                    }
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                }
-            }
+            LanguageSelectionView(
+                transcriptionModelManager: transcriptionModelManager,
+                displayMode: .menuItem,
+                whisperPrompt: whisperModelManager.whisperPrompt
+            )
 
-            Menu {
-                ForEach(audioDeviceManager.availableDevices, id: \.id) { device in
-                    Button {
-                        audioDeviceManager.selectDeviceAndSwitchToCustomMode(id: device.id)
-                    } label: {
-                        HStack {
-                            Text(device.name)
-                            if audioDeviceManager.getCurrentDevice() == device.id {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-
-                if audioDeviceManager.availableDevices.isEmpty {
-                    Text("No devices available")
-                        .foregroundColor(.secondary)
-                }
-            } label: {
-                HStack {
-                    Text("Audio Input")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                }
-            }
+            audioInputMenu
 
             Divider()
 
@@ -133,38 +53,129 @@ struct MenuBarView: View {
                 LastTranscriptionService.copyLastTranscription(from: engine.modelContext)
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
-            
+
             Button("History") {
                 menuBarManager.openHistoryWindow()
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
-            
+
             Button("Settings") {
                 menuBarManager.openMainWindowAndNavigate(to: "Settings")
             }
             .keyboardShortcut(",", modifiers: .command)
-            
+
             Button(menuBarManager.isMenuBarOnly ? "Show Dock Icon" : "Hide Dock Icon") {
                 menuBarManager.toggleMenuBarOnly()
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
-            
+
             Toggle("Launch at Login", isOn: $launchAtLoginEnabled)
-                .onChange(of: launchAtLoginEnabled) { oldValue, newValue in
+                .onChange(of: launchAtLoginEnabled) { _, newValue in
                     LaunchAtLogin.isEnabled = newValue
                 }
-            
+
             Divider()
-            
+
             Button("Check for Updates") {
                 updaterViewModel.checkForUpdates()
             }
             .disabled(!updaterViewModel.canCheckForUpdates)
-            
+
+            Button("Help and Support") {
+                EmailSupport.openSupportEmail()
+            }
+
             Divider()
 
             Button("Quit Voco") {
                 NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    private var transcriptionModelMenu: some View {
+        Menu {
+            ForEach(transcriptionModelManager.usableModels, id: \.id) { model in
+                Button {
+                    Task {
+                        transcriptionModelManager.setDefaultTranscriptionModel(model)
+                    }
+                } label: {
+                    HStack {
+                        Text(model.displayName)
+                        if transcriptionModelManager.currentTranscriptionModel?.id == model.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Manage Models") {
+                menuBarManager.openMainWindowAndNavigate(to: "AI Models")
+            }
+        } label: {
+            HStack {
+                Text("Transcription Model: \(transcriptionModelManager.currentTranscriptionModel?.displayName ?? "None")")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
+            }
+        }
+    }
+
+    private var aiProviderMenu: some View {
+        Menu {
+            ForEach(aiService.connectedProviders, id: \.self) { provider in
+                Button {
+                    aiService.selectedProvider = provider
+                } label: {
+                    HStack {
+                        Text(provider.rawValue)
+                        if aiService.selectedProvider == provider {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            if aiService.connectedProviders.isEmpty {
+                Text("No providers connected")
+                    .foregroundColor(.secondary)
+            }
+        } label: {
+            HStack {
+                Text("AI Provider: \(aiService.selectedProvider.rawValue)")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
+            }
+        }
+    }
+
+    private var audioInputMenu: some View {
+        Menu {
+            ForEach(audioDeviceManager.availableDevices, id: \.id) { device in
+                Button {
+                    audioDeviceManager.selectDeviceAndSwitchToCustomMode(id: device.id)
+                } label: {
+                    HStack {
+                        Text(device.name)
+                        if audioDeviceManager.getCurrentDevice() == device.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            if audioDeviceManager.availableDevices.isEmpty {
+                Text("No devices available")
+                    .foregroundColor(.secondary)
+            }
+        } label: {
+            HStack {
+                Text("Audio Input")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
             }
         }
     }

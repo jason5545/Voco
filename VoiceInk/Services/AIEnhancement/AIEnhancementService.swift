@@ -8,6 +8,13 @@ import LLMkit
 class AIEnhancementService: ObservableObject {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AIEnhancementService")
 
+    @Published var isEnhancementEnabled: Bool {
+        didSet {
+            logger.info("isEnhancementEnabled = \(self.isEnhancementEnabled)")
+            UserDefaults.standard.set(self.isEnhancementEnabled, forKey: "IsEnhancementEnabled")
+        }
+    }
+
     @Published var customPrompts: [CustomPrompt] {
         didSet {
             savePrompts()
@@ -44,6 +51,10 @@ class AIEnhancementService: ObservableObject {
         self.modelContext = modelContext
         self.screenCaptureService = ScreenCaptureService()
         self.customVocabularyService = CustomVocabularyService.shared
+
+        // Check if user previously disabled enhancement
+        let savedEnhancement = UserDefaults.standard.object(forKey: "IsEnhancementEnabled")
+        self.isEnhancementEnabled = (savedEnhancement as? Bool) ?? true
 
         if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
            let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
@@ -471,6 +482,9 @@ class AIEnhancementService: ObservableObject {
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot? = nil
     ) async throws -> (String, TimeInterval, String?) {
+        guard isEnhancementEnabled else {
+            throw EnhancementError.enhancementDisabled
+        }
         let startTime = Date()
         let promptName = configuration.prompt?.title
 
@@ -564,6 +578,7 @@ class AIEnhancementService: ObservableObject {
 }
 
 enum EnhancementError: Error {
+    case enhancementDisabled
     case notConfigured
     case invalidResponse
     case enhancementFailed
@@ -577,6 +592,8 @@ enum EnhancementError: Error {
 extension EnhancementError: LocalizedError {
     var errorDescription: String? {
         switch self {
+        case .enhancementDisabled:
+            return "AI Enhancement is disabled."
         case .notConfigured:
             return "AI provider not configured. Please check your API key."
         case .invalidResponse:
