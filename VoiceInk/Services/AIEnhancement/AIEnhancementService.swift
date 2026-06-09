@@ -8,10 +8,15 @@ import LLMkit
 class AIEnhancementService: ObservableObject {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AIEnhancementService")
 
-    @Published var isEnhancementEnabled: Bool {
-        didSet {
-            logger.info("isEnhancementEnabled = \(self.isEnhancementEnabled)")
-            UserDefaults.standard.set(self.isEnhancementEnabled, forKey: "IsEnhancementEnabled")
+    var isEnhancementEnabled: Bool {
+        get {
+            currentRuntimeConfiguration.isEnabled
+        }
+        set {
+            ModeManager.shared.updateCurrentEffectiveConfiguration { config in
+                config.isAIEnhancementEnabled = newValue
+            }
+            objectWillChange.send()
         }
     }
 
@@ -51,10 +56,6 @@ class AIEnhancementService: ObservableObject {
         self.modelContext = modelContext
         self.screenCaptureService = ScreenCaptureService()
         self.customVocabularyService = CustomVocabularyService.shared
-
-        // Check if user previously disabled enhancement
-        let savedEnhancement = UserDefaults.standard.object(forKey: "IsEnhancementEnabled")
-        self.isEnhancementEnabled = (savedEnhancement as? Bool) ?? true
 
         if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
            let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
