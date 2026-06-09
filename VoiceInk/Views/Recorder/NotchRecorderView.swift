@@ -3,11 +3,10 @@ import SwiftUI
 struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     @ObservedObject var stateProvider: S
     @ObservedObject var recorder: Recorder
-    @EnvironmentObject var windowManager: NotchWindowManager
-    @EnvironmentObject private var enhancementService: AIEnhancementService
-    @AppStorage("showLiveTextPreview") private var showLiveTextPreview = false
-    @ObservedObject private var powerModeManager = PowerModeManager.shared
-    @State private var activePopover: ActivePopoverState = .none
+    @ObservedObject var assistantSession: AssistantSession
+    let onRecordButtonTapped: () -> Void
+    let onCloseTapped: () -> Void
+    let onAssistantFollowUp: (String) -> Void
 
     // MARK: - Display State
 
@@ -15,13 +14,17 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         case collapsed
         case active
         case liveText
+        case assistant
     }
 
     private var displayState: DisplayState {
-        if stateProvider.pendingDictionaryEntry != nil || stateProvider.pendingCandidateReview != nil { return .liveText }
+        if assistantSession.isVisible {
+            return .assistant
+        }
+
         switch stateProvider.recordingState {
         case .recording:
-            let shouldShowLive = showLiveTextPreview && !stateProvider.partialTranscript.isEmpty
+            let shouldShowLive = !stateProvider.partialTranscript.isEmpty
             return shouldShowLive ? .liveText : .active
         case .transcribing, .enhancing:
             return .active
@@ -51,15 +54,12 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     private let recordingSideExpansion: CGFloat = 90
     private let transcriptSideExpansion: CGFloat = 110
+    private let assistantSideExpansion: CGFloat = 230
     private let activeHeightBonus: CGFloat = 6
     private let transcriptPanelHeight: CGFloat = 57
-    private let candidatePanelHeight: CGFloat = RecorderCandidateReviewLayout.notchPanelHeight
-    private let candidateSideExpansion: CGFloat = RecorderCandidateReviewLayout.notchSideExpansion
+    private let assistantPanelHeight: CGFloat = 320
 
     private var mainRowHeight: CGFloat { notchHeight + activeHeightBonus }
-    private var livePanelHeight: CGFloat {
-        stateProvider.pendingCandidateReview == nil ? transcriptPanelHeight : candidatePanelHeight
-    }
 
     // MARK: - Pill Dimensions
 
@@ -68,6 +68,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         case .collapsed: return notchWidth
         case .active:    return notchWidth + recordingSideExpansion * 2
         case .liveText:  return notchWidth + transcriptSideExpansion * 2
+        case .assistant: return notchWidth + assistantSideExpansion * 2
         }
     }
 
@@ -75,13 +76,35 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         switch displayState {
         case .collapsed: return 0
         case .active:    return mainRowHeight
-        case .liveText:  return mainRowHeight + livePanelHeight
+        case .liveText:  return mainRowHeight + transcriptPanelHeight
+        case .assistant: return mainRowHeight + assistantPanelHeight
         }
     }
 
     private var sideExpansion: CGFloat {
-        if stateProvider.pendingCandidateReview != nil { return candidateSideExpansion }
-        return displayState == .liveText ? transcriptSideExpansion : recordingSideExpansion
+        switch displayState {
+        case .liveText:
+            return transcriptSideExpansion
+        case .assistant:
+            return assistantSideExpansion
+        case .active, .collapsed:
+            return recordingSideExpansion
+        }
+    }
+
+    private var sideEdgePadding: CGFloat {
+        displayState == .liveText || displayState == .assistant ? 20 : 16
+    }
+
+    private var shouldShowCloseButton: Bool {
+        displayState == .assistant &&
+            stateProvider.recordingState == .idle &&
+            !assistantSession.isBusy
+    }
+
+    private var liveAssistantFollowUpText: String {
+        guard stateProvider.recordingState == .recording else { return "" }
+        return stateProvider.partialTranscript
     }
 
     // MARK: - Animation
@@ -96,18 +119,10 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     // MARK: - Body
 
     var body: some View {
-        if windowManager.isVisible {
-            GeometryReader { geo in
-                pill.position(x: geo.size.width / 2, y: pillHeight / 2)
-            }
-            .animation(pillAnimation, value: displayState)
-            .onAppear {
-                windowManager.updateLayout(isCandidateReviewVisible: stateProvider.pendingCandidateReview != nil)
-            }
-            .onChange(of: stateProvider.pendingCandidateReview?.id) { _, newValue in
-                windowManager.updateLayout(isCandidateReviewVisible: newValue != nil)
-            }
+        GeometryReader { geo in
+            pill.position(x: geo.size.width / 2, y: pillHeight / 2)
         }
+        .animation(pillAnimation, value: displayState)
     }
 
     // MARK: - Pill
@@ -116,13 +131,14 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         VStack(spacing: 0) {
             mainRow
             liveTextPanel
+            assistantPanel
         }
         .frame(width: pillWidth, height: pillHeight)
         .background(Color.black)
         .clipShape(
             NotchShape(
                 topCornerRadius: displayState == .liveText ? 12 : 8,
-                bottomCornerRadius: displayState == .liveText ? 22 : 16
+                bottomCornerRadius: displayState == .liveText || displayState == .assistant ? 22 : 16
             )
         )
     }
@@ -133,12 +149,19 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         ZStack {
             Color.clear
 
-            HStack(spacing: 10) {
-                RecorderPromptButton(activePopover: $activePopover, buttonSize: 20, padding: EdgeInsets())
-                RecorderPowerModeButton(activePopover: $activePopover, buttonSize: 20, padding: EdgeInsets())
+            HStack(spacing: 14) {
+                if shouldShowCloseButton {
+                    RecorderCloseButton(action: onCloseTapped)
+                } else {
+                    RecorderRecordButton(
+                        recordingState: stateProvider.recordingState,
+                        action: onRecordButtonTapped
+                    )
+                }
+                RecorderModeButton(buttonSize: 20, padding: EdgeInsets())
                 Spacer(minLength: 0)
             }
-            .padding(.leading, displayState == .liveText ? 18 : 14)
+            .padding(.leading, sideEdgePadding)
             .frame(width: sideExpansion)
             .frame(maxWidth: .infinity, alignment: .leading)
             .opacity(displayState != .collapsed ? 1 : 0)
@@ -152,11 +175,10 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                 RecorderStatusDisplay(
                     currentState: stateProvider.recordingState,
                     audioMeter: recorder.audioMeter,
-                    menuBarHeight: notchHeight,
-                    isEditMode: stateProvider.isEditMode
+                    menuBarHeight: notchHeight
                 )
             }
-            .padding(.trailing, displayState == .liveText ? 18 : 14)
+            .padding(.trailing, sideEdgePadding)
             .frame(width: sideExpansion)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .opacity(displayState != .collapsed ? 1 : 0)
@@ -174,29 +196,26 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         VStack(spacing: 0) {
             if displayState == .liveText {
                 Divider().background(Color.white.opacity(0.15))
-                if let review = stateProvider.pendingCandidateReview {
-                    CandidateReviewView(
-                        review: review,
-                        onSelect: { stateProvider.selectCandidateReview(candidate: $0) },
-                        onInteraction: { stateProvider.keepCandidateReviewAlive() },
-                        onDismiss: { stateProvider.dismissCandidateReview() }
-                    )
-                    .padding(.vertical, 4)
-                } else if let entry = stateProvider.pendingDictionaryEntry {
-                    DictionaryConfirmationView(
-                        original: entry.original,
-                        replacement: entry.replacement,
-                        onConfirm: { stateProvider.confirmDictionaryEntry() },
-                        onDismiss: { stateProvider.dismissDictionaryEntry() }
-                    )
-                    .padding(.vertical, 5)
-                } else {
-                    LiveTranscriptView(text: stateProvider.partialTranscript)
-                        .padding(.horizontal, 8)
-                }
+                LiveTranscriptView(text: stateProvider.partialTranscript)
+                    .padding(.horizontal, 8)
             }
         }
-        .frame(height: displayState == .liveText ? livePanelHeight : 0)
+        .frame(height: displayState == .liveText ? transcriptPanelHeight : 0)
+        .clipped()
+    }
+
+    private var assistantPanel: some View {
+        VStack(spacing: 0) {
+            if displayState == .assistant {
+                Divider().background(Color.white.opacity(0.15))
+                AssistantPanelView(
+                    session: assistantSession,
+                    liveFollowUpText: liveAssistantFollowUpText,
+                    onSend: onAssistantFollowUp
+                )
+            }
+        }
+        .frame(height: displayState == .assistant ? assistantPanelHeight : 0)
         .clipped()
     }
 }

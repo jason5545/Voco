@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum TranscriptionTab: CaseIterable {
+enum TranscriptionTab: CaseIterable, Hashable {
     case original
     case enhanced
 
@@ -11,4 +11,3 @@ enum TranscriptionTab: CaseIterable {
         }
     }
 }
-

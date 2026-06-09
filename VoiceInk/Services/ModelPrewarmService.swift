@@ -5,7 +5,11 @@ import os
 
 @MainActor
 protocol ModelPrewarmTranscribing: AnyObject {
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: TranscriptionRequestContext
+    ) async throws -> String
 }
 
 extension TranscriptionServiceRegistry: ModelPrewarmTranscribing {}
@@ -148,16 +152,23 @@ final class ModelPrewarmService: ObservableObject {
             return
         }
 
-        guard let currentModel = transcriptionModelManager.currentTranscriptionModel else {
+        guard let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(
+            transcriptionModelManager: transcriptionModelManager
+        ) else {
             logger.notice("No model selected, skipping prewarm")
             return
         }
+        let currentModel = transcriptionConfiguration.model
 
         logger.notice("Prewarming \(currentModel.displayName, privacy: .public) from \(trigger, privacy: .public)")
         let startTime = Date()
 
         do {
-            let _ = try await serviceRegistry.transcribe(audioURL: audioURL, model: currentModel)
+            let _ = try await serviceRegistry.transcribe(
+                audioURL: audioURL,
+                model: currentModel,
+                context: transcriptionConfiguration.requestContext
+            )
             let duration = Date().timeIntervalSince(startTime)
 
             logger.notice("Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s")
@@ -177,8 +188,10 @@ final class ModelPrewarmService: ObservableObject {
             return false
         }
 
-        // Only prewarm on-device models (cloud models don't need it)
-        guard let model = transcriptionModelManager.currentTranscriptionModel else {
+        // Only prewarm local models (Parakeet and Whisper need ANE compilation)
+        guard let model = ModeRuntimeResolver.transcriptionConfiguration(
+            transcriptionModelManager: transcriptionModelManager
+        )?.model else {
             return false
         }
 

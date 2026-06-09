@@ -95,7 +95,7 @@ class VoiceInkCSVExportService {
             transcription.transcriptionModelName ?? "",
             transcription.asrEngineID ?? "",
             transcription.languageMode ?? "",
-            powerModeDisplay(name: transcription.powerModeName, emoji: transcription.powerModeEmoji),
+            modeDisplay(name: transcription.modeName, emoji: transcription.modeEmoji),
             joined(transcription.activeContextIDs),
             joined(VocoCanonicalizationService.contextDisplayNames(for: transcription.activeContextIDs)),
             replacementSummary(transcription.canonicalizationReplacements),
@@ -147,7 +147,7 @@ class VoiceInkCSVExportService {
         return escapedString
     }
 
-    private func powerModeDisplay(name: String?, emoji: String?) -> String {
+    private func modeDisplay(name: String?, emoji: String?) -> String {
         switch (emoji?.trimmingCharacters(in: .whitespacesAndNewlines), name?.trimmingCharacters(in: .whitespacesAndNewlines)) {
         case let (.some(emojiValue), .some(nameValue)) where !emojiValue.isEmpty && !nameValue.isEmpty:
             return "\(emojiValue) \(nameValue)"

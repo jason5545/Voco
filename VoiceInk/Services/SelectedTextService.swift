@@ -1,29 +1,33 @@
+import ApplicationServices
 import Foundation
-import AppKit
+import os
 import SelectedTextKit
 
-class SelectedTextService {
+@MainActor
+final class SelectedTextService {
+    private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "SelectedTextService")
+    private static let textManager = SelectedTextManager.shared
+
     /// Full retrieval strategy used when richer context is acceptable.
-    /// Includes menu-action fallback, which may touch/restore clipboard content.
     static func fetchSelectedText() async -> String? {
-        let strategies: [TextStrategy] = [.accessibility, .menuAction]
-        return await fetchSelectedText(using: strategies)
+        await fetchSelectedText(using: [.accessibility, .menuAction, .appleScript])
     }
 
     /// Low-latency retrieval strategy for recorder startup.
-    /// Uses Accessibility only to avoid menu-action clipboard fallback,
-    /// which can introduce a delayed UI hitch in some apps.
     static func fetchSelectedTextForEditModeDetection() async -> String? {
-        let strategies: [TextStrategy] = [.accessibility]
-        return await fetchSelectedText(using: strategies)
+        await fetchSelectedText(using: [.accessibility])
     }
 
     private static func fetchSelectedText(using strategies: [TextStrategy]) async -> String? {
+        guard AXIsProcessTrusted() else {
+            logger.debug("Accessibility is not trusted; selected text capture skipped")
+            return nil
+        }
+
         do {
-            let selectedText = try await SelectedTextManager.shared.getSelectedText(strategies: strategies)
-            return selectedText
+            return normalized(try await textManager.getSelectedText(strategies: strategies))
         } catch {
-            print("Failed to get selected text: \(error)")
+            logger.debug("SelectedTextKit failed to capture selected text: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -56,5 +60,11 @@ class SelectedTextService {
             kAXComboBoxRole as String,
         ]
         return editableRoles.contains(role)
+    }
+
+    private static func normalized(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

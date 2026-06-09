@@ -4,6 +4,8 @@ enum AppDefaults {
     static let defaultValues: [String: Any] = [
         // Onboarding & General
         "hasCompletedOnboarding": false,
+        "hasCompletedOnboardingV2": false,
+        "hasPreparedOnboardingV2": false,
         "enableAnnouncements": true,
 
         // Clipboard

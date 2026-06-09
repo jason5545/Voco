@@ -81,7 +81,7 @@ class Qwen3TranscriptionService: TranscriptionService {
     private let engine = Qwen3ASREngine()
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3TranscriptionService")
 
-    /// Temporary language override for retry (e.g. "Japanese"). Takes priority over UserDefaults.
+    /// Temporary language override for retry (e.g. "Japanese"). Takes priority over request context.
     var languageOverride: String?
 
     /// Average log-probability from the last transcription (for confidence routing)
@@ -96,7 +96,11 @@ class Qwen3TranscriptionService: TranscriptionService {
     /// Per-word confidence scores from the last transcription (for post-processing routing)
     var lastWordConfidences: [WordConfidence] = []
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: TranscriptionRequestContext
+    ) async throws -> String {
         guard let qwen3Model = model as? Qwen3Model else {
             throw Qwen3ServiceError.invalidModel
         }
@@ -108,9 +112,8 @@ class Qwen3TranscriptionService: TranscriptionService {
         // Read audio samples from WAV file
         let audioSamples = try readAudioSamples(from: audioURL)
 
-        // Language: override takes priority, then UserDefaults
-        let selectedLanguage = languageOverride ?? UserDefaults.standard.string(forKey: "SelectedLanguage")
-        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+        let selectedLanguage = languageOverride ?? context.language
+        let prompt = context.prompt
 
         logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")
 

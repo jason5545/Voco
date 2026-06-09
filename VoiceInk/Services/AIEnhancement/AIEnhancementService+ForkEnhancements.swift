@@ -15,7 +15,7 @@ extension AIEnhancementService {
         )
         let result = try await makeRequest(
             text: text,
-            mode: .transcriptionEnhancement,
+            configuration: currentRuntimeConfiguration,
             systemMessageOverride: systemMessage
         )
         return (result, Date().timeIntervalSince(startTime))
@@ -26,7 +26,7 @@ extension AIEnhancementService {
         let startTime = Date()
         let result = try await makeRequest(
             text: text,
-            mode: .transcriptionEnhancement,
+            configuration: currentRuntimeConfiguration,
             systemMessageOverride: AIPrompts.commaInsertionPrompt
         )
         return (result, Date().timeIntervalSince(startTime))
@@ -66,7 +66,8 @@ extension AIEnhancementService {
         }
 
         let raw = try await makeRequestWithRetry(
-            text: "", mode: .transcriptionEnhancement,
+            text: "",
+            configuration: currentRuntimeConfiguration,
             systemMessageOverride: systemMessage,
             userMessageOverride: userMessage
         )
@@ -125,7 +126,8 @@ extension AIEnhancementService {
         """
 
         let result = try await makeRequestWithRetry(
-            text: "", mode: .transcriptionEnhancement,
+            text: "",
+            configuration: currentRuntimeConfiguration,
             systemMessageOverride: systemMessage,
             userMessageOverride: userMessage
         )

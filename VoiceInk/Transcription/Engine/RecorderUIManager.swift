@@ -1,33 +1,55 @@
 import Foundation
 import SwiftUI
+import AppKit
 import os
 
-@MainActor
-class RecorderUIManager: ObservableObject {
-    @Published var miniRecorderError: String?
+enum RecorderPanelStyle: String, CaseIterable, Identifiable {
+    case notch
+    case mini
 
-    @Published var recorderType: String = UserDefaults.standard.string(forKey: "RecorderType") ?? "mini" {
-        didSet {
-            if isMiniRecorderVisible {
-                if oldValue == "notch" {
-                    notchWindowManager?.destroyWindow()
-                    notchWindowManager = nil
-                } else {
-                    miniWindowManager?.destroyWindow()
-                    miniWindowManager = nil
-                }
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)
-                    showRecorderPanel()
-                }
-            }
-            UserDefaults.standard.set(recorderType, forKey: "RecorderType")
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notch:
+            return "Notch"
+        case .mini:
+            return "Mini"
         }
     }
 
-    @Published var isMiniRecorderVisible = false {
+    static var stored: RecorderPanelStyle {
+        let rawValue = UserDefaults.standard.string(forKey: "RecorderType") ?? RecorderPanelStyle.mini.rawValue
+        return RecorderPanelStyle(rawValue: rawValue) ?? .mini
+    }
+}
+
+@MainActor
+protocol RecorderPanelPresenting: AnyObject {
+    var isRecorderPanelVisible: Bool { get }
+    func dismissRecorderPanel() async
+}
+
+@MainActor
+class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
+    @Published var recorderPanelStyle: RecorderPanelStyle = .stored {
         didSet {
-            if isMiniRecorderVisible {
+            guard oldValue != recorderPanelStyle else { return }
+            rebuildVisiblePanel(previousStyle: oldValue)
+            UserDefaults.standard.set(recorderPanelStyle.rawValue, forKey: "RecorderType")
+        }
+    }
+
+    var recorderType: String {
+        get { recorderPanelStyle.rawValue }
+        set { recorderPanelStyle = RecorderPanelStyle(rawValue: newValue) ?? .mini }
+    }
+
+    @Published var isRecorderPanelVisible = false {
+        didSet {
+            guard oldValue != isRecorderPanelVisible else { return }
+
+            if isRecorderPanelVisible {
                 showRecorderPanel()
             } else {
                 hideRecorderPanel()
@@ -35,17 +57,14 @@ class RecorderUIManager: ObservableObject {
         }
     }
 
-    var notchWindowManager: NotchWindowManager?
-    var miniWindowManager: MiniWindowManager?
+    private var notchWindowManager: NotchWindowManager?
+    private var miniWindowManager: MiniWindowManager?
 
     private weak var engine: VoiceInkEngine?
     private var recorder: Recorder?
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "RecorderUIManager")
-
-    // Double-tap hotkey cancel
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "RecorderUIManager")
     private var lastRecordingStopTime: Date?
-    private let doublePressCancelThreshold: TimeInterval = 0.4
     private var doublePressStopTask: Task<Void, Never>?
 
     init() {}
@@ -60,121 +79,154 @@ class RecorderUIManager: ObservableObject {
 
     // MARK: - Recorder Panel Management
 
-    func showRecorderPanel() {
+    private func showRecorderPanel() {
         guard let engine = engine, let recorder = recorder else { return }
-        StartupTracer.checkpoint("showRecorderPanel_enter(\(recorderType))")
-        logger.notice("Showing \(self.recorderType, privacy: .public) recorder")
 
-        if recorderType == "notch" {
+        switch recorderPanelStyle {
+        case .notch:
             if notchWindowManager == nil {
-                notchWindowManager = NotchWindowManager(engine: engine, recorder: recorder)
+                notchWindowManager = NotchWindowManager(
+                    engine: engine,
+                    recorder: recorder,
+                    assistantSession: engine.assistantSession,
+                    onRecordButtonTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.toggleRecorderPanel()
+                        }
+                    },
+                    onCloseTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.dismissRecorderPanel()
+                        }
+                    },
+                    onAssistantFollowUp: { [weak engine] text in
+                        Task { @MainActor in
+                            await engine?.sendAssistantFollowUp(text)
+                        }
+                    }
+                )
             }
             notchWindowManager?.show()
-        } else {
+        case .mini:
             if miniWindowManager == nil {
-                miniWindowManager = MiniWindowManager(engine: engine, recorder: recorder)
+                miniWindowManager = MiniWindowManager(
+                    engine: engine,
+                    recorder: recorder,
+                    assistantSession: engine.assistantSession,
+                    onRecordButtonTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.toggleRecorderPanel()
+                        }
+                    },
+                    onCloseTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.dismissRecorderPanel()
+                        }
+                    },
+                    onAssistantFollowUp: { [weak engine] text in
+                        Task { @MainActor in
+                            await engine?.sendAssistantFollowUp(text)
+                        }
+                    }
+                )
             }
             miniWindowManager?.show()
         }
     }
 
-    func hideRecorderPanel() {
-        if recorderType == "notch" {
+    private func hideRecorderPanel() {
+        switch recorderPanelStyle {
+        case .notch:
             notchWindowManager?.hide()
-        } else {
+        case .mini:
             miniWindowManager?.hide()
         }
     }
 
-    // MARK: - Mini Recorder Management
+    private func rebuildVisiblePanel(previousStyle: RecorderPanelStyle) {
+        guard isRecorderPanelVisible else { return }
 
-    func toggleMiniRecorder(powerModeId: UUID? = nil) async {
+        switch previousStyle {
+        case .notch:
+            notchWindowManager?.destroyWindow()
+            notchWindowManager = nil
+        case .mini:
+            miniWindowManager?.destroyWindow()
+            miniWindowManager = nil
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            showRecorderPanel()
+        }
+    }
+
+    // MARK: - Recorder Panel Management
+
+    func toggleRecorderPanel(modeId: UUID? = nil) async {
         guard let engine = engine else { return }
-        logger.notice("toggleMiniRecorder called – visible=\(self.isMiniRecorderVisible, privacy: .public), state=\(String(describing: engine.recordingState), privacy: .public)")
 
-        if isMiniRecorderVisible {
+        if isRecorderPanelVisible {
             switch engine.recordingState {
             case .recording:
                 if lastRecordingStopTime != nil {
-                    // Second press while still recording — cancel, skip transcribing
-                    logger.notice("toggleMiniRecorder: double-press cancel")
                     lastRecordingStopTime = nil
                     doublePressStopTask?.cancel()
                     doublePressStopTask = nil
                     await cancelRecording()
                 } else {
-                    // First press — wait briefly for possible second press
-                    logger.notice("toggleMiniRecorder: first press, waiting for double-press")
                     lastRecordingStopTime = Date()
                     doublePressStopTask?.cancel()
-                    doublePressStopTask = Task { @MainActor [weak self] in
+                    doublePressStopTask = Task { @MainActor [weak self, weak engine] in
                         try? await Task.sleep(nanoseconds: 400_000_000)
-                        guard let self, !Task.isCancelled else { return }
+                        guard let self, let engine, !Task.isCancelled else { return }
                         self.lastRecordingStopTime = nil
                         self.doublePressStopTask = nil
-                        self.logger.notice("toggleMiniRecorder: no double-press, stopping normally")
-                        await engine.toggleRecord(powerModeId: powerModeId)
+                        await engine.toggleRecord(modeId: modeId)
                     }
                 }
             case .starting, .transcribing, .enhancing:
-                logger.notice("toggleMiniRecorder: cancelling active recorder work")
                 await cancelRecording()
-            case .idle, .busy:
-                logger.notice("toggleMiniRecorder: dismissing recorder UI")
-                lastRecordingStopTime = nil
-                await dismissMiniRecorder()
+            case .idle:
+                if engine.assistantSession.canSendFollowUp {
+                    SoundManager.shared.playStartSound()
+                    await engine.toggleRecord(
+                        modeId: modeId,
+                        isAssistantFollowUp: true
+                    )
+                } else {
+                    await dismissRecorderPanel()
+                }
+            case .busy:
+                await dismissRecorderPanel()
             }
         } else {
             StartupTracer.begin("hotkey_press")
             lastRecordingStopTime = nil
             engine.cancelScheduledModelCleanup()
-            StartupTracer.checkpoint("cancelModelCleanup_done")
-            SoundManager.shared.playStartSound {
-                Task { await MediaController.shared.muteSystemAudio() }
-            }
-
+            SoundManager.shared.playStartSound()
             await detectEditMode(engine: engine)
-            StartupTracer.checkpoint("detectEditMode_done")
-
-            isMiniRecorderVisible = true
-            StartupTracer.checkpoint("playStartSound_done")
-            StartupTracer.checkpoint("isMiniRecorderVisible_set")
-            await engine.toggleRecord(powerModeId: powerModeId)
+            isRecorderPanelVisible = true
+            await engine.toggleRecord(modeId: modeId)
         }
     }
 
-    func dismissMiniRecorder() async {
+    func dismissRecorderPanel() async {
         guard let engine = engine else { return }
-        logger.notice("dismissMiniRecorder called – state=\(String(describing: engine.recordingState), privacy: .public)")
 
         hideRecorderPanel()
-
+        isRecorderPanelVisible = false
+        engine.assistantSession.reset()
         lastRecordingStopTime = nil
         doublePressStopTask?.cancel()
         doublePressStopTask = nil
-
-        // Clear captured context when the recorder is dismissed
-        if let enhancementService = engine.enhancementService {
-            await MainActor.run {
-                enhancementService.clearCapturedContexts()
-            }
-        }
-
-        await MainActor.run {
-            engine.forkState.editModeDetectionTask?.cancel()
-            engine.forkState.editModeDetectionTask = nil
-            engine.forkState.clearEditMode()
-            engine.forkState.pendingDictionaryEntry = nil
-            engine.dismissCandidateReview()
-            isMiniRecorderVisible = false
-        }
-
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+        engine.forkState.clearEditMode()
+        engine.forkState.pendingDictionaryEntry = nil
+        engine.dismissCandidateReview()
         engine.scheduleModelResourceCleanup()
-
-        // Restart edit mode cache polling so next recording gets fresh AX state
         EditModeCacheService.shared.startPolling()
-
-        logger.notice("dismissMiniRecorder completed")
     }
 
     func resetOnLaunch() async {
@@ -182,31 +234,23 @@ class RecorderUIManager: ObservableObject {
         logger.notice("Resetting recording state on launch")
         await engine.resetRecordingSession()
         hideRecorderPanel()
-        await MainActor.run {
-            isMiniRecorderVisible = false
-            engine.shouldCancelRecording = false
-            lastRecordingStopTime = nil
-            doublePressStopTask?.cancel()
-            doublePressStopTask = nil
-            miniRecorderError = nil
-            engine.forkState.editModeDetectionTask?.cancel()
-            engine.forkState.editModeDetectionTask = nil
-            engine.forkState.clearEditMode()
-            engine.forkState.pendingDictionaryEntry = nil
-            engine.dismissCandidateReview()
-            engine.recordingState = .idle
-        }
+        isRecorderPanelVisible = false
+        engine.assistantSession.reset()
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+        engine.forkState.clearEditMode()
+        engine.forkState.pendingDictionaryEntry = nil
+        engine.dismissCandidateReview()
     }
 
     func cancelRecording() async {
         guard let engine = engine else { return }
-        logger.notice("cancelRecording called")
         lastRecordingStopTime = nil
         doublePressStopTask?.cancel()
         doublePressStopTask = nil
         SoundManager.shared.playEscSound()
         await engine.cancelRecording()
-        await dismissMiniRecorder()
+        await dismissRecorderPanel()
         NotificationManager.shared.showNotification(
             title: String(localized: "Recording Cancelled"),
             type: .info,
@@ -214,31 +258,22 @@ class RecorderUIManager: ObservableObject {
         )
     }
 
-    // MARK: - Edit Mode Detection (Fork-only)
+    // MARK: - Edit Mode Detection
 
-    /// Detects edit mode state from the AX cache snapshot.
-    /// Isolated from toggleMiniRecorder to minimize upstream merge conflicts.
     private func detectEditMode(engine: VoiceInkEngine) async {
         defer { EditModeCacheService.shared.stopPolling() }
 
-        // Direct terminal check — safety net regardless of cache state.
-        // Cache may be stale if the user switched apps after polling stopped.
         let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         if let bundleID, EditModeCacheService.terminalBundleIDs.contains(bundleID) {
             engine.forkState.clearEditMode()
-            logger.notice("Edit mode skipped: terminal app (\(bundleID, privacy: .public))")
             return
         }
 
         let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-
         if snapshot.isEditable, let selectedText = snapshot.selectedText, !selectedText.isEmpty {
             engine.forkState.isEditMode = true
             engine.forkState.editModeSelectedText = selectedText
         } else if snapshot.isEditable {
-            // Editable field but AX couldn't get selected text (e.g. Chrome URL bar).
-            // Fetch inline while the original app is still frontmost so menuAction (⌘C)
-            // targets the correct app. The recorder panel hasn't appeared yet.
             if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
                 engine.forkState.isEditMode = true
                 engine.forkState.editModeSelectedText = selectedText
@@ -246,8 +281,6 @@ class RecorderUIManager: ObservableObject {
                 engine.forkState.clearEditMode()
             }
         } else if snapshot.focusedElementUnavailable {
-            // AX focused element unavailable (e.g. Electron apps) — defer menuAction fallback.
-            // Don't block recording start; fetch in background and set edit mode later.
             engine.forkState.clearEditMode()
             engine.forkState.editModeDetectionTask = Task { @MainActor [weak engine] in
                 guard let engine else { return }
@@ -259,7 +292,6 @@ class RecorderUIManager: ObservableObject {
         } else {
             engine.forkState.clearEditMode()
         }
-        logger.notice("Edit mode from cache: isEdit=\(engine.forkState.isEditMode), hasText=\(engine.forkState.editModeSelectedText != nil), cacheEditable=\(snapshot.isEditable), cacheUnavail=\(snapshot.focusedElementUnavailable)")
     }
 
     // MARK: - Notification Handling
@@ -267,29 +299,32 @@ class RecorderUIManager: ObservableObject {
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handleToggleMiniRecorder),
-            name: .toggleMiniRecorder,
+            selector: #selector(handleToggleRecorderPanelNotification),
+            name: .toggleRecorderPanel,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handleDismissMiniRecorder),
-            name: .dismissMiniRecorder,
+            selector: #selector(handleDismissRecorderPanelNotification),
+            name: .dismissRecorderPanel,
             object: nil
         )
     }
 
-    @objc public func handleToggleMiniRecorder() {
-        logger.notice("handleToggleMiniRecorder: .toggleMiniRecorder notification received")
+    @objc public func handleToggleRecorderPanelNotification() {
         Task {
-            await toggleMiniRecorder()
+            await toggleRecorderPanel()
         }
     }
 
-    @objc public func handleDismissMiniRecorder() {
-        logger.notice("handleDismissMiniRecorder: .dismissMiniRecorder notification received")
+    @objc public func handleDismissRecorderPanelNotification() {
         Task {
-            await dismissMiniRecorder()
+            switch engine?.recordingState {
+            case .starting, .recording, .transcribing, .enhancing:
+                await cancelRecording()
+            case .idle, .busy, nil:
+                await dismissRecorderPanel()
+            }
         }
     }
 }

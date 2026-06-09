@@ -7,10 +7,8 @@ class KeyablePanel: NSPanel {
 }
 
 class NotchRecorderPanel: KeyablePanel {
-    var allowsKeyboardInput = false
-
-    override var canBecomeKey: Bool { allowsKeyboardInput }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 
     init(contentRect: NSRect) {
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
@@ -46,16 +44,9 @@ class NotchRecorderPanel: KeyablePanel {
         )
     }
 
-    static func calculateWindowMetrics(
-        maxSideExpansion requestedMaxSideExpansion: CGFloat? = nil,
-        maxContentHeight requestedMaxContentHeight: CGFloat? = nil
-    ) -> (frame: NSRect, notchWidth: CGFloat, notchHeight: CGFloat) {
+    static func calculateWindowMetrics() -> (frame: NSRect, notchWidth: CGFloat, notchHeight: CGFloat) {
         guard let screen = NSScreen.main else {
-            let notchWidth: CGFloat = 180
-            let sideExpansion = requestedMaxSideExpansion ?? 110
-            let sideMargin: CGFloat = 10
-            let width = notchWidth + (sideExpansion + sideMargin) * 2
-            return (NSRect(x: 0, y: 0, width: width, height: requestedMaxContentHeight ?? 24), notchWidth, 24)
+            return (NSRect(x: 0, y: 0, width: 280, height: 24), 280, 24)
         }
 
         let safeAreaInsets = screen.safeAreaInsets
@@ -69,11 +60,11 @@ class NotchRecorderPanel: KeyablePanel {
             return 180
         }()
 
-        let maxSideExpansion: CGFloat = requestedMaxSideExpansion ?? 110
+        let maxSideExpansion: CGFloat = 240
         let sideMargin: CGFloat = 10
         let totalWidth = notchWidth + (maxSideExpansion + sideMargin) * 2
 
-        let maxContentHeight: CGFloat = requestedMaxContentHeight ?? 200
+        let maxContentHeight: CGFloat = 430
         let xPosition = screen.frame.midX - (totalWidth / 2)
         let yPosition = screen.frame.maxY - maxContentHeight
 
@@ -85,10 +76,6 @@ class NotchRecorderPanel: KeyablePanel {
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
         setFrame(metrics.frame, display: true)
         orderFrontRegardless()
-    }
-
-    func hide(completion: @escaping () -> Void) {
-        completion()
     }
 
     @objc private func handleScreenParametersChange() {

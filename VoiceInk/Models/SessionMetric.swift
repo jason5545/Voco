@@ -12,7 +12,8 @@ final class SessionMetric {
     var transcriptionModelName: String?
     var transcriptionDuration: TimeInterval?
     var speedFactor: Double?
-    var powerModeName: String?
+    @Attribute(originalName: "powerModeName")
+    var modeName: String?
     var aiEnhancementModelName: String?
     var enhancementDuration: TimeInterval?
     var asrEngineID: String?
@@ -93,7 +94,7 @@ final class SessionMetric {
         transcriptionModelName: String?,
         transcriptionDuration: TimeInterval?,
         speedFactor: Double?,
-        powerModeName: String?,
+        modeName: String?,
         aiEnhancementModelName: String?,
         enhancementDuration: TimeInterval?,
         asrEngineID: String? = nil,
@@ -139,7 +140,7 @@ final class SessionMetric {
         self.transcriptionModelName = transcriptionModelName
         self.transcriptionDuration = transcriptionDuration
         self.speedFactor = speedFactor
-        self.powerModeName = powerModeName
+        self.modeName = modeName
         self.aiEnhancementModelName = aiEnhancementModelName
         self.enhancementDuration = enhancementDuration
         self.asrEngineID = asrEngineID

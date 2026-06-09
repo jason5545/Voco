@@ -32,13 +32,13 @@ enum VocoCanonicalizationPipeline {
         appName: String? = nil,
         windowTitle: String? = nil
     ) -> (normalizationResult: VocoNormalizationResult, confidenceAssessment: VocoConfidenceAssessment) {
-        let activePowerMode = PowerModeManager.shared.currentActiveConfiguration
+        let activeMode = ModeManager.shared.currentActiveConfiguration
         let result = VocoCanonicalizationService.shared.normalize(
             text,
-            activeContextIDs: activeContextIDs(powerMode: activePowerMode),
+            activeContextIDs: activeContextIDs(mode: activeMode),
             additionalTerms: dictionaryTerms(in: modelContext),
             contextHints: VocoCanonicalizationService.contextHints(
-                powerMode: activePowerMode,
+                mode: activeMode,
                 appName: appName,
                 windowTitle: windowTitle
             )
@@ -88,10 +88,10 @@ enum VocoCanonicalizationPipeline {
         )
     }
 
-    static func activeContextIDs(powerMode: PowerModeConfig? = PowerModeManager.shared.currentActiveConfiguration) -> [String] {
+    static func activeContextIDs(mode: ModeConfig? = ModeManager.shared.currentActiveConfiguration) -> [String] {
         var ids = VocoCanonicalizationService.enabledContextPackIDs()
-        if let powerMode, powerMode.isEnabled {
-            ids.append("power-mode:\(powerMode.id.uuidString)")
+        if let mode, mode.isEnabled {
+            ids.append("power-mode:\(mode.id.uuidString)")
         }
         return ids
     }

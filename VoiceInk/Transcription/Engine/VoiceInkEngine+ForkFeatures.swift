@@ -9,56 +9,6 @@ import os
 
 extension VoiceInkEngine {
 
-    // MARK: - Edit Mode Pipeline Dispatch
-
-    /// Captures edit mode state and runs the pipeline with fork-specific parameters.
-    /// Call this instead of pipeline.run() directly to inject edit mode callbacks.
-    func runPipelineWithForkFeatures(
-        transcription: Transcription,
-        audioURL: URL,
-        model: any TranscriptionModel,
-        session: TranscriptionSession?,
-        capturedAppPID: pid_t? = nil,
-        onStateChange: @escaping (RecordingState) -> Void,
-        shouldCancel: @escaping () -> Bool,
-        onCancel: @escaping () async -> Void,
-        onDismiss: @escaping () async -> Void
-    ) async {
-        let editMode = forkState.isEditMode
-        let editSelectedText = forkState.editModeSelectedText
-
-        await pipeline.run(
-            transcription: transcription,
-            audioURL: audioURL,
-            model: model,
-            session: session,
-            isEditMode: editMode,
-            editModeSelectedText: editSelectedText,
-            capturedAppPID: capturedAppPID,
-            onStateChange: onStateChange,
-            shouldCancel: shouldCancel,
-            onCancel: onCancel,
-            onDismiss: { [weak self] in
-                self?.forkState.clearEditMode()
-                await onDismiss()
-            },
-            onEditModeComplete: { [weak self] substitution in
-                self?.forkState.pendingDictionaryEntry = substitution
-                self?.forkState.clearEditMode()
-                self?.recordingState = .idle
-                self?.startDictionaryDismissTimer()
-            },
-            requestCandidateReview: { [weak self] assessment in
-                guard let self else {
-                    return VocoCandidateSelection(candidate: assessment.selectedCandidate, source: .automaticFallback)
-                }
-                return await self.requestCandidateReview(assessment)
-            }
-        )
-
-        forkState.clearEditMode()
-    }
-
     // MARK: - Dictionary Dismiss Timer
 
     /// Confirms the pending dictionary entry and saves it as a WordReplacement.
@@ -96,7 +46,7 @@ extension VoiceInkEngine {
             duration: 2.0
         )
         forkState.pendingDictionaryEntry = nil
-        Task { await recorderUIManager?.dismissMiniRecorder() }
+        Task { await recorderUIManager?.dismissRecorderPanel() }
     }
 
     /// Dismisses the pending dictionary entry without saving.
@@ -104,7 +54,7 @@ extension VoiceInkEngine {
         dictionaryDismissTimer?.cancel()
         dictionaryDismissTimer = nil
         forkState.pendingDictionaryEntry = nil
-        Task { await recorderUIManager?.dismissMiniRecorder() }
+        Task { await recorderUIManager?.dismissRecorderPanel() }
     }
 
     // MARK: - Candidate Review
@@ -180,7 +130,7 @@ extension VoiceInkEngine {
                     )
                 }
                 self.forkState.pendingDictionaryEntry = nil
-                await self.recorderUIManager?.dismissMiniRecorder()
+                await self.recorderUIManager?.dismissRecorderPanel()
             }
         }
         dictionaryDismissTimer = work

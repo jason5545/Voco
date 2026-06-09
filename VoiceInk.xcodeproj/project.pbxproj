@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		E11BBA4E2E5DC555000AB839 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = E11BBA4D2E5DC555000AB839 /* FluidAudio */; };
 		E1342C1F2EB4844800CED8A2 /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E1342C1E2EB4844800CED8A2 /* Atomics */; };
+		E13461ED2FD1CCCD005B6A81 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = E13461EC2FD1CCCD005B6A81 /* MarkdownUI */; };
 		E15433AB2F86A73C0083437A /* LLMkit in Frameworks */ = {isa = PBXBuildFile; productRef = E15433AA2F86A73C0083437A /* LLMkit */; };
 		E161D4A12F41ECB90086F83D /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E161D4A02F41ECB90086F83D /* CloudKit.framework */; };
 		E1ADD45A2CC5352A00303ECB /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = E1ADD4592CC5352A00303ECB /* LaunchAtLogin */; };
@@ -29,6 +30,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E1F511102FA3B47000F00001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E11473AF2CBE0F0A00318EE4 /* VoiceInk */;
+		};
 		KB010000000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -66,7 +74,6 @@
 				"Services/AIEnhancement/AIEnhancementOutputFilter.swift",
 				"Services/AIEnhancement/ReasoningConfig.swift",
 				"Models/AIPrompts.swift",
-				"Models/PredefinedPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
 				"Models/TranscriptionModel.swift",
@@ -90,7 +97,6 @@
 				AppIdentifiers.swift,
 				"Models/TranscriptionModel.swift",
 				"Models/AIPrompts.swift",
-				"Models/PredefinedPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
 					"Transcription/Engine/WhisperTokens.swift",
@@ -174,6 +180,7 @@
 		E11473B22CBE0F0A00318EE4 /* VoiceInk */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				E1F511102FA3B47000F00001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 				KB010000000000000000000E /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 				IA0100000000000000000009 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
@@ -214,6 +221,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E1342C1F2EB4844800CED8A2 /* Atomics in Frameworks */,
+				E13461ED2FD1CCCD005B6A81 /* MarkdownUI in Frameworks */,
 				E1F350112F1D10D600790A2C /* whisper.xcframework in Frameworks */,
 				E1ECEC162E44591300DFFBA8 /* Zip in Frameworks */,
 				E1ADD45A2CC5352A00303ECB /* LaunchAtLogin in Frameworks */,
@@ -326,6 +334,7 @@
 				E1ECEC152E44591300DFFBA8 /* Zip */,
 				E11BBA4D2E5DC555000AB839 /* FluidAudio */,
 				E1342C1E2EB4844800CED8A2 /* Atomics */,
+				E13461EC2FD1CCCD005B6A81 /* MarkdownUI */,
 				E1F1037A2EF85FC700A4FF94 /* SelectedTextKit */,
 				E1Q3A0022F0000000000A002 /* MLX */,
 				E1Q3A0032F0000000000A003 /* MLXNN */,
@@ -480,6 +489,7 @@
 				E1ECEC142E44590200DFFBA8 /* XCRemoteSwiftPackageReference "Zip" */,
 				E11BBA4C2E5DC555000AB839 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 				E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */,
+				E13461EB2FD1CCCD005B6A81 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				E1F103792EF85FC700A4FF94 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				E1Q3A0012F0000000000A001 /* XCRemoteSwiftPackageReference "mlx-swift" */,
 				RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */,
@@ -739,7 +749,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-					MARKETING_VERSION = 1.79;
+					MARKETING_VERSION = 2.0;
 					PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
 					PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
@@ -773,7 +783,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
-					MARKETING_VERSION = 1.79;
+					MARKETING_VERSION = 2.0;
 					PRODUCT_BUNDLE_IDENTIFIER = com.jasonchien.Voco;
 					PRODUCT_NAME = Voco;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_NATIVE_SPEECH_ANALYZER $(inherited)";
@@ -1047,6 +1057,14 @@
 				minimumVersion = 1.3.0;
 			};
 		};
+		E13461EB2FD1CCCD005B6A81 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
 		E15433A92F86A73C0083437A /* XCRemoteSwiftPackageReference "LLMkit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Beingpax/LLMkit.git";
@@ -1123,6 +1141,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E1342C1D2EB4844800CED8A2 /* XCRemoteSwiftPackageReference "swift-atomics" */;
 			productName = Atomics;
+		};
+		E13461EC2FD1CCCD005B6A81 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E13461EB2FD1CCCD005B6A81 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
 		};
 		E15433AA2F86A73C0083437A /* LLMkit */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -23,9 +23,10 @@ struct VoiceInkApp: App {
     @StateObject private var aiService = AIService()
     @StateObject private var enhancementService: AIEnhancementService
     @StateObject private var activeWindowService = ActiveWindowService.shared
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasCompletedOnboardingV2") private var hasCompletedOnboardingV2 = false
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @State private var showMenuBarIcon = true
+    @State private var didShowAccessibilityReminder = false
 
     // Audio cleanup manager for automatic deletion of old audio files
     private let audioCleanupManager = AudioCleanupManager.shared
@@ -41,18 +42,15 @@ struct VoiceInkApp: App {
         URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 0)
 
         AppDefaults.registerDefaults()
+        OnboardingV2Migration.prepareIfNeeded()
 
-        if UserDefaults.standard.object(forKey: "powerModeUIFlag") == nil {
-            let hasEnabledPowerModes = PowerModeManager.shared.configurations.contains { $0.isEnabled }
-            UserDefaults.standard.set(hasEnabledPowerModes, forKey: "powerModeUIFlag")
-        }
-
-        let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Initialization")
+        let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Initialization")
+        // Keep existing model order stable; append new models after synced entities.
         let schema = Schema([
             Transcription.self,
             VocabularyWord.self,
             WordReplacement.self,
-            SessionMetric.self,
+            SessionMetric.self
         ])
         var initializationFailed = false
         let resolvedContainer: ModelContainer
@@ -70,10 +68,10 @@ struct VoiceInkApp: App {
             // Show alert to user about storage issue
             DispatchQueue.main.async {
                 let alert = NSAlert()
-                alert.messageText = String(localized: "Storage Warning")
-                alert.informativeText = String(localized: "Voco couldn't access its storage location. Your transcriptions will not be saved between sessions.")
+                alert.messageText = "Storage Warning"
+                alert.informativeText = "Voco couldn't access its storage location. Your transcriptions will not be saved between sessions."
                 alert.alertStyle = .warning
-                alert.addButton(withTitle: String(localized: "OK"))
+                alert.addButton(withTitle: "OK")
                 alert.runModal()
             }
         }
@@ -91,10 +89,12 @@ struct VoiceInkApp: App {
 
         container = resolvedContainer
         containerInitializationFailed = initializationFailed
+        DictionaryService.removeExactDuplicateContent(context: resolvedContainer.mainContext, source: "launch")
 
         // Initialize services with proper sharing of instances
         let aiService = AIService()
         _aiService = StateObject(wrappedValue: aiService)
+        aiService.refreshOllamaAvailabilityInBackground()
 
         let updaterViewModel = UpdaterViewModel()
         _updaterViewModel = StateObject(wrappedValue: updaterViewModel)
@@ -153,15 +153,14 @@ struct VoiceInkApp: App {
         menuBarManager.configure(modelContainer: resolvedContainer, engine: engine)
 
         let activeWindowService = ActiveWindowService.shared
-        activeWindowService.configure(with: enhancementService)
         _activeWindowService = StateObject(wrappedValue: activeWindowService)
 
         let prewarmService = ModelPrewarmService(
             transcriptionModelManager: transcriptionModelManager,
             serviceRegistry: engine.serviceRegistry
         )
-        _prewarmService = StateObject(wrappedValue: prewarmService)
         engine.prewarmService = prewarmService
+        _prewarmService = StateObject(wrappedValue: prewarmService)
 
         appDelegate.menuBarManager = menuBarManager
 
@@ -186,7 +185,7 @@ struct VoiceInkApp: App {
         do {
             // Create app-specific Application Support directory URL
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(AppIdentifiers.bundleID, isDirectory: true)
+                .appendingPathComponent("com.prakashjoshipax.VoiceInk", isDirectory: true)
 
             // Create the directory if it doesn't exist
             try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
@@ -197,7 +196,9 @@ struct VoiceInkApp: App {
             let statsStoreURL = appSupportURL.appendingPathComponent("stats.store")
 
             // Transcript configuration
-            let transcriptSchema = Schema([Transcription.self])
+            let transcriptSchema = Schema([
+                Transcription.self
+            ])
             let transcriptConfig = ModelConfiguration(
                 "default",
                 schema: transcriptSchema,
@@ -210,7 +211,7 @@ struct VoiceInkApp: App {
             #if LOCAL_BUILD
             let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .none
             #else
-            let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .private(AppIdentifiers.cloudKitContainer)
+            let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .private("iCloud.com.prakashjoshipax.VoiceInk")
             #endif
             let dictionaryConfig = ModelConfiguration(
                 "dictionary",
@@ -242,7 +243,9 @@ struct VoiceInkApp: App {
     private static func createInMemoryContainer(schema: Schema, logger: Logger) -> ModelContainer? {
         do {
             // Transcript configuration
-            let transcriptSchema = Schema([Transcription.self])
+            let transcriptSchema = Schema([
+                Transcription.self
+            ])
             let transcriptConfig = ModelConfiguration(
                 "default",
                 schema: transcriptSchema,
@@ -273,78 +276,77 @@ struct VoiceInkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if hasCompletedOnboarding {
-                ContentView()
-                    .environmentObject(engine)
-                    .environmentObject(whisperModelManager)
-                    .environmentObject(fluidAudioModelManager)
-                    .environmentObject(transcriptionModelManager)
-                    .environmentObject(recorderUIManager)
-                    .environmentObject(recordingShortcutManager)
-                    .environmentObject(updaterViewModel)
-                    .environmentObject(menuBarManager)
-                    .environmentObject(aiService)
-                    .environmentObject(enhancementService)
-                    .modelContainer(container)
-                    .onAppear {
-                        // Check if container initialization failed
-                        if containerInitializationFailed {
-                            let alert = NSAlert()
-                            alert.messageText = String(localized: "Critical Storage Error")
-                            alert.informativeText = String(localized: "Voco cannot initialize its storage system. The app cannot continue.\n\nPlease try reinstalling the app or contact support if the issue persists.")
-                            alert.alertStyle = .critical
-                            alert.addButton(withTitle: String(localized: "Quit"))
-                            alert.runModal()
+            Group {
+                if hasCompletedOnboardingV2 {
+                    ContentView()
+                        .environmentObject(engine)
+                        .environmentObject(whisperModelManager)
+                        .environmentObject(fluidAudioModelManager)
+                        .environmentObject(transcriptionModelManager)
+                        .environmentObject(recorderUIManager)
+                        .environmentObject(recordingShortcutManager)
+                        .environmentObject(updaterViewModel)
+                        .environmentObject(menuBarManager)
+                        .environmentObject(aiService)
+                        .environmentObject(enhancementService)
+                        .modelContainer(container)
+                        .onAppear {
+                            // Check if container initialization failed
+                            if containerInitializationFailed {
+                                let alert = NSAlert()
+                                alert.messageText = "Critical Storage Error"
+                                alert.informativeText = "Voco cannot initialize its storage system. The app cannot continue.\n\nPlease try reinstalling the app or contact support if the issue persists."
+                                alert.alertStyle = .critical
+                                alert.addButton(withTitle: "Quit")
+                                alert.runModal()
 
-                            NSApplication.shared.terminate(nil)
-                            return
-                        }
-
-                        if enableAnnouncements {
-                            AnnouncementsService.shared.start()
-                        }
-
-                        // Start the automatic audio cleanup process only if transcript cleanup is not enabled
-                        if !UserDefaults.standard.bool(forKey: "IsTranscriptionCleanupEnabled") {
-                            audioCleanupManager.startAutomaticCleanup(modelContext: container.mainContext)
-                        }
-
-                        // Process any pending open-file request now that the main ContentView is ready.
-                        if let pendingURL = appDelegate.pendingOpenFileURL {
-                            NotificationCenter.default.post(name: .navigateToDestination, object: nil, userInfo: ["destination": "Transcribe Audio"])
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                NotificationCenter.default.post(name: .openFileForTranscription, object: nil, userInfo: ["url": pendingURL])
+                                NSApplication.shared.terminate(nil)
+                                return
                             }
-                            appDelegate.pendingOpenFileURL = nil
-                        }
-                    }
-                    .background(WindowAccessor { window in
-                        WindowManager.shared.configureWindow(window)
-                    })
-                    .onDisappear {
-                        AnnouncementsService.shared.stop()
-                        whisperModelManager.unloadModel()
 
-                        // Stop the automatic audio cleanup process
-                        audioCleanupManager.stopAutomaticCleanup()
-                    }
-            } else {
-                OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
-                    .environmentObject(recordingShortcutManager)
-                    .environmentObject(engine)
-                    .environmentObject(whisperModelManager)
-                    .environmentObject(fluidAudioModelManager)
-                    .environmentObject(transcriptionModelManager)
-                    .environmentObject(recorderUIManager)
-                    .environmentObject(aiService)
-                    .environmentObject(enhancementService)
-                    .frame(minWidth: 880, minHeight: 780)
-                    .background(WindowAccessor { window in
-                        if window.identifier == nil || window.identifier != NSUserInterfaceItemIdentifier("\(AppIdentifiers.subsystem).onboardingWindow") {
-                            WindowManager.shared.configureOnboardingPanel(window)
+                            if enableAnnouncements {
+                                AnnouncementsService.shared.start()
+                            }
+
+                            showAccessibilityReminderIfNeeded()
+
+                            // Start the automatic audio cleanup process only if transcript cleanup is not enabled
+                            if !UserDefaults.standard.bool(forKey: "IsTranscriptionCleanupEnabled") {
+                                audioCleanupManager.startAutomaticCleanup(modelContext: container.mainContext)
+                            }
+
+                            // Process any pending open-file request now that the main ContentView is ready.
+                            if let pendingURL = appDelegate.pendingOpenFileURL {
+                                NotificationCenter.default.post(name: .navigateToDestination, object: nil, userInfo: ["destination": "Transcribe Audio"])
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    NotificationCenter.default.post(name: .openFileForTranscription, object: nil, userInfo: ["url": pendingURL])
+                                }
+                                appDelegate.pendingOpenFileURL = nil
+                            }
                         }
-                    })
+                        .background(WindowAccessor { window in
+                            WindowManager.shared.configureWindow(window)
+                        })
+                        .onDisappear {
+                            AnnouncementsService.shared.stop()
+                            whisperModelManager.unloadModel()
+
+                            // Stop the automatic audio cleanup process
+                            audioCleanupManager.stopAutomaticCleanup()
+                        }
+                } else {
+                    OnboardingView(hasCompletedOnboardingV2: $hasCompletedOnboardingV2)
+                        .environmentObject(fluidAudioModelManager)
+                        .environmentObject(aiService)
+                        .environmentObject(enhancementService)
+                        .frame(width: 950)
+                        .frame(minHeight: 730)
+                        .background(WindowAccessor { window in
+                            WindowManager.shared.configureWindow(window)
+                        })
+                }
             }
+            .confettiCelebrationPresenter()
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 950, height: 730)
@@ -388,6 +390,26 @@ struct VoiceInkApp: App {
             }
         }
         #endif
+    }
+
+    private func showAccessibilityReminderIfNeeded() {
+        guard !didShowAccessibilityReminder else { return }
+        didShowAccessibilityReminder = true
+
+        guard !AXIsProcessTrusted() else { return }
+
+        NotificationManager.shared.showNotification(
+            title: "Accessibility permission is not provided",
+            type: .warning,
+            duration: 7.0,
+            actionButton: ("Open Settings", Self.openAccessibilitySettings)
+        )
+    }
+
+    private static func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 

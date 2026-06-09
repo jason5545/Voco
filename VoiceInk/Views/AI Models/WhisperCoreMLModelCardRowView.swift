@@ -28,7 +28,7 @@ struct WhisperCoreMLModelCardRowView: View {
             actionSection
         }
         .padding(16)
-        .background(CardBackground(isSelected: isCurrent, useAccentGradientWhenSelected: isCurrent))
+        .background(AppMaterialCardBackground(isSelected: isCurrent, cornerRadius: AppTheme.Radius.card))
     }
 
     private var headerSection: some View {

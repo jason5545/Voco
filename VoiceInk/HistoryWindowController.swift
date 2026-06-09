@@ -6,7 +6,7 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
     static let shared = HistoryWindowController()
 
     private var historyWindow: NSWindow?
-    private let windowIdentifier = NSUserInterfaceItemIdentifier("\(AppIdentifiers.subsystem).historyWindow")
+    private let windowIdentifier = NSUserInterfaceItemIdentifier("com.prakashjoshipax.voiceink.historyWindow")
     private let windowAutosaveName = NSWindow.FrameAutosaveName("VoiceInkHistoryWindowFrame")
 
     private override init() {
@@ -46,12 +46,13 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
         )
 
         window.contentViewController = hostingController
-        window.title = "Voco — Transcription History"
+        window.title = "History"
         window.identifier = windowIdentifier
         window.delegate = self
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .visible
-        window.backgroundColor = NSColor.windowBackgroundColor
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.fullScreenPrimary]
         window.minSize = NSSize(width: 1150, height: 700)

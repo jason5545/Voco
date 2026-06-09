@@ -4,72 +4,18 @@ import AppKit
 import os
 import LLMkit
 
-enum EnhancementPrompt {
-    case transcriptionEnhancement
-    case aiAssistant
-}
-
 @MainActor
 class AIEnhancementService: ObservableObject {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AIEnhancementService")
 
-    @Published var isEnhancementEnabled: Bool {
-        didSet {
-            guard isEnhancementEnabled != oldValue else { return }
-            UserDefaults.standard.set(isEnhancementEnabled, forKey: "isAIEnhancementEnabled")
-            if isEnhancementEnabled && selectedPromptId == nil {
-                selectedPromptId = customPrompts.first?.id
-            }
-            NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
-            NotificationCenter.default.post(name: .enhancementToggleChanged, object: nil)
-        }
-    }
-
-    @Published var useClipboardContext: Bool {
-        didSet {
-            guard useClipboardContext != oldValue else { return }
-            UserDefaults.standard.set(useClipboardContext, forKey: "useClipboardContext")
-        }
-    }
-
-    @Published var useScreenCaptureContext: Bool {
-        didSet {
-            guard useScreenCaptureContext != oldValue else { return }
-            UserDefaults.standard.set(useScreenCaptureContext, forKey: "useScreenCaptureContext")
-            NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
-        }
-    }
-
-    @Published var useAppContext: Bool {
-        didSet {
-            guard useAppContext != oldValue else { return }
-            UserDefaults.standard.set(useAppContext, forKey: "useAppContext")
-        }
-    }
-
     @Published var customPrompts: [CustomPrompt] {
         didSet {
-            if let encoded = try? JSONEncoder().encode(customPrompts) {
-                UserDefaults.standard.set(encoded, forKey: "customPrompts")
-            }
-        }
-    }
-
-    @Published var selectedPromptId: UUID? {
-        didSet {
-            guard selectedPromptId != oldValue else { return }
-            UserDefaults.standard.set(selectedPromptId?.uuidString, forKey: "selectedPromptId")
-            NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
-            NotificationCenter.default.post(name: .promptSelectionChanged, object: nil)
+            savePrompts()
         }
     }
 
     @Published var lastSystemMessageSent: String?
     @Published var lastUserMessageSent: String?
-
-    var activePrompt: CustomPrompt? {
-        allPrompts.first { $0.id == selectedPromptId }
-    }
 
     var allPrompts: [CustomPrompt] {
         return customPrompts
@@ -88,7 +34,7 @@ class AIEnhancementService: ObservableObject {
     
     @Published var lastCapturedClipboard: String?
 
-    // Cached app context — populated at recording start, consumed by getSystemMessage()
+    // Captured at recording start so enhancement does not perform a late AX query.
     var cachedAppName: String?
     var cachedWindowTitle: String?
     var cachedSelectedText: String?
@@ -99,11 +45,6 @@ class AIEnhancementService: ObservableObject {
         self.screenCaptureService = ScreenCaptureService()
         self.customVocabularyService = CustomVocabularyService.shared
 
-        self.isEnhancementEnabled = UserDefaults.standard.bool(forKey: "isAIEnhancementEnabled")
-        self.useClipboardContext = UserDefaults.standard.bool(forKey: "useClipboardContext")
-        self.useScreenCaptureContext = UserDefaults.standard.bool(forKey: "useScreenCaptureContext")
-        self.useAppContext = UserDefaults.standard.object(forKey: "useAppContext") as? Bool ?? true
-
         if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
            let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
             self.customPrompts = decodedPrompts
@@ -111,13 +52,7 @@ class AIEnhancementService: ObservableObject {
             self.customPrompts = []
         }
 
-        if let savedPromptId = UserDefaults.standard.string(forKey: "selectedPromptId") {
-            self.selectedPromptId = UUID(uuidString: savedPromptId)
-        }
-
-        if isEnhancementEnabled && (selectedPromptId == nil || !allPrompts.contains(where: { $0.id == selectedPromptId })) {
-            self.selectedPromptId = allPrompts.first?.id
-        }
+        repairModePromptSelections()
 
         NotificationCenter.default.addObserver(
             self,
@@ -125,8 +60,6 @@ class AIEnhancementService: ObservableObject {
             name: .aiProviderKeyChanged,
             object: nil
         )
-
-        initializePredefinedPrompts()
     }
 
     deinit {
@@ -136,9 +69,6 @@ class AIEnhancementService: ObservableObject {
     @objc private func handleAPIKeyChange() {
         DispatchQueue.main.async {
             self.objectWillChange.send()
-            if !self.aiService.isAPIKeyValid {
-                self.isEnhancementEnabled = false
-            }
         }
     }
 
@@ -146,8 +76,31 @@ class AIEnhancementService: ObservableObject {
         return aiService
     }
 
+    func isConfigured(for configuration: EnhancementRuntimeConfiguration) -> Bool {
+        guard configuration.prompt != nil else { return false }
+        guard let provider = configuration.provider else { return false }
+
+        if provider == .localCLI || provider == .ollama {
+            return true
+        }
+
+        if provider == .custom {
+            guard let modelName = configuration.modelName else { return false }
+            return CustomAIProviderManager.shared.requestConfiguration(forModel: modelName) != nil
+        }
+
+        return APIKeyManager.shared.hasAPIKey(forProvider: provider.rawValue)
+    }
+
+    var currentRuntimeConfiguration: EnhancementRuntimeConfiguration {
+        ModeRuntimeResolver.currentEnhancementConfiguration(
+            enhancementService: self,
+            aiService: aiService
+        )
+    }
+
     var isConfigured: Bool {
-        aiService.isAPIKeyValid
+        isConfigured(for: currentRuntimeConfiguration)
     }
 
     private func waitForRateLimit() async throws {
@@ -160,16 +113,28 @@ class AIEnhancementService: ObservableObject {
         lastRequestTime = Date()
     }
 
-    private func getSystemMessage(for mode: EnhancementPrompt) async -> String {
-        // Use cached selected text (captured at recording start) instead of live AX query
+    private func getSystemMessage(
+        prompt: CustomPrompt,
+        configuration: EnhancementRuntimeConfiguration,
+        contextSnapshot: RecordingContextSnapshot?
+    ) async -> String {
+        let useSelectedText = configuration.useSelectedTextContext
+        let useClipboard = configuration.useClipboardContext
+        let useScreenCapture = configuration.useScreenCaptureContext
+
+        lastCapturedClipboard = contextSnapshot?.clipboardText
+        screenCaptureService.lastCapturedText = contextSnapshot?.screenText
+
         let selectedTextContext: String
-        if let selectedText = cachedSelectedText, !selectedText.isEmpty {
+        if useSelectedText,
+           let selectedText = contextSnapshot?.selectedText ?? cachedSelectedText,
+           !selectedText.isEmpty {
             selectedTextContext = "\n\n<CURRENTLY_SELECTED_TEXT>\n\(selectedText)\n</CURRENTLY_SELECTED_TEXT>"
         } else {
             selectedTextContext = ""
         }
 
-        let clipboardContext = if useClipboardContext,
+        let clipboardContext = if useClipboard,
                               let clipboardText = lastCapturedClipboard,
                               !clipboardText.isEmpty {
             "\n\n<CLIPBOARD_CONTEXT>\n\(clipboardText)\n</CLIPBOARD_CONTEXT>"
@@ -177,7 +142,7 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
-        let screenCaptureContext = if useScreenCaptureContext,
+        let screenCaptureContext = if useScreenCapture,
                                    let capturedText = screenCaptureService.lastCapturedText,
                                    !capturedText.isEmpty {
             "\n\n<CURRENT_WINDOW_CONTEXT>\n\(capturedText)\n</CURRENT_WINDOW_CONTEXT>"
@@ -185,9 +150,8 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
-        // Use cached app context (captured at recording start) instead of live AX query
         let appContext: String
-        if useAppContext, let appName = cachedAppName {
+        if let appName = cachedAppName, !appName.isEmpty {
             let titlePart = (cachedWindowTitle?.isEmpty == false) ? " - \(cachedWindowTitle!)" : ""
             appContext = "\n\n<ACTIVE_APPLICATION>\n\(appName)\(titlePart)\n</ACTIVE_APPLICATION>"
         } else {
@@ -202,7 +166,7 @@ class AIEnhancementService: ObservableObject {
             """
 
 
-            The following are important vocabulary words, proper nouns, and technical terms. When these words or similar-sounding words appear in the <TRANSCRIPT>, ensure they are spelled EXACTLY as shown below:
+            The following are important vocabulary words, proper nouns, and technical terms. When these words or similar-sounding words appear in the <USER_MESSAGE>, ensure they are spelled EXACTLY as shown below:
             <CUSTOM_VOCABULARY>
             \(customVocabulary)
             </CUSTOM_VOCABULARY>
@@ -211,111 +175,98 @@ class AIEnhancementService: ObservableObject {
             ""
         }
 
-        // Recent transcriptions context (for Chinese post-processing disambiguation)
         let postProcessor = ChinesePostProcessingService.shared
         let recentTranscriptionsSection: String
         if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
             let recent = postProcessor.contextMemory.getRecent(count: 5)
-            if !recent.isEmpty {
-                let numbered = recent.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-                recentTranscriptionsSection = """
-
-
-                <RECENT_TRANSCRIPTIONS>
-                \(numbered)
-                </RECENT_TRANSCRIPTIONS>
-                """
-            } else {
-                recentTranscriptionsSection = ""
-            }
+            recentTranscriptionsSection = recent.isEmpty
+                ? ""
+                : "\n\n<RECENT_TRANSCRIPTIONS>\n\(recent.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))\n</RECENT_TRANSCRIPTIONS>"
         } else {
             recentTranscriptionsSection = ""
         }
 
-        // Known ASR errors from WordReplacement dictionary (Feature 2)
-        let knownASRErrorsSection: String
+        let uncertainWords = postProcessor.lastUncertainWords
+        let uncertainWordsSection = uncertainWords.isEmpty
+            ? ""
+            : "\n\n<UNCERTAIN_WORDS>\n\(uncertainWords.map { "「\($0.text)」" }.joined(separator: "、"))\n</UNCERTAIN_WORDS>"
+
         let descriptor = FetchDescriptor<WordReplacement>(
             predicate: #Predicate { $0.isEnabled },
             sortBy: [SortDescriptor(\WordReplacement.dateAdded, order: .reverse)]
         )
-        let replacements = (try? modelContext.fetch(descriptor)) ?? []
-        if !replacements.isEmpty {
-            let entries = replacements.prefix(30).compactMap { r -> String? in
-                let orig = r.originalText.split(separator: ",").first?
+        let knownASRErrors = ((try? modelContext.fetch(descriptor)) ?? [])
+            .prefix(30)
+            .compactMap { replacement -> String? in
+                let original = replacement.originalText.split(separator: ",").first?
                     .trimmingCharacters(in: .whitespaces) ?? ""
-                guard !orig.isEmpty, !r.replacementText.isEmpty else { return nil }
-                guard !CorrectionProtectionList.shared.containsProtectedTerm(in: orig) else { return nil }
-                // Latin→Latin pairs are handled by WordReplacementService before LLM.
-                // Only inject CJK-origin entries (homophone errors the LLM needs).
-                guard orig.contains(where: \.isCJK) else { return nil }
-                return "「\(orig)」→「\(r.replacementText)」"
+                guard !original.isEmpty,
+                      !replacement.replacementText.isEmpty,
+                      original.contains(where: \.isCJK),
+                      !CorrectionProtectionList.shared.containsProtectedTerm(in: original) else {
+                    return nil
+                }
+                return "「\(original)」→「\(replacement.replacementText)」"
             }
-            if !entries.isEmpty {
-                knownASRErrorsSection = "\n\n<KNOWN_ASR_ERRORS>\n以下是已知的語音辨識錯誤對照。只有在轉錄文字中「完整出現」左側詞彙時才替換為右側，不可部分匹配（例如規則寫「歷史階梯」→「歷史節點」，則只替換「歷史階梯」，不可看到「階梯」就改成「歷史節點」）：\n\(entries.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
-            } else {
-                knownASRErrorsSection = ""
-            }
-        } else {
-            knownASRErrorsSection = ""
-        }
+        let knownASRErrorsSection = knownASRErrors.isEmpty
+            ? ""
+            : "\n\n<KNOWN_ASR_ERRORS>\n\(knownASRErrors.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
 
-        // Uncertain words from ASR logprob (Feature 1)
-        let uncertainWordsSection: String
-        let uncertainWords = ChinesePostProcessingService.shared.lastUncertainWords
-        if !uncertainWords.isEmpty {
-            let wordList = uncertainWords.map { "「\($0.text)」" }.joined(separator: "、")
-            uncertainWordsSection = "\n\n<UNCERTAIN_WORDS>\n以下詞彙的語音辨識信心度較低，可能是辨識錯誤，請特別注意：\n\(wordList)\n</UNCERTAIN_WORDS>"
-        } else {
-            uncertainWordsSection = ""
-        }
+        let finalContextSection = allContextSections
+            + customVocabularySection
+            + recentTranscriptionsSection
+            + uncertainWordsSection
+            + knownASRErrorsSection
 
-        let finalContextSection = allContextSections + customVocabularySection + recentTranscriptionsSection + uncertainWordsSection + knownASRErrorsSection
-
-        if let activePrompt = activePrompt {
-            if activePrompt.id == PredefinedPrompts.assistantPromptId {
-                return activePrompt.promptText + finalContextSection
-            } else {
-                return activePrompt.finalPromptText + finalContextSection
-            }
-        } else {
-            let defaultPrompt = allPrompts.first(where: { $0.id == PredefinedPrompts.defaultPromptId }) ?? allPrompts.first!
-            return defaultPrompt.finalPromptText + finalContextSection
-        }
+        return prompt.finalPromptText + finalContextSection
     }
 
-    // internal for fork extension access (AIEnhancementService+ForkEnhancements.swift)
-    func makeRequest(text: String, mode: EnhancementPrompt,
-                     systemMessageOverride: String? = nil,
-                     userMessageOverride: String? = nil) async throws -> String {
-        guard isConfigured else {
+    func makeRequest(
+        text: String,
+        configuration: EnhancementRuntimeConfiguration,
+        contextSnapshot: RecordingContextSnapshot? = nil,
+        systemMessageOverride: String? = nil,
+        userMessageOverride: String? = nil
+    ) async throws -> String {
+        guard isConfigured(for: configuration) else {
             throw EnhancementError.notConfigured
         }
 
-        if systemMessageOverride == nil && userMessageOverride == nil {
-            guard !text.isEmpty else {
-                return "" // Silently return empty string instead of throwing error
-            }
+        guard let provider = configuration.provider else {
+            throw EnhancementError.notConfigured
+        }
+        let modelName = configuration.modelName ?? provider.defaultModel
+
+        if systemMessageOverride == nil && userMessageOverride == nil && text.isEmpty {
+            return ""
         }
 
-        let formattedText = userMessageOverride ?? "\n<TRANSCRIPT>\n\(text)\n</TRANSCRIPT>"
+        let formattedText = userMessageOverride ?? "\n<USER_MESSAGE>\n\(text)\n</USER_MESSAGE>"
         let systemMessage: String
-        if let override = systemMessageOverride {
-            systemMessage = override
+        if let systemMessageOverride {
+            systemMessage = systemMessageOverride
         } else {
-            systemMessage = await getSystemMessage(for: mode)
+            guard let prompt = configuration.prompt else {
+                throw EnhancementError.notConfigured
+            }
+            systemMessage = await getSystemMessage(
+                prompt: prompt,
+                configuration: configuration,
+                contextSnapshot: contextSnapshot
+            )
         }
-
 
         await MainActor.run {
             self.lastSystemMessageSent = systemMessage
             self.lastUserMessageSent = formattedText
         }
 
-        if aiService.selectedProvider == .ollama {
+        if provider == .ollama {
             do {
                 let result = try await aiService.enhanceWithOllama(
                     text: formattedText,
                     systemPrompt: systemMessage,
+                    model: modelName,
                     timeout: baseTimeout
                 )
                 return AIEnhancementOutputFilter.filter(result)
@@ -333,7 +284,7 @@ class AIEnhancementService: ObservableObject {
             }
         }
 
-        if aiService.selectedProvider == .localCLI {
+        if provider == .localCLI {
             do {
                 let result = try await aiService.enhanceWithLocalCLI(systemPrompt: systemMessage, userPrompt: formattedText)
                 return AIEnhancementOutputFilter.filter(result)
@@ -350,32 +301,46 @@ class AIEnhancementService: ObservableObject {
 
         do {
             let result: String
-            switch aiService.selectedProvider {
+            switch provider {
             case .anthropic:
                 result = try await AnthropicLLMClient.chatCompletion(
-                    apiKey: aiService.apiKey,
-                    model: aiService.currentModel,
+                    apiKey: try apiKey(for: provider, modelName: modelName),
+                    model: modelName,
                     messages: [.user(formattedText)],
                     systemPrompt: systemMessage,
                     timeout: baseTimeout
                 )
-            default:
-                guard let baseURL = URL(string: aiService.selectedProvider.baseURL) else {
-                    throw EnhancementError.customError("\(aiService.selectedProvider.rawValue) has an invalid API endpoint URL. Please update it in AI settings.")
+            case .custom:
+                guard let customConfiguration = CustomAIProviderManager.shared.requestConfiguration(forModel: modelName),
+                      let baseURL = URL(string: customConfiguration.baseURL) else {
+                    throw EnhancementError.notConfigured
                 }
-                let temperature = aiService.currentModel.lowercased().hasPrefix("gpt-5") ? 1.0 : 0.3
+                result = try await OpenAILLMClient.chatCompletion(
+                    baseURL: baseURL,
+                    apiKey: customConfiguration.apiKey,
+                    model: customConfiguration.modelName,
+                    messages: [.user(formattedText)],
+                    systemPrompt: systemMessage,
+                    temperature: 0.3,
+                    timeout: baseTimeout
+                )
+            default:
+                guard let baseURL = URL(string: provider.baseURL) else {
+                    throw EnhancementError.customError("\(provider.rawValue) has an invalid API endpoint URL. Please update it in AI settings.")
+                }
+                let temperature = modelName.lowercased().hasPrefix("gpt-5") ? 1.0 : 0.3
                 let reasoningEffort = ReasoningConfig.getReasoningParameter(
-                    for: aiService.selectedProvider,
-                    modelName: aiService.currentModel
+                    for: provider,
+                    modelName: modelName
                 )
                 let extraBody = ReasoningConfig.getExtraBodyParameters(
-                    for: aiService.selectedProvider,
-                    modelName: aiService.currentModel
+                    for: provider,
+                    modelName: modelName
                 )
                 result = try await OpenAILLMClient.chatCompletion(
                     baseURL: baseURL,
-                    apiKey: aiService.apiKey,
-                    model: aiService.currentModel,
+                    apiKey: try apiKey(for: provider, modelName: modelName),
+                    model: modelName,
                     messages: [.user(formattedText)],
                     systemPrompt: systemMessage,
                     temperature: temperature,
@@ -392,6 +357,20 @@ class AIEnhancementService: ObservableObject {
         } catch {
             throw EnhancementError.customError(error.localizedDescription)
         }
+    }
+
+    private func apiKey(for provider: AIProvider, modelName: String) throws -> String {
+        if provider == .custom {
+            guard let customConfiguration = CustomAIProviderManager.shared.requestConfiguration(forModel: modelName) else {
+                throw EnhancementError.notConfigured
+            }
+            return customConfiguration.apiKey
+        }
+
+        guard let key = APIKeyManager.shared.getAPIKey(forProvider: provider.rawValue), !key.isEmpty else {
+            throw EnhancementError.notConfigured
+        }
+        return key
     }
 
     private func mapLLMKitError(_ error: LLMKitError) -> EnhancementError {
@@ -417,19 +396,27 @@ class AIEnhancementService: ObservableObject {
         UserDefaults.standard.bool(forKey: "EnhancementRetryOnTimeout")
     }
 
-    // internal for fork extension access (AIEnhancementService+ForkEnhancements.swift)
-    func makeRequestWithRetry(text: String, mode: EnhancementPrompt,
-                              systemMessageOverride: String? = nil,
-                              userMessageOverride: String? = nil,
-                              maxRetries: Int = 3, initialDelay: TimeInterval = 1.0) async throws -> String {
+    func makeRequestWithRetry(
+        text: String,
+        configuration: EnhancementRuntimeConfiguration,
+        contextSnapshot: RecordingContextSnapshot? = nil,
+        systemMessageOverride: String? = nil,
+        userMessageOverride: String? = nil,
+        maxRetries: Int = 3,
+        initialDelay: TimeInterval = 1.0
+    ) async throws -> String {
         var retries = 0
         var currentDelay = initialDelay
 
         while retries < maxRetries {
             do {
-                return try await makeRequest(text: text, mode: mode,
-                                             systemMessageOverride: systemMessageOverride,
-                                             userMessageOverride: userMessageOverride)
+                return try await makeRequest(
+                    text: text,
+                    configuration: configuration,
+                    contextSnapshot: contextSnapshot,
+                    systemMessageOverride: systemMessageOverride,
+                    userMessageOverride: userMessageOverride
+                )
             } catch let error as EnhancementError {
                 switch error {
                 case .networkError, .serverError, .rateLimitExceeded:
@@ -479,13 +466,20 @@ class AIEnhancementService: ObservableObject {
         throw EnhancementError.enhancementFailed
     }
 
-    func enhance(_ text: String) async throws -> (String, TimeInterval, String?) {
+    func enhance(
+        _ text: String,
+        configuration: EnhancementRuntimeConfiguration,
+        contextSnapshot: RecordingContextSnapshot? = nil
+    ) async throws -> (String, TimeInterval, String?) {
         let startTime = Date()
-        let enhancementPrompt: EnhancementPrompt = .transcriptionEnhancement
-        let promptName = activePrompt?.title
+        let promptName = configuration.prompt?.title
 
         do {
-            let result = try await makeRequestWithRetry(text: text, mode: enhancementPrompt)
+            let result = try await makeRequestWithRetry(
+                text: text,
+                configuration: configuration,
+                contextSnapshot: contextSnapshot
+            )
             let endTime = Date()
             let duration = endTime.timeIntervalSince(startTime)
             return (result, duration, promptName)
@@ -494,19 +488,12 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
-    // Fork-specific methods (enhanceConservative, enhanceCommaInsertion,
-    // enhanceForEditMode, enhanceMerge) are in AIEnhancementService+ForkEnhancements.swift
-
     func captureScreenContext() async {
-        guard useScreenCaptureContext else {
-            return
-        }
-
         guard CGPreflightScreenCaptureAccess() else {
             return
         }
 
-        if await screenCaptureService.captureAndExtractText() != nil {
+        if let capturedText = await screenCaptureService.captureAndExtractText() {
             await MainActor.run {
                 self.objectWillChange.send()
             }
@@ -525,12 +512,11 @@ class AIEnhancementService: ObservableObject {
         cachedSelectedText = nil
     }
 
-    func addPrompt(title: String, promptText: String, icon: PromptIcon = "doc.text.fill", description: String? = nil, triggerWords: [String] = [], useSystemInstructions: Bool = true) {
-        let newPrompt = CustomPrompt(title: title, promptText: promptText, icon: icon, description: description, isPredefined: false, triggerWords: triggerWords, useSystemInstructions: useSystemInstructions)
+    @discardableResult
+    func addPrompt(title: String, promptText: String, useSystemInstructions: Bool = true) -> CustomPrompt {
+        let newPrompt = CustomPrompt(title: title, promptText: promptText, useSystemInstructions: useSystemInstructions)
         customPrompts.append(newPrompt)
-        if customPrompts.count == 1 {
-            selectedPromptId = newPrompt.id
-        }
+        return newPrompt
     }
 
     func updatePrompt(_ prompt: CustomPrompt) {
@@ -541,36 +527,38 @@ class AIEnhancementService: ObservableObject {
 
     func deletePrompt(_ prompt: CustomPrompt) {
         customPrompts.removeAll { $0.id == prompt.id }
-        if selectedPromptId == prompt.id {
-            selectedPromptId = allPrompts.first?.id
+        repairModePromptSelections()
+    }
+
+    func repairModePromptSelections() {
+        let availablePromptIds = Set(allPrompts.map { $0.id.uuidString })
+        let fallbackPromptId = allPrompts.first?.id.uuidString
+        let modeManager = ModeManager.shared
+        var updatedConfigurations = modeManager.configurations
+        var didUpdateModes = false
+
+        for index in updatedConfigurations.indices {
+            let selectedPrompt = updatedConfigurations[index].selectedPrompt
+            let hasInvalidPrompt = selectedPrompt.map { !availablePromptIds.contains($0) } ?? false
+            let hasMissingPrompt = selectedPrompt == nil
+            let shouldAssignPrompt = updatedConfigurations[index].isAIEnhancementEnabled && hasMissingPrompt
+
+            guard hasInvalidPrompt || shouldAssignPrompt else {
+                continue
+            }
+
+            updatedConfigurations[index].selectedPrompt = fallbackPromptId
+            didUpdateModes = true
+        }
+
+        if didUpdateModes {
+            modeManager.replaceConfigurations(updatedConfigurations)
         }
     }
 
-    func setActivePrompt(_ prompt: CustomPrompt) {
-        selectedPromptId = prompt.id
-    }
-
-    private func initializePredefinedPrompts() {
-        let predefinedTemplates = PredefinedPrompts.createDefaultPrompts()
-
-        for template in predefinedTemplates {
-            if let existingIndex = customPrompts.firstIndex(where: { $0.id == template.id }) {
-                var updatedPrompt = customPrompts[existingIndex]
-                updatedPrompt = CustomPrompt(
-                    id: updatedPrompt.id,
-                    title: template.title,
-                    promptText: template.promptText,
-                    isActive: updatedPrompt.isActive,
-                    icon: template.icon,
-                    description: template.description,
-                    isPredefined: true,
-                    triggerWords: updatedPrompt.triggerWords,
-                    useSystemInstructions: template.useSystemInstructions
-                )
-                customPrompts[existingIndex] = updatedPrompt
-            } else {
-                customPrompts.append(template)
-            }
+    private func savePrompts() {
+        if let encoded = try? JSONEncoder().encode(customPrompts) {
+            UserDefaults.standard.set(encoded, forKey: "customPrompts")
         }
     }
 }

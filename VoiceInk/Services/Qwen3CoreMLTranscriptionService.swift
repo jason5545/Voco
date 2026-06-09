@@ -24,7 +24,11 @@ class Qwen3CoreMLTranscriptionService: TranscriptionService {
     /// Per-word confidence scores from the last transcription (for post-processing routing)
     var lastWordConfidences: [WordConfidence] = []
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: TranscriptionRequestContext
+    ) async throws -> String {
         guard let qwen3CoreMLModel = model as? Qwen3CoreMLModel else {
             throw Qwen3ServiceError.invalidModel
         }
@@ -37,9 +41,8 @@ class Qwen3CoreMLTranscriptionService: TranscriptionService {
         // Read audio samples from WAV file
         let audioSamples = try readWAVSamples(from: audioURL)
 
-        // Language: override takes priority, then UserDefaults
-        let selectedLanguage = languageOverride ?? UserDefaults.standard.string(forKey: "SelectedLanguage")
-        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+        let selectedLanguage = languageOverride ?? context.language
+        let prompt = context.prompt
 
         logger.info("Transcribing with Qwen3 CoreML Hybrid, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto")")
 

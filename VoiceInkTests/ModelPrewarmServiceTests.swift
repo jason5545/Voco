@@ -92,7 +92,11 @@ private final class FakePrewarmTranscriber: ModelPrewarmTranscribing {
         self.transcribeDuration = transcribeDuration
     }
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: TranscriptionRequestContext
+    ) async throws -> String {
         transcribeCallCount += 1
 
         if let transcribeDuration {

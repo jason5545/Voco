@@ -46,7 +46,8 @@ Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **
 - **Siri Shortcuts** — toggle and dismiss recorder via Shortcuts
 - **Global hotkey** — customizable keyboard shortcut, supports hold-to-record
 - **Personal dictionary** — custom vocabulary for names, jargon, technical terms
-- **Power Mode** — per-app configuration presets
+- **Modes** — per-app and per-website configuration presets
+- **AI Assistant** — built-in conversational assistant mode
 
 ## Build
 

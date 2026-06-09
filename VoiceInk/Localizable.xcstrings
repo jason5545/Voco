@@ -8745,12 +8745,12 @@
         }
       }
     },
-    "Environment variables available: VOICEINK_SYSTEM_PROMPT, VOICEINK_USER_PROMPT, VOICEINK_FULL_PROMPT. VoiceInk also writes VOICEINK_FULL_PROMPT to stdin for every command.": {
+    "Environment variables available: VOICEINK_SYSTEM_PROMPT, VOICEINK_USER_PROMPT, VOICEINK_FULL_PROMPT. Voco also writes VOICEINK_FULL_PROMPT to stdin for every command.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。VoiceInk 也會在每次執行指令時把 VOICEINK_FULL_PROMPT 寫入 stdin。"
+            "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。Voco 也會在每次執行指令時把 VOICEINK_FULL_PROMPT 寫入 stdin。"
           }
         }
       }
@@ -9175,12 +9175,12 @@
         }
       }
     },
-    "e.g. Prakash, VoiceInk": {
+    "e.g. Prakash, Voco": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "例如：Prakash、VoiceInk"
+            "value": "例如：Prakash、Voco"
           }
         }
       }
@@ -9515,12 +9515,12 @@
         }
       }
     },
-    "VoiceInk temporarily uses the clipboard to paste transcription. When enabled, it restores your previous clipboard content after the selected delay. When disabled, the pasted transcription stays on your clipboard.": {
+    "Voco temporarily uses the clipboard to paste transcription. When enabled, it restores your previous clipboard content after the selected delay. When disabled, the pasted transcription stays on your clipboard.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "VoiceInk 會暫時使用剪貼簿來貼上轉錄文字。啟用後，會在指定延遲後復原你原本的剪貼簿內容。停用時，貼上的轉錄文字會留在剪貼簿。"
+            "value": "Voco 會暫時使用剪貼簿來貼上轉錄文字。啟用後，會在指定延遲後復原你原本的剪貼簿內容。停用時，貼上的轉錄文字會留在剪貼簿。"
           }
         }
       }

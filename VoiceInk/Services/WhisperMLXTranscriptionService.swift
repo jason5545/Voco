@@ -26,7 +26,11 @@ class WhisperMLXTranscriptionService: TranscriptionService {
     /// Average log-probability from the last transcription (for confidence routing)
     var lastAvgLogProb: Double = 0.0
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: TranscriptionRequestContext
+    ) async throws -> String {
         guard let whisperModel = model as? WhisperMLXModel else {
             logger.error("Invalid model type: \(String(describing: type(of: model)))")
             throw WhisperMLXTranscriptionError.invalidModel
@@ -51,8 +55,8 @@ class WhisperMLXTranscriptionService: TranscriptionService {
         let audioSamples = try readWAVSamples(from: audioURL)
 
         // Language
-        let selectedLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage")
-        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+        let selectedLanguage = context.language
+        let prompt = context.prompt
 
         logger.warning("Transcribing with Whisper MLX, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto")")
 

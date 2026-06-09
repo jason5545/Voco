@@ -47,7 +47,7 @@ enum SessionMetricRecorder {
             transcriptionModelName: transcription.transcriptionModelName ?? model?.displayName,
             transcriptionDuration: transcriptionDuration,
             speedFactor: speedFactor,
-            powerModeName: transcription.powerModeName,
+            modeName: transcription.modeName,
             aiEnhancementModelName: transcription.aiEnhancementModelName,
             enhancementDuration: enhancementDuration,
             asrEngineID: transcription.asrEngineID,
@@ -122,7 +122,7 @@ enum SessionMetricRecorder {
         metric.speedFactor = metric.transcriptionDuration.flatMap { duration in
             metric.audioDuration > 0 ? metric.audioDuration / duration : nil
         }
-        metric.powerModeName = transcription.powerModeName
+        metric.modeName = transcription.modeName
         metric.aiEnhancementModelName = transcription.aiEnhancementModelName
         metric.enhancementDuration = transcription.enhancementDuration.flatMap { $0 > 0 ? $0 : nil }
         metric.recordDictationMetadata(from: transcription)

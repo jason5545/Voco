@@ -1,21 +1,5 @@
 import SwiftUI
 
-enum RecorderCandidateReviewLayout {
-    static let miniWidth: CGFloat = 460
-    static let miniHeight: CGFloat = 320
-    static let notchSideExpansion: CGFloat = 230
-    static let notchPanelHeight: CGFloat = 320
-    static let notchWindowHeight: CGFloat = 380
-}
-
-// MARK: - Shared Popover State
-
-enum ActivePopoverState {
-    case none
-    case enhancement
-    case power
-}
-
 // MARK: - Icon Toggle Button
 
 struct RecorderToggleButton: View {
@@ -54,34 +38,145 @@ struct RecorderToggleButton: View {
 // MARK: - Record Button
 
 struct RecorderRecordButton: View {
-    let isRecording: Bool
-    let isProcessing: Bool
+    let recordingState: RecordingState
+    let action: () -> Void
+
+    private var visualState: VisualState {
+        switch recordingState {
+        case .idle, .starting, .busy:
+            return .ready
+        case .recording:
+            return .recording
+        case .transcribing, .enhancing:
+            return .processing
+        }
+    }
+
+    private var isDisabled: Bool {
+        switch recordingState {
+        case .idle, .recording:
+            return false
+        case .starting, .transcribing, .enhancing, .busy:
+            return true
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            buttonFace
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .help(accessibilityLabel)
+        .accessibilityLabel(Text(accessibilityLabel))
+    }
+
+    private var buttonFace: some View {
+        ZStack {
+            Circle()
+                .fill(colors.surface)
+                .overlay(
+                    Circle()
+                        .strokeBorder(colors.border, lineWidth: 0.6)
+                )
+
+            stateMark
+        }
+        .frame(width: 21, height: 21)
+        .contentShape(Circle())
+        .animation(.easeOut(duration: 0.16), value: visualState)
+    }
+
+    private var colors: StateColors {
+        switch visualState {
+        case .ready:
+            return StateColors(
+                surface: Color(red: 0.30, green: 0.30, blue: 0.32),
+                border: Color(red: 0.42, green: 0.42, blue: 0.44),
+                mark: Color(red: 0.78, green: 0.78, blue: 0.80)
+            )
+        case .recording:
+            let red = AppTheme.Status.error
+            return StateColors(
+                surface: red.opacity(0.92),
+                border: red.opacity(0.98),
+                mark: .white
+            )
+        case .processing:
+            return StateColors(
+                surface: Color.white.opacity(0.13),
+                border: Color.white.opacity(0.18),
+                mark: Color.white.opacity(0.86)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var stateMark: some View {
+        switch visualState {
+        case .ready, .recording:
+            RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                .fill(colors.mark)
+                .frame(width: 8, height: 8)
+        case .processing:
+            ProcessingIndicator(color: colors.mark)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch recordingState {
+        case .idle:
+            return "Start recording"
+        case .starting:
+            return "Starting recording"
+        case .recording:
+            return "Stop recording"
+        case .transcribing:
+            return "Transcribing recording"
+        case .enhancing:
+            return "Enhancing recording"
+        case .busy:
+            return "Recorder unavailable"
+        }
+    }
+
+    private enum VisualState: Equatable {
+        case ready
+        case recording
+        case processing
+    }
+
+    private struct StateColors {
+        let surface: Color
+        let border: Color
+        let mark: Color
+    }
+}
+
+// MARK: - Close Button
+
+struct RecorderCloseButton: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(buttonColor)
-                    .frame(width: 25, height: 25)
+                    .fill(Color.white.opacity(0.13))
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.6)
+                    )
 
-                if isProcessing {
-                    ProcessingIndicator(color: .white).frame(width: 16, height: 16)
-                } else if isRecording {
-                    RoundedRectangle(cornerRadius: 3).fill(Color.white).frame(width: 9, height: 9)
-                } else {
-                    Circle().fill(Color.white).frame(width: 9, height: 9)
-                }
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.86))
             }
+            .frame(width: 21, height: 21)
+            .contentShape(Circle())
         }
-        .buttonStyle(PlainButtonStyle())
-        .disabled(isProcessing)
-    }
-
-    private var buttonColor: Color {
-        if isProcessing { return Color(red: 0.4, green: 0.4, blue: 0.45) }
-        if isRecording  { return .red }
-        return Color(red: 0.3, green: 0.3, blue: 0.35)
+        .buttonStyle(.plain)
+        .help("Close")
     }
 }
 
@@ -94,8 +189,8 @@ struct ProcessingIndicator: View {
     var body: some View {
         Circle()
             .trim(from: 0.1, to: 0.9)
-            .stroke(color, lineWidth: 1.7)
-            .frame(width: 14, height: 14)
+            .stroke(color, lineWidth: 1.5)
+            .frame(width: 12, height: 12)
             .rotationEffect(.degrees(rotation))
             .onAppear {
                 withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
@@ -148,35 +243,30 @@ struct ProgressAnimation: View {
     }
 }
 
-// MARK: - Enhancement Prompt Button
+// MARK: - Mode Button
 
-struct RecorderPromptButton: View {
-    @EnvironmentObject private var enhancementService: AIEnhancementService
-    @Binding var activePopover: ActivePopoverState
+struct RecorderModeButton: View {
+    @ObservedObject private var modeManager = ModeManager.shared
     let buttonSize: CGFloat
     let padding: EdgeInsets
 
+    @State private var isPopoverPresented = false
     @State private var isHoveringButton: Bool = false
     @State private var isHoveringPopover: Bool = false
     @State private var dismissWorkItem: DispatchWorkItem?
 
-    init(activePopover: Binding<ActivePopoverState>, buttonSize: CGFloat = 28, padding: EdgeInsets = EdgeInsets(top: 0, leading: 7, bottom: 0, trailing: 0)) {
-        self._activePopover = activePopover
+    init(buttonSize: CGFloat = 28, padding: EdgeInsets = EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 7)) {
         self.buttonSize = buttonSize
         self.padding = padding
     }
 
     var body: some View {
         RecorderToggleButton(
-            isEnabled: enhancementService.isEnhancementEnabled,
-            icon: enhancementService.activePrompt?.icon ?? enhancementService.allPrompts.first(where: { $0.id == PredefinedPrompts.defaultPromptId })?.icon ?? "checkmark.seal.fill",
-            disabled: false
+            isEnabled: !modeManager.enabledConfigurations.isEmpty,
+            icon: modeManager.enabledConfigurations.isEmpty ? "square.grid.2x2" : (modeManager.currentEffectiveConfiguration?.icon.value ?? "square.grid.2x2"),
+            disabled: modeManager.enabledConfigurations.isEmpty
         ) {
-            if enhancementService.isEnhancementEnabled {
-                activePopover = activePopover == .enhancement ? .none : .enhancement
-            } else {
-                enhancementService.isEnhancementEnabled = true
-            }
+            isPopoverPresented.toggle()
         }
         .frame(width: buttonSize)
         .padding(padding)
@@ -184,9 +274,8 @@ struct RecorderPromptButton: View {
             isHoveringButton = $0
             syncPopoverVisibility()
         }
-        .popover(isPresented: .constant(activePopover == .enhancement), arrowEdge: .bottom) {
-            EnhancementPromptPopover()
-                .environmentObject(enhancementService)
+        .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+            ModePopover()
                 .onHover {
                     isHoveringPopover = $0
                     syncPopoverVisibility()
@@ -198,72 +287,11 @@ struct RecorderPromptButton: View {
         if isHoveringButton || isHoveringPopover {
             dismissWorkItem?.cancel()
             dismissWorkItem = nil
-            activePopover = .enhancement
+            isPopoverPresented = true
         } else {
             dismissWorkItem?.cancel()
-            let work = DispatchWorkItem { [activePopoverBinding = $activePopover] in
-                if activePopoverBinding.wrappedValue == .enhancement {
-                    activePopoverBinding.wrappedValue = .none
-                }
-            }
-            dismissWorkItem = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-        }
-    }
-}
-
-// MARK: - Power Mode Button
-
-struct RecorderPowerModeButton: View {
-    @ObservedObject private var powerModeManager = PowerModeManager.shared
-    @Binding var activePopover: ActivePopoverState
-    let buttonSize: CGFloat
-    let padding: EdgeInsets
-
-    @State private var isHoveringButton: Bool = false
-    @State private var isHoveringPopover: Bool = false
-    @State private var dismissWorkItem: DispatchWorkItem?
-
-    init(activePopover: Binding<ActivePopoverState>, buttonSize: CGFloat = 28, padding: EdgeInsets = EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 7)) {
-        self._activePopover = activePopover
-        self.buttonSize = buttonSize
-        self.padding = padding
-    }
-
-    var body: some View {
-        RecorderToggleButton(
-            isEnabled: !powerModeManager.enabledConfigurations.isEmpty,
-            icon: powerModeManager.enabledConfigurations.isEmpty ? "✨" : (powerModeManager.currentActiveConfiguration?.emoji ?? "✨"),
-            disabled: powerModeManager.enabledConfigurations.isEmpty
-        ) {
-            activePopover = activePopover == .power ? .none : .power
-        }
-        .frame(width: buttonSize)
-        .padding(padding)
-        .onHover {
-            isHoveringButton = $0
-            syncPopoverVisibility()
-        }
-        .popover(isPresented: .constant(activePopover == .power), arrowEdge: .bottom) {
-            PowerModePopover()
-                .onHover {
-                    isHoveringPopover = $0
-                    syncPopoverVisibility()
-                }
-        }
-    }
-
-    private func syncPopoverVisibility() {
-        if isHoveringButton || isHoveringPopover {
-            dismissWorkItem?.cancel()
-            dismissWorkItem = nil
-            activePopover = .power
-        } else {
-            dismissWorkItem?.cancel()
-            let work = DispatchWorkItem { [activePopoverBinding = $activePopover] in
-                if activePopoverBinding.wrappedValue == .power {
-                    activePopoverBinding.wrappedValue = .none
-                }
+            let work = DispatchWorkItem { [isPopoverPresentedBinding = $isPopoverPresented] in
+                isPopoverPresentedBinding.wrappedValue = false
             }
             dismissWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
@@ -313,36 +341,25 @@ struct RecorderStatusDisplay: View {
     let currentState: RecordingState
     let audioMeter: AudioMeter
     let menuBarHeight: CGFloat?
-    let isEditMode: Bool
 
-    init(currentState: RecordingState, audioMeter: AudioMeter, menuBarHeight: CGFloat? = nil, isEditMode: Bool = false) {
+    init(currentState: RecordingState, audioMeter: AudioMeter, menuBarHeight: CGFloat? = nil) {
         self.currentState = currentState
         self.audioMeter = audioMeter
         self.menuBarHeight = menuBarHeight
-        self.isEditMode = isEditMode
     }
 
     var body: some View {
         Group {
             if currentState == .enhancing {
-                ProcessingStatusDisplay(
-                    mode: isEditMode ? .editing : .enhancing,
-                    color: isEditMode ? .orange : .white
-                )
-                .transition(.opacity)
+                ProcessingStatusDisplay(mode: .enhancing, color: .white).transition(.opacity)
             } else if currentState == .transcribing {
-                ProcessingStatusDisplay(mode: .transcribing, color: isEditMode ? .orange : .white)
-                    .transition(.opacity)
+                ProcessingStatusDisplay(mode: .transcribing, color: .white).transition(.opacity)
             } else if currentState == .recording {
-                AudioVisualizer(
-                    audioMeter: audioMeter,
-                    color: isEditMode ? .orange : .white,
-                    isActive: currentState == .recording
-                )
-                .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
-                .transition(.opacity)
+                AudioVisualizer(audioMeter: audioMeter, color: .white, isActive: true)
+                    .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
+                    .transition(.opacity)
             } else {
-                StaticVisualizer(color: isEditMode ? .orange : .white)
+                StaticVisualizer(color: .white)
                     .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
                     .transition(.opacity)
             }
@@ -351,240 +368,181 @@ struct RecorderStatusDisplay: View {
     }
 }
 
-// MARK: - Dictionary Confirmation View (Edit Mode)
-struct DictionaryConfirmationView: View {
-    let original: String
-    let replacement: String
-    let onConfirm: () -> Void
-    let onDismiss: () -> Void
+// MARK: - Assistant Response Panel
+
+struct AssistantPanelView: View {
+    @ObservedObject var session: AssistantSession
+    let liveFollowUpText: String
+    let onSend: (String) -> Void
+
+    @State private var draftMessage = ""
+    @FocusState private var isFollowUpFieldFocused: Bool
+
+    private let horizontalPadding: CGFloat = 20
+    private let followUpTextColor = Color.white.opacity(0.9)
+
+    private var statusText: String? {
+        switch session.phase {
+        case .responding, .sendingFollowUp:
+            return "Thinking"
+        case .failed(let message):
+            return message
+        case .inactive, .ready:
+            return nil
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text("\(original) → \(replacement)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Button(action: onConfirm) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.system(size: 16))
-            }
-            .buttonStyle(PlainButtonStyle())
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 16))
-            }
-            .buttonStyle(PlainButtonStyle())
+        VStack(spacing: 8) {
+            messageList
+            followUpRow
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, 10)
+        .frame(height: 320)
+        .onAppear(perform: focusFollowUpFieldIfAvailable)
+        .onChange(of: session.phase) {
+            focusFollowUpFieldIfAvailable()
+        }
+    }
+
+    private var messageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    ForEach(session.messages) { message in
+                        AssistantMessageBubble(message: message)
+                            .id(message.id)
+                    }
+
+                    if let statusText {
+                        Text(statusText)
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.62))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id("status")
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .onChange(of: session.messages.count) {
+                scrollToBottom(proxy)
+            }
+            .onChange(of: session.phase) {
+                scrollToBottom(proxy)
+            }
+        }
+    }
+
+    private var followUpRow: some View {
+        HStack(spacing: 8) {
+            ZStack(alignment: .leading) {
+                if shouldShowLiveFollowUpText {
+                    Text(liveFollowUpText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(followUpTextColor)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .allowsHitTesting(false)
+                }
+
+                TextField("", text: $draftMessage)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(followUpTextColor)
+                    .tint(followUpTextColor)
+                    .disabled(!session.canSendFollowUp)
+                    .focused($isFollowUpFieldFocused)
+                    .onSubmit(sendDraftMessage)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.white.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            Button(action: sendDraftMessage) {
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(canSendDraft ? .black : .white.opacity(0.35))
+                    .frame(width: 24, height: 24)
+                    .background(canSendDraft ? Color.white.opacity(0.88) : Color.white.opacity(0.10))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSendDraft)
+            .help("Send follow up")
+        }
+    }
+
+    private var shouldShowLiveFollowUpText: Bool {
+        draftMessage.isEmpty &&
+            !liveFollowUpText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canSendDraft: Bool {
+        session.canSendFollowUp &&
+            !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func sendDraftMessage() {
+        let trimmed = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard session.canSendFollowUp, !trimmed.isEmpty else { return }
+        draftMessage = ""
+        onSend(trimmed)
+        focusFollowUpFieldIfAvailable()
+    }
+
+    private func focusFollowUpFieldIfAvailable() {
+        guard session.canSendFollowUp else { return }
+        DispatchQueue.main.async {
+            isFollowUpFieldFocused = true
+        }
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.18)) {
+                if let last = session.messages.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                } else {
+                    proxy.scrollTo("status", anchor: .bottom)
+                }
+            }
+        }
     }
 }
 
-// MARK: - Candidate Review View
+private struct AssistantMessageBubble: View {
+    let message: AssistantDisplayMessage
 
-struct CandidateReviewView: View {
-    let review: VocoCandidateReview
-    let onSelect: (String) -> Void
-    let onInteraction: () -> Void
-    let onDismiss: () -> Void
-
-    @State private var typedCandidate = ""
-    @FocusState private var isTypedCandidateFocused: Bool
+    private var isUser: Bool {
+        message.role == .user
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            if !review.displayReviewSignals.isEmpty {
-                signalStrip
-                    .padding(.top, 7)
+        HStack {
+            if isUser {
+                Spacer(minLength: 36)
             }
 
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(spacing: 7) {
-                    ForEach(Array(review.candidates.prefix(5).enumerated()), id: \.offset) { index, candidate in
-                        candidateButton(index: index, candidate: candidate)
-                    }
-                }
-                .padding(.vertical, 9)
-            }
-            .frame(maxHeight: .infinity)
-            .onHover { hovering in
-                if hovering { onInteraction() }
-            }
-
-            Divider()
-                .background(Color.white.opacity(0.14))
-
-            typedRescueRow
-                .padding(.top, 9)
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 11)
-        .padding(.bottom, 12)
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.yellow)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Review needed")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.92))
-
-                Text("\(confidenceText) confidence")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.54))
-            }
-
-            Spacer(minLength: 0)
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.white.opacity(0.45))
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
-        }
-    }
-
-    private var signalStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                ForEach(review.displayReviewSignals, id: \.self) { signal in
-                    Text(signal)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.72))
-                        .lineLimit(1)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.1))
-                        )
-                }
-            }
-        }
-    }
-
-    private func candidateButton(index: Int, candidate: String) -> some View {
-        let shortcut = review.keyboardShortcutForCandidate(at: index) ?? "\(index + 1)"
-        return Button {
-            onSelect(candidate)
-        } label: {
-            HStack(alignment: .top, spacing: 9) {
-                Text(shortcut)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.black.opacity(0.76))
-                    .frame(width: 22, height: 22)
-                    .background(Circle().fill(Color.white.opacity(index == 0 ? 0.92 : 0.62)))
-                    .padding(.top, 1)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(review.labelForCandidate(at: index))
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white.opacity(index == 0 ? 0.86 : 0.62))
-                            .lineLimit(1)
-
-                        if let source = review.sourceDisplayNameForCandidate(at: index) {
-                            Text(source)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white.opacity(0.46))
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Text(candidate)
-                        .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
-                        .foregroundColor(.white.opacity(index == 0 ? 0.96 : 0.82))
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.leading)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(index == 0 ? 0.16 : 0.08))
+            MarkdownContentView(
+                message.content,
+                fontSize: 12,
+                foregroundColor: .white.opacity(isUser ? 0.92 : 0.86),
+                alignment: .leading
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.white.opacity(index == 0 ? 0.2 : 0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [])
-    }
-
-    private var confidenceText: String {
-        "\(Int((review.confidenceScore * 100).rounded()))%"
-    }
-
-    private var trimmedTypedCandidate: String {
-        typedCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var typedRescueRow: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Type correction", text: $typedCandidate, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.9))
-                .lineLimit(1...3)
-                .focused($isTypedCandidateFocused)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(isTypedCandidateFocused ? 0.14 : 0.09))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.white.opacity(isTypedCandidateFocused ? 0.28 : 0.09), lineWidth: 1)
-                )
-                .onSubmit(submitTypedCandidate)
-                .onTapGesture {
-                    onInteraction()
-                    isTypedCandidateFocused = true
-                }
-                .onChange(of: typedCandidate) { _, newValue in
-                    if VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: newValue) {
-                        onInteraction()
-                    }
-                }
+                .padding(.vertical, 7)
+                .background(isUser ? Color.white.opacity(0.16) : Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .help(isUser ? message.content : "")
 
-            Button(action: submitTypedCandidate) {
-                Image(systemName: "arrow.turn.down.left")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(trimmedTypedCandidate.isEmpty ? .white.opacity(0.25) : .black.opacity(0.78))
-                    .frame(width: 30, height: 30)
-                    .background(
-                        Circle()
-                            .fill(trimmedTypedCandidate.isEmpty ? Color.white.opacity(0.08) : Color.white.opacity(0.86))
-                    )
+            if !isUser {
+                Spacer(minLength: 36)
             }
-            .buttonStyle(.plain)
-            .disabled(trimmedTypedCandidate.isEmpty)
-            .help("Use typed correction")
         }
-    }
-
-    private func submitTypedCandidate() {
-        let candidate = trimmedTypedCandidate
-        guard !candidate.isEmpty else { return }
-        onSelect(candidate)
     }
 }

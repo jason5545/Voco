@@ -100,7 +100,7 @@ final class VocoCanonicalizationService {
         return CorrectionProtectionList.shared.containsProtectedTerm(in: trimmed)
     }
 
-    static func powerModeContextHints(from config: PowerModeConfig?) -> [String] {
+    static func modeContextHints(from config: ModeConfig?) -> [String] {
         guard let config, config.isEnabled else { return [] }
 
         var hints: [String] = []
@@ -119,11 +119,11 @@ final class VocoCanonicalizationService {
     }
 
     static func contextHints(
-        powerMode: PowerModeConfig?,
+        mode: ModeConfig?,
         appName: String?,
         windowTitle: String?
     ) -> [String] {
-        var hints = powerModeContextHints(from: powerMode)
+        var hints = modeContextHints(from: mode)
         appendHint(appName, to: &hints)
         appendHint(windowTitle, to: &hints)
         return uniqueHints(hints)

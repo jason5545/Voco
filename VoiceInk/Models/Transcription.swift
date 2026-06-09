@@ -32,8 +32,10 @@ final class Transcription {
     var enhancementDuration: TimeInterval?
     var aiRequestSystemMessage: String?
     var aiRequestUserMessage: String?
-    var powerModeName: String?
-    var powerModeEmoji: String?
+    @Attribute(originalName: "powerModeName")
+    var modeName: String?
+    @Attribute(originalName: "powerModeEmoji")
+    var modeEmoji: String?
     var transcriptionStatus: String?
     var rawTranscript: String?
     var normalizedTranscript: String?
@@ -245,6 +247,8 @@ final class Transcription {
          enhancementDuration: TimeInterval? = nil,
          aiRequestSystemMessage: String? = nil,
          aiRequestUserMessage: String? = nil,
+         modeName: String? = nil,
+         modeEmoji: String? = nil,
          powerModeName: String? = nil,
          powerModeEmoji: String? = nil,
          rawTranscript: String? = nil,
@@ -289,8 +293,8 @@ final class Transcription {
         self.enhancementDuration = enhancementDuration
         self.aiRequestSystemMessage = aiRequestSystemMessage
         self.aiRequestUserMessage = aiRequestUserMessage
-        self.powerModeName = powerModeName
-        self.powerModeEmoji = powerModeEmoji
+        self.modeName = modeName ?? powerModeName
+        self.modeEmoji = modeEmoji ?? powerModeEmoji
         self.rawTranscript = rawTranscript
         self.normalizedTranscript = normalizedTranscript
         self.finalPastedText = finalPastedText
@@ -328,6 +332,16 @@ final class Transcription {
         self.retranscriptionAnalysisJSON = Self.encodeJSON(retranscriptionAnalysis)
         self.correctionFeedbackJSON = Self.encodeJSON(correctionFeedback)
         self.transcriptionStatus = transcriptionStatus.rawValue
+    }
+
+    var powerModeName: String? {
+        get { modeName }
+        set { modeName = newValue }
+    }
+
+    var powerModeEmoji: String? {
+        get { modeEmoji }
+        set { modeEmoji = newValue }
     }
 
     func recordASRMetadata(
