@@ -283,6 +283,24 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
+    @Test func canonicalizationDoesNotUseVocabularyPhoneticsInsideKnownCJKWords() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = VocoCanonicalizationService(contextPacks: [])
+        let vocabulary = VocoCanonicalizationService.vocabularyTerms(from: ["明德", "簡瑞成"])
+
+        let regression = service.normalize(
+            "我們最近的變更應該有加了自動學習的那個",
+            additionalTerms: vocabulary
+        )
+        #expect(regression.normalizedText == "我們最近的變更應該有加了自動學習的那個")
+        #expect(regression.replacements.isEmpty)
+
+        let fullName = service.normalize("簡銳城", additionalTerms: vocabulary)
+        #expect(fullName.normalizedText == "簡瑞成")
+        #expect(fullName.replacements.first?.reason == "vocabulary-phonetic-match")
+    }
+
     @Test func canonicalizationSuppressesKnownAmbiguousWordReplacementPair() async throws {
         let service = VocoCanonicalizationService(contextPacks: [])
         let projectTerm = VocoCanonicalTerm(
@@ -601,6 +619,15 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: "Voco blocking investigation"
         )
+        let schedulingContext = CorrectionContext(
+            recentTranscriptions: [
+                "Startup Trace 的排程已修復",
+                "schedule 背景任務要加回去",
+                "prewarm timer 跟啟動追蹤"
+            ],
+            appName: "Codex",
+            windowTitle: "Voco scheduler"
+        )
         let inputMethodContext = CorrectionContext(
             recentTranscriptions: [
                 "我在用 RIME 鼠鬚管輸入法",
@@ -676,6 +703,9 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("我們上次測完之後有記到具體的堵塞點的原因嗎？因為陳英感覺跟上次很像。", context: blockingContext).text == "我們上次測完之後有記到具體的阻塞點的原因嗎？因為成因感覺跟上次很像。")
         #expect(PinyinCorrector.shared.correct("有新增一個組賽的調查模組，組賽的又更嚴重了。", context: blockingContext).text == "有新增一個阻塞的調查模組，阻塞的又更嚴重了。")
         #expect(PinyinCorrector.shared.correct("這場小組賽很精彩。", context: blockingContext).text == "這場小組賽很精彩。")
+        #expect(PinyinCorrector.shared.correct("官方回覆已修復，所以你把那個陪存加回去，我試試看。").text == "官方回覆已修復，所以你把那個排程加回去，我試試看。")
+        #expect(PinyinCorrector.shared.correct("官方回覆已修復，所以你把那個陪臣加回去，我試試看。", context: schedulingContext).text == "官方回覆已修復，所以你把那個排程加回去，我試試看。")
+        #expect(PinyinCorrector.shared.correct("古書裡的陪臣。").text == "古書裡的陪臣。")
         #expect(PinyinCorrector.shared.correct("我目前在用 macOS 系統的 i iM 輸入法。", context: inputMethodContext).text == "我目前在用 macOS 系統的 RIME 輸入法。")
         #expect(PinyinCorrector.shared.correct("我那個輸入法指的是 RIME，也就是鼠須管輸入法。", context: inputMethodContext).text == "我那個輸入法指的是 RIME，也就是鼠鬚管輸入法。")
         #expect(PinyinCorrector.shared.correct("你覺得可以把它帶進這個城市裡面嗎？", context: inputMethodContext).text == "你覺得可以把它帶進這個程式裡面嗎？")
@@ -3588,6 +3618,24 @@ struct VoiceInkTests {
             kind: .userSubstitution,
             sourceText: "69 輪",
             acceptedText: "六十九輪",
+            confidenceScore: 0.9,
+            changeRatio: 0.5,
+            reason: "user-substitution"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsNoisyUserSubstitution() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .userSubstitution,
+            sourceText: "陪存",
+            acceptedText: "陪臣",
             confidenceScore: 0.9,
             changeRatio: 0.5,
             reason: "user-substitution"

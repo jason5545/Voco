@@ -77,7 +77,7 @@ enum CorrectionFeedbackLearningService {
             break
         }
 
-        guard !hasBlockedLearningNoise(classification.noiseFlags) else { return false }
+        guard !hasBlockedLearningNoise(classification.noiseFlags, for: signal.kind) else { return false }
 
         if signal.kind == .retranscriptionChange,
            hasShortNonTechnicalRetranscriptionRisk(signal, classification: classification) {
@@ -96,12 +96,25 @@ enum CorrectionFeedbackLearningService {
             || normalized.contains("candidate-not-selected")
     }
 
-    private static func hasBlockedLearningNoise(_ flags: [CorrectionEvidenceNoiseFlag]) -> Bool {
-        flags.contains(.llmOnly)
+    private static func hasBlockedLearningNoise(
+        _ flags: [CorrectionEvidenceNoiseFlag],
+        for kind: CorrectionFeedbackKind
+    ) -> Bool {
+        if flags.contains(.llmOnly)
             || flags.contains(.stalePendingTranscriptSuspected)
             || flags.contains(.targetLengthExpansionRatioHigh)
             || flags.contains(.fullSentenceRewriteSuspected)
-            || flags.contains(.crossLanguageReconstruction)
+            || flags.contains(.crossLanguageReconstruction) {
+            return true
+        }
+
+        if kind == .userSubstitution {
+            return flags.contains(.selectedSpanMissing)
+                || flags.contains(.correctionTooLate)
+                || flags.contains(.activeAppChanged)
+        }
+
+        return false
     }
 
     private static func hasShortNonTechnicalRetranscriptionRisk(

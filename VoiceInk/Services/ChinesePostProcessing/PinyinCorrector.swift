@@ -110,6 +110,7 @@ class PinyinCorrector {
             ("很凹頭", "很 auto"),
             ("屬於自己的失重", "屬於自己的實作"),
             ("work on the resources", "Workaround 與實作"),
+            ("陪存", "排程"),
         ]
         for (wrong, correct) in alwaysCorrections {
             allRules.append(PinyinCorrectionRule(
@@ -171,6 +172,11 @@ class PinyinCorrector {
             "阻塞", "堵塞", "喚醒", "卡住", "卡死", "延遲",
             "調查模組", "模組", "原因", "成因", "具體", "merge",
             "prewarm", "warm", "engine", "instance"
+        ]
+        let schedulingKeywords = [
+            "排程", "schedule", "scheduled", "scheduler", "Timer", "timer",
+            "Startup Trace", "啟動追蹤", "背景任務", "task scheduler",
+            "BGTask", "cleanupModelResources", "prewarm", "warmup"
         ]
 
         let contextCorrections: [(String, String, [String])] = [
@@ -282,6 +288,7 @@ class PinyinCorrector {
             ("堵塞點", "阻塞點", blockingKeywords),
             ("組賽", "阻塞", blockingKeywords),
             ("陳英感覺", "成因感覺", blockingKeywords),
+            ("陪臣", "排程", schedulingKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(

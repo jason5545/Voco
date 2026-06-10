@@ -309,6 +309,7 @@ final class VocoCanonicalizationService {
                 guard original != canonical else { continue }
                 guard original.allSatisfy(\.isCJK) else { continue }
                 guard PinyinDatabase.shared.frequency(of: original) == 0 else { continue }
+                guard !isInsideKnownCJKWord(chars: chars, start: start, end: end, db: db) else { continue }
                 guard !CorrectionProtectionList.shared.containsProtectedTerm(in: original) else { continue }
                 guard let confidence = phoneticVocabularyConfidence(original: original, canonical: canonical) else {
                     continue
@@ -340,6 +341,29 @@ final class VocoCanonicalizationService {
     private func isShortCJKVocabularyTerm(_ term: String) -> Bool {
         let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
         return (2...4).contains(trimmed.count) && trimmed.allSatisfy(\.isCJK)
+    }
+
+    private func isInsideKnownCJKWord(
+        chars: [Character],
+        start: Int,
+        end: Int,
+        db: PinyinDatabase
+    ) -> Bool {
+        if start > 0 {
+            let leftPair = String(chars[start - 1]) + String(chars[start])
+            if db.frequency(of: leftPair) > 0 {
+                return true
+            }
+        }
+
+        if end < chars.count {
+            let rightPair = String(chars[end - 1]) + String(chars[end])
+            if db.frequency(of: rightPair) > 0 {
+                return true
+            }
+        }
+
+        return false
     }
 
     private func phoneticVocabularyConfidence(original: String, canonical: String) -> Double? {
