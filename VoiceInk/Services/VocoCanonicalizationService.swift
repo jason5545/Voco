@@ -29,12 +29,14 @@ final class VocoCanonicalizationService {
         }
 
         let termSources = termSources(for: activeContextIDs, additionalTerms: additionalTerms)
-        let candidates = replacementCandidates(
+        var candidates = replacementCandidates(
             in: text,
             termSources: termSources,
             activeContextIDs: activeContextIDs,
             contextHints: contextHints
         )
+        candidates.append(contentsOf: phoneticVocabularyCandidates(in: text, termSources: termSources))
+        candidates = sortedReplacementCandidates(candidates)
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
@@ -271,14 +273,158 @@ final class VocoCanonicalizationService {
         }
 
         return candidates.sorted {
-            if $0.range.location != $1.range.location {
-                return $0.range.location < $1.range.location
-            }
-            if $0.range.length != $1.range.length {
-                return $0.range.length > $1.range.length
-            }
-            return $0.confidence > $1.confidence
+            Self.sortReplacementCandidates($0, $1)
         }
+    }
+
+    private func phoneticVocabularyCandidates(
+        in text: String,
+        termSources: [TermCandidateSource]
+    ) -> [ReplacementCandidate] {
+        let db = PinyinDatabase.shared
+        guard db.isLoaded else { return [] }
+
+        let vocabularyTerms = termSources
+            .filter(\.allowsAutomaticReplacement)
+            .map(\.term)
+            .filter { $0.type == "personal-vocabulary" }
+            .filter { isShortCJKVocabularyTerm($0.canonical) }
+
+        guard !vocabularyTerms.isEmpty else { return [] }
+
+        let chars = Array(text)
+        guard !chars.isEmpty else { return [] }
+
+        var candidates: [ReplacementCandidate] = []
+
+        for term in vocabularyTerms {
+            let canonical = term.canonical.trimmingCharacters(in: .whitespacesAndNewlines)
+            let length = canonical.count
+            guard length > 0, chars.count >= length else { continue }
+
+            for start in 0...(chars.count - length) {
+                let end = start + length
+                let original = String(chars[start..<end])
+
+                guard original != canonical else { continue }
+                guard original.allSatisfy(\.isCJK) else { continue }
+                guard PinyinDatabase.shared.frequency(of: original) == 0 else { continue }
+                guard !CorrectionProtectionList.shared.containsProtectedTerm(in: original) else { continue }
+                guard let confidence = phoneticVocabularyConfidence(original: original, canonical: canonical) else {
+                    continue
+                }
+
+                let startIndex = text.index(text.startIndex, offsetBy: start)
+                let endIndex = text.index(startIndex, offsetBy: length)
+                let range = NSRange(startIndex..<endIndex, in: text)
+                let isAutomatic = confidence >= term.autoReplaceThreshold
+
+                candidates.append(
+                    ReplacementCandidate(
+                        range: range,
+                        originalText: original,
+                        replacementText: canonical,
+                        termID: term.id,
+                        confidence: confidence,
+                        reason: isAutomatic ? "vocabulary-phonetic-match" : "vocabulary-phonetic-suggestion",
+                        isAutomatic: isAutomatic,
+                        isBlocker: false
+                    )
+                )
+            }
+        }
+
+        return candidates
+    }
+
+    private func isShortCJKVocabularyTerm(_ term: String) -> Bool {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (2...4).contains(trimmed.count) && trimmed.allSatisfy(\.isCJK)
+    }
+
+    private func phoneticVocabularyConfidence(original: String, canonical: String) -> Double? {
+        guard let originalPinyin = pinyinSignature(for: original),
+              let canonicalPinyin = pinyinSignature(for: canonical)
+        else {
+            return nil
+        }
+
+        guard originalPinyin.count == canonicalPinyin.count,
+              !originalPinyin.isEmpty
+        else {
+            return nil
+        }
+
+        let distances = zip(originalPinyin, canonicalPinyin).map { levenshteinDistance($0, $1) }
+        let exactMatches = distances.filter { $0 == 0 }.count
+        let totalDistance = distances.reduce(0, +)
+        let maxSingleDistance = distances.max() ?? 0
+
+        if exactMatches >= max(1, distances.count - 1), totalDistance <= 2 {
+            return 0.985
+        }
+
+        if maxSingleDistance <= 1, totalDistance <= 2 {
+            return 0.982
+        }
+
+        return nil
+    }
+
+    private func pinyinSignature(for text: String) -> [String]? {
+        var signature: [String] = []
+        signature.reserveCapacity(text.count)
+
+        for character in text {
+            guard let reading = PinyinDatabase.shared.charToPinyin[character]?.first else {
+                return nil
+            }
+            signature.append(PinyinDatabase.stripTone(reading))
+        }
+
+        return signature
+    }
+
+    private func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
+        let lhs = Array(lhs)
+        let rhs = Array(rhs)
+
+        if lhs.isEmpty { return rhs.count }
+        if rhs.isEmpty { return lhs.count }
+
+        var previous = Array(0...rhs.count)
+        var current = Array(repeating: 0, count: rhs.count + 1)
+
+        for i in 1...lhs.count {
+            current[0] = i
+
+            for j in 1...rhs.count {
+                let substitutionCost = lhs[i - 1] == rhs[j - 1] ? 0 : 1
+                current[j] = min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + substitutionCost
+                )
+            }
+
+            swap(&previous, &current)
+        }
+
+        return previous[rhs.count]
+    }
+
+    private func sortedReplacementCandidates(_ candidates: [ReplacementCandidate]) -> [ReplacementCandidate] {
+        candidates.sorted(by: Self.sortReplacementCandidates)
+    }
+
+    private static func sortReplacementCandidates(_ lhs: ReplacementCandidate, _ rhs: ReplacementCandidate) -> Bool {
+        if lhs.range.location != rhs.range.location {
+            return lhs.range.location < rhs.range.location
+        }
+        if lhs.range.length != rhs.range.length {
+            return lhs.range.length > rhs.range.length
+        }
+        return lhs.confidence > rhs.confidence
     }
 
     private func matchAliases(for term: VocoCanonicalTerm) -> [String] {

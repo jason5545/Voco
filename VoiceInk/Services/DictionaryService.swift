@@ -55,6 +55,40 @@ enum DictionaryService {
         }
     }
 
+    /// Adds vocabulary words in one SwiftData save pass.
+    /// Existing words are matched case-insensitively and skipped.
+    @discardableResult
+    static func addVocabularyWords(
+        _ words: [String],
+        context: ModelContext
+    ) throws -> Int {
+        let descriptor = FetchDescriptor<VocabularyWord>()
+        let existing = (try? context.fetch(descriptor)) ?? []
+        var seen = Set(existing.map { $0.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        var insertedCount = 0
+
+        for word in words {
+            let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else { continue }
+
+            context.insert(VocabularyWord(word: trimmed))
+            insertedCount += 1
+        }
+
+        guard insertedCount > 0 else { return 0 }
+
+        do {
+            try context.save()
+            return insertedCount
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     // MARK: - Duplicate Cleanup
 
     @discardableResult

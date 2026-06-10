@@ -180,8 +180,15 @@ final class CorrectionProtectionList {
     }
 
     func add(_ word: String) {
-        queue.async(flags: .barrier) {
-            self.words.insert(word)
+        addSynchronously(word)
+    }
+
+    func addSynchronously(_ word: String) {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        queue.sync(flags: .barrier) {
+            self.words.insert(trimmed)
             self.save()
         }
     }
