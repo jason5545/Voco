@@ -34,6 +34,7 @@ LLM = "llm"
 RECENT_CONTEXT = "recentContext"
 
 NEGATIVE_ALLOWLIST = {"69 輪"}
+SHORT_PHRASE_MAX_UNITS = 10
 UI_NOISE_FLAGS = {
     "selectedSpanMissing",
     "correctionTooLate",
@@ -220,13 +221,13 @@ def enforce_phase2a_safety(event: dict[str, Any]) -> dict[str, Any]:
 
 def candidate_drafts(event: dict[str, Any]) -> list[CandidateDraft]:
     raw = first_text(nested(event, "pipeline", "rawASR"), nested(event, "pipeline", "finalInserted"))
-    expected = expected_output(event)
+    expected = confirmed_output(event)
     classification = event.get("classification") if isinstance(event.get("classification"), dict) else {}
     language_mode = str(classification.get("languageMode") or "unknown")
     evidence_tier = str(classification.get("evidenceTier") or "NONE")
     noise_flags = noise_flags_for(event)
     negative = has_negative_evidence(event, raw, expected)
-    short_phrase = length_bucket_for(event, raw) == "1_4"
+    short_phrase = has_short_phrase_risk(event, raw)
     noisy = bool(UI_NOISE_FLAGS.intersection(noise_flags))
 
     drafts: list[CandidateDraft] = []
@@ -248,7 +249,7 @@ def candidate_drafts(event: dict[str, Any]) -> list[CandidateDraft]:
                 text=expected,
                 source=CONFIRMED_EXACT,
                 base_score=0.98,
-                reason="historical finalInserted/user target from read-only evidence",
+                reason="explicit user-confirmed target from correction/review evidence",
                 evidence_tier="T4_GOLD",
                 blocked_short_phrase=short_phrase,
                 blocked_noise=noisy,
@@ -349,7 +350,7 @@ def generated_text_candidates(raw: str | None) -> list[tuple[str, str, float, st
 
 def rank_candidates(event: dict[str, Any], drafts: list[CandidateDraft]) -> list[dict[str, Any]]:
     pipeline_final = first_text(nested(event, "pipeline", "finalInserted"))
-    expected = expected_output(event)
+    expected = confirmed_output(event)
     raw = first_text(nested(event, "pipeline", "rawASR"), pipeline_final)
     technical = truthy(nested(event, "classification", "isTechnicalTermCandidate"))
 
@@ -429,21 +430,21 @@ def source_priority(source: str) -> int:
     }.get(source, 99)
 
 
-def expected_output(event: dict[str, Any]) -> str | None:
+def confirmed_output(event: dict[str, Any]) -> str | None:
     return first_text(
         nested(event, "userAction", "targetText"),
         nested(event, "userAction", "selectedCandidateText"),
-        nested(event, "pipeline", "finalInserted"),
     )
 
 
 def recent_context_candidate(event: dict[str, Any], raw: str | None) -> str | None:
-    before = first_text(nested(event, "uiContext", "selectionTextBefore"))
-    after = first_text(nested(event, "uiContext", "selectionTextAfter"))
-    if not raw or not before and not after:
+    context_text = first_text(
+        nested(event, "uiContext", "recentContextCandidate"),
+        nested(event, "uiContext", "contextCandidateText"),
+    )
+    if not raw or not context_text:
         return None
-    combined = " ".join(part for part in (before, raw, after) if part)
-    return combined if combined != raw else None
+    return context_text if normalize_text(context_text) != normalize_text(raw) else None
 
 
 def has_negative_evidence(event: dict[str, Any], raw: str | None, expected: str | None) -> bool:
@@ -470,6 +471,10 @@ def length_bucket_for(event: dict[str, Any], raw: str | None) -> str:
     if count >= 16:
         return "16_plus"
     return "unknown"
+
+
+def has_short_phrase_risk(event: dict[str, Any], raw: str | None) -> bool:
+    return length_bucket_for(event, raw) == "1_4" or text_unit_count(raw or "") <= SHORT_PHRASE_MAX_UNITS
 
 
 def text_unit_count(text: str) -> int:

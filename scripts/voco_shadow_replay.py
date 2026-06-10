@@ -461,7 +461,6 @@ def expected_text(event: dict[str, Any]) -> str:
     for value in (
         nested(event, "userAction", "targetText"),
         nested(event, "userAction", "selectedCandidateText"),
-        nested(event, "pipeline", "finalInserted"),
     ):
         normalized = normalize_text(value)
         if normalized:
@@ -638,8 +637,8 @@ def metric_definitions() -> dict[str, str]:
         "blockedBecauseShortPhraseRiskCount": "Candidate and event safety blocks caused by risky short phrases.",
         "blockedBecauseNoiseSuspectedCount": "Candidate and event safety blocks caused by UI/timing/stale-text noise.",
         "blockedBecauseNegativeEvidenceCount": "Candidate and event safety blocks caused by rollback/rejected/allowlisted negative evidence.",
-        "potentialReviewSavingsPer100": "Review-suggested pipeline snapshots whose top non-review shadow candidate already matches finalInserted per 100 pipeline snapshots.",
-        "potentialWrongCandidatePer100": "Pipeline snapshots whose top non-review shadow candidate differs from finalInserted per 100 pipeline snapshots.",
+        "potentialReviewSavingsPer100": "Review-suggested pipeline snapshots whose top non-review shadow candidate matches explicit user-confirmed text per 100 pipeline snapshots.",
+        "potentialWrongCandidatePer100": "Pipeline snapshots whose top non-review shadow candidate differs from explicit user-confirmed text per 100 pipeline snapshots.",
         "uiNoiseSuspectedCount": "Events containing UI/timing/span noise flags.",
         "llmOnlyEvidenceRejectedCount": "Events blocked or classified as untrusted because evidence came only from LLM/enhanced differences.",
     }

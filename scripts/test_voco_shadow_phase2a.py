@@ -49,6 +49,8 @@ class Phase2AShadowCandidateTests(unittest.TestCase):
             final="repo 內的 Markdown。",
             llm="repo 內的 Markdown。",
             route="reviewSuggested",
+            user_target="repo 內的 Markdown。",
+            user_source="reviewCandidate",
         )
 
         enriched = candidates.enrich_event(event)
@@ -63,6 +65,56 @@ class Phase2AShadowCandidateTests(unittest.TestCase):
         self.assertTrue(all(candidate["rank"] > confirmed["rank"] for candidate in llm_candidates))
         self.assertTrue(all(candidate["score"] < confirmed["score"] for candidate in llm_candidates))
         self.assertNotEqual(replay.top_trusted_candidate(enriched)["source"], "llm")
+        self.assertFalse(enriched["safety"]["autoApplied"])
+        self.assertFalse(enriched["safety"]["wouldHaveChangedFinalOutput"])
+
+    def test_direct_insertion_final_is_not_confirmed_exact(self):
+        event = pipeline_event(
+            raw="然后，你可以先做手机。",
+            final="然後，你可以先做手機。",
+            llm=None,
+        )
+
+        enriched = candidates.enrich_event(event)
+        sources = {candidate["source"] for candidate in enriched["shadowCandidates"]}
+
+        self.assertNotIn("confirmedExact", sources)
+        self.assertIn("zhPhonetic", sources)
+        self.assertTrue(
+            all(candidate["requiresReview"] for candidate in enriched["shadowCandidates"] if candidate["source"] != "raw")
+        )
+        zh_candidate = next(candidate for candidate in enriched["shadowCandidates"] if candidate["source"] == "zhPhonetic")
+        self.assertTrue(zh_candidate["blockedBecauseShortPhraseRisk"])
+        self.assertFalse(enriched["safety"]["autoApplied"])
+        self.assertFalse(enriched["safety"]["wouldHaveChangedFinalOutput"])
+
+    def test_short_phrase_wider_context_candidate_stays_review_only(self):
+        event = pipeline_event(
+            raw="做手机。",
+            final="做手機。",
+            llm=None,
+            length_bucket="1_4",
+            ui_context={
+                "recentContextCandidate": "做收集。",
+                "contextWindowRawBefore": [
+                    "请先把你看不出来的原来的句子列出来，我跟你说原来的句子是什么意思。",
+                    "不用重跑，重新辨识。",
+                ],
+                "contextWindowRawAfter": ["增加 Markdown。这样，我们过几天回来看结果的时候，你才知道。"],
+            },
+        )
+
+        enriched = candidates.enrich_event(event)
+        context_candidate = next(
+            candidate for candidate in enriched["shadowCandidates"]
+            if candidate["source"] == "recentContext"
+        )
+
+        self.assertEqual(context_candidate["text"], "做收集。")
+        self.assertEqual(context_candidate["evidenceTier"], "T1_WEAK_INTERACTION")
+        self.assertTrue(context_candidate["blockedBecauseShortPhraseRisk"])
+        self.assertTrue(context_candidate["requiresReview"])
+        self.assertNotIn("confirmedExact", {candidate["source"] for candidate in enriched["shadowCandidates"]})
         self.assertFalse(enriched["safety"]["autoApplied"])
         self.assertFalse(enriched["safety"]["wouldHaveChangedFinalOutput"])
 
@@ -115,10 +167,12 @@ class Phase2AShadowCandidateTests(unittest.TestCase):
     def test_replay_reports_phase2a_candidate_metrics(self):
         event = candidates.enrich_event(
             pipeline_event(
-                raw="Ripple内的Markdown。",
-                final="repo 內的 Markdown。",
-                llm="repo 內的 Markdown。",
+                raw="增加 Markdown。这样，我们过几天回来看结果的时候，你才知道。",
+                final="增加 Markdown。這樣，我們過幾天回來看結果的時候，你才知道。",
+                llm="增加 Markdown。這樣，我們過幾天回來看結果的時候，你才知道。",
                 route="reviewSuggested",
+                user_target="增加 Markdown。這樣，我們過幾天回來看結果的時候，你才知道。",
+                user_source="reviewCandidate",
             )
         )
 
@@ -155,7 +209,23 @@ def pipeline_event(
     llm: str | None = None,
     route: str = "directInsertion",
     length_bucket: str = "5_15",
+    user_target: str | None = None,
+    user_selected: str | None = None,
+    user_source: str = "none",
+    ui_context: dict | None = None,
 ):
+    default_ui_context = {
+        "activeAppBundleId": None,
+        "windowTitleHash": None,
+        "focusedElementRole": None,
+        "selectionTextBefore": None,
+        "selectionTextAfter": None,
+        "anchorBeforeHash": None,
+        "anchorAfterHash": None,
+    }
+    if ui_context:
+        default_ui_context.update(ui_context)
+
     return {
         "schemaVersion": 1,
         "eventType": "pipelineSnapshot",
@@ -197,8 +267,12 @@ def pipeline_event(
             "isPurePhoneticCandidate": False,
         },
         "phonetics": {},
-        "userAction": {"source": "none"},
-        "uiContext": {},
+        "userAction": {
+            "source": user_source,
+            "targetText": user_target,
+            "selectedCandidateText": user_selected,
+        },
+        "uiContext": default_ui_context,
         "shadowCandidates": [],
         "safety": {
             "autoApplied": False,
