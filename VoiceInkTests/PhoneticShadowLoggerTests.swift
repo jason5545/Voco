@@ -87,6 +87,24 @@ struct PhoneticShadowLoggerTests {
         #expect(safety["wouldHaveChangedFinalOutput"] as? Bool == false)
     }
 
+    @Test func candidateApplicationFlagStaysFalseEvenIfDefaultsAreSet() async throws {
+        let oldValue = UserDefaults.standard.object(forKey: PhoneticShadowLogger.candidateApplicationEnabledKey)
+        defer {
+            if let oldValue {
+                UserDefaults.standard.set(oldValue, forKey: PhoneticShadowLogger.candidateApplicationEnabledKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: PhoneticShadowLogger.candidateApplicationEnabledKey)
+            }
+        }
+
+        UserDefaults.standard.set(true, forKey: PhoneticShadowLogger.candidateApplicationEnabledKey)
+
+        #expect(PhoneticShadowLogger.isCandidateApplicationEnabled == false)
+
+        let featureFlags = try #require(sampleEvent().jsonObject()["featureFlags"] as? [String: Any])
+        #expect(featureFlags[PhoneticShadowLogger.candidateApplicationEnabledKey] as? Bool == false)
+    }
+
     private func sampleEvent(eventId: String = "event-1") -> PhoneticShadowEvent {
         PhoneticShadowEvent.pipelineSnapshot(
             utteranceId: "utt-1",

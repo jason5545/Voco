@@ -369,7 +369,7 @@ final class PhoneticShadowLogger {
     }
 
     static var isCandidateApplicationEnabled: Bool {
-        UserDefaults.standard.bool(forKey: candidateApplicationEnabledKey)
+        false
     }
 
     static func logDirectory() -> URL {
