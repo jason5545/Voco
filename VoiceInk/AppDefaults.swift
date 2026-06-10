@@ -74,6 +74,10 @@ enum AppDefaults {
         "ChinesePostProcessingContextMemory": true,
         "ChinesePostProcessingLLMValidation": true,
         "ChinesePostProcessingLogProbThreshold": -0.3,
+
+        // Phase 1 shadow diagnostics (analysis-only)
+        PhoneticShadowLogger.shadowLoggingEnabledKey: false,
+        PhoneticShadowLogger.candidateApplicationEnabledKey: false,
     ]
 
     static func registerDefaults(defaults: UserDefaults = .standard) {
