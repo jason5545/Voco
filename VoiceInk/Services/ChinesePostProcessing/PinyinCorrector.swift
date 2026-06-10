@@ -102,6 +102,8 @@ class PinyinCorrector {
             ("回到夾", "回到家"),
             ("先跟我承認一下", "先跟我確認一下"),
             ("重重新辨析", "重新辨識"),
+            ("重重新轉錄", "重新轉錄"),
+            ("我在我在說", "我在說"),
             ("重新辨析", "重新辨識"),
             ("確定是often", "確定是 orphan"),
             ("確定是 often", "確定是 orphan"),
@@ -159,6 +161,11 @@ class PinyinCorrector {
             "收集", "context", "上下文", "原始句子", "原來的句子",
             "重新辨識", "重新辨析", "看不出來", "列出來", "raw",
             "ASR", "轉錄", "辨識", "shadow", "replay"
+        ]
+        let blockingKeywords = [
+            "阻塞", "堵塞", "喚醒", "卡住", "卡死", "延遲",
+            "調查模組", "模組", "原因", "成因", "具體", "merge",
+            "prewarm", "warm", "engine", "instance"
         ]
 
         let contextCorrections: [(String, String, [String])] = [
@@ -256,6 +263,9 @@ class PinyinCorrector {
             ("用新相機出去", "用信箱寄出去", jobApplicationKeywords),
             ("先做手機", "先做收集", contextCollectionKeywords),
             ("做手機", "做收集", contextCollectionKeywords),
+            ("堵塞點", "阻塞點", blockingKeywords),
+            ("組賽", "阻塞", blockingKeywords),
+            ("陳英感覺", "成因感覺", blockingKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(

@@ -117,6 +117,7 @@ final class CorrectionProtectionList {
         "轉路",
         "转路",
         "語音轉錄",
+        "轉錄的技能",
         "retranscribe",
         "Retranscribe",
     ]

@@ -81,6 +81,7 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
 
     private func showRecorderPanel() {
         guard let engine = engine, let recorder = recorder else { return }
+        StartupTracer.checkpoint("showRecorderPanel_enter(\(recorderPanelStyle.rawValue))")
 
         switch recorderPanelStyle {
         case .notch:
@@ -204,9 +205,13 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
             StartupTracer.begin("hotkey_press")
             lastRecordingStopTime = nil
             engine.cancelScheduledModelCleanup()
+            StartupTracer.checkpoint("cancelModelCleanup_done")
             SoundManager.shared.playStartSound()
+            StartupTracer.checkpoint("playStartSound_done")
             await detectEditMode(engine: engine)
+            StartupTracer.checkpoint("detectEditMode_done")
             isRecorderPanelVisible = true
+            StartupTracer.checkpoint("isRecorderPanelVisible_set")
             await engine.toggleRecord(modeId: modeId)
         }
     }

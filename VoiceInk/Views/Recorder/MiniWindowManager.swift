@@ -31,8 +31,10 @@ class MiniWindowManager {
     }
 
     func show() {
+        StartupTracer.checkpoint("MiniWindowManager.show_enter")
         if panel == nil { initializeWindow() }
         panel?.show()
+        StartupTracer.checkpoint("MiniWindowManager.show_panel_visible")
     }
 
     func hide() {
@@ -44,14 +46,20 @@ class MiniWindowManager {
     }
 
     private func initializeWindow() {
+        StartupTracer.checkpoint("initializeWindow_enter")
         deinitializeWindow()
         let metrics = MiniRecorderPanel.calculateWindowMetrics()
+        StartupTracer.checkpoint("initializeWindow_metrics_calculated")
         let newPanel = MiniRecorderPanel(contentRect: metrics)
+        StartupTracer.checkpoint("initializeWindow_panel_created")
         let view = makeView()
+        StartupTracer.checkpoint("initializeWindow_swiftui_view_created")
         let hostingController = NSHostingController(rootView: view)
+        StartupTracer.checkpoint("initializeWindow_hosting_controller_created")
         newPanel.contentView = hostingController.view
         panel = newPanel
         windowController = NSWindowController(window: newPanel)
+        StartupTracer.checkpoint("initializeWindow_windowController_created")
     }
 
     private func deinitializeWindow() {

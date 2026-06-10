@@ -144,6 +144,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 await cleanupResources()
             }
         } else {
+            StartupTracer.checkpoint("toggleRecord_start_branch")
             let canContinueAssistantSession = isAssistantFollowUp && assistantSession.canSendFollowUp
             let recordingUseCase: RecordingUseCase = canContinueAssistantSession ? .assistantFollowUp : .newSession
 
@@ -181,9 +182,12 @@ class VoiceInkEngine: NSObject, ObservableObject {
                             }
 
                             self.recordingState = .starting
+                            StartupTracer.checkpoint("toggleRecord_state_set_starting")
                             self.recorder.scheduleSystemMute()
 
+                            StartupTracer.checkpoint("toggleRecord_before_startRecording")
                             try await self.recorder.startRecording(toOutputFile: permanentURL)
+                            StartupTracer.end("recorder_startRecording_done")
 
                             guard self.activeRecordingStartID == startID,
                                   self.recorderUIManager?.isRecorderPanelVisible ?? false,

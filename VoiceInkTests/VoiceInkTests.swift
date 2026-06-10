@@ -141,6 +141,17 @@ struct VoiceInkTests {
         #expect(result.isValid == true)
     }
 
+    @Test func validatorRejectsDroppedRetranscribeSkillPhrase() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "你再跑一次，重新轉錄的聲量。因為我發現最近這三筆又有東西可以改了。",
+            original: "你再跑一次，重新轉錄的技能。因為我發現最近這三筆又有東西可以改了。",
+            protectedTerms: CorrectionProtectionList.shared.allWords()
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains(where: { $0.contains("dropped-term:轉錄的技能") }))
+    }
+
     @Test func protectionListCoversWordsInsideProtectedPhrases() async throws {
         let chars = Array("到家了接上 AC 電源")
         let offset = try #require(chars.firstIndex(of: "家"))
@@ -161,6 +172,7 @@ struct VoiceInkTests {
         #expect(CorrectionProtectionList.shared.contains("轉路") == true)
         #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "语音转录") == true)
         #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "你再跑一次转路的技能") == true)
+        #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "你再跑一次轉錄的技能") == true)
         #expect(CorrectionProtectionList.shared.containsProtectedTerm(in: "retranscribe skill") == true)
         #expect(
             CorrectionProtectionList.shared.containsProtectedPhrase(
@@ -580,6 +592,15 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: "Voco retranscribe"
         )
+        let blockingContext = CorrectionContext(
+            recentTranscriptions: [
+                "喚醒阻塞跟 engine instance 有關",
+                "我們在追具體的阻塞點原因",
+                "2.0 merge 之前有調查模組"
+            ],
+            appName: "Codex",
+            windowTitle: "Voco blocking investigation"
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -623,15 +644,20 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("這款機車的 motto 是省電。", context: appleFoundationModelContext).text == "這款機車的 motto 是省電。")
         #expect(PinyinCorrector.shared.correct("不過，先跟我承認一下。").text == "不過，先跟我確認一下。")
         #expect(PinyinCorrector.shared.correct("不用重跑，重重新辨析。").text == "不用重跑，重新辨識。")
+        #expect(PinyinCorrector.shared.correct("你再跑一次，重重新轉錄的技能。").text == "你再跑一次，重新轉錄的技能。")
         #expect(PinyinCorrector.shared.correct("如果他就確定是often，那我們就可以刪了。").text == "如果他就確定是 orphan，那我們就可以刪了。")
         #expect(PinyinCorrector.shared.correct("現在的這個應該也沒有到很凹頭。").text == "現在的這個應該也沒有到很 auto。")
         #expect(PinyinCorrector.shared.correct("這三天又補了屬於自己的失重。").text == "這三天又補了屬於自己的實作。")
         #expect(PinyinCorrector.shared.correct("而且還做了一些work on the resources.").text == "而且還做了一些Workaround 與實作.")
         #expect(PinyinCorrector.shared.correct("我承認這是失重造成的。").text == "我承認這是失重造成的。")
+        #expect(PinyinCorrector.shared.correct("呃，你在現在這筆也是可以改的。你應該知道我在我在說什麼吧？").text == "呃，你在現在這筆也是可以改的。你應該知道我在說什麼吧？")
         #expect(PinyinCorrector.shared.correct("之前那個 69 輪的東西。").text == "之前那個 69 輪的東西。")
         #expect(PinyinCorrector.shared.correct("然後，你可以先做手機。", context: contextCollectionContext).text == "然後，你可以先做收集。")
         #expect(PinyinCorrector.shared.correct("做手機。", context: contextCollectionContext).text == "做收集。")
         #expect(PinyinCorrector.shared.correct("我想做手機 app。", context: contextCollectionContext).text == "我想做手機 app。")
+        #expect(PinyinCorrector.shared.correct("我們上次測完之後有記到具體的堵塞點的原因嗎？因為陳英感覺跟上次很像。", context: blockingContext).text == "我們上次測完之後有記到具體的阻塞點的原因嗎？因為成因感覺跟上次很像。")
+        #expect(PinyinCorrector.shared.correct("有新增一個組賽的調查模組，組賽的又更嚴重了。", context: blockingContext).text == "有新增一個阻塞的調查模組，阻塞的又更嚴重了。")
+        #expect(PinyinCorrector.shared.correct("這場小組賽很精彩。", context: blockingContext).text == "這場小組賽很精彩。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

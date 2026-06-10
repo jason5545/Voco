@@ -31,8 +31,10 @@ class NotchWindowManager {
     }
 
     func show() {
+        StartupTracer.checkpoint("NotchWindowManager.show_enter")
         if panel == nil { initializeWindow() }
         panel?.show()
+        StartupTracer.checkpoint("NotchWindowManager.show_panel_visible")
     }
 
     func hide() {
@@ -44,14 +46,20 @@ class NotchWindowManager {
     }
 
     private func initializeWindow() {
+        StartupTracer.checkpoint("NotchWindowManager.initializeWindow_enter")
         deinitializeWindow()
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
+        StartupTracer.checkpoint("NotchWindowManager.metrics_calculated")
         let newPanel = NotchRecorderPanel(contentRect: metrics.frame)
+        StartupTracer.checkpoint("NotchWindowManager.panel_created")
         let view = makeView()
+        StartupTracer.checkpoint("NotchWindowManager.swiftui_view_created")
         let hostingController = NotchRecorderHostingController(rootView: view)
+        StartupTracer.checkpoint("NotchWindowManager.hosting_controller_created")
         newPanel.contentView = hostingController.view
         panel = newPanel
         windowController = NSWindowController(window: newPanel)
+        StartupTracer.checkpoint("NotchWindowManager.windowController_created")
     }
 
     private func deinitializeWindow() {

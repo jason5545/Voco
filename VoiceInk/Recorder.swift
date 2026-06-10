@@ -122,6 +122,8 @@ class Recorder: NSObject, ObservableObject {
     }
 
     func startRecording(toOutputFile url: URL) async throws {
+        StartupTracer.checkpoint("Recorder.startRecording_enter")
+        logger.notice("startRecording called deviceID=\(self.deviceManager.getCurrentDevice(), privacy: .public) file=\(url.lastPathComponent, privacy: .public)")
         deviceManager.isRecordingActive = true
 
         let currentDeviceID = deviceManager.getCurrentDevice()
@@ -139,9 +141,11 @@ class Recorder: NSObject, ObservableObject {
         audioRestorationTask = nil
         audioMeterUpdateTimer?.cancel()
 
+        let isReusingRecorder = recorder != nil
         let coreAudioRecorder = recorder ?? CoreAudioRecorder()
         coreAudioRecorder.onAudioChunk = onAudioChunk
         recorder = coreAudioRecorder
+        StartupTracer.checkpoint(isReusingRecorder ? "Recorder.CoreAudioRecorder_reused" : "Recorder.CoreAudioRecorder_created")
 
         do {
             // Offload hardware start to avoid shortcut lag.
@@ -155,6 +159,7 @@ class Recorder: NSObject, ObservableObject {
                     }
                 }
             }
+            StartupTracer.checkpoint("Recorder.CoreAudioRecorder_started")
 
             startAudioMeterTimer()
             Task { [weak self] in
