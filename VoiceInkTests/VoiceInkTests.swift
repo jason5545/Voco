@@ -571,6 +571,15 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: nil
         )
+        let contextCollectionContext = CorrectionContext(
+            recentTranscriptions: [
+                "請先把你看不出來的原來的句子列出來",
+                "不用重跑，重新辨識",
+                "我們正在收集上下文跟原始句子"
+            ],
+            appName: "Codex",
+            windowTitle: "Voco retranscribe"
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -620,6 +629,9 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("而且還做了一些work on the resources.").text == "而且還做了一些Workaround 與實作.")
         #expect(PinyinCorrector.shared.correct("我承認這是失重造成的。").text == "我承認這是失重造成的。")
         #expect(PinyinCorrector.shared.correct("之前那個 69 輪的東西。").text == "之前那個 69 輪的東西。")
+        #expect(PinyinCorrector.shared.correct("然後，你可以先做手機。", context: contextCollectionContext).text == "然後，你可以先做收集。")
+        #expect(PinyinCorrector.shared.correct("做手機。", context: contextCollectionContext).text == "做收集。")
+        #expect(PinyinCorrector.shared.correct("我想做手機 app。", context: contextCollectionContext).text == "我想做手機 app。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
@@ -3493,6 +3505,78 @@ struct VoiceInkTests {
             confidenceScore: 0.64,
             changeRatio: 0.12,
             reason: "candidate-timeout-fallback"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsLLMOnlyEvidence() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .retranscriptionChange,
+            sourceText: "修正",
+            acceptedText: "小振",
+            confidenceScore: 0.82,
+            changeRatio: 0.4,
+            reason: "llm-enhancement-difference"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsNegativeEvidenceOriginals() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .userSubstitution,
+            sourceText: "69 輪",
+            acceptedText: "六十九輪",
+            confidenceScore: 0.9,
+            changeRatio: 0.5,
+            reason: "user-substitution"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningKeepsShortRetranscriptionReviewOnlyUnlessTechnical() async throws {
+        let context = try makeDictionaryContext()
+        let shortNonTechnical = CorrectionFeedbackSignal(
+            kind: .retranscriptionChange,
+            sourceText: "做手機。",
+            acceptedText: "做收集。",
+            confidenceScore: 0.9,
+            changeRatio: 0.25,
+            reason: "retranscription-meaningfulChange"
+        )
+
+        let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: shortNonTechnical, in: context)
+        let entries = try context.fetch(FetchDescriptor<WordReplacement>())
+
+        #expect(staged.isEmpty)
+        #expect(entries.isEmpty)
+    }
+
+    @Test @MainActor func correctionFeedbackLearningSkipsNonTechnicalCrossLanguageReconstruction() async throws {
+        let context = try makeDictionaryContext()
+        let signal = CorrectionFeedbackSignal(
+            kind: .userSubstitution,
+            sourceText: "你好",
+            acceptedText: "hello there",
+            confidenceScore: 0.9,
+            changeRatio: 0.8,
+            reason: "user-substitution"
         )
 
         let staged = CorrectionFeedbackLearningService.stageLearningCandidates(from: signal, in: context)

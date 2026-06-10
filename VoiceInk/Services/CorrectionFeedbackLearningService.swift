@@ -5,6 +5,7 @@ import SwiftData
 enum CorrectionFeedbackLearningService {
     private static let maximumBroadLearningChangeRatio = 0.45
     private static let broadLearningCharacterCount = 6
+    private static let shortRetranscriptionUnitLimit = 10
 
     @discardableResult
     static func stageLearningCandidates(
@@ -25,6 +26,8 @@ enum CorrectionFeedbackLearningService {
     }
 
     static func learningSubstitutions(from signal: CorrectionFeedbackSignal) -> [WordSubstitution] {
+        guard isEligibleForAutoLearning(signal) else { return [] }
+
         switch signal.kind {
         case .candidateSelection:
             guard signal.isCorrectiveSignal else { return [] }
@@ -60,6 +63,63 @@ enum CorrectionFeedbackLearningService {
         }
 
         return []
+    }
+
+    private static func isEligibleForAutoLearning(_ signal: CorrectionFeedbackSignal) -> Bool {
+        guard signal.isCorrectiveSignal else { return false }
+        guard !hasUntrustedLearningReason(signal.reason) else { return false }
+
+        let classification = CorrectionEvidenceClassifier.classify(signal: signal)
+        switch classification.evidenceTier {
+        case .t0Untrusted, .negativeEvidence, .none:
+            return false
+        case .t1WeakInteraction, .t2ConfirmedSpan, .t3ConfirmedRepeated, .t4Gold:
+            break
+        }
+
+        guard !hasBlockedLearningNoise(classification.noiseFlags) else { return false }
+
+        if signal.kind == .retranscriptionChange,
+           hasShortNonTechnicalRetranscriptionRisk(signal, classification: classification) {
+            return false
+        }
+
+        return true
+    }
+
+    private static func hasUntrustedLearningReason(_ reason: String) -> Bool {
+        let normalized = reason.lowercased()
+        return normalized.contains("llm")
+            || normalized.contains("enhancement")
+            || normalized.contains("ztext-enhanced")
+            || normalized.contains("automatic-correction")
+            || normalized.contains("candidate-not-selected")
+    }
+
+    private static func hasBlockedLearningNoise(_ flags: [CorrectionEvidenceNoiseFlag]) -> Bool {
+        flags.contains(.llmOnly)
+            || flags.contains(.stalePendingTranscriptSuspected)
+            || flags.contains(.targetLengthExpansionRatioHigh)
+            || flags.contains(.fullSentenceRewriteSuspected)
+            || flags.contains(.crossLanguageReconstruction)
+    }
+
+    private static func hasShortNonTechnicalRetranscriptionRisk(
+        _ signal: CorrectionFeedbackSignal,
+        classification: CorrectionEvidenceClassification
+    ) -> Bool {
+        guard let comparison = classification.phoneticComparison else { return false }
+        guard !comparison.raw.isTechnicalTermCandidate,
+              !comparison.target.isTechnicalTermCandidate
+        else {
+            return false
+        }
+
+        let rawUnits = comparison.raw.unitCount
+        let targetUnits = comparison.target.unitCount
+        return comparison.raw.lengthBucket == .oneToFour
+            || comparison.target.lengthBucket == .oneToFour
+            || min(rawUnits, targetUnits) <= shortRetranscriptionUnitLimit
     }
 
     private static func directSubstitution(from signal: CorrectionFeedbackSignal) -> WordSubstitution? {

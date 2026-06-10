@@ -65,7 +65,7 @@ enum PhoneticFeatureExtractor {
     private static let technicalTerms: Set<String> = [
         "api", "asr", "auto", "cloudflare", "flight", "envelope", "github",
         "json", "jsonl", "llm", "markdown", "mlx", "openai", "qwen",
-        "session", "sqlite", "swift", "swiftdata", "voco", "workaround",
+        "session", "sqlite", "swift", "swiftdata", "voco", "voiceink", "workaround",
         "xcode"
     ]
 

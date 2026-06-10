@@ -155,6 +155,11 @@ class PinyinCorrector {
             "招聘", "求職", "工作", "應徵", "履歷", "自傳", "PDF",
             "提供", "繳交", "提交", "寄出", "信箱", "電子郵件"
         ]
+        let contextCollectionKeywords = [
+            "收集", "context", "上下文", "原始句子", "原來的句子",
+            "重新辨識", "重新辨析", "看不出來", "列出來", "raw",
+            "ASR", "轉錄", "辨識", "shadow", "replay"
+        ]
 
         let contextCorrections: [(String, String, [String])] = [
             ("清晰度", "信心度", ["信心", "模型", "辨識", "轉錄", "Whisper", "Voco", "語音", "confidence"]),
@@ -249,6 +254,8 @@ class PinyinCorrector {
             ("怎麼角標自轉", "怎麼繳交自傳", jobApplicationKeywords),
             ("要自轉", "要自傳", jobApplicationKeywords),
             ("用新相機出去", "用信箱寄出去", jobApplicationKeywords),
+            ("先做手機", "先做收集", contextCollectionKeywords),
+            ("做手機", "做收集", contextCollectionKeywords),
         ]
         for (wrong, correct, keywords) in contextCorrections {
             allRules.append(PinyinCorrectionRule(
@@ -330,6 +337,21 @@ class PinyinCorrector {
     }
 
     private func allowsContextualRuleInCurrentText(_ rule: PinyinCorrectionRule, currentText: String) -> Bool {
+        if rule.wrong == "做手機",
+           rule.correct == "做收集" {
+            let lowerText = currentText.lowercased()
+            let mobileProductCues = [
+                "手機 app", "手機app", "手機版", "手機 ui", "手機ui",
+                "手機應用", "手機軟體", "手機介面", "手機開發"
+            ]
+            if mobileProductCues.contains(where: { lowerText.contains($0.lowercased()) }) {
+                return false
+            }
+
+            let localCues = ["先做手機", "做手機。", "做手機，", "做手機？", "做手機！", "做手機."]
+            return localCues.contains { currentText.contains($0) }
+        }
+
         guard rule.wrong == "用新相機出去",
               rule.correct == "用信箱寄出去" else {
             return true

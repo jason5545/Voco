@@ -126,6 +126,15 @@ struct CorrectionEvidenceClassifierTests {
             )
         )
         #expect(allowlisted.evidenceTier == .negativeEvidence)
+
+        let allowlistedRewrite = CorrectionEvidenceClassifier.classify(
+            CorrectionEvidenceInput(
+                source: .correctionFeedback,
+                rawText: "69 輪",
+                targetText: "六十九輪"
+            )
+        )
+        #expect(allowlistedRewrite.evidenceTier == .negativeEvidence)
     }
 
     @Test func noisyFullSentenceRewriteIsNotPromoted() async throws {

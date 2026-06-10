@@ -165,10 +165,10 @@ enum CorrectionEvidenceClassifier {
         if input.isExplicitAllowlistedCorrectOriginal {
             return true
         }
-        if let raw, knownCorrectOriginals.contains(raw), target == nil || target == raw {
+        if let raw, knownCorrectOriginals.contains(raw) {
             return true
         }
-        if let target, knownCorrectOriginals.contains(target), raw == nil || raw == target {
+        if let target, knownCorrectOriginals.contains(target) {
             return true
         }
         return false
