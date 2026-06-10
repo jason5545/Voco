@@ -117,18 +117,12 @@ extension VoiceInkEngine {
         }
     }
 
-    /// Starts a 15-second timer that stages the dictionary entry on expiry (instead of discarding).
+    /// Starts a 15-second timer that rejects the dictionary entry on expiry.
     func startDictionaryDismissTimer() {
         dictionaryDismissTimer?.cancel()
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
-                // Stage the entry instead of discarding
-                if let entry = self.forkState.pendingDictionaryEntry {
-                    AutoCorrectionStagingService.shared.stageCorrection(
-                        entry, in: self.modelContext
-                    )
-                }
                 self.forkState.pendingDictionaryEntry = nil
                 await self.recorderUIManager?.dismissRecorderPanel()
             }

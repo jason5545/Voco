@@ -3684,7 +3684,7 @@ struct VoiceInkTests {
         #expect(entries.isEmpty)
     }
 
-    @Test @MainActor func correctionFeedbackLearningPromotesRepeatedRetranscriptionCorrection() async throws {
+    @Test @MainActor func correctionFeedbackLearningKeepsRepeatedRetranscriptionCorrectionReviewOnly() async throws {
         let context = try makeDictionaryContext()
         let signal = CorrectionFeedbackSignal(
             kind: .retranscriptionChange,
@@ -3705,7 +3705,9 @@ struct VoiceInkTests {
         #expect(entry.replacementText == "VoiceInk")
         #expect(entry.source == WordReplacement.sourceCorrectionFeedback)
         #expect(entry.hitCount == 3)
-        #expect(entry.isEnabled)
+        #expect(!entry.isEnabled)
+        #expect(entry.isLearningCandidate)
+        #expect(entry.learningProgressLabel == "3/3")
     }
 
     @Test func wordReplacementLearningStateDisplaysProgressAndApproves() async throws {

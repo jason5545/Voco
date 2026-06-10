@@ -6,7 +6,7 @@ final class WordReplacement {
     static let sourceUser = "user"
     static let sourceEditMode = "editMode"
     static let sourceCorrectionFeedback = "correctionFeedback"
-    static let learningPromotionThreshold = 3
+    static let learningReviewThreshold = 3
 
     var id: UUID = UUID()
     var originalText: String = ""
@@ -49,8 +49,8 @@ final class WordReplacement {
 
     var learningProgressLabel: String? {
         guard isLearningCandidate else { return nil }
-        let current = max(1, min(hitCount, Self.learningPromotionThreshold))
-        return "\(current)/\(Self.learningPromotionThreshold)"
+        let current = max(1, min(hitCount, Self.learningReviewThreshold))
+        return "\(current)/\(Self.learningReviewThreshold)"
     }
 
     func approveLearningCandidate() {

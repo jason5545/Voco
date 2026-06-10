@@ -1,5 +1,5 @@
 // AutoCorrectionStagingService.swift
-// Automatically stages edit mode corrections for promotion to WordReplacement.
+// Stages edit mode corrections for explicit user approval as WordReplacement.
 // Uses LCS diff + pinyin similarity to detect ASR errors from before/after text.
 
 import Foundation
@@ -75,7 +75,7 @@ final class AutoCorrectionStagingService {
 
     // MARK: - Staging
 
-    /// Stage a correction pair: insert or increment hitCount, check promotion.
+    /// Stage a correction pair: insert or increment hitCount, then ask for explicit approval.
     func stageCorrection(
         _ sub: WordSubstitution,
         in modelContext: ModelContext,
@@ -102,7 +102,7 @@ final class AutoCorrectionStagingService {
 
             existing.hitCount += 1
             existing.lastSeenDate = Date()
-            checkPromotion(existing)
+            notifyLearningProgressIfNeeded(existing)
         } else {
             let entry = WordReplacement(
                 originalText: coreOriginal,
@@ -117,9 +117,9 @@ final class AutoCorrectionStagingService {
         try? modelContext.save()
     }
 
-    // MARK: - Promotion
+    // MARK: - Learning Review
 
-    private func checkPromotion(_ entry: WordReplacement) {
+    private func notifyLearningProgressIfNeeded(_ entry: WordReplacement) {
         guard !entry.isEnabled,
               entry.source == WordReplacement.sourceEditMode || entry.source == WordReplacement.sourceCorrectionFeedback
         else {
@@ -129,18 +129,16 @@ final class AutoCorrectionStagingService {
         switch entry.hitCount {
         case 2:
             NotificationManager.shared.showNotification(
-                title: "「\(entry.originalText)」→「\(entry.replacementText)」已出現 2 次，下次將自動加入辭典",
+                title: "「\(entry.originalText)」→「\(entry.replacementText)」已出現 2 次，確認後才會加入辭典",
                 type: .info,
                 duration: 4.0
             )
-        case WordReplacement.learningPromotionThreshold...:
-            entry.isEnabled = true
+        case WordReplacement.learningReviewThreshold:
             NotificationManager.shared.showNotification(
-                title: "「\(entry.originalText)」→「\(entry.replacementText)」已自動加入辭典",
-                type: .success,
-                duration: 3.0
+                title: "「\(entry.originalText)」→「\(entry.replacementText)」已累積 3 次，請確認後加入辭典",
+                type: .info,
+                duration: 4.0
             )
-            logger.notice("Auto-promoted correction: \(entry.originalText, privacy: .private) → \(entry.replacementText, privacy: .private)")
         default:
             break
         }
