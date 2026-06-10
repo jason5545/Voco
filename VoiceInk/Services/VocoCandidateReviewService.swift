@@ -104,6 +104,16 @@ enum VocoCandidateReviewService {
         if signal.isCorrectiveSignal {
             transcription.userCorrectionDistance = signal.changeRatio
         }
+        if PhoneticShadowLogger.isShadowLoggingEnabled {
+            let event = PhoneticShadowEvent.userCorrection(
+                signal: signal,
+                eventType: .reviewSelection,
+                source: .reviewCandidate,
+                utteranceId: transcription.id.uuidString,
+                transcriptionDbId: transcription.id.uuidString
+            )
+            PhoneticShadowLogger.shared.log(event)
+        }
         return signal
     }
 

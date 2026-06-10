@@ -7,6 +7,16 @@ struct PostProcessingResult {
     let appliedSteps: [String]
     let repetitionInfo: RepetitionDetector.RepetitionInfo?
     let needsLLMCorrection: Bool
+    let trace: ChinesePostProcessingTrace
+}
+
+/// Analysis-only snapshots of existing post-processing stages.
+struct ChinesePostProcessingTrace {
+    var afterOpenCC: String?
+    var afterPinyinCorrector: String?
+    var afterHomophoneCorrection: String?
+    var afterNasalCorrection: String?
+    var afterPersonalCorrection: String?
 }
 
 /// Main controller for Chinese post-processing pipeline
@@ -152,10 +162,12 @@ class ChinesePostProcessingService: ObservableObject {
         var result = text
         var steps: [String] = []
         var repetitionInfo: RepetitionDetector.RepetitionInfo?
+        var trace = ChinesePostProcessingTrace()
 
         // Step 1: OpenCC s2twp conversion (segment-aware: skips Japanese parts)
         if isOpenCCEnabled {
             let converted = openCCConvertSkippingJapanese(result)
+            trace.afterOpenCC = converted
             if converted != result {
                 steps.append("OpenCC")
                 logger.debug("OpenCC: \(result) → \(converted)")
@@ -190,6 +202,7 @@ class ChinesePostProcessingService: ObservableObject {
             )
             #endif
             let correctionResult = pinyinCorrector.correct(result, context: correctionContext)
+            trace.afterPinyinCorrector = correctionResult.text
             if !correctionResult.corrections.isEmpty {
                 steps.append("PinyinCorrection")
                 for c in correctionResult.corrections {
@@ -208,6 +221,16 @@ class ChinesePostProcessingService: ObservableObject {
                 ]
                 for (engine, enabled) in enabledEngines where enabled {
                     let engineResult = engine.correct(result)
+                    switch engine.name {
+                    case HomophoneCorrectionEngine.shared.name:
+                        trace.afterHomophoneCorrection = engineResult.text
+                    case NasalCorrectionEngine.shared.name:
+                        trace.afterNasalCorrection = engineResult.text
+                    case PersonalCorrectionEngine.shared.name:
+                        trace.afterPersonalCorrection = engineResult.text
+                    default:
+                        break
+                    }
                     if !engineResult.corrections.isEmpty {
                         steps.append(engine.name)
                         for c in engineResult.corrections {
@@ -219,6 +242,7 @@ class ChinesePostProcessingService: ObservableObject {
 
                 // Layer 1 re-scan: catch patterns introduced by data-driven layers
                 let reCheckResult = pinyinCorrector.correct(result, context: correctionContext)
+                trace.afterPinyinCorrector = reCheckResult.text
                 if !reCheckResult.corrections.isEmpty {
                     steps.append("PinyinReCheck")
                     for c in reCheckResult.corrections {
@@ -255,7 +279,8 @@ class ChinesePostProcessingService: ObservableObject {
             processedText: result,
             appliedSteps: steps,
             repetitionInfo: repetitionInfo,
-            needsLLMCorrection: needsLLM
+            needsLLMCorrection: needsLLM,
+            trace: trace
         )
     }
 

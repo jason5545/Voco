@@ -235,6 +235,75 @@ struct PhoneticShadowEvent: Equatable {
         )
     }
 
+    static func userCorrection(
+        signal: CorrectionFeedbackSignal,
+        eventType: PhoneticShadowEventType = .userCorrection,
+        source: CorrectionEvidenceSource,
+        utteranceId: String? = nil,
+        transcriptionDbId: String? = nil,
+        selectedRangeLength: Int? = nil,
+        timeSinceUtteranceMs: Int? = nil
+    ) -> PhoneticShadowEvent {
+        let classification = CorrectionEvidenceClassifier.classify(
+            CorrectionEvidenceInput(
+                source: source,
+                rawText: signal.sourceText,
+                targetText: signal.acceptedText,
+                proposedText: signal.proposedText,
+                selectedRangeLength: selectedRangeLength,
+                timeSinceUtteranceMs: timeSinceUtteranceMs
+            )
+        )
+        let comparison = classification.phoneticComparison
+        let featureSource = comparison?.raw ?? PhoneticFeatureExtractor.extract(signal.sourceText)
+        let featureTarget = comparison?.target ?? PhoneticFeatureExtractor.extract(signal.acceptedText)
+        let flags = classification.noiseFlags
+
+        return PhoneticShadowEvent(
+            eventType: eventType,
+            utteranceId: utteranceId,
+            transcriptionDbId: transcriptionDbId,
+            pipeline: PhoneticShadowPipeline(
+                rawASR: signal.sourceText,
+                llmEnhanced: source == .llmEnhancement || source == .ztextEnhancedDifference ? signal.acceptedText : nil,
+                finalInserted: signal.acceptedText,
+                confidenceScore: signal.confidenceScore
+            ),
+            userAction: PhoneticShadowUserAction(
+                source: source.rawValue,
+                targetText: signal.acceptedText,
+                selectedCandidateText: signal.kind == .candidateSelection ? signal.acceptedText : nil,
+                selectedRangeLength: selectedRangeLength,
+                timeSinceUtteranceMs: timeSinceUtteranceMs
+            ),
+            classification: PhoneticShadowClassification(
+                lengthBucket: featureSource.lengthBucket,
+                scriptMode: featureSource.scriptMode,
+                languageMode: comparison?.languageMode ?? featureSource.languageMode,
+                isCommandLike: featureSource.isCommandLike,
+                isTechnicalTermCandidate: featureSource.isTechnicalTermCandidate || featureTarget.isTechnicalTermCandidate,
+                evidenceTier: classification.evidenceTier,
+                noiseFlags: flags,
+                isPurePhoneticCandidate: classification.isPurePhoneticCandidate
+            ),
+            phonetics: PhoneticShadowPhonetics(
+                rawNormalized: featureSource.normalized,
+                targetNormalized: featureTarget.normalized,
+                rawPhones: featureSource.phones,
+                targetPhones: featureTarget.phones,
+                weightedPhoneEditDistance: comparison?.weightedPhoneticEditDistance,
+                pinyinSimilarity: comparison?.pinyinSimilarity,
+                confusionPairs: comparison?.confusionPairs ?? []
+            ),
+            safety: PhoneticShadowSafety(
+                blockedBecauseLlmOnly: flags.contains(.llmOnly),
+                blockedBecauseShortPhraseRisk: featureSource.lengthBucket == .oneToFour,
+                blockedBecauseNoiseSuspected: !flags.isEmpty,
+                blockedBecauseNegativeEvidence: classification.evidenceTier == .negativeEvidence
+            )
+        )
+    }
+
     func jsonObject() -> [String: Any] {
         [
             "schemaVersion": schemaVersion,

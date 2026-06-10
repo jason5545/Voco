@@ -75,6 +75,9 @@ class TranscriptionPipeline {
         var outputForDelivery: OutputRuntimeConfiguration?
         var responseConfig: EnhancementRuntimeConfiguration?
         let postProcessor = ChinesePostProcessingService.shared
+        var shadowRawASRText: String?
+        var shadowPostProcessingTrace = ChinesePostProcessingTrace()
+        var shadowConfidenceAssessment: VocoConfidenceAssessment?
 
         func finishCanceledTranscription() async {
             await onCancel()
@@ -117,6 +120,7 @@ class TranscriptionPipeline {
                 )
             }
             let rawASRText = text
+            shadowRawASRText = rawASRText
             text = TranscriptionOutputFilter.filter(text)
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
 
@@ -146,6 +150,7 @@ class TranscriptionPipeline {
             var postProcessingNeedsLLM = true
             if shouldRunChinesePostProcessing {
                 let result = postProcessor.process(text)
+                shadowPostProcessingTrace = result.trace
                 text = result.processedText
                 postProcessingNeedsLLM = result.needsLLMCorrection
                 if result.repetitionInfo?.isSevere == true {
@@ -175,6 +180,7 @@ class TranscriptionPipeline {
             )
             let normalizationResult = normalizedOutput.normalizationResult
             let confidenceAssessment = normalizedOutput.confidenceAssessment
+            shadowConfidenceAssessment = confidenceAssessment
             text = normalizationResult.normalizedText
 
             if !isEditMode,
@@ -372,6 +378,16 @@ class TranscriptionPipeline {
             }
         }
 
+        logPhoneticShadowSnapshot(
+            transcription: transcription,
+            audioURL: audioURL,
+            model: model,
+            rawASRText: shadowRawASRText,
+            postProcessingTrace: shadowPostProcessingTrace,
+            confidenceAssessment: shadowConfidenceAssessment,
+            finalText: finalText
+        )
+
         await delivery.deliver(
             TranscriptionDelivery.Request(
                 transcription: transcription,
@@ -391,6 +407,66 @@ class TranscriptionPipeline {
         )
 
         saveTranscriptionAndPostCompletion()
+    }
+
+    private func logPhoneticShadowSnapshot(
+        transcription: Transcription,
+        audioURL: URL,
+        model: any TranscriptionModel,
+        rawASRText: String?,
+        postProcessingTrace: ChinesePostProcessingTrace,
+        confidenceAssessment: VocoConfidenceAssessment?,
+        finalText: String?
+    ) {
+        guard PhoneticShadowLogger.isShadowLoggingEnabled else { return }
+
+        let durationMs = transcription.duration > 0 ? transcription.duration * 1000 : nil
+        let latencyMs = totalLatencyMs(
+            transcriptionDuration: transcription.transcriptionDuration,
+            enhancementDuration: transcription.enhancementDuration
+        )
+        let pipeline = PhoneticShadowPipeline(
+            asrEngine: shadowASREngineName(for: model.provider),
+            rawASR: rawASRText,
+            afterOpenCC: postProcessingTrace.afterOpenCC,
+            afterPinyinCorrector: postProcessingTrace.afterPinyinCorrector,
+            afterHomophoneCorrection: postProcessingTrace.afterHomophoneCorrection,
+            afterNasalCorrection: postProcessingTrace.afterNasalCorrection,
+            afterPersonalCorrection: postProcessingTrace.afterPersonalCorrection,
+            llmEnhanced: transcription.enhancedText,
+            finalInserted: finalText,
+            route: confidenceAssessment?.route.rawValue,
+            confidenceScore: confidenceAssessment?.score,
+            avgLogprob: ChinesePostProcessingService.shared.lastAvgLogProb == 0 ? nil : ChinesePostProcessingService.shared.lastAvgLogProb,
+            latencyMs: latencyMs
+        )
+        let audio = PhoneticShadowAudio(
+            audioAssetId: audioURL.lastPathComponent,
+            durationMs: durationMs
+        )
+        let event = PhoneticShadowEvent.pipelineSnapshot(
+            utteranceId: transcription.id.uuidString,
+            transcriptionDbId: transcription.id.uuidString,
+            pipeline: pipeline,
+            audio: audio
+        )
+        PhoneticShadowLogger.shared.log(event)
+    }
+
+    private func shadowASREngineName(for provider: ModelProvider) -> String {
+        switch provider {
+        case .qwen3, .qwen3CoreML:
+            return "Qwen3-ASR"
+        case .whisper, .whisperMLX, .whisperCoreML:
+            return "Whisper"
+        default:
+            return "unknown"
+        }
+    }
+
+    private func totalLatencyMs(transcriptionDuration: TimeInterval?, enhancementDuration: TimeInterval?) -> Double? {
+        let total = (transcriptionDuration ?? 0) + (enhancementDuration ?? 0)
+        return total > 0 ? total * 1000 : nil
     }
 
     private func validateEnhancedText(

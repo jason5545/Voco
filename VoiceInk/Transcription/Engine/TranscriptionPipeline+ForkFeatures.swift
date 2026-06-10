@@ -74,10 +74,10 @@ extension TranscriptionPipeline {
 
             // If LLM identified a simple word substitution → show dictionary confirmation
             if let sub = substitution {
-                transcription.recordCorrectionFeedback(
-                    CorrectionFeedbackService.userSubstitutionSignal(sub)
-                )
+                let signal = CorrectionFeedbackService.userSubstitutionSignal(sub)
+                transcription.recordCorrectionFeedback(signal)
                 try? modelContext.save()
+                logEditModeShadowCorrection(signal, transcription: transcription)
                 onEditModeComplete?(sub)
                 return true
             }
@@ -86,10 +86,10 @@ extension TranscriptionPipeline {
             if let diffSub = AutoCorrectionStagingService.shared.extractSubstitution(
                 original: selectedText, edited: editedText
             ) {
-                transcription.recordCorrectionFeedback(
-                    CorrectionFeedbackService.userSubstitutionSignal(diffSub)
-                )
+                let signal = CorrectionFeedbackService.userSubstitutionSignal(diffSub)
+                transcription.recordCorrectionFeedback(signal)
                 try? modelContext.save()
+                logEditModeShadowCorrection(signal, transcription: transcription)
                 // Show dictionary confirmation UI for diff-extracted pair too
                 onEditModeComplete?(diffSub)
                 return true
@@ -102,6 +102,21 @@ extension TranscriptionPipeline {
 
         await onDismiss()
         return true
+    }
+
+    private func logEditModeShadowCorrection(
+        _ signal: CorrectionFeedbackSignal?,
+        transcription: Transcription
+    ) {
+        guard PhoneticShadowLogger.isShadowLoggingEnabled, let signal else { return }
+        let event = PhoneticShadowEvent.userCorrection(
+            signal: signal,
+            eventType: .userCorrection,
+            source: .userSubstitution,
+            utteranceId: transcription.id.uuidString,
+            transcriptionDbId: transcription.id.uuidString
+        )
+        PhoneticShadowLogger.shared.log(event)
     }
 
     // MARK: - Context-Aware Insertion
