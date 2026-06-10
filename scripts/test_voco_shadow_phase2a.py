@@ -37,6 +37,7 @@ class Phase2AShadowCandidateTests(unittest.TestCase):
 
         self.assertEqual(shadow_candidates[0]["source"], "raw")
         self.assertEqual(shadow_candidates[0]["text"], "69 輪")
+        self.assertEqual({candidate["source"] for candidate in shadow_candidates}, {"raw"})
         self.assertTrue(all(candidate["text"] == "69 輪" for candidate in shadow_candidates))
         self.assertTrue(all(candidate["blockedBecauseNegativeEvidence"] for candidate in shadow_candidates))
         self.assertFalse(enriched["safety"]["autoApplied"])
@@ -58,7 +59,56 @@ class Phase2AShadowCandidateTests(unittest.TestCase):
 
         self.assertTrue(llm_candidates)
         self.assertTrue(all(candidate["blockedBecauseLlmOnly"] for candidate in llm_candidates))
+        confirmed = next(candidate for candidate in enriched["shadowCandidates"] if candidate["source"] == "confirmedExact")
+        self.assertTrue(all(candidate["rank"] > confirmed["rank"] for candidate in llm_candidates))
+        self.assertTrue(all(candidate["score"] < confirmed["score"] for candidate in llm_candidates))
         self.assertNotEqual(replay.top_trusted_candidate(enriched)["source"], "llm")
+        self.assertFalse(enriched["safety"]["autoApplied"])
+        self.assertFalse(enriched["safety"]["wouldHaveChangedFinalOutput"])
+
+    def test_cross_script_label_requires_combined_script_and_phonetic_change(self):
+        mixed = candidates.enrich_event(
+            pipeline_event(
+                raw="Ripple内的Markdown。",
+                final="repo 內的 Markdown。",
+                llm=None,
+            )
+        )
+        mixed_sources = {candidate["source"] for candidate in mixed["shadowCandidates"]}
+        self.assertIn("zhPhonetic", mixed_sources)
+        self.assertIn("enPhonetic", mixed_sources)
+        self.assertIn("crossScript", mixed_sources)
+        self.assertNotIn("domainLexicon", mixed_sources)
+
+        zh_only = candidates.enrich_event(
+            pipeline_event(
+                raw="然后，你可以先做手机。",
+                final="然後，你可以先做手機。",
+                llm=None,
+            )
+        )
+        zh_only_sources = {candidate["source"] for candidate in zh_only["shadowCandidates"]}
+        self.assertIn("zhPhonetic", zh_only_sources)
+        self.assertNotIn("crossScript", zh_only_sources)
+        self.assertNotIn("domainLexicon", zh_only_sources)
+
+    def test_short_phrase_candidates_are_review_only_by_default(self):
+        event = pipeline_event(
+            raw="Ripple内",
+            final="repo 內",
+            llm="repo 內",
+            length_bucket="1_4",
+        )
+
+        enriched = candidates.enrich_event(event)
+        changed_candidates = [
+            candidate for candidate in enriched["shadowCandidates"]
+            if candidate["source"] != "raw"
+        ]
+
+        self.assertTrue(changed_candidates)
+        self.assertTrue(all(candidate["blockedBecauseShortPhraseRisk"] for candidate in changed_candidates))
+        self.assertTrue(all(candidate["requiresReview"] for candidate in changed_candidates))
         self.assertFalse(enriched["safety"]["autoApplied"])
         self.assertFalse(enriched["safety"]["wouldHaveChangedFinalOutput"])
 

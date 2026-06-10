@@ -317,22 +317,32 @@ def generated_text_candidates(raw: str | None) -> list[tuple[str, str, float, st
         return []
 
     candidates: list[tuple[str, str, float, str]] = []
+    seen: set[str] = set()
+
+    def append_candidate(text: str, source: str, score: float, reason: str) -> None:
+        if text == raw:
+            return
+        identity = candidate_identity(text)
+        if not identity or identity in seen:
+            return
+        seen.add(identity)
+        candidates.append((text, source, score, reason))
 
     zh = apply_zh_repairs(raw)
     if zh != raw:
-        candidates.append((zh, ZH_PHONETIC, 0.68, "traditional Chinese phonetic/script normalization"))
+        append_candidate(zh, ZH_PHONETIC, 0.68, "traditional Chinese phonetic/script normalization")
 
     en = apply_en_repairs(raw)
     if en != raw:
-        candidates.append((en, EN_PHONETIC, 0.64, "English phonetic/domain repair"))
+        append_candidate(en, EN_PHONETIC, 0.64, "English phonetic/domain repair")
 
-    domain = apply_domain_lexicon(en if en != raw else zh if zh != raw else raw)
+    domain = apply_domain_lexicon(raw)
     if domain != raw:
-        candidates.append((domain, DOMAIN_LEXICON, 0.72, "technical/domain lexicon normalization"))
+        append_candidate(domain, DOMAIN_LEXICON, 0.72, "technical/domain lexicon normalization")
 
-    cross = apply_domain_lexicon(apply_en_repairs(apply_zh_repairs(raw)))
-    if cross != raw:
-        candidates.append((cross, CROSS_SCRIPT, 0.66, "combined cross-script zh/en normalization"))
+    cross = apply_domain_lexicon(apply_en_repairs(zh))
+    if zh != raw and cross != zh:
+        append_candidate(cross, CROSS_SCRIPT, 0.66, "combined cross-script zh/en normalization")
 
     return candidates
 
@@ -572,6 +582,10 @@ def candidates_for(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 def clean_candidate_text(text: str) -> str:
     return " ".join(text.strip().split())
+
+
+def candidate_identity(text: str) -> str:
+    return unicodedata.normalize("NFKC", clean_candidate_text(text))
 
 
 def normalize_text(value: Any) -> str:
