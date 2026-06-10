@@ -7,11 +7,11 @@ class LastTranscriptionService: ObservableObject {
         var descriptor = FetchDescriptor<Transcription>(
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        descriptor.fetchLimit = 1
+        descriptor.fetchLimit = 50
         
         do {
             let transcriptions = try modelContext.fetch(descriptor)
-            return transcriptions.first
+            return transcriptions.first { isReusableOutput($0) }
         } catch {
             print("Error fetching last transcription: \(error)")
             return nil
@@ -29,14 +29,15 @@ class LastTranscriptionService: ObservableObject {
             return
         }
         
-        // Prefer enhanced text; fallback to original text
-        let textToCopy: String = {
-            if let enhancedText = lastTranscription.enhancedText, !enhancedText.isEmpty {
-                return enhancedText
-            } else {
-                return lastTranscription.text
+        guard let textToCopy = preferredOutputText(for: lastTranscription, preferEnhanced: true) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
             }
-        }()
+            return
+        }
         
         let success = ClipboardManager.copyToClipboard(textToCopy)
         
@@ -66,7 +67,15 @@ class LastTranscriptionService: ObservableObject {
             return
         }
         
-        let textToPaste = lastTranscription.text
+        guard let textToPaste = preferredOutputText(for: lastTranscription, preferEnhanced: false) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
+            }
+            return
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             CursorPaster.pasteAtCursor(textToPaste)
@@ -84,14 +93,15 @@ class LastTranscriptionService: ObservableObject {
             return
         }
         
-        // Prefer enhanced text; if unavailable, fallback to original text (which may contain an error message)
-        let textToPaste: String = {
-            if let enhancedText = lastTranscription.enhancedText, !enhancedText.isEmpty {
-                return enhancedText
-            } else {
-                return lastTranscription.text
+        guard let textToPaste = preferredOutputText(for: lastTranscription, preferEnhanced: true) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
             }
-        }()
+            return
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             CursorPaster.pasteAtCursor(textToPaste)
@@ -133,12 +143,18 @@ class LastTranscriptionService: ObservableObject {
                     sourceTranscription: lastTranscription
                 )
 
-                let textToCopy = newTranscription.enhancedText?.isEmpty == false ? newTranscription.enhancedText! : newTranscription.text
-                ClipboardManager.copyToClipboard(textToCopy)
+                guard let textToCopy = preferredOutputText(for: newTranscription, preferEnhanced: true) else {
+                    NotificationManager.shared.showNotification(
+                        title: "Retry produced no reusable text",
+                        type: .error
+                    )
+                    return
+                }
 
+                let success = ClipboardManager.copyToClipboard(textToCopy)
                 NotificationManager.shared.showNotification(
-                    title: "Copied to clipboard",
-                    type: .success
+                    title: success ? "Copied to clipboard" : "Failed to copy transcription",
+                    type: success ? .success : .error
                 )
             } catch {
                 NotificationManager.shared.showNotification(
@@ -147,5 +163,52 @@ class LastTranscriptionService: ObservableObject {
                 )
             }
         }
+    }
+
+    private static func isReusableOutput(_ transcription: Transcription) -> Bool {
+        let status = transcription.transcriptionStatus.flatMap(TranscriptionStatus.init(rawValue:))
+        if let status, status != .completed {
+            return false
+        }
+
+        return preferredOutputText(for: transcription, preferEnhanced: true) != nil ||
+            preferredOutputText(for: transcription, preferEnhanced: false) != nil
+    }
+
+    private static func preferredOutputText(for transcription: Transcription, preferEnhanced: Bool) -> String? {
+        let preferred: [String?]
+        if preferEnhanced {
+            preferred = [
+                transcription.enhancedText,
+                transcription.finalPastedText,
+                transcription.selectedCandidate,
+                transcription.normalizedTranscript,
+                transcription.text,
+            ]
+        } else {
+            preferred = [
+                transcription.finalPastedText,
+                transcription.selectedCandidate,
+                transcription.normalizedTranscript,
+                transcription.text,
+            ]
+        }
+
+        return preferred
+            .compactMap { reusableText($0) }
+            .first
+    }
+
+    private static func reusableText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != Transcription.canceledTranscriptionText,
+              !trimmed.hasPrefix("Transcription Failed:"),
+              !trimmed.hasPrefix("Enhancement failed:")
+        else {
+            return nil
+        }
+
+        return trimmed
     }
 }

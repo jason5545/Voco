@@ -36,7 +36,8 @@ final class TranscriptionDelivery {
             return
         }
 
-        if let text = request.text {
+        if let text = request.text,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             await paste(
                 text,
                 transcription: request.transcription,

@@ -235,6 +235,8 @@ class PinyinCorrector {
             ("交給居民", "交給 Gemini", aiWritingKeywords),
             ("去 DAI 為", "去 de-AI 化", aiWritingKeywords),
             ("去DAI為", "去 de-AI 化", aiWritingKeywords),
+            ("的防雷圈 Moto", "的 Foundation Model", appleFoundationModelKeywords),
+            ("的防雷圈 Model", "的 Foundation Model", appleFoundationModelKeywords),
             ("防雷圈 Moto", "Foundation Model", appleFoundationModelKeywords),
             ("防雷圈 Model", "Foundation Model", appleFoundationModelKeywords),
             ("Foundation motto", "Foundation model", appleFoundationModelKeywords),
@@ -297,6 +299,9 @@ class PinyinCorrector {
                 }
 
             case .contextDependent:
+                guard allowsContextualRuleInCurrentText(rule, currentText: result) else {
+                    continue
+                }
                 guard matchesContext(
                     keywords: rule.contextKeywords,
                     currentText: text,
@@ -322,6 +327,20 @@ class PinyinCorrector {
         rule.tier == .contextDependent &&
             rule.wrong == "轉路" &&
             rule.correct == "轉錄"
+    }
+
+    private func allowsContextualRuleInCurrentText(_ rule: PinyinCorrectionRule, currentText: String) -> Bool {
+        guard rule.wrong == "用新相機出去",
+              rule.correct == "用信箱寄出去" else {
+            return true
+        }
+
+        let localCues = [
+            "自傳", "自轉", "角標", "履歷", "應徵", "招聘",
+            "繳交", "提交", "寄出", "信箱", "電子郵件", "PDF"
+        ]
+        let lowerText = currentText.lowercased()
+        return localCues.contains { lowerText.contains($0.lowercased()) }
     }
 
     /// Apply a rule with CJK boundary protection for short rules (≤ 2 chars).

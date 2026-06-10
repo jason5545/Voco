@@ -19,7 +19,7 @@ class CursorPaster {
 
     private static let prePasteDelay: TimeInterval = 0.10
     private static let pasteShortcutEventDelay: TimeInterval = 0.01
-    private static let minimumClipboardRestoreDelay: TimeInterval = 0.25
+    private static let minimumClipboardRestoreDelay: TimeInterval = AppDefaults.minimumClipboardRestoreDelay
 
     static func pasteAtCursor(_ text: String) {
         Task {

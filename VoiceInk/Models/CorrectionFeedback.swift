@@ -8,11 +8,11 @@ enum CorrectionFeedbackKind: String, Codable, Equatable {
     var displayName: String {
         switch self {
         case .candidateSelection:
-            return String(localized: "Candidate selection")
+            return "Candidate selection"
         case .retranscriptionChange:
-            return String(localized: "Retranscription change")
+            return "Retranscription change"
         case .userSubstitution:
-            return String(localized: "User substitution")
+            return "User substitution"
         }
     }
 }

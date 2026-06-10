@@ -1235,6 +1235,45 @@ struct VoiceInkTests {
         #expect(pasted.historyDisplayText == "VoiceInk pasted")
     }
 
+    @Test @MainActor func lastTranscriptionSkipsNonReusableLatestRows() throws {
+        let context = try makeTranscriptionContext()
+        let reusable = Transcription(
+            text: "usable transcript",
+            duration: 0.2,
+            transcriptionStatus: .completed
+        )
+        reusable.timestamp = Date(timeIntervalSince1970: 100)
+
+        let failed = Transcription(
+            text: "Transcription Failed: network",
+            duration: 0.2,
+            transcriptionStatus: .failed
+        )
+        failed.timestamp = Date(timeIntervalSince1970: 200)
+
+        let pending = Transcription(
+            text: "",
+            duration: 0.2,
+            transcriptionStatus: .pending
+        )
+        pending.timestamp = Date(timeIntervalSince1970: 300)
+
+        let canceled = Transcription(
+            text: Transcription.canceledTranscriptionText,
+            duration: 0.2,
+            transcriptionStatus: .canceled
+        )
+        canceled.timestamp = Date(timeIntervalSince1970: 400)
+
+        context.insert(reusable)
+        context.insert(failed)
+        context.insert(pending)
+        context.insert(canceled)
+        try context.save()
+
+        #expect(LastTranscriptionService.getLastTranscription(from: context)?.id == reusable.id)
+    }
+
     @Test func transcriptionDetailTextsTraceMeaningfulOutputVariants() async throws {
         let selected = Transcription(
             text: "今天看到焰很大",

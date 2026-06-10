@@ -199,7 +199,10 @@ enum BackupImporter {
             UserDefaults.standard.set(restoreClipboard, forKey: "restoreClipboardAfterPaste")
         }
         if let clipboardDelay = general.clipboardRestoreDelay {
-            UserDefaults.standard.set(clipboardDelay, forKey: "clipboardRestoreDelay")
+            UserDefaults.standard.set(
+                max(clipboardDelay, AppDefaults.minimumClipboardRestoreDelay),
+                forKey: "clipboardRestoreDelay"
+            )
         }
         if let pasteMethodRawValue = general.pasteMethodRawValue,
            let pasteMethod = PasteMethod(rawValue: pasteMethodRawValue) {

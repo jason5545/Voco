@@ -148,8 +148,6 @@ struct SettingsView: View {
                     infoMessage: "Voco temporarily uses the clipboard to paste transcription. When enabled, it restores your previous clipboard content after the selected delay. When disabled, the pasted transcription stays on your clipboard."
                 ) {
                     Picker("Restore Delay", selection: $clipboardRestoreDelay) {
-                        Text("250ms").tag(0.25)
-                        Text("500ms").tag(0.5)
                         Text("1s").tag(1.0)
                         Text("2s").tag(2.0)
                         Text("3s").tag(3.0)

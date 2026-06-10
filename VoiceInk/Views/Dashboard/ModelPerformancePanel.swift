@@ -700,11 +700,11 @@ struct AssistiveSignalSummary: Equatable {
 
     var correctionFeedbackDetail: String {
         guard correctionFeedbackSessionCount > 0 || correctionFeedbackCount > 0 else {
-            return String(localized: "No feedback recorded")
+            return "No feedback recorded"
         }
 
         var parts = [
-            String(localized: "\(correctiveFeedbackCount) corrective / \(Self.sessionCount(correctionFeedbackSessionCount))"),
+            "\(correctiveFeedbackCount) corrective / \(Self.sessionCount(correctionFeedbackSessionCount))",
         ]
         let reasonText = Self.signalReasonSummary(correctionFeedbackReasonCounts, limit: 2)
         if !reasonText.isEmpty {
@@ -715,7 +715,7 @@ struct AssistiveSignalSummary: Equatable {
 
     var styleGuardDetail: String {
         guard styleGuardRejectionSessionCount > 0 else {
-            return String(localized: "No style rejections")
+            return "No style rejections"
         }
 
         var parts = [
@@ -734,7 +734,7 @@ struct AssistiveSignalSummary: Equatable {
 
     var reviewTriggerDetail: String {
         guard reviewTriggerCount > 0 else {
-            return String(localized: "No review triggers")
+            return "No review triggers"
         }
 
         let sessionText = Self.sessionCount(reviewTriggerSessionCount)
@@ -744,24 +744,24 @@ struct AssistiveSignalSummary: Equatable {
             limit: 3
         )
         guard !triggerText.isEmpty else {
-            return String(localized: "\(reviewTriggerCount) recorded")
+            return "\(reviewTriggerCount) recorded"
         }
         return "\(sessionText) / \(triggerText)"
     }
 
     var candidateSourceDetail: String {
         guard candidateSourceCandidateCount > 0 else {
-            return String(localized: "No source breakdown")
+            return "No source breakdown"
         }
 
-        let reviewText = String(localized: "\(reviewRequiredCandidateCount) review")
+        let reviewText = "\(reviewRequiredCandidateCount) review"
         let sourceText = Self.sourceSummary(candidateSourceCounts, limit: 3)
         var parts = [reviewText]
         if !sourceText.isEmpty {
             parts.append(sourceText)
         }
         if let averageCandidateDivergenceRatio {
-            parts.append(String(localized: "avg delta \(Self.percent(averageCandidateDivergenceRatio))"))
+            parts.append("avg delta \(Self.percent(averageCandidateDivergenceRatio))")
         }
         return parts.joined(separator: " / ")
     }
@@ -780,15 +780,15 @@ struct AssistiveSignalSummary: Equatable {
 
     var retranscriptionDetail: String {
         var parts = [
-            String(localized: "\(meaningfulRetranscriptionCount) meaningful / \(retranscriptionSampleCount) analyzed")
+            "\(meaningfulRetranscriptionCount) meaningful / \(retranscriptionSampleCount) analyzed"
         ]
 
         if let averageRetranscriptionChangeRatio {
-            parts.append(String(localized: "avg change \(Self.percent(averageRetranscriptionChangeRatio))"))
+            parts.append("avg change \(Self.percent(averageRetranscriptionChangeRatio))")
         }
 
         if let averageRetranscriptionConfidenceDelta {
-            parts.append(String(localized: "avg confidence \(Self.signedPercent(averageRetranscriptionConfidenceDelta))"))
+            parts.append("avg confidence \(Self.signedPercent(averageRetranscriptionConfidenceDelta))")
         }
 
         return parts.joined(separator: ", ")
@@ -814,16 +814,16 @@ struct AssistiveSignalSummary: Equatable {
 
     private static func sessionCount(_ count: Int) -> String {
         if count == 1 {
-            return String(localized: "\(count) session")
+            return "\(count) session"
         }
-        return String(localized: "\(count) sessions")
+        return "\(count) sessions"
     }
 
     private static func rejectedCharacterCount(_ count: Int) -> String {
         if count == 1 {
-            return String(localized: "\(count) char rejected")
+            return "\(count) char rejected"
         }
-        return String(localized: "\(count) chars rejected")
+        return "\(count) chars rejected"
     }
 
     private static func mergedCounts(_ counts: [[String: Int]]) -> [String: Int] {

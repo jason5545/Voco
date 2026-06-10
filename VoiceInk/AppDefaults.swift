@@ -1,6 +1,8 @@
 import Foundation
 
 enum AppDefaults {
+    static let minimumClipboardRestoreDelay = 1.0
+
     static let defaultValues: [String: Any] = [
         // Onboarding & General
         "hasCompletedOnboarding": false,
@@ -82,6 +84,9 @@ enum AppDefaults {
 
     static func registerDefaults(defaults: UserDefaults = .standard) {
         defaults.register(defaults: defaultValues)
+        if defaults.double(forKey: "clipboardRestoreDelay") < minimumClipboardRestoreDelay {
+            defaults.set(minimumClipboardRestoreDelay, forKey: "clipboardRestoreDelay")
+        }
         PunctuationCleanupMode.migrateLegacyUserDefaultIfNeeded(in: defaults)
         PasteMethod.migrateLegacyUserDefaultIfNeeded(in: defaults)
     }
