@@ -140,6 +140,11 @@ class PinyinCorrector {
             "春節", "資料", "檔案", "Excel", "匯入", "去年", "今年", "查詢", "單位"
         ]
         let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
+        let repositoryKeywords = ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"]
+        let inputMethodKeywords = [
+            "RIME", "rime", "鼠鬚管", "鼠須管", "輸入法", "詞庫", "人名",
+            "快捷鍵", "shortcut", "custom_phrase", "personal_dict", "Voco"
+        ]
         let fieldRecognitionKeywords = dataImportKeywords + correctionKeywords + ["表格", "格式", "藍位", "浪費", "狼狽", "辨識成", "變質成"]
         let virtualizationKeywords = [
             "Windows", "Virtual Machine", "VM", "V M", "B M", "BM",
@@ -239,6 +244,17 @@ class PinyinCorrector {
             ("虛擬機器的 BM", "虛擬機器的 VM", virtualizationKeywords),
             ("Load Fail", "Cloudflare", cloudflareKeywords),
             ("D One", "D1", cloudflareKeywords),
+            ("鼠須管", "鼠鬚管", inputMethodKeywords),
+            ("i iM 輸入法", "RIME 輸入法", inputMethodKeywords),
+            ("I I M 輸入法", "RIME 輸入法", inputMethodKeywords),
+            ("把它帶進這個城市", "把它帶進這個程式", inputMethodKeywords),
+            ("帶進這個城市", "帶進這個程式", inputMethodKeywords),
+            ("推 Ripper", "推 repo", repositoryKeywords),
+            ("推Ripper", "推 repo", repositoryKeywords),
+            ("推 reaper", "推 repo", repositoryKeywords),
+            ("推reaper", "推 repo", repositoryKeywords),
+            ("reaper", "repo", repositoryKeywords),
+            ("Ripper", "repo", repositoryKeywords),
             ("目標是整車漆", "目標是偵測器", aiWritingKeywords),
             ("這片AI的味道", "這篇AI的味道", aiWritingKeywords),
             ("這片 AI 的味道", "這篇 AI 的味道", aiWritingKeywords),

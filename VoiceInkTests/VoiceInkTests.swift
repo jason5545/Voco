@@ -601,6 +601,24 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: "Voco blocking investigation"
         )
+        let inputMethodContext = CorrectionContext(
+            recentTranscriptions: [
+                "我在用 RIME 鼠鬚管輸入法",
+                "personal_dict 裡有很多人名",
+                "想把詞庫帶進 Voco"
+            ],
+            appName: "Codex",
+            windowTitle: "RIME vocabulary import"
+        )
+        let repositoryContext = CorrectionContext(
+            recentTranscriptions: [
+                "這輪不要推到 repo",
+                "repo 是 r e p o",
+                "不要 push 到 GitHub"
+            ],
+            appName: "Codex",
+            windowTitle: "Voco repo"
+        )
 
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
@@ -658,6 +676,12 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("我們上次測完之後有記到具體的堵塞點的原因嗎？因為陳英感覺跟上次很像。", context: blockingContext).text == "我們上次測完之後有記到具體的阻塞點的原因嗎？因為成因感覺跟上次很像。")
         #expect(PinyinCorrector.shared.correct("有新增一個組賽的調查模組，組賽的又更嚴重了。", context: blockingContext).text == "有新增一個阻塞的調查模組，阻塞的又更嚴重了。")
         #expect(PinyinCorrector.shared.correct("這場小組賽很精彩。", context: blockingContext).text == "這場小組賽很精彩。")
+        #expect(PinyinCorrector.shared.correct("我目前在用 macOS 系統的 i iM 輸入法。", context: inputMethodContext).text == "我目前在用 macOS 系統的 RIME 輸入法。")
+        #expect(PinyinCorrector.shared.correct("我那個輸入法指的是 RIME，也就是鼠須管輸入法。", context: inputMethodContext).text == "我那個輸入法指的是 RIME，也就是鼠鬚管輸入法。")
+        #expect(PinyinCorrector.shared.correct("你覺得可以把它帶進這個城市裡面嗎？", context: inputMethodContext).text == "你覺得可以把它帶進這個程式裡面嗎？")
+        #expect(PinyinCorrector.shared.correct("但是不要推 Ripper，並非是人名。", context: repositoryContext).text == "但是不要推 repo，並非是人名。")
+        #expect(PinyinCorrector.shared.correct("然後我那個reaper只能是repo，r e p o。", context: repositoryContext).text == "然後我那個repo只能是repo，r e p o。")
+        #expect(PinyinCorrector.shared.correct("這是一個 reaper 音訊工具。").text == "這是一個 reaper 音訊工具。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {
