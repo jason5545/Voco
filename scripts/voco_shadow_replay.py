@@ -189,6 +189,7 @@ def build_report(
 
     auto_apply_count = sum(1 for event in events if truthy(nested(event, "safety", "autoApplied")))
     output_change_count = sum(1 for event in events if would_have_changed_output(event))
+    blocked_counts = candidate_block_counts(events)
 
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -213,6 +214,7 @@ def build_report(
             "wouldHaveChangedFinalOutputCount": output_change_count,
             "phase1SafetyPass": auto_apply_count == 0 and output_change_count == 0,
         },
+        "candidateSafetyAudit": blocked_counts,
         "baseline": BASELINE,
         "metricDefinitions": metric_definitions(),
         "warnings": warnings[:50],
@@ -244,6 +246,9 @@ def metric_counts(events: list[dict[str, Any]], denominator: int) -> dict[str, A
     top1 = topk_match(events, max_rank=1)
     top3 = topk_match(events, max_rank=3)
     click_total, click_event_count = estimated_clicks(events)
+    blocked_counts = candidate_block_counts(events)
+    potential_review_savings = [event for event in events if is_potential_review_saving(event)]
+    potential_wrong_candidates = [event for event in events if is_potential_wrong_candidate(event)]
 
     return {
         "reviewShownPer100": per100(len(review_shown), denominator),
@@ -266,6 +271,12 @@ def metric_counts(events: list[dict[str, Any]], denominator: int) -> dict[str, A
         "shadowTop3WouldHaveMatchedUserCorrection": top3["rate"],
         "shadowTop3MatchCount": top3["matches"],
         "shadowTop3CandidateEventCount": top3["considered"],
+        "blockedBecauseLlmOnlyCount": blocked_counts["blockedBecauseLlmOnlyCount"],
+        "blockedBecauseShortPhraseRiskCount": blocked_counts["blockedBecauseShortPhraseRiskCount"],
+        "blockedBecauseNoiseSuspectedCount": blocked_counts["blockedBecauseNoiseSuspectedCount"],
+        "blockedBecauseNegativeEvidenceCount": blocked_counts["blockedBecauseNegativeEvidenceCount"],
+        "potentialReviewSavingsPer100": per100(len(potential_review_savings), denominator),
+        "potentialWrongCandidatePer100": per100(len(potential_wrong_candidates), denominator),
         "uiNoiseSuspectedCount": len(ui_noise),
         "llmOnlyEvidenceRejectedCount": len(llm_only_rejected),
     }
@@ -403,12 +414,95 @@ def is_llm_only_rejected(event: dict[str, Any]) -> bool:
 
 
 def would_have_changed_output(event: dict[str, Any]) -> bool:
-    if truthy(nested(event, "safety", "wouldHaveChangedFinalOutput")):
-        return True
+    return truthy(nested(event, "safety", "wouldHaveChangedFinalOutput"))
+
+
+def candidate_block_counts(events: list[dict[str, Any]]) -> dict[str, int]:
+    keys = (
+        "blockedBecauseLlmOnly",
+        "blockedBecauseShortPhraseRisk",
+        "blockedBecauseNoiseSuspected",
+        "blockedBecauseNegativeEvidence",
+    )
+    counts = {f"{key}Count": 0 for key in keys}
+    for event in events:
+        for candidate in candidate_dicts(event):
+            for key in keys:
+                if truthy(candidate.get(key)):
+                    counts[f"{key}Count"] += 1
+        safety = event.get("safety")
+        if isinstance(safety, dict):
+            for key in keys:
+                if truthy(safety.get(key)):
+                    counts[f"{key}Count"] += 1
+    return counts
+
+
+def is_potential_review_saving(event: dict[str, Any]) -> bool:
+    if event_type(event) != EVENT_PIPELINE or nested(event, "pipeline", "route") != ROUTE_REVIEW:
+        return False
+    expected = expected_text(event)
+    candidate = top_nonreview_candidate(event)
+    return bool(expected and candidate and normalize_text(candidate.get("text")) == normalize_text(expected))
+
+
+def is_potential_wrong_candidate(event: dict[str, Any]) -> bool:
+    if event_type(event) != EVENT_PIPELINE:
+        return False
+    expected = expected_text(event)
+    candidate = top_nonreview_candidate(event)
+    if not expected or not candidate:
+        return False
+    candidate_text = normalize_text(candidate.get("text"))
+    return bool(candidate_text and candidate_text != normalize_text(expected))
+
+
+def expected_text(event: dict[str, Any]) -> str:
+    for value in (
+        nested(event, "userAction", "targetText"),
+        nested(event, "userAction", "selectedCandidateText"),
+        nested(event, "pipeline", "finalInserted"),
+    ):
+        normalized = normalize_text(value)
+        if normalized:
+            return str(value).strip()
+    return ""
+
+
+def top_trusted_candidate(event: dict[str, Any]) -> dict[str, Any] | None:
+    candidates = [candidate for candidate in candidate_dicts(event) if is_trusted_candidate(candidate)]
+    candidates.sort(key=lambda candidate: candidate_rank(candidate))
+    return candidates[0] if candidates else None
+
+
+def top_nonreview_candidate(event: dict[str, Any]) -> dict[str, Any] | None:
+    candidates = [
+        candidate
+        for candidate in candidate_dicts(event)
+        if is_trusted_candidate(candidate) and not truthy(candidate.get("requiresReview"))
+    ]
+    candidates.sort(key=lambda candidate: candidate_rank(candidate))
+    return candidates[0] if candidates else None
+
+
+def is_trusted_candidate(candidate: dict[str, Any]) -> bool:
+    if candidate.get("source") == "llm" or truthy(candidate.get("blockedBecauseLlmOnly")):
+        return False
+    return not any(
+        truthy(candidate.get(key))
+        for key in (
+            "blockedBecauseNoiseSuspected",
+            "blockedBecauseNegativeEvidence",
+            "blockedBecauseShortPhraseRisk",
+        )
+    )
+
+
+def candidate_dicts(event: dict[str, Any]) -> list[dict[str, Any]]:
     candidates = event.get("shadowCandidates")
     if not isinstance(candidates, list):
-        return False
-    return any(isinstance(candidate, dict) and truthy(candidate.get("wouldChangeOutput")) for candidate in candidates)
+        return []
+    return [candidate for candidate in candidates if isinstance(candidate, dict)]
 
 
 def estimated_clicks(events: list[dict[str, Any]]) -> tuple[int, int]:
@@ -450,11 +544,7 @@ def topk_match(events: list[dict[str, Any]], max_rank: int) -> dict[str, Any]:
 
 
 def ranked_candidates(event: dict[str, Any], max_rank: int) -> list[dict[str, Any]]:
-    raw_candidates = event.get("shadowCandidates")
-    if not isinstance(raw_candidates, list):
-        return []
-
-    candidates = [candidate for candidate in raw_candidates if isinstance(candidate, dict)]
+    candidates = [candidate for candidate in candidate_dicts(event) if is_trusted_candidate(candidate)]
     candidates.sort(key=lambda candidate: candidate_rank(candidate))
     return [candidate for candidate in candidates if candidate_rank(candidate) <= max_rank]
 
@@ -544,6 +634,12 @@ def metric_definitions() -> dict[str, str]:
         "shortUtteranceSubstitutionPer100": "userSubstitution correction events in length bucket 1_4 per 100 pipeline snapshots.",
         "shadowTop1WouldHaveMatchedUserCorrection": "Among correction events that include shadowCandidates, fraction whose rank-1 candidate equals userAction.targetText.",
         "shadowTop3WouldHaveMatchedUserCorrection": "Among correction events that include shadowCandidates, fraction whose top-3 candidates include userAction.targetText.",
+        "blockedBecauseLlmOnlyCount": "Candidate and event safety blocks where evidence came only from LLM/enhanced differences.",
+        "blockedBecauseShortPhraseRiskCount": "Candidate and event safety blocks caused by risky short phrases.",
+        "blockedBecauseNoiseSuspectedCount": "Candidate and event safety blocks caused by UI/timing/stale-text noise.",
+        "blockedBecauseNegativeEvidenceCount": "Candidate and event safety blocks caused by rollback/rejected/allowlisted negative evidence.",
+        "potentialReviewSavingsPer100": "Review-suggested pipeline snapshots whose top non-review shadow candidate already matches finalInserted per 100 pipeline snapshots.",
+        "potentialWrongCandidatePer100": "Pipeline snapshots whose top non-review shadow candidate differs from finalInserted per 100 pipeline snapshots.",
         "uiNoiseSuspectedCount": "Events containing UI/timing/span noise flags.",
         "llmOnlyEvidenceRejectedCount": "Events blocked or classified as untrusted because evidence came only from LLM/enhanced differences.",
     }
@@ -568,11 +664,17 @@ def markdown_summary(report: dict[str, Any]) -> str:
         f"- estimatedClicksPer100: {metrics['estimatedClicksPer100']}",
         f"- correctionFeedbackPer100: {metrics['correctionFeedbackPer100']}",
         f"- rollbackPer100: {metrics['rollbackPer100']}",
+        f"- potentialReviewSavingsPer100: {metrics['potentialReviewSavingsPer100']}",
+        f"- potentialWrongCandidatePer100: {metrics['potentialWrongCandidatePer100']}",
         "",
         "## Evidence",
         "",
         f"- shadowTop1WouldHaveMatchedUserCorrection: {metrics['shadowTop1WouldHaveMatchedUserCorrection']}",
         f"- shadowTop3WouldHaveMatchedUserCorrection: {metrics['shadowTop3WouldHaveMatchedUserCorrection']}",
+        f"- blockedBecauseLlmOnlyCount: {metrics['blockedBecauseLlmOnlyCount']}",
+        f"- blockedBecauseShortPhraseRiskCount: {metrics['blockedBecauseShortPhraseRiskCount']}",
+        f"- blockedBecauseNoiseSuspectedCount: {metrics['blockedBecauseNoiseSuspectedCount']}",
+        f"- blockedBecauseNegativeEvidenceCount: {metrics['blockedBecauseNegativeEvidenceCount']}",
         f"- uiNoiseSuspectedCount: {metrics['uiNoiseSuspectedCount']}",
         f"- llmOnlyEvidenceRejectedCount: {metrics['llmOnlyEvidenceRejectedCount']}",
         "",
