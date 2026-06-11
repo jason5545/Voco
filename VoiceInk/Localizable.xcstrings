@@ -956,7 +956,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "登入時啟動"
+            "value": "登入時自動啟動"
           }
         }
       }
