@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Darwin
 import OSLog
 
 struct VocoAutoApplyPolicyFire: Codable, Equatable {
@@ -45,7 +46,11 @@ final class VocoAutoApplyModelService: ObservableObject {
     private let modelURL: URL
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AutoApplyModel")
+    private let watchQueue = DispatchQueue(label: "com.jasonchien.Voco.autoApplyModelWatcher")
     private var loadedModel: VocoAutoApplyModel?
+    private var modelFileWatcher: DispatchSourceFileSystemObject?
+    private var modelDirectoryWatcher: DispatchSourceFileSystemObject?
+    private var pendingModelReload: DispatchWorkItem?
 
     var isUserEnabled: Bool {
         get { defaults.object(forKey: Self.enabledKey) as? Bool ?? true }
@@ -79,6 +84,13 @@ final class VocoAutoApplyModelService: ObservableObject {
             modelURL: modelURL
         )
         reload()
+        startWatchingModelChanges()
+    }
+
+    deinit {
+        pendingModelReload?.cancel()
+        modelFileWatcher?.cancel()
+        modelDirectoryWatcher?.cancel()
     }
 
     func reload() {
@@ -122,6 +134,76 @@ final class VocoAutoApplyModelService: ObservableObject {
             )
             logger.error("Failed to load auto-apply model: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func startWatchingModelChanges() {
+        watchQueue.async { [weak self] in
+            self?.installDirectoryWatcher()
+            self?.installFileWatcher()
+        }
+    }
+
+    private func installDirectoryWatcher() {
+        guard modelDirectoryWatcher == nil else { return }
+
+        let directoryURL = modelURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let descriptor = open(directoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else {
+            logger.error("Failed to watch auto-apply model directory: \(directoryURL.path, privacy: .public)")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .delete, .rename, .attrib, .link, .revoke],
+            queue: watchQueue
+        )
+        source.setEventHandler { [weak self] in
+            self?.installFileWatcher()
+            self?.scheduleModelReload()
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        modelDirectoryWatcher = source
+        source.resume()
+    }
+
+    private func installFileWatcher() {
+        modelFileWatcher?.cancel()
+        modelFileWatcher = nil
+
+        let descriptor = open(modelURL.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .extend, .delete, .rename, .attrib, .link, .revoke],
+            queue: watchQueue
+        )
+        source.setEventHandler { [weak self, weak source] in
+            guard let self else { return }
+            let events = source?.data ?? []
+            scheduleModelReload()
+            if events.contains(.delete) || events.contains(.rename) || events.contains(.revoke) {
+                installFileWatcher()
+            }
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        modelFileWatcher = source
+        source.resume()
+    }
+
+    private func scheduleModelReload() {
+        pendingModelReload?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.reload()
+        }
+        pendingModelReload = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(750), execute: workItem)
     }
 
     func evaluate(_ text: String, context: String = "") -> VocoAutoApplyEvaluation {

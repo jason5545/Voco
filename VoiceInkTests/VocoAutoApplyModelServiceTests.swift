@@ -24,6 +24,21 @@ struct VocoAutoApplyModelServiceTests {
         #expect(service.settingsToggleIsEnabled == true)
     }
 
+    @Test func modelFileChangesAreReloadedAutomatically() async throws {
+        let url = try temporaryDirectory().appendingPathComponent("watched-auto-apply-fixture.json")
+        try writeFixture(to: url, ready: true)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        #expect(service.evaluate("我在測 Cloud 的 OPUS 模型").outputText == "我在測 Claude 的 OPUS 模型")
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+        try writeFixture(to: url, ready: true, scopedClaudeTarget: "Claude Reloaded 的 OPUS 模型")
+
+        try await waitUntil {
+            service.evaluate("我在測 Cloud 的 OPUS 模型").outputText == "我在測 Claude Reloaded 的 OPUS 模型"
+        }
+    }
+
     @Test func invalidJSONAndReadinessFalseAreUnavailable() throws {
         let invalidURL = try temporaryDirectory().appendingPathComponent("invalid-fixture.json")
         try Data("{".utf8).write(to: invalidURL)
@@ -164,14 +179,24 @@ struct VocoAutoApplyModelServiceTests {
         #expect(gitignore.contains("full-db.auto-apply-model.json"))
     }
 
-    private func writeFixture(ready: Bool) throws -> URL {
+    private func writeFixture(ready: Bool, scopedClaudeTarget: String = "Claude 的 OPUS 模型") throws -> URL {
         let url = try temporaryDirectory().appendingPathComponent("small-auto-apply-fixture.json")
-        let data = try #require(fixtureJSON(ready: ready).data(using: .utf8))
-        try data.write(to: url)
+        try writeFixture(to: url, ready: ready, scopedClaudeTarget: scopedClaudeTarget)
         return url
     }
 
-    private func fixtureJSON(ready: Bool) -> String {
+    private func writeFixture(
+        to url: URL,
+        ready: Bool,
+        scopedClaudeTarget: String = "Claude 的 OPUS 模型"
+    ) throws {
+        let data = try #require(
+            fixtureJSON(ready: ready, scopedClaudeTarget: scopedClaudeTarget).data(using: .utf8)
+        )
+        try data.write(to: url)
+    }
+
+    private func fixtureJSON(ready: Bool, scopedClaudeTarget: String = "Claude 的 OPUS 模型") -> String {
         """
         {
           "policyCounts": { "apply": 14, "suggest": 1 },
@@ -211,7 +236,7 @@ struct VocoAutoApplyModelServiceTests {
               "autoApplyMode": "apply",
               "policyType": "scopedReplacement",
               "sourcePattern": "Cloud 的 OPUS 模型",
-              "targetText": "Claude 的 OPUS 模型",
+              "targetText": "\(scopedClaudeTarget)",
               "scopedSourcePhrase": "Cloud 的 OPUS 模型",
               "contextAliasesAny": [],
               "contextTokensAny": [],
@@ -370,6 +395,15 @@ struct VocoAutoApplyModelServiceTests {
             .appendingPathComponent("VocoAutoApplyModelServiceTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func waitUntil(_ condition: @escaping () -> Bool) async throws {
+        for _ in 0..<60 {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        try #require(condition())
     }
 
     private func temporaryDefaults() throws -> UserDefaults {
