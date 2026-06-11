@@ -120,9 +120,11 @@ final class VocoAutoApplyModelService: ObservableObject {
             loadedModel = model
             let applyCount = model.policyCounts["apply"] ?? model.applyPolicies.count
             let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
+            let replacedCount = model.policyCounts["replaced"] ?? 0
+            let blockedCount = model.policyCounts["blocked"] ?? 0
             status = VocoAutoApplyModelStatus(
                 isAvailable: true,
-                message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest"),
+                message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest, \(replacedCount) replaced, \(blockedCount) blocked"),
                 modelURL: modelURL
             )
         } catch {

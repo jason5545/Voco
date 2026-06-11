@@ -11935,6 +11935,16 @@
         }
       }
     },
+    "Model loaded: %lld apply, %lld suggest, %lld replaced, %lld blocked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已載入：%1$lld 條套用、%2$lld 條建議、%3$lld 條已取代、%4$lld 條已阻擋"
+          }
+        }
+      }
+    },
     "Model unreadable": {
       "localizations": {
         "zh-Hant": {
