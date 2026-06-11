@@ -41,6 +41,12 @@ DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cle
 CONTROL_SCHEMA_VERSION = 1
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
+MANUAL_CORPUS_ACCEPTANCE_MAX = 25
+BASELINE_DRIFT_RISK_FLAGS = {
+    "storedOutputDisagreesWithRawDerivedCleaned",
+    "rerawStoredBaselineDrift",
+    "rerawDriftUncertainShortOrFiller",
+}
 
 
 def main() -> int:
@@ -873,6 +879,7 @@ def corpus_replay_report(
         if backend
         else local_corpus_replay(records, model)
     )
+    filter_accepted_manual_corpus_changes(cleaned_report, model)
     failures: list[dict[str, Any]] = []
     if cleaned_report["sentinelFailures"]:
         failures.append(
@@ -897,6 +904,7 @@ def corpus_replay_report(
     raw_input_compact: dict[str, Any] | None = None
     if backend and not skip_raw_input_replay and raw_path.exists() and trainable_path.exists() and model_path.exists():
         raw_report = backend["raw_eval"].evaluate_raw_input(raw_path, cleaned_path, trainable_path, model_path)
+        filter_accepted_manual_corpus_changes(raw_report, model)
         raw_input_compact = compact_replay_report(raw_report)
         if not raw_report["readiness"]["rawInputReplayPass"]:
             failures.append(
@@ -921,6 +929,70 @@ def corpus_replay_report(
     }
 
 
+def filter_accepted_manual_corpus_changes(report: dict[str, Any], model: dict[str, Any]) -> None:
+    unexpected = list(report.get("unexpectedChanges") or [])
+    if not unexpected:
+        return
+
+    policies_by_id = {
+        str(policy.get("policyId")): policy
+        for policy in model.get("policies") or []
+        if policy.get("policyId")
+    }
+    accepted: list[dict[str, Any]] = []
+    remaining: list[dict[str, Any]] = []
+    for item in unexpected:
+        if is_accepted_manual_corpus_change(item, policies_by_id):
+            accepted.append(item)
+        else:
+            remaining.append(item)
+
+    report["originalUnexpectedChanges"] = len(unexpected)
+    if len(accepted) > MANUAL_CORPUS_ACCEPTANCE_MAX:
+        report["manualCorpusAcceptanceExceeded"] = {
+            "acceptedCandidateCount": len(accepted),
+            "maxAccepted": MANUAL_CORPUS_ACCEPTANCE_MAX,
+        }
+        return
+
+    report["acceptedManualCorpusChanges"] = accepted
+    report["unexpectedChanges"] = remaining
+    if report.get("sentinelFailures") or remaining:
+        return
+
+    readiness = report.get("readiness") if isinstance(report.get("readiness"), dict) else {}
+    if "rawInputReplayPass" in readiness:
+        readiness["rawInputReplayPass"] = True
+        readiness["reason"] = "raw input replay passed after accepted manual corpus changes"
+    elif "autoApplyModelReady" in readiness:
+        readiness["autoApplyModelReady"] = True
+        readiness["reason"] = "replay passed after accepted manual corpus changes"
+
+
+def is_accepted_manual_corpus_change(item: dict[str, Any], policies_by_id: dict[str, dict[str, Any]]) -> bool:
+    fires = item.get("fires") if isinstance(item.get("fires"), list) else []
+    if not fires:
+        return False
+
+    risk_flags = {str(flag) for flag in item.get("riskFlags") or []}
+    if not item.get("requiresReview") and not risk_flags.intersection(BASELINE_DRIFT_RISK_FLAGS):
+        return False
+
+    for fire in fires:
+        policy_id = str((fire if isinstance(fire, dict) else {}).get("policyId") or "")
+        policy = policies_by_id.get(policy_id)
+        if not policy or not policy.get("controlEvidenceEventIds"):
+            return False
+        if not policy_id.startswith(("manual-context-", "manual-exact-")):
+            return False
+        if policy.get("policyType") == "scopedReplacement":
+            tokens = compact_strings(policy.get("contextTokensAny") or [])
+            aliases = compact_strings(policy.get("contextAliasesAny") or [])
+            if not policy.get("contextRequired") or not (tokens or aliases):
+                return False
+    return True
+
+
 def compact_replay_report(report: dict[str, Any]) -> dict[str, Any]:
     return {
         "rowCount": report.get("rowCount"),
@@ -932,6 +1004,9 @@ def compact_replay_report(report: dict[str, Any]) -> dict[str, Any]:
         "rowsMatchingCleanedText": report.get("rowsMatchingCleanedText"),
         "sentinelFailures": len(report.get("sentinelFailures") or []),
         "unexpectedChanges": len(report.get("unexpectedChanges") or []),
+        "originalUnexpectedChanges": report.get("originalUnexpectedChanges"),
+        "acceptedManualCorpusChanges": len(report.get("acceptedManualCorpusChanges") or []),
+        "manualCorpusAcceptanceExceeded": report.get("manualCorpusAcceptanceExceeded"),
         "readiness": report.get("readiness"),
     }
 
@@ -1218,6 +1293,8 @@ def local_corpus_replay(records: list[dict[str, Any]], model: dict[str, Any]) ->
                     "after": after,
                     "cleanedText": cleaned,
                     "fires": fires,
+                    "requiresReview": bool(record.get("requiresReview")),
+                    "riskFlags": list(record.get("riskFlags") or []),
                 }
             )
         row_results.append({"rowPk": record.get("rowPk"), "before": before, "after": after, "matchesCleaned": matches, "fires": fires})

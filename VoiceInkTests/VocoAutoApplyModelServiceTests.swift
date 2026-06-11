@@ -67,6 +67,57 @@ struct VocoAutoApplyModelServiceTests {
         #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
     }
 
+    @Test func migratedSwiftContextRulesApplyOnlyWithLockContext() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let transcriptionContext = "Voco retranscribe ASR 語音辨識 轉錄 技能"
+        #expect(
+            service.evaluate(
+                "再跑一次轉怒的技能吧。",
+                context: transcriptionContext
+            ).outputText == "再跑一次轉錄的技能吧。"
+        )
+        #expect(
+            service.evaluate(
+                "再跑一次轉路的技能吧。",
+                context: transcriptionContext
+            ).outputText == "再跑一次轉錄的技能吧。"
+        )
+        #expect(
+            service.evaluate(
+                "重新轉入的技能",
+                context: transcriptionContext
+            ).outputText == "重新轉錄的技能"
+        )
+        #expect(service.evaluate("把資料轉入系統", context: "資料匯入 表格").outputText == "把資料轉入系統")
+
+        let repositoryContext = "repo GitHub commit push 遠端"
+        #expect(
+            service.evaluate(
+                "但是不要推 Ripper，並非是人名。",
+                context: repositoryContext
+            ).outputText == "但是不要推 repo，並非是人名。"
+        )
+        #expect(
+            service.evaluate(
+                "然後我那個reaper只能是repo，r e p o。",
+                context: repositoryContext
+            ).outputText == "然後我那個repo只能是repo，r e p o。"
+        )
+        #expect(service.evaluate("這是一個 reaper 音訊工具。").outputText == "這是一個 reaper 音訊工具。")
+
+        let cloudflareContext = "Cloudflare Workers D1 GitHub repo 專案部署"
+        #expect(
+            service.evaluate(
+                "目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。",
+                context: cloudflareContext
+            ).outputText == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。"
+        )
+    }
+
     @Test func suggestPoliciesDoNotChangeOutputButEmitEvidence() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -123,8 +174,8 @@ struct VocoAutoApplyModelServiceTests {
     private func fixtureJSON(ready: Bool) -> String {
         """
         {
-          "policyCounts": { "apply": 3, "suggest": 1 },
-          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 2 },
+          "policyCounts": { "apply": 14, "suggest": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 13 },
           "safetyContract": [
             "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
             "Voco action commands such as 全部刪除 are blocked from text auto-apply training",
@@ -165,6 +216,138 @@ struct VocoAutoApplyModelServiceTests {
               "contextAliasesAny": [],
               "contextTokensAny": [],
               "sourceSlices": ["currentRaw"]
+            },
+            {
+              "policyId": "migrated-swift-transcription-zhuan-ru",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "轉入",
+              "targetText": "轉錄",
+              "scopedSourcePhrase": "轉入",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-transcription-zhuan-nu",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "轉怒",
+              "targetText": "轉錄",
+              "scopedSourcePhrase": "轉怒",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-transcription-zhuan-lu",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "轉路",
+              "targetText": "轉錄",
+              "scopedSourcePhrase": "轉路",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-push-ripper-spaced",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "推 Ripper",
+              "targetText": "推 repo",
+              "scopedSourcePhrase": "推 Ripper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-push-ripper-tight",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "推Ripper",
+              "targetText": "推 repo",
+              "scopedSourcePhrase": "推Ripper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-push-reaper-spaced",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "推 reaper",
+              "targetText": "推 repo",
+              "scopedSourcePhrase": "推 reaper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-push-reaper-tight",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "推reaper",
+              "targetText": "推 repo",
+              "scopedSourcePhrase": "推reaper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-reaper",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "reaper",
+              "targetText": "repo",
+              "scopedSourcePhrase": "reaper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-repo-ripper",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "Ripper",
+              "targetText": "repo",
+              "scopedSourcePhrase": "Ripper",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-cloudflare-load-fail",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "Load Fail",
+              "targetText": "Cloudflare",
+              "scopedSourcePhrase": "Load Fail",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "migrated-swift-cloudflare-d-one",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "D One",
+              "targetText": "D1",
+              "scopedSourcePhrase": "D One",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
             },
             {
               "policyId": "suggest-fixture-file-import",

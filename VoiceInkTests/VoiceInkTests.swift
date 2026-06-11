@@ -561,11 +561,6 @@ struct VoiceInkTests {
             appName: nil,
             windowTitle: nil
         )
-        let cloudflareContext = CorrectionContext(
-            recentTranscriptions: ["Cloudflare Workers 用 D1 處理", "GitHub repo", "專案部署"],
-            appName: "Codex",
-            windowTitle: nil
-        )
         let virtualizationContext = CorrectionContext(
             recentTranscriptions: ["Windows VM", "Virtual Machine", "虛擬機器", "串流日誌"],
             appName: "Codex",
@@ -637,16 +632,6 @@ struct VoiceInkTests {
             appName: "Codex",
             windowTitle: "RIME vocabulary import"
         )
-        let repositoryContext = CorrectionContext(
-            recentTranscriptions: [
-                "這輪不要推到 repo",
-                "repo 是 r e p o",
-                "不要 push 到 GitHub"
-            ],
-            appName: "Codex",
-            windowTitle: "Voco repo"
-        )
-
         #expect(PinyinCorrector.shared.correct("這邊又有語音，語音辨識錯誤，所以你自己小振", context: correctionContext).text == "這邊又有語音，語音辨識錯誤，所以你自己修正")
         #expect(PinyinCorrector.shared.correct("連大小雪都不會動了。", context: freezeContext).text == "連大寫鍵都不會動了。")
         #expect(PinyinCorrector.shared.correct("Mac OS 應該會有個支援耗盡的提示窗。", context: systemContext).text == "Mac OS 應該會有個資源耗盡的提示窗。")
@@ -661,7 +646,6 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("浪費的名稱。", context: dataImportContext).text == "欄位的名稱。")
         #expect(PinyinCorrector.shared.correct("狼狽格式不對。", context: dataImportContext).text == "欄位格式不對。")
         #expect(PinyinCorrector.shared.correct("不少的浪費。", context: dataImportContext).text == "不少的浪費。")
-        #expect(PinyinCorrector.shared.correct("目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。", context: cloudflareContext).text == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。")
         #expect(PinyinCorrector.shared.correct("查 Windows B M 有沒有問題。", context: virtualizationContext).text == "查 Windows VM 有沒有問題。")
         #expect(PinyinCorrector.shared.correct("Windows BM 跟本地的串流日誌都特別卡。", context: virtualizationContext).text == "Windows VM 跟本地的串流日誌都特別卡。")
         #expect(PinyinCorrector.shared.correct("Windows Virtual Machine 的 BM 很卡。", context: virtualizationContext).text == "Windows Virtual Machine 的 VM 很卡。")
@@ -670,8 +654,6 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("我記得那個 Config UI 是流程圖這樣連來連去的。", context: imageGenerationContext).text == "我記得那個 ComfyUI 是流程圖這樣連來連去的。")
         #expect(PinyinCorrector.shared.correct("第一個要討論的是config.yml那邊。", context: imageGenerationContext).text == "第一個要討論的是ComfyUI那邊。")
         #expect(PinyinCorrector.shared.correct("請先打開 config.yml 那個設定檔。").text == "請先打開 config.yml 那個設定檔。")
-        #expect(PinyinCorrector.shared.correct("再跑一次轉怒的技能吧。", context: correctionContext).text == "再跑一次轉錄的技能吧。")
-        #expect(PinyinCorrector.shared.correct("再跑一次轉路的技能吧。", context: correctionContext).text == "再跑一次轉錄的技能吧。")
         #expect(PinyinCorrector.shared.correct("就等您莊園前一星期的資料。", context: templeDataContext).text == "就等您中元節前一星期的資料。")
         #expect(PinyinCorrector.shared.correct("那您可以跟妙芳討論一下。", context: templeDataContext).text == "那您可以跟廟方討論一下。")
         #expect(PinyinCorrector.shared.correct("妙方的人去用用看。", context: templeDataContext).text == "廟方的人去用用看。")
@@ -709,9 +691,6 @@ struct VoiceInkTests {
         #expect(PinyinCorrector.shared.correct("我目前在用 macOS 系統的 i iM 輸入法。", context: inputMethodContext).text == "我目前在用 macOS 系統的 RIME 輸入法。")
         #expect(PinyinCorrector.shared.correct("我那個輸入法指的是 RIME，也就是鼠須管輸入法。", context: inputMethodContext).text == "我那個輸入法指的是 RIME，也就是鼠鬚管輸入法。")
         #expect(PinyinCorrector.shared.correct("你覺得可以把它帶進這個城市裡面嗎？", context: inputMethodContext).text == "你覺得可以把它帶進這個程式裡面嗎？")
-        #expect(PinyinCorrector.shared.correct("但是不要推 Ripper，並非是人名。", context: repositoryContext).text == "但是不要推 repo，並非是人名。")
-        #expect(PinyinCorrector.shared.correct("然後我那個reaper只能是repo，r e p o。", context: repositoryContext).text == "然後我那個repo只能是repo，r e p o。")
-        #expect(PinyinCorrector.shared.correct("這是一個 reaper 音訊工具。").text == "這是一個 reaper 音訊工具。")
     }
 
     @Test func confidenceGateKeepsCleanCanonicalizationOnDirectRoute() async throws {

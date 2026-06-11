@@ -140,8 +140,6 @@ class PinyinCorrector {
             "廟", "廟方", "中元節", "功德金", "香油錢",
             "春節", "資料", "檔案", "Excel", "匯入", "去年", "今年", "查詢", "單位"
         ]
-        let cloudflareKeywords = ["Cloudflare", "Workers", "D1", "D 1", "Durable Object", "repo", "GitHub", "專案", "部署"]
-        let repositoryKeywords = ["repo", "r e p o", "GitHub", "commit", "push", "推到", "推送", "遠端", "main", "origin"]
         let inputMethodKeywords = [
             "RIME", "rime", "鼠鬚管", "鼠須管", "輸入法", "詞庫", "人名",
             "快捷鍵", "shortcut", "custom_phrase", "personal_dict", "Voco"
@@ -186,9 +184,6 @@ class PinyinCorrector {
             ("日劇", "日誌", ["log", "日誌", "紀錄", "除錯", "debug", "系統", "伺服器"]),
             ("專欄", "專案", ["專案", "project", "開發", "GitHub", "repo", "資料夾"]),
             ("單字", "單指", ["手指", "輸入", "打字", "鍵盤", "操作"]),
-            ("轉入", "轉錄", ["轉錄", "語音", "錄音", "transcri", "Whisper", "辨識"]),
-            ("轉怒", "轉錄", ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"]),
-            ("轉路", "轉錄", ["轉錄", "retranscribe", "技能", "語音", "辨識", "ASR", "Voco"]),
             ("推測", "推送", ["推送", "通知", "notification", "push", "訊息"]),
             ("差值被統一", "ChatGPT", aiKeywords),
             ("差點被統一", "ChatGPT", aiKeywords),
@@ -248,19 +243,11 @@ class PinyinCorrector {
             ("virtual machine 的 BM", "virtual machine 的 VM", virtualizationKeywords),
             ("虛擬機器的 B M", "虛擬機器的 VM", virtualizationKeywords),
             ("虛擬機器的 BM", "虛擬機器的 VM", virtualizationKeywords),
-            ("Load Fail", "Cloudflare", cloudflareKeywords),
-            ("D One", "D1", cloudflareKeywords),
             ("鼠須管", "鼠鬚管", inputMethodKeywords),
             ("i iM 輸入法", "RIME 輸入法", inputMethodKeywords),
             ("I I M 輸入法", "RIME 輸入法", inputMethodKeywords),
             ("把它帶進這個城市", "把它帶進這個程式", inputMethodKeywords),
             ("帶進這個城市", "帶進這個程式", inputMethodKeywords),
-            ("推 Ripper", "推 repo", repositoryKeywords),
-            ("推Ripper", "推 repo", repositoryKeywords),
-            ("推 reaper", "推 repo", repositoryKeywords),
-            ("推reaper", "推 repo", repositoryKeywords),
-            ("reaper", "repo", repositoryKeywords),
-            ("Ripper", "repo", repositoryKeywords),
             ("目標是整車漆", "目標是偵測器", aiWritingKeywords),
             ("這片AI的味道", "這篇AI的味道", aiWritingKeywords),
             ("這片 AI 的味道", "這篇 AI 的味道", aiWritingKeywords),
@@ -323,8 +310,7 @@ class PinyinCorrector {
             guard result.contains(rule.wrong) else { continue }
 
             // Skip if the wrong word is in the protection list
-            if CorrectionProtectionList.shared.contains(rule.wrong),
-               !allowsProtectedOverride(rule) {
+            if CorrectionProtectionList.shared.contains(rule.wrong) {
                 continue
             }
 
@@ -362,12 +348,6 @@ class PinyinCorrector {
     }
 
     // MARK: - Private
-
-    private func allowsProtectedOverride(_ rule: PinyinCorrectionRule) -> Bool {
-        rule.tier == .contextDependent &&
-            rule.wrong == "轉路" &&
-            rule.correct == "轉錄"
-    }
 
     private func allowsContextualRuleInCurrentText(_ rule: PinyinCorrectionRule, currentText: String) -> Bool {
         if rule.wrong == "做手機",

@@ -116,6 +116,77 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "應該是要重新建立的才對吧？")
             self.assertEqual(validation["negativeExamples"][0]["actualText"], "手機要充電。")
 
+    def test_manual_context_corpus_drift_is_reported_but_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            corpus = root / "corpus"
+            corpus.mkdir()
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="轉路",
+                target_text="轉錄",
+                source_text="轉路",
+                row_pk=12291,
+                lock_name="migrated-swift-transcription",
+                context_token=["轉錄", "技能", "ASR"],
+                context_alias=[],
+                context_from_context_only=False,
+                require_alias=False,
+                positive=["重新轉路的技能||Voco 轉錄 技能||重新轉錄的技能"],
+                negative=["這條轉路很危險||道路"],
+                positive_text=None,
+                positive_context=None,
+                expected_text=None,
+                negative_text=None,
+                negative_context=None,
+                note=None,
+            )
+            control.append_event(evidence, control.context_locked_rule_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            (corpus / "full-db.cleaned.jsonl").write_text(
+                json.dumps(
+                    {
+                        "rowPk": 12291,
+                        "rawOpenCC": "重新轉路的技能",
+                        "cleanedText": "重新轉路的技能",
+                        "requiresReview": True,
+                        "riskFlags": ["storedOutputDisagreesWithRawDerivedCleaned"],
+                        "context": {"before": [{"rawOpenCC": "Voco 轉錄 技能 ASR"}]},
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=corpus,
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=False,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            replay = validation["corpusReplay"][0]["cleanedReplay"]
+            self.assertEqual(replay["unexpectedChanges"], 0)
+            self.assertEqual(replay["acceptedManualCorpusChanges"], 1)
+            self.assertEqual(replay["originalUnexpectedChanges"], 1)
+
     def test_activate_and_rollback_use_backups(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
