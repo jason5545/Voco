@@ -116,6 +116,73 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "應該是要重新建立的才對吧？")
             self.assertEqual(validation["negativeExamples"][0]["actualText"], "手機要充電。")
 
+    def test_promoted_suggest_tombstone_counts_as_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            base_model = tiny_base_model()
+            base_model["policyCounts"] = {"suggest": 2}
+            base_model["policies"] = [
+                {
+                    "policyId": "policy-githubcode吉他>github",
+                    "policyType": "scopedReplacement",
+                    "autoApplyMode": "suggest",
+                    "sourcePattern": "吉他",
+                    "targetText": "Github",
+                    "contextTokensAny": ["github", "repo"],
+                    "contextAliasesAny": [],
+                },
+                {
+                    "policyId": "policy-counseling智商>諮商",
+                    "policyType": "scopedReplacement",
+                    "autoApplyMode": "suggest",
+                    "sourcePattern": "智商",
+                    "targetText": "諮商",
+                    "contextTokensAny": ["心理師"],
+                    "contextAliasesAny": [],
+                },
+            ]
+            base.write_text(json.dumps(base_model, ensure_ascii=False), encoding="utf-8")
+
+            control.append_event(
+                evidence,
+                control.disable_rule_event(
+                    Namespace(
+                        actor="test",
+                        policy_id="policy-githubcode吉他>github",
+                        source_pattern=None,
+                        target_text=None,
+                        reason="Promote suggest-only GitHub domain correction into manual context-locked apply rule.",
+                        disposition=None,
+                    )
+                ),
+            )
+            control.append_event(
+                evidence,
+                control.disable_rule_event(
+                    Namespace(
+                        actor="test",
+                        policy_id="policy-counseling智商>諮商",
+                        source_pattern=None,
+                        target_text=None,
+                        reason="Replace broad suggest-only counseling correction with narrower phrase-level context locks.",
+                        disposition=None,
+                    )
+                ),
+            )
+
+            model, report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+
+            self.assertEqual(model["policyCounts"]["replaced"], 1)
+            self.assertEqual(model["policyCounts"]["blocked"], 1)
+            self.assertEqual(report["tombstoneDispositionCounts"], {"replaced": 1, "blocked": 1})
+
     def test_manual_context_corpus_drift_is_reported_but_allowed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

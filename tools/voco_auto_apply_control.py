@@ -112,6 +112,7 @@ def parse_args() -> argparse.Namespace:
     disable.add_argument("--source-pattern")
     disable.add_argument("--target-text")
     disable.add_argument("--reason", required=True)
+    disable.add_argument("--disposition", choices=["blocked", "replaced"])
 
     list_evidence = subparsers.add_parser("listEvidence")
     list_evidence.add_argument("--limit", type=int, default=20)
@@ -247,6 +248,7 @@ def hallucination_event(args: argparse.Namespace) -> dict[str, Any]:
             "targetText": args.forbidden_target,
             "reason": args.note or "negative hallucination evidence",
             "blockedBecauseNegativeEvidence": True,
+            "disposition": "blocked",
         },
         "provenance": {
             "manualLabel": "hallucination",
@@ -326,6 +328,7 @@ def disable_rule_event(args: argparse.Namespace) -> dict[str, Any]:
             "targetText": args.target_text,
             "reason": args.reason,
             "blockedBecauseNegativeEvidence": False,
+            "disposition": args.disposition,
         }
     }
     return make_event(args.actor, "disableRule", payload)
@@ -438,6 +441,13 @@ def compile_model(
     model["policies"] = policies
     model["policyCounts"] = dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in policies))
     model["policyTypeCounts"] = dict(Counter(str(policy.get("policyType") or "unknown") for policy in policies))
+    tombstone_disposition_counts = dict(
+        Counter(
+            str((policy.get("tombstone") or {}).get("disposition") or "unknown")
+            for policy in policies
+            if isinstance(policy.get("tombstone"), dict)
+        )
+    )
     append_safety_contract(model)
     model["controlPlane"] = {
         "schemaVersion": CONTROL_SCHEMA_VERSION,
@@ -449,6 +459,7 @@ def compile_model(
         "eventCount": len(events),
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
+        "tombstoneDispositionCounts": tombstone_disposition_counts,
     }
     report = {
         "basePolicyCounts": base_model.get("policyCounts") or {},
@@ -458,6 +469,7 @@ def compile_model(
         "eventCount": len(events),
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
+        "tombstoneDispositionCounts": tombstone_disposition_counts,
     }
     return model, report
 
@@ -603,22 +615,37 @@ def policy_identity(policy: dict[str, Any]) -> tuple[Any, ...]:
 
 def tombstone_matching_policies(policies: list[dict[str, Any]], tombstone: dict[str, Any], event: dict[str, Any]) -> int:
     count = 0
+    disposition = tombstone_disposition(tombstone)
     for policy in policies:
         if not tombstone_matches_policy(tombstone, policy):
             continue
-        policy["autoApplyMode"] = "blocked"
-        policy["decisionReason"] = f"tombstoned by control-plane evidence: {tombstone.get('reason') or event.get('action')}"
+        policy["autoApplyMode"] = disposition
+        policy["decisionReason"] = f"{disposition} by control-plane evidence: {tombstone.get('reason') or event.get('action')}"
         policy["tombstone"] = {
             "eventId": event["eventId"],
             "createdAt": event["createdAt"],
             "reason": tombstone.get("reason"),
             "blockedBecauseNegativeEvidence": bool(tombstone.get("blockedBecauseNegativeEvidence")),
+            "disposition": disposition,
         }
         ids = list(policy.get("controlEvidenceEventIds") or [])
         ids.append(event["eventId"])
         policy["controlEvidenceEventIds"] = sorted(set(ids))
         count += 1
     return count
+
+
+def tombstone_disposition(tombstone: dict[str, Any]) -> str:
+    disposition = tombstone.get("disposition")
+    if disposition in {"blocked", "replaced"}:
+        return str(disposition)
+    if bool(tombstone.get("blockedBecauseNegativeEvidence")):
+        return "blocked"
+
+    reason = str(tombstone.get("reason") or "")
+    if reason.startswith("Promote suggest-only"):
+        return "replaced"
+    return "blocked"
 
 
 def tombstone_matches_policy(tombstone: dict[str, Any], policy: dict[str, Any]) -> bool:
@@ -642,7 +669,7 @@ def append_safety_contract(model: dict[str, Any]) -> None:
     additions = [
         "control-plane rule changes must originate from append-only evidence JSONL events",
         "manual context-locked scoped replacements require explicit context tokens or aliases",
-        "manual tombstones preserve provenance by marking policies blocked instead of deleting evidence",
+        "manual tombstones preserve provenance by marking policies blocked or replaced instead of deleting evidence",
         "activation requires positive examples, negative examples, sentinel replay, and corpus replay when available",
     ]
     for item in additions:

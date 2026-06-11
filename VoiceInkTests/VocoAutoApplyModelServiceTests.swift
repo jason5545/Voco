@@ -145,6 +145,19 @@ struct VocoAutoApplyModelServiceTests {
         #expect(result.suggestions.map(\.policyId) == ["suggest-fixture-file-import"])
     }
 
+    @Test func replacedPoliciesLoadButDoNotApplyOrSuggest() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let result = service.evaluate("推送到吉他。", context: "GitHub repo push")
+        #expect(service.status.isAvailable == true)
+        #expect(result.outputText == "推送到吉他。")
+        #expect(result.applied.isEmpty)
+        #expect(result.suggestions.isEmpty)
+    }
+
     @Test func actionCommandsAreBlockedFromTextAutoApply() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -199,8 +212,8 @@ struct VocoAutoApplyModelServiceTests {
     private func fixtureJSON(ready: Bool, scopedClaudeTarget: String = "Claude 的 OPUS 模型") -> String {
         """
         {
-          "policyCounts": { "apply": 14, "suggest": 1 },
-          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 13 },
+          "policyCounts": { "apply": 14, "suggest": 1, "replaced": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 14 },
           "safetyContract": [
             "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
             "Voco action commands such as 全部刪除 are blocked from text auto-apply training",
@@ -384,6 +397,18 @@ struct VocoAutoApplyModelServiceTests {
               "contextAliasesAny": [],
               "contextTokensAny": [],
               "sourceSlices": ["currentRaw"]
+            },
+            {
+              "policyId": "replaced-fixture-github",
+              "autoApplyMode": "replaced",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "吉他",
+              "targetText": "GitHub",
+              "scopedSourcePhrase": "吉他",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["GitHub", "repo", "push"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
             }
           ]
         }

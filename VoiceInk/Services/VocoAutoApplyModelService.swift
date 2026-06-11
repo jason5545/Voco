@@ -373,6 +373,13 @@ private enum VocoAutoApplyMode: String, Decodable {
     case apply
     case suggest
     case blocked
+    case replaced
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = VocoAutoApplyMode(rawValue: rawValue) ?? .blocked
+    }
 }
 
 private enum VocoAutoApplyPolicyType: String, Decodable {
