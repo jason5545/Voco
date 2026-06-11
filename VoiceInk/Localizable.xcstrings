@@ -11854,6 +11854,96 @@
           }
         }
       }
+    },
+    "Auto-Apply Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動套用模型"
+          }
+        }
+      }
+    },
+    "Auto-apply model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動套用模型"
+          }
+        }
+      }
+    },
+    "Auto-apply suggestion": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動套用建議"
+          }
+        }
+      }
+    },
+    "Reload model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新載入模型"
+          }
+        }
+      }
+    },
+    "Model not detected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未偵測到模型"
+          }
+        }
+      }
+    },
+    "Model not installed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未安裝模型"
+          }
+        }
+      }
+    },
+    "Model not ready": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型尚未就緒"
+          }
+        }
+      }
+    },
+    "Model loaded: %lld apply, %lld suggest": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 條套用 / %2$lld 條建議"
+          }
+        }
+      }
+    },
+    "Model unreadable": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型無法讀取"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

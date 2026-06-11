@@ -105,7 +105,7 @@ enum VocoHypothesisSource: String, Codable, Equatable {
         case .autoContext:
             return "AUTO + context"
         case .autoApplyModel:
-            return "Auto-apply model"
+            return String(localized: "Auto-apply model")
         case .suggestedRepair:
             return "Suggestion pass"
         case .originalCleaned:
@@ -329,7 +329,7 @@ enum VocoCandidateLabelDisplayFormatter {
         case "Typed correction":
             return "Typed correction"
         case "Auto-apply model":
-            return "Auto-apply model"
+            return String(localized: "Auto-apply model")
         case "Candidate":
             return "Candidate"
         default:
@@ -400,9 +400,9 @@ enum VocoSignalDisplayFormatter {
         case "low-confidence-score":
             return "Low score"
         case "auto-apply-model":
-            return "Auto-apply model"
+            return String(localized: "Auto-apply model")
         case "auto-apply-model-suggestion":
-            return "Auto-apply suggestion"
+            return String(localized: "Auto-apply suggestion")
         case "protected-term-replacement":
             return "Protected term changed"
         case "raw-cleanup-drift":

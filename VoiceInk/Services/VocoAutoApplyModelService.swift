@@ -75,7 +75,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         self.defaults = defaults
         self.status = VocoAutoApplyModelStatus(
             isAvailable: false,
-            message: "Model not detected",
+            message: String(localized: "Model not detected"),
             modelURL: modelURL
         )
         reload()
@@ -87,7 +87,7 @@ final class VocoAutoApplyModelService: ObservableObject {
                 loadedModel = nil
                 status = VocoAutoApplyModelStatus(
                     isAvailable: false,
-                    message: "Model not installed",
+                    message: String(localized: "Model not installed"),
                     modelURL: modelURL
                 )
                 return
@@ -99,7 +99,7 @@ final class VocoAutoApplyModelService: ObservableObject {
                 loadedModel = nil
                 status = VocoAutoApplyModelStatus(
                     isAvailable: false,
-                    message: "Model not ready",
+                    message: String(localized: "Model not ready"),
                     modelURL: modelURL
                 )
                 return
@@ -110,14 +110,14 @@ final class VocoAutoApplyModelService: ObservableObject {
             let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
             status = VocoAutoApplyModelStatus(
                 isAvailable: true,
-                message: "Model loaded: \(applyCount) apply, \(suggestCount) suggest",
+                message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest"),
                 modelURL: modelURL
             )
         } catch {
             loadedModel = nil
             status = VocoAutoApplyModelStatus(
                 isAvailable: false,
-                message: "Model unreadable",
+                message: String(localized: "Model unreadable"),
                 modelURL: modelURL
             )
             logger.error("Failed to load auto-apply model: \(error.localizedDescription, privacy: .public)")
