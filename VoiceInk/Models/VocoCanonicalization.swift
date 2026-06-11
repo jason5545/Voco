@@ -93,6 +93,7 @@ struct VocoReviewTrigger: Codable, Equatable, Identifiable {
 
 enum VocoHypothesisSource: String, Codable, Equatable {
     case autoContext
+    case autoApplyModel
     case suggestedRepair
     case originalCleaned
     case rawASR
@@ -103,6 +104,8 @@ enum VocoHypothesisSource: String, Codable, Equatable {
         switch self {
         case .autoContext:
             return "AUTO + context"
+        case .autoApplyModel:
+            return "Auto-apply model"
         case .suggestedRepair:
             return "Suggestion pass"
         case .originalCleaned:
@@ -120,16 +123,18 @@ enum VocoHypothesisSource: String, Codable, Equatable {
         switch self {
         case .autoContext:
             return 0
-        case .suggestedRepair:
+        case .autoApplyModel:
             return 1
-        case .segmentRescue:
+        case .suggestedRepair:
             return 2
-        case .customRescue:
+        case .segmentRescue:
             return 3
-        case .originalCleaned:
+        case .customRescue:
             return 4
-        case .rawASR:
+        case .originalCleaned:
             return 5
+        case .rawASR:
+            return 6
         }
     }
 }
@@ -323,6 +328,8 @@ enum VocoCandidateLabelDisplayFormatter {
             return "Raw ASR"
         case "Typed correction":
             return "Typed correction"
+        case "Auto-apply model":
+            return "Auto-apply model"
         case "Candidate":
             return "Candidate"
         default:
@@ -392,6 +399,10 @@ enum VocoSignalDisplayFormatter {
             return "Low confidence"
         case "low-confidence-score":
             return "Low score"
+        case "auto-apply-model":
+            return "Auto-apply model"
+        case "auto-apply-model-suggestion":
+            return "Auto-apply suggestion"
         case "protected-term-replacement":
             return "Protected term changed"
         case "raw-cleanup-drift":

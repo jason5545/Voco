@@ -80,6 +80,7 @@ enum AppDefaults {
         // Phase 1 shadow diagnostics (analysis-only)
         PhoneticShadowLogger.shadowLoggingEnabledKey: false,
         PhoneticShadowLogger.candidateApplicationEnabledKey: false,
+        VocoAutoApplyModelService.enabledKey: true,
     ]
 
     static func registerDefaults(defaults: UserDefaults = .standard) {

@@ -108,6 +108,11 @@ scripts/asr_eval/models/
 scripts/convert_whisper_coreml/
 transcript.txt
 
+# Local auto-apply model artifacts
+LocalModels/
+Support/AutoApplyModels/
+full-db.auto-apply-model.json
+
 # Claude Code
 CLAUDE.md
 AI_HANDOFF.md

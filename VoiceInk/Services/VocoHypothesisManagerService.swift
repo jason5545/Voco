@@ -24,8 +24,8 @@ enum VocoHypothesisManagerService {
         var drafts: [(text: String, label: String, source: VocoHypothesisSource, termIDs: [String], requiresReview: Bool)] = [
             (
                 normalized,
-                "Recommended",
-                .autoContext,
+                normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") } ? "Auto-apply model" : "Recommended",
+                normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") } ? .autoApplyModel : .autoContext,
                 normalizationResult.replacements.map(\.termID),
                 route == .reviewSuggested
             ),

@@ -7,9 +7,14 @@ final class VocoCanonicalizationService {
     static let enabledContextPackIDsKey = "VocoEnabledContextPackIDs"
 
     let contextPacks: [VocoContextPack]
+    private let autoApplyModelService: VocoAutoApplyModelService
 
-    init(contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks) {
+    init(
+        contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
+        autoApplyModelService: VocoAutoApplyModelService = .shared
+    ) {
         self.contextPacks = contextPacks
+        self.autoApplyModelService = autoApplyModelService
     }
 
     func normalize(
@@ -40,13 +45,20 @@ final class VocoCanonicalizationService {
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
+        let normalizedText = applying(accepted, to: text)
+        let autoApply = autoApplyModelService.evaluate(
+            normalizedText,
+            context: ([text] + contextHints).joined(separator: "\n")
+        )
+        let autoApplyReplacements = replacementRecords(from: autoApply.applied, in: normalizedText)
+        let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
 
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: applying(accepted, to: text),
+            normalizedText: autoApply.outputText,
             activeContextIDs: activeContextIDs,
-            replacements: accepted.map { replacementRecord(for: $0, in: text) },
-            suggestions: suggestions
+            replacements: accepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
+            suggestions: suggestions + autoApplySuggestions
         )
     }
 
@@ -336,6 +348,35 @@ final class VocoCanonicalizationService {
         }
 
         return candidates
+    }
+
+    private func replacementRecords(
+        from fires: [VocoAutoApplyPolicyFire],
+        in text: String
+    ) -> [VocoReplacement] {
+        fires.map { fire in
+            let range = rangeForAutoApplyFire(fire, in: text)
+            return VocoReplacement(
+                originalText: fire.sourcePattern,
+                replacementText: fire.targetText,
+                termID: "auto-apply-model.\(fire.policyId)",
+                confidence: fire.autoApplyMode == "apply" ? 0.99 : 0.78,
+                reason: fire.autoApplyMode == "apply" ? "auto-apply-model" : "auto-apply-model-suggestion",
+                rangeStart: range?.location,
+                rangeLength: range?.length
+            )
+        }
+    }
+
+    private func rangeForAutoApplyFire(_ fire: VocoAutoApplyPolicyFire, in text: String) -> NSRange? {
+        if fire.policyType == "exactTrainablePair" {
+            return NSRange(location: 0, length: (text as NSString).length)
+        }
+
+        let nsText = text as NSString
+        let range = nsText.range(of: fire.sourcePattern)
+        guard range.location != NSNotFound else { return nil }
+        return range
     }
 
     private func isShortCJKVocabularyTerm(_ term: String) -> Bool {

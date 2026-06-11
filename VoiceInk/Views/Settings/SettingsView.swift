@@ -187,6 +187,7 @@ struct SettingsView: View {
             }
 
             ChinesePostProcessingSettingsView()
+            AutoApplyModelSettingsView()
 
             Section("General") {
                 Toggle("Hide Dock Icon", isOn: $menuBarManager.isMenuBarOnly)
