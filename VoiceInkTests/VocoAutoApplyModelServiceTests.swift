@@ -181,6 +181,77 @@ struct VocoAutoApplyModelServiceTests {
         #expect(!result.outputText.hasSuffix("嗎"))
     }
 
+    @Test func mingdeAllowlistPhrasesRemainAllowed() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        for text in ["明德捷運站。", "明德水庫。", "明德路附近。", "施明德。"] {
+            let result = service.evaluate(text)
+            #expect(result.outputText == text)
+            #expect(result.applied.isEmpty)
+            #expect(result.guardBlocks.isEmpty)
+            #expect(result.requiresReview == false)
+        }
+    }
+
+    @Test func mingdeScopedPolicyAppliesOnlyWhenContextLockMatches() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let result = service.evaluate("我們最明德變更應該有加了自動學習。")
+        #expect(result.outputText == "我們最近的變更應該有加了自動學習。")
+        #expect(result.applied.map(\.policyId) == ["scoped-fixture-mingde-recent-change"])
+        #expect(result.guardBlocks.isEmpty)
+    }
+
+    @Test func mingdeOutsideAllowlistWithoutPolicySupportIsReviewOnlyGuarded() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let text = "這個明德變更怪怪的。"
+        let result = service.evaluate(text)
+        #expect(result.outputText == text)
+        #expect(result.applied.isEmpty)
+        #expect(result.guardBlocks.map(\.guardId) == ["protected-term-allowlist.mingde"])
+        #expect(result.guardBlocks.first?.reason == VocoAutoApplyModelService.protectedTermGuardReason)
+        #expect(result.requiresReview == true)
+
+        let normalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: service
+        ).normalize(text, activeContextIDs: [])
+        #expect(normalization.normalizedText == text)
+        #expect(normalization.suggestions.contains {
+            $0.reason == VocoAutoApplyModelService.protectedTermGuardReason &&
+                $0.termID == "auto-apply-model.guard.protected-term-allowlist.mingde"
+        })
+
+        let assessment = VocoConfidenceGateService().assess(normalizationResult: normalization)
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.reasons.contains(VocoAutoApplyModelService.protectedTermGuardReason))
+        #expect(assessment.reviewTriggers.contains {
+            $0.id == VocoAutoApplyModelService.protectedTermGuardReason
+        })
+    }
+
+    @Test func protectedTermAllowlistGuardComesFromModelMetadata() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true, includeProtectedTermGuards: false),
+            defaults: try temporaryDefaults()
+        )
+
+        let result = service.evaluate("這個明德變更怪怪的。")
+        #expect(result.outputText == "這個明德變更怪怪的。")
+        #expect(result.guardBlocks.isEmpty)
+        #expect(result.requiresReview == false)
+    }
+
     @Test func gitignoreProtectsProductionAndLocalModelPaths() throws {
         let gitignore = try String(
             contentsOf: URL(fileURLWithPath: "/Users/jianruicheng/GitHub/Voco/.gitignore"),
@@ -192,28 +263,57 @@ struct VocoAutoApplyModelServiceTests {
         #expect(gitignore.contains("full-db.auto-apply-model.json"))
     }
 
-    private func writeFixture(ready: Bool, scopedClaudeTarget: String = "Claude 的 OPUS 模型") throws -> URL {
+    private func writeFixture(
+        ready: Bool,
+        scopedClaudeTarget: String = "Claude 的 OPUS 模型",
+        includeProtectedTermGuards: Bool = true
+    ) throws -> URL {
         let url = try temporaryDirectory().appendingPathComponent("small-auto-apply-fixture.json")
-        try writeFixture(to: url, ready: ready, scopedClaudeTarget: scopedClaudeTarget)
+        try writeFixture(
+            to: url,
+            ready: ready,
+            scopedClaudeTarget: scopedClaudeTarget,
+            includeProtectedTermGuards: includeProtectedTermGuards
+        )
         return url
     }
 
     private func writeFixture(
         to url: URL,
         ready: Bool,
-        scopedClaudeTarget: String = "Claude 的 OPUS 模型"
+        scopedClaudeTarget: String = "Claude 的 OPUS 模型",
+        includeProtectedTermGuards: Bool = true
     ) throws {
         let data = try #require(
-            fixtureJSON(ready: ready, scopedClaudeTarget: scopedClaudeTarget).data(using: .utf8)
+            fixtureJSON(
+                ready: ready,
+                scopedClaudeTarget: scopedClaudeTarget,
+                includeProtectedTermGuards: includeProtectedTermGuards
+            ).data(using: .utf8)
         )
         try data.write(to: url)
     }
 
-    private func fixtureJSON(ready: Bool, scopedClaudeTarget: String = "Claude 的 OPUS 模型") -> String {
-        """
+    private func fixtureJSON(
+        ready: Bool,
+        scopedClaudeTarget: String = "Claude 的 OPUS 模型",
+        includeProtectedTermGuards: Bool = true
+    ) -> String {
+        let protectedTermGuardsJSON = includeProtectedTermGuards ? """
+          "protectedTermAllowlistGuards": [
+            {
+              "guardId": "protected-term-allowlist.mingde",
+              "reason": "\(VocoAutoApplyModelService.protectedTermGuardReason)",
+              "term": "明德",
+              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"]
+            }
+          ],
+        """ : ""
+
+        return """
         {
-          "policyCounts": { "apply": 14, "suggest": 1, "replaced": 1 },
-          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 14 },
+          "policyCounts": { "apply": 15, "suggest": 1, "replaced": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 15 },
           "safetyContract": [
             "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
             "Voco action commands such as 全部刪除 are blocked from text auto-apply training",
@@ -223,6 +323,7 @@ struct VocoAutoApplyModelServiceTests {
             "mergedAutoApplyModelReady": \(ready ? "true" : "false"),
             "failures": []
           },
+        \(protectedTermGuardsJSON)
           "policies": [
             {
               "policyId": "exact-fixture-question",
@@ -254,6 +355,18 @@ struct VocoAutoApplyModelServiceTests {
               "contextAliasesAny": [],
               "contextTokensAny": [],
               "sourceSlices": ["currentRaw"]
+            },
+            {
+              "policyId": "scoped-fixture-mingde-recent-change",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "最明德變更",
+              "targetText": "最近的變更",
+              "scopedSourcePhrase": "最明德變更",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["變更", "自動學習", "昨天晚上", "最近"],
+              "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
             },
             {
               "policyId": "migrated-swift-transcription-zhuan-ru",

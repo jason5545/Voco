@@ -26,6 +26,11 @@ final class VocoConfidenceGateService {
             reasons.append("unresolved-suggestions")
         }
 
+        if hasAutoApplyProtectedTermGuard(normalizationResult.suggestions) {
+            score -= 0.24
+            reasons.append(VocoAutoApplyModelService.protectedTermGuardReason)
+        }
+
         if normalizationResult.replacements.contains(where: { $0.confidence < 0.92 }) {
             score -= 0.12
             reasons.append("low-confidence-replacement")
@@ -200,6 +205,16 @@ final class VocoConfidenceGateService {
             )
         }
 
+        if reasons.contains(VocoAutoApplyModelService.protectedTermGuardReason) {
+            triggers.append(
+                VocoReviewTrigger(
+                    id: VocoAutoApplyModelService.protectedTermGuardReason,
+                    reason: VocoAutoApplyModelService.protectedTermGuardReason,
+                    detail: "Protected term outside allowlist"
+                )
+            )
+        }
+
         if reasons.contains("recent-term-corrections") {
             let riskIDs = correctionRiskProfile?.highRiskTermIDs ?? []
             let overlappingIDs = affectedTermIDs.filter { riskIDs.contains($0) }
@@ -330,6 +345,12 @@ final class VocoConfidenceGateService {
     private func hasProtectedTermReplacement(_ replacements: [VocoReplacement]) -> Bool {
         replacements.contains { replacement in
             containsProtectedTerm(replacement.originalText)
+        }
+    }
+
+    private func hasAutoApplyProtectedTermGuard(_ suggestions: [VocoReplacement]) -> Bool {
+        suggestions.contains { suggestion in
+            suggestion.reason == VocoAutoApplyModelService.protectedTermGuardReason
         }
     }
 

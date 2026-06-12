@@ -103,6 +103,7 @@ Temporary Items
 
 # Scripts (local dev/eval only)
 scripts/__pycache__/
+tools/__pycache__/
 scripts/asr_eval/.venv*/
 scripts/asr_eval/models/
 scripts/convert_whisper_coreml/
@@ -112,6 +113,12 @@ transcript.txt
 LocalModels/
 Support/AutoApplyModels/
 full-db.auto-apply-model.json
+
+# Local Qwen3 adapter/model artifacts
+Support/Qwen3Models/
+Qwen3Models/
+qwen3-asr-speaker-audio-lora-20260612-balanced-64iter/
+adapters.safetensors
 
 # Claude Code
 CLAUDE.md

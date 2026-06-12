@@ -42,6 +42,9 @@ CONTROL_SCHEMA_VERSION = 1
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
 MANUAL_CORPUS_ACCEPTANCE_MAX = 25
+DEFAULT_BACKUP_RETENTION = 3
+PROTECTED_TERM_GUARD_REASON = "auto-apply-model-protected-term-guard"
+PROTECTED_TERM_GUARD_KEYS = ("protectedTermAllowlistGuards", "protectedTermAllowlist")
 BASELINE_DRIFT_RISK_FLAGS = {
     "storedOutputDisagreesWithRawDerivedCleaned",
     "rerawStoredBaselineDrift",
@@ -133,13 +136,28 @@ def parse_args() -> argparse.Namespace:
     activate.add_argument("--active-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
     activate.add_argument("--base-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
     activate.add_argument("--backup-suffix", default="control")
+    activate.add_argument("--backup-dir", type=Path, help="Optional backup directory; default is no backup.")
+    activate.add_argument("--backup-retention", type=int, default=DEFAULT_BACKUP_RETENTION)
     add_validation_args(activate)
 
     rollback = subparsers.add_parser("rollbackModel")
     rollback.add_argument("--active-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
     rollback.add_argument("--backup", type=Path)
+    rollback.add_argument("--backup-dir", type=Path, help="Optional backup directory to list or use for newest backup lookup.")
     rollback.add_argument("--list", action="store_true")
     rollback.add_argument("--reason", default="manual rollback")
+    rollback.add_argument("--pre-rollback-backup-dir", type=Path, help="Optional directory for backing up the current active model before rollback.")
+    rollback.add_argument("--pre-rollback-backup-retention", type=int, default=DEFAULT_BACKUP_RETENTION)
+
+    protected_guard = subparsers.add_parser("upsertProtectedTermAllowlistGuard")
+    protected_guard.add_argument("--model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    protected_guard.add_argument("--guard-id", required=True)
+    protected_guard.add_argument("--term", required=True)
+    protected_guard.add_argument("--allowed-phrase", action="append", required=True)
+    protected_guard.add_argument("--reason", default=PROTECTED_TERM_GUARD_REASON)
+    protected_guard.add_argument("--backup-suffix", default="protected-term-guard")
+    protected_guard.add_argument("--backup-dir", type=Path, help="Optional backup directory; default is no backup.")
+    protected_guard.add_argument("--backup-retention", type=int, default=DEFAULT_BACKUP_RETENTION)
 
     explain = subparsers.add_parser("explainRuleMatch")
     explain.add_argument("--model", type=Path, default=DEFAULT_ACTIVE_MODEL)
@@ -196,6 +214,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return activate_model_command(args)
     if args.command == "rollbackModel":
         return rollback_model_command(args)
+    if args.command == "upsertProtectedTermAllowlistGuard":
+        return upsert_protected_term_allowlist_guard_command(args)
     if args.command == "explainRuleMatch":
         return explain_rule_match(args.model.expanduser(), args.text, args.context)
     raise AssertionError(f"Unhandled command: {args.command}")
@@ -671,6 +691,7 @@ def append_safety_contract(model: dict[str, Any]) -> None:
         "manual context-locked scoped replacements require explicit context tokens or aliases",
         "manual tombstones preserve provenance by marking policies blocked or replaced instead of deleting evidence",
         "activation requires positive examples, negative examples, sentinel replay, and corpus replay when available",
+        "protected term allowlist guards must be declared in the model artifact, not hard-coded in runtime services",
     ]
     for item in additions:
         if item not in existing:
@@ -723,9 +744,10 @@ def validate_model(
     skip_raw_input_replay: bool,
 ) -> dict[str, Any]:
     apply_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "apply"]
+    protected_guards = protected_term_allowlist_guards(model)
     failures: list[dict[str, Any]] = []
-    positive_results = validate_positive_examples(events, apply_policies)
-    negative_results = validate_negative_examples(events, apply_policies)
+    positive_results = validate_positive_examples(events, apply_policies, protected_guards)
+    negative_results = validate_negative_examples(events, apply_policies, protected_guards)
     failures.extend(item for item in positive_results if not item["passed"])
     failures.extend(item for item in negative_results if not item["passed"])
     exact_conflicts = exact_apply_conflicts(apply_policies)
@@ -758,7 +780,11 @@ def validate_model(
     }
 
 
-def validate_positive_examples(events: list[dict[str, Any]], apply_policies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def validate_positive_examples(
+    events: list[dict[str, Any]],
+    apply_policies: list[dict[str, Any]],
+    protected_guards: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for event in events:
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
@@ -767,7 +793,7 @@ def validate_positive_examples(events: list[dict[str, Any]], apply_policies: lis
             text = str(example.get("text") or "")
             context = str(example.get("context") or "")
             expected = str(example.get("expectedText") or "")
-            after, fires = replay_apply_policies(text, context, apply_policies)
+            after, fires = replay_apply_policies(text, context, apply_policies, protected_guards)
             passed = strict_text_key(after) == strict_text_key(expected)
             results.append(
                 {
@@ -784,7 +810,11 @@ def validate_positive_examples(events: list[dict[str, Any]], apply_policies: lis
     return results
 
 
-def validate_negative_examples(events: list[dict[str, Any]], apply_policies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def validate_negative_examples(
+    events: list[dict[str, Any]],
+    apply_policies: list[dict[str, Any]],
+    protected_guards: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for event in events:
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
@@ -794,7 +824,7 @@ def validate_negative_examples(events: list[dict[str, Any]], apply_policies: lis
             context = str(example.get("context") or "")
             expected = str(example.get("expectedText") or text)
             forbidden = str(example.get("forbiddenText") or "")
-            after, fires = replay_apply_policies(text, context, apply_policies)
+            after, fires = replay_apply_policies(text, context, apply_policies, protected_guards)
             expected_ok = strict_text_key(after) == strict_text_key(expected)
             forbidden_ok = not forbidden or forbidden not in after
             results.append(
@@ -901,9 +931,10 @@ def corpus_replay_report(
         }
     backend = load_replaylab_backend(replaylab_root)
     records = load_jsonl(cleaned_path)
+    protected_guards = protected_term_allowlist_guards(model)
     cleaned_report = (
         backend["auto_apply"].replay_model(records, model)
-        if backend
+        if backend and not protected_guards
         else local_corpus_replay(records, model)
     )
     filter_accepted_manual_corpus_changes(cleaned_report, model)
@@ -1113,6 +1144,8 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
     active_model = args.active_model.expanduser()
     evidence_store = args.evidence_store.expanduser()
+    backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
+    backup_retention = backup_retention_from_args(args)
     model = load_model(model_path)
     base_model = load_model(args.base_model.expanduser()) if args.base_model.expanduser().exists() else None
     events = load_events(evidence_store)
@@ -1131,7 +1164,13 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
         return {"model": str(model_path), "validation": validation_summary(validation), "failed": True}
     apply_readiness(model, validation)
     write_model(model_path, model)
-    backup_path = backup_model_path(active_model, args.backup_suffix)
+    active_model.parent.mkdir(parents=True, exist_ok=True)
+    backup_path = create_model_backup(
+        active_model,
+        backup_dir=backup_dir,
+        suffix=getattr(args, "backup_suffix", "control"),
+        retention=backup_retention,
+    )
     event = make_event(
         args.actor,
         "activateModel",
@@ -1140,19 +1179,22 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
             "modelSha256": sha256_file(model_path),
             "activeModel": str(active_model),
             "previousActiveModelSha256": sha256_file(active_model) if active_model.exists() else None,
-            "backup": str(backup_path),
+            "backup": str(backup_path) if backup_path else None,
+            "backupMode": "directory" if backup_dir else "none",
+            "backupDirectory": str(backup_dir) if backup_dir else None,
+            "backupRetention": backup_retention if backup_dir else None,
             "validationReady": True,
         },
     )
     append_event(evidence_store, event)
-    active_model.parent.mkdir(parents=True, exist_ok=True)
-    if active_model.exists():
-        shutil.copy2(active_model, backup_path)
     shutil.copy2(model_path, active_model)
     return {
         "activatedModel": str(model_path),
         "activeModel": str(active_model),
-        "backup": str(backup_path) if backup_path.exists() else None,
+        "backup": str(backup_path) if backup_path else None,
+        "backupMode": "directory" if backup_dir else "none",
+        "backupDirectory": str(backup_dir) if backup_dir else None,
+        "backupRetention": backup_retention if backup_dir else None,
         "event": event,
         "validation": validation_summary(validation),
     }
@@ -1160,13 +1202,29 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
 
 def rollback_model_command(args: argparse.Namespace) -> dict[str, Any]:
     active_model = args.active_model.expanduser()
+    backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
     if args.list:
-        backups = list_backups(active_model)
-        return {"activeModel": str(active_model), "backups": [str(path) for path in backups]}
-    backup = args.backup.expanduser() if args.backup else newest_backup(active_model)
+        backups = list_backups(active_model, backup_dir=backup_dir) if backup_dir else []
+        return {
+            "activeModel": str(active_model),
+            "backupDirectory": str(backup_dir) if backup_dir else None,
+            "backups": [str(path) for path in backups],
+            "reason": None if backup_dir else "automatic App Support backup lookup is disabled; pass --backup-dir to list managed backups",
+        }
+    backup = args.backup.expanduser() if args.backup else newest_backup(active_model, backup_dir=backup_dir) if backup_dir else None
     if not backup or not backup.exists():
-        return {"activeModel": str(active_model), "failed": True, "reason": "backup not found"}
-    pre_rollback_backup = backup_model_path(active_model, "pre-rollback")
+        return {
+            "activeModel": str(active_model),
+            "failed": True,
+            "reason": "explicit --backup path or --backup-dir is required; automatic App Support .bak lookup is disabled",
+        }
+    pre_rollback_backup_dir = expanded_optional_path(getattr(args, "pre_rollback_backup_dir", None))
+    pre_rollback_backup = create_model_backup(
+        active_model,
+        backup_dir=pre_rollback_backup_dir,
+        suffix="pre-rollback",
+        retention=backup_retention_from_args(args, attr="pre_rollback_backup_retention"),
+    )
     event = make_event(
         args.actor,
         "rollbackModel",
@@ -1175,19 +1233,87 @@ def rollback_model_command(args: argparse.Namespace) -> dict[str, Any]:
             "activeModelSha256": sha256_file(active_model) if active_model.exists() else None,
             "rollbackSource": str(backup),
             "rollbackSourceSha256": sha256_file(backup),
-            "preRollbackBackup": str(pre_rollback_backup),
+            "preRollbackBackup": str(pre_rollback_backup) if pre_rollback_backup else None,
+            "preRollbackBackupMode": "directory" if pre_rollback_backup_dir else "none",
+            "preRollbackBackupDirectory": str(pre_rollback_backup_dir) if pre_rollback_backup_dir else None,
             "reason": args.reason,
         },
     )
     append_event(args.evidence_store.expanduser(), event)
-    if active_model.exists():
-        shutil.copy2(active_model, pre_rollback_backup)
     active_model.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(backup, active_model)
     return {
         "activeModel": str(active_model),
         "rollbackSource": str(backup),
-        "preRollbackBackup": str(pre_rollback_backup) if pre_rollback_backup.exists() else None,
+        "preRollbackBackup": str(pre_rollback_backup) if pre_rollback_backup else None,
+        "event": event,
+    }
+
+
+def upsert_protected_term_allowlist_guard_command(args: argparse.Namespace) -> dict[str, Any]:
+    model_path = args.model.expanduser()
+    evidence_store = args.evidence_store.expanduser()
+    backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
+    backup_retention = backup_retention_from_args(args)
+    model = load_model(model_path)
+    allowed_phrases = compact_strings(args.allowed_phrase)
+    if not allowed_phrases:
+        return {"model": str(model_path), "failed": True, "reason": "at least one allowed phrase is required"}
+
+    guard = {
+        "guardId": str(args.guard_id),
+        "reason": str(args.reason or PROTECTED_TERM_GUARD_REASON),
+        "term": str(args.term),
+        "allowedPhrases": allowed_phrases,
+    }
+    guards = [
+        guard
+        for guard in model.get("protectedTermAllowlistGuards") or []
+        if isinstance(guard, dict)
+    ]
+    replaced = False
+    for index, existing in enumerate(guards):
+        if existing.get("guardId") == guard["guardId"] or existing.get("term") == guard["term"]:
+            guards[index] = guard
+            replaced = True
+            break
+    if not replaced:
+        guards.append(guard)
+
+    model["protectedTermAllowlistGuards"] = guards
+    append_safety_contract(model)
+
+    backup_path = create_model_backup(
+        model_path,
+        backup_dir=backup_dir,
+        suffix=getattr(args, "backup_suffix", "protected-term-guard"),
+        retention=backup_retention,
+    )
+    write_model(model_path, model)
+
+    event = make_event(
+        args.actor,
+        "upsertProtectedTermAllowlistGuard",
+        {
+            "model": str(model_path),
+            "modelSha256": sha256_file(model_path),
+            "backup": str(backup_path) if backup_path else None,
+            "backupMode": "directory" if backup_dir else "none",
+            "backupDirectory": str(backup_dir) if backup_dir else None,
+            "backupRetention": backup_retention if backup_dir else None,
+            "guard": guard,
+            "replacedExisting": replaced,
+        },
+    )
+    append_event(evidence_store, event)
+    return {
+        "model": str(model_path),
+        "backup": str(backup_path) if backup_path else None,
+        "backupMode": "directory" if backup_dir else "none",
+        "backupDirectory": str(backup_dir) if backup_dir else None,
+        "backupRetention": backup_retention if backup_dir else None,
+        "guard": guard,
+        "guardCount": len(guards),
         "event": event,
     }
 
@@ -1196,7 +1322,13 @@ def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, A
     model = load_model(model_path)
     apply_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "apply"]
     suggest_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "suggest"]
-    after, fires = replay_apply_policies(text, context, apply_policies)
+    replay = replay_apply_policies_with_guards(
+        text,
+        context,
+        apply_policies,
+        protected_term_allowlist_guards(model),
+    )
+    after = replay["outputText"]
     suggestions = [
         {
             "policyId": policy.get("policyId"),
@@ -1213,8 +1345,12 @@ def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, A
         "context": context,
         "outputText": after,
         "changed": strict_text_key(text) != strict_text_key(after),
-        "applied": fires,
+        "applied": replay["applied"],
         "suggestions": suggestions,
+        "blocked": replay["blocked"],
+        "guardBlocks": replay["guardBlocks"],
+        "proposedOutputText": replay.get("proposedOutputText"),
+        "blockedApplied": replay.get("blockedApplied") or [],
     }
 
 
@@ -1246,7 +1382,50 @@ def strict_text_key(value: str) -> str:
     return STRICT_SPACE_RE.sub(" ", normalized)
 
 
-def replay_apply_policies(text: str, context: str, apply_policies: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
+def replay_apply_policies(
+    text: str,
+    context: str,
+    apply_policies: list[dict[str, Any]],
+    protected_guards: list[dict[str, Any]] | None = None,
+) -> tuple[str, list[dict[str, Any]]]:
+    replay = replay_apply_policies_with_guards(text, context, apply_policies, protected_guards)
+    return str(replay["outputText"]), list(replay["applied"])
+
+
+def replay_apply_policies_with_guards(
+    text: str,
+    context: str,
+    apply_policies: list[dict[str, Any]],
+    protected_guards: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    after, fires = replay_apply_policies_unchecked(text, context, apply_policies)
+    guard_blocks = protected_term_guard_blocks(after, fires, protected_guards or [])
+    if guard_blocks:
+        return {
+            "inputText": text,
+            "outputText": text,
+            "proposedOutputText": after,
+            "applied": [],
+            "blockedApplied": fires,
+            "blocked": True,
+            "guardBlocks": guard_blocks,
+        }
+    return {
+        "inputText": text,
+        "outputText": after,
+        "proposedOutputText": after,
+        "applied": fires,
+        "blockedApplied": [],
+        "blocked": False,
+        "guardBlocks": [],
+    }
+
+
+def replay_apply_policies_unchecked(
+    text: str,
+    context: str,
+    apply_policies: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
     exact_policies = [policy for policy in apply_policies if policy.get("policyType") == "exactTrainablePair"]
     replacement_policies = [policy for policy in apply_policies if policy.get("policyType") != "exactTrainablePair"]
     exact_policy = first_exact_policy(exact_policies, text)
@@ -1280,6 +1459,94 @@ def replay_apply_policies(text: str, context: str, apply_policies: list[dict[str
             }
         )
     return after, fires
+
+
+def protected_term_allowlist_guards(model: dict[str, Any]) -> list[dict[str, Any]]:
+    guards: list[dict[str, Any]] = []
+    for key in PROTECTED_TERM_GUARD_KEYS:
+        raw_guards = model.get(key)
+        if not isinstance(raw_guards, list):
+            continue
+        for raw_guard in raw_guards:
+            if not isinstance(raw_guard, dict):
+                continue
+            term = str(raw_guard.get("term") or "").strip()
+            allowed_phrases = [
+                str(value).strip()
+                for value in raw_guard.get("allowedPhrases") or []
+                if str(value).strip()
+            ]
+            guard_id = str(raw_guard.get("guardId") or f"protected-term-allowlist.{term}")
+            if not term or not allowed_phrases:
+                continue
+            guards.append(
+                {
+                    "guardId": guard_id,
+                    "reason": str(raw_guard.get("reason") or PROTECTED_TERM_GUARD_REASON),
+                    "term": term,
+                    "allowedPhrases": allowed_phrases,
+                }
+            )
+    return guards
+
+
+def protected_term_guard_blocks(
+    text: str,
+    applied: list[dict[str, Any]],
+    protected_guards: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for guard in protected_guards:
+        term = str(guard["term"])
+        allowed_phrases = [str(value) for value in guard["allowedPhrases"]]
+        if (
+            term in text
+            and not all_protected_term_occurrences_are_allowed(text, term, allowed_phrases)
+            and not applied_policy_supports_protected_term(applied, term)
+        ):
+            blocks.append(
+                {
+                    "guardId": guard["guardId"],
+                    "reason": str(guard.get("reason") or PROTECTED_TERM_GUARD_REASON),
+                    "term": term,
+                    "blockedText": text,
+                    "allowedPhrases": allowed_phrases,
+                }
+            )
+    return blocks
+
+
+def all_protected_term_occurrences_are_allowed(text: str, term: str, allowed_phrases: list[str]) -> bool:
+    start = 0
+    while True:
+        index = text.find(term, start)
+        if index < 0:
+            return True
+        end = index + len(term)
+        if not any(allowed_phrase_contains_range(text, phrase, index, end) for phrase in allowed_phrases):
+            return False
+        start = end
+
+
+def allowed_phrase_contains_range(text: str, phrase: str, start: int, end: int) -> bool:
+    if not phrase:
+        return False
+    phrase_start = 0
+    while True:
+        index = text.find(phrase, phrase_start)
+        if index < 0:
+            return False
+        phrase_end = index + len(phrase)
+        if index <= start and phrase_end >= end:
+            return True
+        phrase_start = phrase_end
+
+
+def applied_policy_supports_protected_term(applied: list[dict[str, Any]], term: str) -> bool:
+    return any(
+        term in str(fire.get("sourcePattern") or "") or term in str(fire.get("targetText") or "")
+        for fire in applied
+    )
 
 
 def first_exact_policy(exact_policies: list[dict[str, Any]], text: str) -> dict[str, Any] | None:
@@ -1353,18 +1620,25 @@ def token_hits(text: str, tokens: Iterable[str]) -> list[str]:
 
 def local_corpus_replay(records: list[dict[str, Any]], model: dict[str, Any]) -> dict[str, Any]:
     apply_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "apply"]
+    protected_guards = protected_term_allowlist_guards(model)
     row_results: list[dict[str, Any]] = []
     unexpected_changes: list[dict[str, Any]] = []
     changed_rows = 0
     matches_cleaned = 0
     fire_count = 0
+    blocked_rows = 0
     for record in records:
         before = str(record.get("rawOpenCC") or record.get("rawASR") or "")
         if not before:
             continue
         context = local_context(record)
-        after, fires = replay_apply_policies(before, context, apply_policies)
-        if not fires:
+        replay = replay_apply_policies_with_guards(before, context, apply_policies, protected_guards)
+        after = str(replay["outputText"])
+        fires = list(replay["applied"])
+        guard_blocks = list(replay["guardBlocks"])
+        if guard_blocks:
+            blocked_rows += 1
+        if not fires and not guard_blocks:
             continue
         fire_count += len(fires)
         changed = strict_text_key(before) != strict_text_key(after)
@@ -1382,11 +1656,22 @@ def local_corpus_replay(records: list[dict[str, Any]], model: dict[str, Any]) ->
                     "after": after,
                     "cleanedText": cleaned,
                     "fires": fires,
+                    "guardBlocks": guard_blocks,
                     "requiresReview": bool(record.get("requiresReview")),
                     "riskFlags": list(record.get("riskFlags") or []),
                 }
             )
-        row_results.append({"rowPk": record.get("rowPk"), "before": before, "after": after, "matchesCleaned": matches, "fires": fires})
+        row_results.append(
+            {
+                "rowPk": record.get("rowPk"),
+                "before": before,
+                "after": after,
+                "matchesCleaned": matches,
+                "fires": fires,
+                "guardBlocks": guard_blocks,
+                "blocked": bool(guard_blocks),
+            }
+        )
     readiness = {
         "autoApplyModelReady": not unexpected_changes,
         "reason": "local cleaned corpus replay had no unexpected changes" if not unexpected_changes else "local cleaned corpus replay found unexpected changes",
@@ -1395,6 +1680,7 @@ def local_corpus_replay(records: list[dict[str, Any]], model: dict[str, Any]) ->
         "rowCount": len(records),
         "applyPolicyCount": len(apply_policies),
         "candidateFireCount": fire_count,
+        "guardBlockedRows": blocked_rows,
         "changedRows": changed_rows,
         "rowsMatchingCleanedText": matches_cleaned,
         "partialAcceptedChanges": [],
@@ -1515,16 +1801,53 @@ def timestamp_for_path() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def backup_model_path(active_model: Path, suffix: str) -> Path:
-    return active_model.with_name(f"{active_model.name}.bak-{timestamp_for_path()}-{suffix}")
+def expanded_optional_path(path: Path | None) -> Path | None:
+    return path.expanduser() if path else None
 
 
-def list_backups(active_model: Path) -> list[Path]:
-    return sorted(active_model.parent.glob(f"{active_model.name}.bak-*"), key=lambda path: path.stat().st_mtime, reverse=True)
+def backup_retention_from_args(args: argparse.Namespace, attr: str = "backup_retention") -> int:
+    try:
+        return max(0, int(getattr(args, attr, DEFAULT_BACKUP_RETENTION)))
+    except (TypeError, ValueError):
+        return DEFAULT_BACKUP_RETENTION
 
 
-def newest_backup(active_model: Path) -> Path | None:
-    backups = list_backups(active_model)
+def create_model_backup(
+    model_path: Path,
+    *,
+    backup_dir: Path | None,
+    suffix: str,
+    retention: int,
+) -> Path | None:
+    if not backup_dir or retention <= 0 or not model_path.exists():
+        return None
+    backup_path = backup_model_path(model_path, suffix, backup_dir=backup_dir)
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(model_path, backup_path)
+    prune_backups(model_path, backup_dir=backup_dir, retention=retention)
+    return backup_path if backup_path.exists() else None
+
+
+def backup_model_path(model_path: Path, suffix: str, *, backup_dir: Path) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    return backup_dir / f"{model_path.name}.bak-{timestamp}-{suffix}"
+
+
+def list_backups(active_model: Path, *, backup_dir: Path) -> list[Path]:
+    if not backup_dir.exists():
+        return []
+    return sorted(backup_dir.glob(f"{active_model.name}.bak-*"), key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def prune_backups(active_model: Path, *, backup_dir: Path, retention: int) -> None:
+    if retention < 0:
+        return
+    for stale in list_backups(active_model, backup_dir=backup_dir)[retention:]:
+        stale.unlink()
+
+
+def newest_backup(active_model: Path, *, backup_dir: Path) -> Path | None:
+    backups = list_backups(active_model, backup_dir=backup_dir)
     return backups[0] if backups else None
 
 

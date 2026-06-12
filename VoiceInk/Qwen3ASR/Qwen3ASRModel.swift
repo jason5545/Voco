@@ -92,6 +92,7 @@ class Qwen3ASRModel {
     let audioEncoder: Qwen3AudioEncoder
     let featureExtractor: Qwen3FeatureExtractor
     var textDecoder: Qwen3QuantizedTextModel?
+    private(set) var adapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
     private var tokenizer: Qwen3Tokenizer?
     let textConfig: Qwen3TextDecoderConfig
 
@@ -117,6 +118,10 @@ class Qwen3ASRModel {
 
         Self.logger.info("Loading audio encoder weights...")
         try Qwen3WeightLoader.loadAudioEncoderWeights(into: audioEncoder, from: directory)
+        adapterMetadata = Qwen3ASRAudioAdapterLoader.loadAndApplyIfPresent(
+            modelDirectory: directory,
+            audioEncoder: audioEncoder
+        )
 
         Self.logger.info("Loading text decoder weights...")
         let decoder = Qwen3QuantizedTextModel(config: textConfig)

@@ -52,13 +52,14 @@ final class VocoCanonicalizationService {
         )
         let autoApplyReplacements = replacementRecords(from: autoApply.applied, in: normalizedText)
         let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
+        let autoApplyGuardSuggestions = replacementRecords(from: autoApply.guardBlocks, in: autoApply.outputText)
 
         return VocoNormalizationResult(
             originalText: text,
             normalizedText: autoApply.outputText,
             activeContextIDs: activeContextIDs,
             replacements: accepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
-            suggestions: suggestions + autoApplySuggestions
+            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
         )
     }
 
@@ -364,6 +365,26 @@ final class VocoCanonicalizationService {
                 reason: fire.autoApplyMode == "apply" ? "auto-apply-model" : "auto-apply-model-suggestion",
                 rangeStart: range?.location,
                 rangeLength: range?.length
+            )
+        }
+    }
+
+    private func replacementRecords(
+        from guardBlocks: [VocoAutoApplyGuardBlock],
+        in text: String
+    ) -> [VocoReplacement] {
+        guardBlocks.map { block in
+            let nsText = text as NSString
+            let range = nsText.range(of: block.term)
+            let resolvedRange = range.location == NSNotFound ? nil : range
+            return VocoReplacement(
+                originalText: block.term,
+                replacementText: block.term,
+                termID: "auto-apply-model.guard.\(block.guardId)",
+                confidence: 0.0,
+                reason: block.reason,
+                rangeStart: resolvedRange?.location,
+                rangeLength: resolvedRange?.length
             )
         }
     }

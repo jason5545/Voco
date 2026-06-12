@@ -96,6 +96,9 @@ class Qwen3TranscriptionService: TranscriptionService {
     /// Per-word confidence scores from the last transcription (for post-processing routing)
     var lastWordConfidences: [WordConfidence] = []
 
+    /// Audio-side LoRA adapter status from the last Qwen3-ASR model load.
+    private(set) var lastAdapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
+
     func transcribe(
         audioURL: URL,
         model: any TranscriptionModel,
@@ -108,6 +111,7 @@ class Qwen3TranscriptionService: TranscriptionService {
         // Ensure model is loaded
         let modelDir = Qwen3ModelManager.modelDirectory(for: qwen3Model.modelId)
         try await engine.loadModel(from: modelDir, modelSize: qwen3Model.modelSize)
+        self.lastAdapterMetadata = await engine.currentAdapterMetadata()
 
         // Read audio samples from WAV file
         let audioSamples = try readAudioSamples(from: audioURL)

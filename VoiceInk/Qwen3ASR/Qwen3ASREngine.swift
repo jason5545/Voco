@@ -23,6 +23,7 @@ actor Qwen3ASREngine {
     private var model: Qwen3ASRModel?
     private var loadedModelId: String?
     private var hasCompletedWarmup = false
+    private var adapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
 
     func loadModel(from directory: URL, modelSize: Qwen3ASRModelSize) throws {
         let modelId = modelSize.defaultModelId
@@ -47,6 +48,7 @@ actor Qwen3ASREngine {
 
         self.model = newModel
         self.loadedModelId = modelId
+        self.adapterMetadata = newModel.adapterMetadata
         self.hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model loaded successfully")
 
@@ -166,10 +168,15 @@ actor Qwen3ASREngine {
         return loadedModelId == modelId
     }
 
+    func currentAdapterMetadata() -> Qwen3ASRAdapterMetadata {
+        adapterMetadata
+    }
+
     func unloadModel() {
         model?.audioEncoder.clearPosEmbeddingCache()
         model = nil
         loadedModelId = nil
+        adapterMetadata = .unavailable
         hasCompletedWarmup = false
         MetalBudget.unpinMemory()
         Memory.clearCache()

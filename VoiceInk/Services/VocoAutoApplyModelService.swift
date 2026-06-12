@@ -12,13 +12,37 @@ struct VocoAutoApplyPolicyFire: Codable, Equatable {
     let sourceSlices: [String]
 }
 
+struct VocoAutoApplyGuardBlock: Codable, Equatable {
+    let guardId: String
+    let reason: String
+    let term: String
+    let blockedText: String
+    let allowedPhrases: [String]
+}
+
 struct VocoAutoApplyEvaluation: Equatable {
     let inputText: String
     let outputText: String
     let applied: [VocoAutoApplyPolicyFire]
     let suggestions: [VocoAutoApplyPolicyFire]
+    let guardBlocks: [VocoAutoApplyGuardBlock]
 
     var changed: Bool { inputText != outputText }
+    var requiresReview: Bool { !guardBlocks.isEmpty }
+
+    init(
+        inputText: String,
+        outputText: String,
+        applied: [VocoAutoApplyPolicyFire],
+        suggestions: [VocoAutoApplyPolicyFire],
+        guardBlocks: [VocoAutoApplyGuardBlock] = []
+    ) {
+        self.inputText = inputText
+        self.outputText = outputText
+        self.applied = applied
+        self.suggestions = suggestions
+        self.guardBlocks = guardBlocks
+    }
 }
 
 struct VocoAutoApplyModelStatus: Equatable {
@@ -31,6 +55,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let shared = VocoAutoApplyModelService()
     static let enabledKey = "VocoAutoApplyModelEnabled"
     static let modelFileName = "full-db.auto-apply-model.json"
+    static let protectedTermGuardReason = "auto-apply-model-protected-term-guard"
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -220,11 +245,12 @@ final class VocoAutoApplyModelService: ObservableObject {
         if let exact = firstExactPolicy(in: exactApplyPolicies, matching: text),
            exact.isSafeApplyPolicy {
             let target = exact.targetText ?? text
-            return VocoAutoApplyEvaluation(
+            return guardedEvaluation(
                 inputText: text,
-                outputText: target,
+                proposedOutputText: target,
                 applied: [exact.fire],
-                suggestions: suggestFires(in: model.suggestPolicies, text: text, context: context)
+                suggestions: suggestFires(in: model.suggestPolicies, text: text, context: context),
+                protectedTermAllowlistGuards: model.protectedTermAllowlistGuards
             )
         }
 
@@ -243,11 +269,42 @@ final class VocoAutoApplyModelService: ObservableObject {
             applied.append(policy.fire)
         }
 
-        return VocoAutoApplyEvaluation(
+        return guardedEvaluation(
             inputText: text,
-            outputText: output,
+            proposedOutputText: output,
             applied: applied,
-            suggestions: suggestFires(in: model.suggestPolicies, text: output, context: context)
+            suggestions: suggestFires(in: model.suggestPolicies, text: output, context: context),
+            protectedTermAllowlistGuards: model.protectedTermAllowlistGuards
+        )
+    }
+
+    private func guardedEvaluation(
+        inputText: String,
+        proposedOutputText: String,
+        applied: [VocoAutoApplyPolicyFire],
+        suggestions: [VocoAutoApplyPolicyFire],
+        protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
+    ) -> VocoAutoApplyEvaluation {
+        let blocks = protectedTermGuardBlocks(
+            in: proposedOutputText,
+            applied: applied,
+            guardRules: protectedTermAllowlistGuards
+        )
+        guard blocks.isEmpty else {
+            return VocoAutoApplyEvaluation(
+                inputText: inputText,
+                outputText: inputText,
+                applied: [],
+                suggestions: suggestions,
+                guardBlocks: blocks
+            )
+        }
+
+        return VocoAutoApplyEvaluation(
+            inputText: inputText,
+            outputText: proposedOutputText,
+            applied: applied,
+            suggestions: suggestions
         )
     }
 
@@ -339,6 +396,67 @@ final class VocoAutoApplyModelService: ObservableObject {
         tokens.filter { !$0.isEmpty && text.localizedCaseInsensitiveContains($0) }
     }
 
+    private func protectedTermGuardBlocks(
+        in text: String,
+        applied: [VocoAutoApplyPolicyFire],
+        guardRules: [VocoProtectedTermAllowlistGuard]
+    ) -> [VocoAutoApplyGuardBlock] {
+        guardRules.compactMap { guardRule in
+            guard text.contains(guardRule.term),
+                  !allProtectedTermOccurrencesAreAllowed(in: text, guardRule: guardRule),
+                  !appliedPolicySupportsProtectedTerm(applied, term: guardRule.term)
+            else { return nil }
+
+            return VocoAutoApplyGuardBlock(
+                guardId: guardRule.guardId,
+                reason: guardRule.reason,
+                term: guardRule.term,
+                blockedText: text,
+                allowedPhrases: guardRule.allowedPhrases
+            )
+        }
+    }
+
+    private func allProtectedTermOccurrencesAreAllowed(in text: String, guardRule: VocoProtectedTermAllowlistGuard) -> Bool {
+        var searchStart = text.startIndex
+        while searchStart < text.endIndex,
+              let termRange = text.range(of: guardRule.term, range: searchStart..<text.endIndex) {
+            guard allowlistPhraseContains(termRange, in: text, allowedPhrases: guardRule.allowedPhrases) else {
+                return false
+            }
+            searchStart = termRange.upperBound
+        }
+        return true
+    }
+
+    private func allowlistPhraseContains(
+        _ termRange: Range<String.Index>,
+        in text: String,
+        allowedPhrases: [String]
+    ) -> Bool {
+        for phrase in allowedPhrases where !phrase.isEmpty {
+            var searchStart = text.startIndex
+            while searchStart < text.endIndex,
+                  let phraseRange = text.range(of: phrase, range: searchStart..<text.endIndex) {
+                if phraseRange.lowerBound <= termRange.lowerBound,
+                   phraseRange.upperBound >= termRange.upperBound {
+                    return true
+                }
+                searchStart = phraseRange.upperBound
+            }
+        }
+        return false
+    }
+
+    private func appliedPolicySupportsProtectedTerm(
+        _ applied: [VocoAutoApplyPolicyFire],
+        term: String
+    ) -> Bool {
+        applied.contains { fire in
+            fire.sourcePattern.contains(term) || fire.targetText.contains(term)
+        }
+    }
+
     static func strictTextKey(_ value: String) -> String {
         let normalized = value
             .precomposedStringWithCompatibilityMapping
@@ -355,6 +473,7 @@ private struct VocoAutoApplyModel: Decodable {
     let policyCounts: [String: Int]
     let policyTypeCounts: [String: Int]
     let safetyContract: [String]
+    let protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
     let policies: [VocoAutoApplyPolicy]
     let mergedReplayReadiness: VocoMergedReplayReadiness
 
@@ -364,6 +483,57 @@ private struct VocoAutoApplyModel: Decodable {
 
     var suggestPolicies: [VocoAutoApplyPolicy] {
         policies.filter { $0.autoApplyMode == .suggest }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case policyCounts
+        case policyTypeCounts
+        case safetyContract
+        case protectedTermAllowlistGuards
+        case protectedTermAllowlist
+        case policies
+        case mergedReplayReadiness
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        policyCounts = try container.decodeIfPresent([String: Int].self, forKey: .policyCounts) ?? [:]
+        policyTypeCounts = try container.decodeIfPresent([String: Int].self, forKey: .policyTypeCounts) ?? [:]
+        safetyContract = try container.decodeIfPresent([String].self, forKey: .safetyContract) ?? []
+        protectedTermAllowlistGuards =
+            try container.decodeIfPresent([VocoProtectedTermAllowlistGuard].self, forKey: .protectedTermAllowlistGuards) ??
+            container.decodeIfPresent([VocoProtectedTermAllowlistGuard].self, forKey: .protectedTermAllowlist) ??
+            []
+        policies = try container.decode([VocoAutoApplyPolicy].self, forKey: .policies)
+        mergedReplayReadiness = try container.decode(VocoMergedReplayReadiness.self, forKey: .mergedReplayReadiness)
+    }
+}
+
+private struct VocoProtectedTermAllowlistGuard: Decodable, Equatable {
+    let guardId: String
+    let reason: String
+    let term: String
+    let allowedPhrases: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case guardId
+        case reason
+        case term
+        case allowedPhrases
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guardId = try container.decode(String.self, forKey: .guardId)
+        let decodedReason = try container.decodeIfPresent(String.self, forKey: .reason)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let decodedReason, !decodedReason.isEmpty {
+            reason = decodedReason
+        } else {
+            reason = VocoAutoApplyModelService.protectedTermGuardReason
+        }
+        term = try container.decode(String.self, forKey: .term)
+        allowedPhrases = try container.decodeIfPresent([String].self, forKey: .allowedPhrases) ?? []
     }
 }
 

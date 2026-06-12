@@ -403,6 +403,8 @@ enum VocoSignalDisplayFormatter {
             return String(localized: "Auto-apply model")
         case "auto-apply-model-suggestion":
             return String(localized: "Auto-apply suggestion")
+        case "auto-apply-model-protected-term-guard":
+            return String(localized: "Protected term guard")
         case "protected-term-replacement":
             return "Protected term changed"
         case "raw-cleanup-drift":

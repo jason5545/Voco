@@ -116,6 +116,108 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "應該是要重新建立的才對吧？")
             self.assertEqual(validation["negativeExamples"][0]["actualText"], "手機要充電。")
 
+    def test_protected_mingde_guard_matches_runtime_policy_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model_path = root / "full-db.auto-apply-model.json"
+            model = tiny_base_model()
+            model["policyCounts"] = {"apply": 1}
+            model["policyTypeCounts"] = {"scopedReplacement": 1}
+            model["protectedTermAllowlistGuards"] = [
+                {
+                    "guardId": "protected-term-allowlist.mingde",
+                    "reason": control.PROTECTED_TERM_GUARD_REASON,
+                    "term": "明德",
+                    "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"],
+                }
+            ]
+            model["policies"] = [
+                {
+                    "policyId": "scoped-fixture-mingde-recent-change",
+                    "policyType": "scopedReplacement",
+                    "autoApplyMode": "apply",
+                    "sourcePattern": "最明德變更",
+                    "targetText": "最近的變更",
+                    "contextTokensAny": ["變更", "自動學習", "昨天晚上", "最近"],
+                    "contextAliasesAny": [],
+                    "contextRequired": True,
+                    "sourceSlices": ["controlEvidence"],
+                }
+            ]
+            control.write_model(model_path, model)
+
+            allowed = control.explain_rule_match(model_path, "明德捷運站。", "")
+            self.assertFalse(allowed["blocked"])
+            self.assertEqual(allowed["outputText"], "明德捷運站。")
+            self.assertEqual(allowed["guardBlocks"], [])
+
+            scoped = control.explain_rule_match(model_path, "我們最明德變更應該有加了自動學習。", "")
+            self.assertFalse(scoped["blocked"])
+            self.assertEqual(scoped["outputText"], "我們最近的變更應該有加了自動學習。")
+            self.assertEqual([fire["policyId"] for fire in scoped["applied"]], ["scoped-fixture-mingde-recent-change"])
+            self.assertEqual(scoped["guardBlocks"], [])
+
+            blocked = control.explain_rule_match(model_path, "這個明德變更怪怪的。", "")
+            self.assertTrue(blocked["blocked"])
+            self.assertEqual(blocked["outputText"], "這個明德變更怪怪的。")
+            self.assertEqual(blocked["applied"], [])
+            self.assertEqual(blocked["guardBlocks"][0]["guardId"], "protected-term-allowlist.mingde")
+            self.assertEqual(blocked["guardBlocks"][0]["reason"], control.PROTECTED_TERM_GUARD_REASON)
+
+            replay = control.local_corpus_replay(
+                [
+                    {
+                        "rowPk": 12762,
+                        "rawOpenCC": "這個明德變更怪怪的。",
+                        "cleanedText": "這個明德變更怪怪的。",
+                    }
+                ],
+                model,
+            )
+            self.assertEqual(replay["guardBlockedRows"], 1)
+            self.assertEqual(replay["rowResults"][0]["guardBlocks"][0]["guardId"], "protected-term-allowlist.mingde")
+
+    def test_protected_mingde_guard_is_model_declared_not_cli_global(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_path = Path(tmp) / "full-db.auto-apply-model.json"
+            model = tiny_base_model()
+            control.write_model(model_path, model)
+
+            result = control.explain_rule_match(model_path, "這個明德變更怪怪的。", "")
+            self.assertFalse(result["blocked"])
+            self.assertEqual(result["guardBlocks"], [])
+            self.assertEqual(result["outputText"], "這個明德變更怪怪的。")
+
+    def test_upsert_protected_term_allowlist_guard_writes_model_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model_path = root / "full-db.auto-apply-model.json"
+            evidence = root / "evidence.jsonl"
+            control.write_model(model_path, tiny_base_model())
+
+            result = control.upsert_protected_term_allowlist_guard_command(
+                Namespace(
+                    actor="test",
+                    evidence_store=evidence,
+                    model=model_path,
+                    guard_id="protected-term-allowlist.mingde",
+                    term="明德",
+                    allowed_phrase=["明德路", "明德捷運站", "施明德", "明德水庫"],
+                    reason=control.PROTECTED_TERM_GUARD_REASON,
+                    backup_suffix="test",
+                )
+            )
+
+            self.assertEqual(result["guardCount"], 1)
+            updated = control.load_model(model_path)
+            self.assertEqual(updated["protectedTermAllowlistGuards"][0]["term"], "明德")
+            self.assertEqual(updated["protectedTermAllowlistGuards"][0]["allowedPhrases"], ["明德路", "明德捷運站", "施明德", "明德水庫"])
+            self.assertIn("protected term allowlist guards must be declared in the model artifact", "\n".join(updated["safetyContract"]))
+            self.assertIsNone(result["backup"])
+            self.assertEqual(result["backupMode"], "none")
+            self.assertEqual(list(root.glob("full-db.auto-apply-model.json.bak-*")), [])
+            self.assertEqual(len(control.load_events(evidence)), 1)
+
     def test_promoted_suggest_tombstone_counts_as_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -548,13 +650,15 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(len(replaced_validation["exactApplyConflicts"]), 0)
             self.assertEqual(replaced_model["policyCounts"]["replaced"], 1)
 
-    def test_activate_and_rollback_use_backups(self):
+    def test_activate_defaults_to_no_backup_and_rollback_requires_explicit_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             evidence = root / "evidence.jsonl"
             active = root / "full-db.auto-apply-model.json"
             candidate = root / "candidate.json"
             active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            explicit_backup = root / "explicit-active-backup.json"
+            explicit_backup.write_text(active.read_text(encoding="utf-8"), encoding="utf-8")
             new_model = tiny_base_model()
             new_model["policyCounts"] = {"apply": 1}
             new_model["policies"] = [
@@ -581,6 +685,8 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                 evidence_store=evidence,
                 replaylab_root=root / "missing-replaylab",
                 backup_suffix="test",
+                backup_dir=None,
+                backup_retention=3,
                 current_corpus_dir=root / "missing-current",
                 reraw_corpus_dir=root / "missing-reraw",
                 skip_corpus_replay=True,
@@ -588,20 +694,110 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             )
             activated = control.activate_model_command(activate_args)
             self.assertFalse(activated.get("failed"))
+            self.assertIsNone(activated["backup"])
+            self.assertEqual(activated["backupMode"], "none")
+            self.assertEqual(list(root.glob("full-db.auto-apply-model.json.bak-*")), [])
             self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"]["apply"], 1)
+
+            implicit_rollback_args = Namespace(
+                actor="test",
+                active_model=active,
+                backup=None,
+                backup_dir=None,
+                list=False,
+                reason="implicit rollback should fail",
+                evidence_store=evidence,
+                pre_rollback_backup_dir=None,
+                pre_rollback_backup_retention=3,
+            )
+            implicit_rollback = control.rollback_model_command(implicit_rollback_args)
+            self.assertTrue(implicit_rollback.get("failed"))
+            self.assertIn("explicit --backup", implicit_rollback["reason"])
+
             rollback_args = Namespace(
                 actor="test",
                 active_model=active,
-                backup=Path(activated["backup"]),
+                backup=explicit_backup,
+                backup_dir=None,
                 list=False,
                 reason="test rollback",
                 evidence_store=evidence,
+                pre_rollback_backup_dir=None,
+                pre_rollback_backup_retention=3,
             )
             rolled_back = control.rollback_model_command(rollback_args)
             self.assertFalse(rolled_back.get("failed"))
+            self.assertIsNone(rolled_back["preRollbackBackup"])
             self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"]["apply"], 0)
             actions = [event["action"] for event in control.load_events(evidence)]
             self.assertEqual(actions, ["activateModel", "rollbackModel"])
+
+    def test_activate_backup_dir_uses_retention_without_app_support_bak_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            active = root / "full-db.auto-apply-model.json"
+            backup_dir = root / "voco-active-model-backups"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+
+            for index in range(5):
+                candidate = root / f"candidate-{index}.json"
+                model = tiny_base_model()
+                model["policies"] = [
+                    {
+                        "policyId": f"test-policy-{index}",
+                        "policyType": "exactTrainablePair",
+                        "autoApplyMode": "apply",
+                        "sourcePattern": f"get report {index}",
+                        "targetText": f"git repo {index}",
+                        "inputStrictKey": f"get report {index}",
+                        "targetStrictKey": f"git repo {index}",
+                        "exactInputRequired": True,
+                        "contextTokensAny": [],
+                        "contextAliasesAny": [],
+                        "reviewGateConflictRows": [],
+                    }
+                ]
+                control.write_model(candidate, model)
+                activated = control.activate_model_command(
+                    Namespace(
+                        actor="test",
+                        model=candidate,
+                        active_model=active,
+                        base_model=active,
+                        evidence_store=evidence,
+                        replaylab_root=root / "missing-replaylab",
+                        backup_suffix="test",
+                        backup_dir=backup_dir,
+                        backup_retention=3,
+                        current_corpus_dir=root / "missing-current",
+                        reraw_corpus_dir=root / "missing-reraw",
+                        skip_corpus_replay=True,
+                        skip_raw_input_replay=True,
+                    )
+                )
+                self.assertFalse(activated.get("failed"))
+                self.assertEqual(activated["backupMode"], "directory")
+                self.assertEqual(activated["backupDirectory"], str(backup_dir))
+
+            self.assertEqual(list(root.glob("full-db.auto-apply-model.json.bak-*")), [])
+            backups = sorted(backup_dir.glob("full-db.auto-apply-model.json.bak-*"))
+            self.assertEqual(len(backups), 3)
+
+            listed = control.rollback_model_command(
+                Namespace(
+                    actor="test",
+                    active_model=active,
+                    backup=None,
+                    backup_dir=backup_dir,
+                    list=True,
+                    reason="list backups",
+                    evidence_store=evidence,
+                    pre_rollback_backup_dir=None,
+                    pre_rollback_backup_retention=3,
+                )
+            )
+            self.assertEqual(len(listed["backups"]), 3)
 
 
 if __name__ == "__main__":
