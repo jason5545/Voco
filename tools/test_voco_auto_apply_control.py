@@ -183,7 +183,194 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(model["policyCounts"]["blocked"], 1)
             self.assertEqual(report["tombstoneDispositionCounts"], {"replaced": 1, "blocked": 1})
 
-    def test_manual_context_corpus_drift_is_reported_but_allowed(self):
+    def test_manual_exact_same_row_silver_target_change_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            corpus = root / "corpus"
+            corpus.mkdir()
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_text="平日要完善了。",
+                target_text="平日要晚上了。",
+                row_pk=10574,
+                context="",
+                note=None,
+            )
+            control.append_event(evidence, control.correction_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            (corpus / "full-db.cleaned.jsonl").write_text(
+                json.dumps(
+                    {
+                        "rowPk": 10574,
+                        "rawOpenCC": "平日要完善了。",
+                        "cleanedText": "平日要完善了。",
+                        "requiresReview": False,
+                        "riskFlags": [],
+                        "context": {"before": []},
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=corpus,
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=False,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            replay = validation["corpusReplay"][0]["cleanedReplay"]
+            self.assertEqual(replay["unexpectedChanges"], 0)
+            self.assertEqual(replay["acceptedManualCorpusChanges"], 1)
+            self.assertEqual(replay["originalUnexpectedChanges"], 1)
+
+    def test_unrelated_manual_exact_same_text_on_another_row_still_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            corpus = root / "corpus"
+            corpus.mkdir()
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_text="平日要完善了。",
+                target_text="平日要晚上了。",
+                row_pk=10574,
+                context="",
+                note=None,
+            )
+            control.append_event(evidence, control.correction_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            (corpus / "full-db.cleaned.jsonl").write_text(
+                json.dumps(
+                    {
+                        "rowPk": 10575,
+                        "rawOpenCC": "平日要完善了。",
+                        "cleanedText": "平日要完善了。",
+                        "requiresReview": False,
+                        "riskFlags": [],
+                        "context": {"before": []},
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=corpus,
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=False,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertFalse(validation["ready"])
+            self.assertEqual(validation["corpusReplay"][0]["cleanedReplay"]["unexpectedChanges"], 1)
+            self.assertEqual(validation["corpusReplay"][0]["cleanedReplay"]["acceptedManualCorpusChanges"], 0)
+            self.assertEqual(validation["failures"][0]["kind"], "unexpectedCorpusChanges")
+
+    def test_scoped_replacement_overreach_on_non_review_row_still_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            corpus = root / "corpus"
+            corpus.mkdir()
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="轉路",
+                target_text="轉錄",
+                source_text="轉路",
+                row_pk=12291,
+                lock_name="migrated-swift-transcription",
+                context_token=["轉錄", "技能", "ASR"],
+                context_alias=[],
+                context_from_context_only=False,
+                require_alias=False,
+                positive=["重新轉路的技能||Voco 轉錄 技能||重新轉錄的技能"],
+                negative=["這條轉路很危險||道路"],
+                positive_text=None,
+                positive_context=None,
+                expected_text=None,
+                negative_text=None,
+                negative_context=None,
+                note=None,
+            )
+            control.append_event(evidence, control.context_locked_rule_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            (corpus / "full-db.cleaned.jsonl").write_text(
+                json.dumps(
+                    {
+                        "rowPk": 12291,
+                        "rawOpenCC": "重新轉路的技能",
+                        "cleanedText": "重新轉路的技能",
+                        "requiresReview": False,
+                        "riskFlags": [],
+                        "context": {"before": [{"rawOpenCC": "Voco 轉錄 技能 ASR"}]},
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=corpus,
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=False,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertFalse(validation["ready"])
+            self.assertEqual(validation["corpusReplay"][0]["cleanedReplay"]["unexpectedChanges"], 1)
+            self.assertEqual(validation["corpusReplay"][0]["cleanedReplay"]["acceptedManualCorpusChanges"], 0)
+            self.assertEqual(validation["failures"][0]["kind"], "unexpectedCorpusChanges")
+
+    def test_manual_context_review_risk_corpus_drift_remains_allowed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             evidence = root / "evidence.jsonl"
@@ -253,6 +440,113 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(replay["unexpectedChanges"], 0)
             self.assertEqual(replay["acceptedManualCorpusChanges"], 1)
             self.assertEqual(replay["originalUnexpectedChanges"], 1)
+
+    def test_exact_conflict_requires_replacing_old_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / "base.json"
+            old_source = "平日要完善了。"
+            old_policy_id = "exact-pair-512819eb3c3a5e4c"
+            base_model = tiny_base_model()
+            base_model["policyCounts"] = {"apply": 1}
+            base_model["policyTypeCounts"] = {"exactTrainablePair": 1}
+            base_model["policies"] = [
+                {
+                    "policyId": old_policy_id,
+                    "policyType": "exactTrainablePair",
+                    "autoApplyMode": "apply",
+                    "sourcePattern": old_source,
+                    "targetText": old_source,
+                    "inputStrictKey": control.strict_text_key(old_source),
+                    "targetStrictKey": control.strict_text_key(old_source),
+                    "exactInputRequired": True,
+                    "contextTokensAny": [],
+                    "contextAliasesAny": [],
+                }
+            ]
+            base.write_text(json.dumps(base_model, ensure_ascii=False), encoding="utf-8")
+
+            conflict_evidence = root / "conflict/evidence.jsonl"
+            control.append_event(
+                conflict_evidence,
+                control.correction_event(
+                    Namespace(
+                        actor="test",
+                        source_text=old_source,
+                        target_text="平日要晚上了。",
+                        row_pk=10574,
+                        context="",
+                        note=None,
+                    )
+                ),
+            )
+            conflict_model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(conflict_evidence),
+                base_model_path=base,
+                evidence_store=conflict_evidence,
+            )
+            conflict_validation = control.validate_model(
+                conflict_model,
+                control.load_events(conflict_evidence),
+                model_path=root / "conflict/model.json",
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            self.assertFalse(conflict_validation["ready"])
+            self.assertEqual(len(conflict_validation["exactApplyConflicts"]), 1)
+
+            replaced_evidence = root / "replaced/evidence.jsonl"
+            control.append_event(
+                replaced_evidence,
+                control.disable_rule_event(
+                    Namespace(
+                        actor="test",
+                        policy_id=old_policy_id,
+                        source_pattern=None,
+                        target_text=None,
+                        reason="Replace stale silver target with Jason confirmed manual exact correction.",
+                        disposition="replaced",
+                    )
+                ),
+            )
+            control.append_event(
+                replaced_evidence,
+                control.correction_event(
+                    Namespace(
+                        actor="test",
+                        source_text=old_source,
+                        target_text="平日要晚上了。",
+                        row_pk=10574,
+                        context="",
+                        note=None,
+                    )
+                ),
+            )
+            replaced_model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(replaced_evidence),
+                base_model_path=base,
+                evidence_store=replaced_evidence,
+            )
+            replaced_validation = control.validate_model(
+                replaced_model,
+                control.load_events(replaced_evidence),
+                model_path=root / "replaced/model.json",
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            self.assertTrue(replaced_validation["ready"])
+            self.assertEqual(len(replaced_validation["exactApplyConflicts"]), 0)
+            self.assertEqual(replaced_model["policyCounts"]["replaced"], 1)
 
     def test_activate_and_rollback_use_backups(self):
         with tempfile.TemporaryDirectory() as tmp:

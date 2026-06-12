@@ -1001,15 +1001,32 @@ def is_accepted_manual_corpus_change(item: dict[str, Any], policies_by_id: dict[
     if not fires:
         return False
 
+    row_pk = int_or_none(item.get("rowPk"))
+    fired_policies: list[tuple[str, dict[str, Any]]] = []
+    for fire in fires:
+        policy_id = str((fire if isinstance(fire, dict) else {}).get("policyId") or "")
+        policy = policies_by_id.get(policy_id)
+        if not is_manual_control_policy(policy_id, policy):
+            return False
+        fired_policies.append((policy_id, policy))
+
+    if row_pk is not None:
+        for policy_id, policy in fired_policies:
+            if manual_exact_policy_accepts_change(policy_id, policy, row_pk, item):
+                return True
+
+    return is_accepted_manual_baseline_drift(item, fired_policies)
+
+
+def is_accepted_manual_baseline_drift(
+    item: dict[str, Any],
+    fired_policies: list[tuple[str, dict[str, Any]]],
+) -> bool:
     risk_flags = {str(flag) for flag in item.get("riskFlags") or []}
     if not item.get("requiresReview") and not risk_flags.intersection(BASELINE_DRIFT_RISK_FLAGS):
         return False
 
-    for fire in fires:
-        policy_id = str((fire if isinstance(fire, dict) else {}).get("policyId") or "")
-        policy = policies_by_id.get(policy_id)
-        if not policy or not policy.get("controlEvidenceEventIds"):
-            return False
+    for policy_id, policy in fired_policies:
         if not policy_id.startswith(("manual-context-", "manual-exact-")):
             return False
         if policy.get("policyType") == "scopedReplacement":
@@ -1018,6 +1035,51 @@ def is_accepted_manual_corpus_change(item: dict[str, Any], policies_by_id: dict[
             if not policy.get("contextRequired") or not (tokens or aliases):
                 return False
     return True
+
+
+def is_manual_control_policy(policy_id: str, policy: dict[str, Any] | None) -> bool:
+    return bool(policy) and policy_id.startswith("manual-") and bool(policy.get("controlEvidenceEventIds"))
+
+
+def manual_exact_policy_accepts_change(
+    policy_id: str,
+    policy: dict[str, Any],
+    row_pk: int,
+    item: dict[str, Any],
+) -> bool:
+    if not policy_id.startswith("manual-exact-"):
+        return False
+    if policy.get("policyType") != "exactTrainablePair" or policy.get("exactInputRequired") is not True:
+        return False
+    if not policy_contains_row(policy, "evidenceRows", row_pk):
+        return False
+    if not policy_contains_row(policy, "trainableRows", row_pk):
+        return False
+
+    before = str(item.get("before") or "")
+    after = str(item.get("after") or "")
+    cleaned = str(item.get("cleanedText") or "")
+    if not before or not after or not cleaned:
+        return False
+
+    input_key = str(policy.get("inputStrictKey") or strict_text_key(str(policy.get("sourcePattern") or "")))
+    target_key = str(policy.get("targetStrictKey") or strict_text_key(str(policy.get("targetText") or "")))
+    if strict_text_key(before) != input_key:
+        return False
+    if strict_text_key(after) != target_key:
+        return False
+    return strict_text_key(after) != strict_text_key(cleaned)
+
+
+def policy_contains_row(policy: dict[str, Any], field: str, row_pk: int) -> bool:
+    return row_pk in {row for row in (int_or_none(value) for value in policy.get(field) or []) if row is not None}
+
+
+def int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def compact_replay_report(report: dict[str, Any]) -> dict[str, Any]:
