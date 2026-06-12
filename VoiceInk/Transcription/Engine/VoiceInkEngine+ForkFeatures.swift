@@ -57,66 +57,6 @@ extension VoiceInkEngine {
         Task { await recorderUIManager?.dismissRecorderPanel() }
     }
 
-    // MARK: - Candidate Review
-
-    func requestCandidateReview(_ assessment: VocoConfidenceAssessment) async -> VocoCandidateSelection? {
-        guard let review = VocoCandidateReviewService.review(for: assessment) else {
-            return VocoCandidateSelection(candidate: assessment.selectedCandidate, source: .automaticFallback)
-        }
-
-        return await withCheckedContinuation { continuation in
-            forkState.pendingCandidateContinuation?.resume(returning: nil)
-            forkState.pendingCandidateReview = review
-            forkState.pendingCandidateContinuation = continuation
-            startCandidateReviewTimeout(for: review.id)
-        }
-    }
-
-    func selectCandidateReview(candidate: String) {
-        resumeCandidateReview(returning: VocoCandidateSelection(candidate: candidate, source: .userSelection))
-    }
-
-    func keepCandidateReviewAlive() {
-        guard let review = forkState.pendingCandidateReview,
-              forkState.pendingCandidateContinuation != nil
-        else { return }
-        startCandidateReviewTimeout(for: review.id)
-    }
-
-    func dismissCandidateReview() {
-        resumeCandidateReview(returning: fallbackSelection(source: .dismissedFallback))
-    }
-
-    private func resumeCandidateReview(returning selection: VocoCandidateSelection?) {
-        let continuation = forkState.pendingCandidateContinuation
-        forkState.pendingCandidateTimeoutTask?.cancel()
-        forkState.pendingCandidateTimeoutTask = nil
-        forkState.pendingCandidateContinuation = nil
-        forkState.pendingCandidateReview = nil
-        continuation?.resume(returning: selection)
-    }
-
-    private func fallbackSelection(source: VocoCandidateSelectionSource) -> VocoCandidateSelection? {
-        guard let candidate = forkState.pendingCandidateReview?.timeoutFallbackCandidate else { return nil }
-        return VocoCandidateSelection(candidate: candidate, source: source)
-    }
-
-    private func startCandidateReviewTimeout(for reviewID: UUID) {
-        forkState.pendingCandidateTimeoutTask?.cancel()
-        forkState.pendingCandidateTimeoutTask = Task { @MainActor [weak self] in
-            let nanoseconds = UInt64(VocoCandidateReview.timeoutSeconds * 1_000_000_000)
-            do {
-                try await Task.sleep(nanoseconds: nanoseconds)
-            } catch {
-                return
-            }
-            guard let self,
-                  self.forkState.pendingCandidateReview?.id == reviewID
-            else { return }
-            self.resumeCandidateReview(returning: self.fallbackSelection(source: .timeoutFallback))
-        }
-    }
-
     /// Starts a 15-second timer that rejects the dictionary entry on expiry.
     func startDictionaryDismissTimer() {
         dictionaryDismissTimer?.cancel()

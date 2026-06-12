@@ -10,8 +10,7 @@ final class VocoConfidenceGateService {
     ) -> VocoConfidenceAssessment {
         var score = 1.0
         var reasons: [String] = []
-        var rawCleanupRescueCandidate: String?
-        var selectedCandidate = normalizationResult.normalizedText
+        let selectedCandidate = normalizationResult.normalizedText
 
         let replacementCount = normalizationResult.replacements.count
         let suggestionCount = normalizationResult.suggestions.count
@@ -49,8 +48,6 @@ final class VocoConfidenceGateService {
         if hasProtectedTermReplacement(normalizationResult.replacements) {
             score -= 0.22
             reasons.append("protected-term-replacement")
-            rawCleanupRescueCandidate = normalizationResult.originalText
-            selectedCandidate = normalizationResult.originalText
         }
 
         if let rawTranscript,
@@ -66,14 +63,8 @@ final class VocoConfidenceGateService {
             }
 
             if drift.prefersRawFallback {
-                let fallback = rawCleanupFallbackCandidate(from: rawTranscript)
-                if !fallback.isEmpty,
-                   fallback != normalizationResult.normalizedText {
-                    score -= 0.16
-                    reasons.append("raw-cleanup-local-regression")
-                    rawCleanupRescueCandidate = fallback
-                    selectedCandidate = fallback
-                }
+                score -= 0.16
+                reasons.append("raw-cleanup-local-regression")
             }
         }
 
@@ -107,7 +98,6 @@ final class VocoConfidenceGateService {
         let hypothesisDetails = VocoHypothesisManagerService.buildHypotheses(
             normalizationResult: normalizationResult,
             rawTranscript: rawTranscript,
-            rawCleanupRescueCandidate: rawCleanupRescueCandidate,
             confidenceScore: boundedScore,
             route: route,
             reasons: reasons
@@ -326,13 +316,6 @@ final class VocoConfidenceGateService {
         OpenCCConverter.shared.convert(text)
             .lowercased()
             .filter { $0.isLetter || $0.isNumber }
-    }
-
-    private func rawCleanupFallbackCandidate(from rawTranscript: String) -> String {
-        let converted = OpenCCConverter.shared.convert(rawTranscript)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !converted.isEmpty { return converted }
-        return rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func hasHighRiskAcceptedTerm(in replacements: [VocoReplacement]) -> Bool {

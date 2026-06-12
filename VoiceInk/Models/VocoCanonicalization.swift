@@ -338,16 +338,6 @@ enum VocoCandidateLabelDisplayFormatter {
     }
 }
 
-struct VocoCandidateSelection: Codable, Equatable {
-    let candidate: String
-    let source: VocoCandidateSelectionSource
-
-    init(candidate: String, source: VocoCandidateSelectionSource = .userSelection) {
-        self.candidate = candidate
-        self.source = source
-    }
-}
-
 enum VocoSignalDisplayFormatter {
     static func displayReasons(for reasons: [String]) -> [String] {
         var seen: Set<String> = []

@@ -4,7 +4,6 @@ enum VocoHypothesisManagerService {
     static func buildHypotheses(
         normalizationResult: VocoNormalizationResult,
         rawTranscript: String?,
-        rawCleanupRescueCandidate: String? = nil,
         confidenceScore: Double?,
         route: VocoConfidenceRoute,
         reasons: [String]
@@ -13,12 +12,6 @@ enum VocoHypothesisManagerService {
         let suggested = applying(
             normalizationResult.replacements + normalizationResult.suggestions,
             to: normalizationResult.originalText
-        )
-        let segmentRescue = segmentRescueCandidate(
-            normalizationResult: normalizationResult,
-            rawTranscript: rawTranscript,
-            route: route,
-            reasons: reasons
         )
 
         var drafts: [(text: String, label: String, source: VocoHypothesisSource, termIDs: [String], requiresReview: Bool)] = [
@@ -37,28 +30,6 @@ enum VocoHypothesisManagerService {
                 true
             ),
         ]
-
-        if let segmentRescue {
-            drafts.append((
-                segmentRescue.text,
-                "Segment rescue",
-                .segmentRescue,
-                segmentRescue.termIDs,
-                true
-            ))
-        }
-
-        if let rawCleanupRescueCandidate = rawCleanupRescueCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !rawCleanupRescueCandidate.isEmpty,
-           rawCleanupRescueCandidate != normalized {
-            drafts.append((
-                rawCleanupRescueCandidate,
-                "Raw cleanup rescue",
-                .customRescue,
-                [],
-                true
-            ))
-        }
 
         drafts.append((
             normalizationResult.originalText,
@@ -97,58 +68,12 @@ enum VocoHypothesisManagerService {
                         for: draft.text,
                         recommended: normalized
                     ),
-                    reasons: draft.source == .segmentRescue ? ["segment-rescue"] + reasons : reasons,
+                    reasons: reasons,
                     activeContextIDs: normalizationResult.activeContextIDs,
                     appliedTermIDs: deduplicated(draft.termIDs),
                     requiresReview: draft.requiresReview
                 )
             }
-    }
-
-    private static func segmentRescueCandidate(
-        normalizationResult: VocoNormalizationResult,
-        rawTranscript: String?,
-        route: VocoConfidenceRoute,
-        reasons: [String]
-    ) -> (text: String, termIDs: [String])? {
-        guard route == .reviewSuggested,
-              reasons.contains("raw-cleanup-significant"),
-              let rawTranscript = rawTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawTranscript.isEmpty,
-              rawTranscript != normalizationResult.originalText
-        else {
-            return nil
-        }
-
-        let replacements = normalizationResult.replacements
-            .filter { $0.confidence >= 0.95 }
-            .filter { !$0.originalText.isEmpty && $0.originalText != $0.replacementText }
-        guard !replacements.isEmpty else { return nil }
-
-        var result = rawTranscript
-        var appliedTermIDs: [String] = []
-        for replacement in replacements {
-            guard let range = result.range(
-                of: replacement.originalText,
-                options: [.caseInsensitive, .diacriticInsensitive]
-            ) else {
-                continue
-            }
-            result.replaceSubrange(range, with: replacement.replacementText)
-            appliedTermIDs.append(replacement.termID)
-        }
-
-        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !appliedTermIDs.isEmpty,
-              !trimmed.isEmpty,
-              trimmed != rawTranscript,
-              trimmed != normalizationResult.normalizedText,
-              trimmed != normalizationResult.originalText
-        else {
-            return nil
-        }
-
-        return (trimmed, deduplicated(appliedTermIDs))
     }
 
     private static func applying(_ replacements: [VocoReplacement], to text: String) -> String {

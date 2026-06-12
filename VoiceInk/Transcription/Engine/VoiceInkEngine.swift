@@ -413,15 +413,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 self.recordingState = .idle
                 self.startDictionaryDismissTimer()
             },
-            requestCandidateReview: { [weak self] assessment in
-                guard let self else {
-                    return VocoCandidateSelection(
-                        candidate: assessment.selectedCandidate,
-                        source: .automaticFallback
-                    )
-                }
-                return await self.requestCandidateReview(assessment)
-            },
             assistant: TranscriptionPipeline.AssistantHooks(
                 isFollowUp: activePipelineUseCase.isAssistantFollowUp,
                 sendFollowUp: { [weak self] text, transcription in
@@ -509,9 +500,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
         activePipelineUseCase = .newSession
         clearActiveRecordingContext()
         forkState.clearEditMode()
-        forkState.pendingCandidateContinuation?.resume(returning: nil)
-        forkState.pendingCandidateContinuation = nil
-        forkState.pendingCandidateReview = nil
         await recorder.stopRecording()
         recordedFile = nil
         recordingState = .idle

@@ -229,7 +229,6 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         engine.forkState.editModeDetectionTask = nil
         engine.forkState.clearEditMode()
         engine.forkState.pendingDictionaryEntry = nil
-        engine.dismissCandidateReview()
         engine.scheduleModelResourceCleanup()
         EditModeCacheService.shared.startPolling()
     }
@@ -245,7 +244,6 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         engine.forkState.editModeDetectionTask = nil
         engine.forkState.clearEditMode()
         engine.forkState.pendingDictionaryEntry = nil
-        engine.dismissCandidateReview()
     }
 
     func cancelRecording() async {

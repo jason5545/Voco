@@ -11,78 +11,6 @@ struct WordSubstitution {
     let replacement: String
 }
 
-struct VocoCandidateReview: Identifiable {
-    static let timeoutSeconds: TimeInterval = 20
-
-    let id = UUID()
-    let candidates: [String]
-    let candidateLabels: [String]
-    let hypotheses: [VocoHypothesis]
-    let confidenceScore: Double
-    let reasons: [String]
-    let reviewTriggers: [VocoReviewTrigger]
-
-    init(
-        candidates: [String],
-        candidateLabels: [String] = [],
-        hypotheses: [VocoHypothesis] = [],
-        confidenceScore: Double,
-        reasons: [String],
-        reviewTriggers: [VocoReviewTrigger] = []
-    ) {
-        self.candidates = candidates
-        self.candidateLabels = candidateLabels
-        self.hypotheses = hypotheses
-        self.confidenceScore = confidenceScore
-        self.reasons = reasons
-        self.reviewTriggers = reviewTriggers
-    }
-
-    var defaultCandidate: String? {
-        candidates.first
-    }
-
-    var timeoutFallbackCandidate: String? {
-        defaultCandidate
-    }
-
-    func keyboardShortcutForCandidate(at index: Int) -> String? {
-        guard candidates.indices.contains(index),
-              index < 5
-        else { return nil }
-        return "\(index + 1)"
-    }
-
-    static func shouldRefreshTimeout(forTypedCandidate typedCandidate: String) -> Bool {
-        !typedCandidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    func labelForCandidate(at index: Int) -> String {
-        guard candidateLabels.indices.contains(index) else {
-            return VocoCandidateLabelDisplayFormatter.displayName(for: "Candidate")
-        }
-        return VocoCandidateLabelDisplayFormatter.displayName(for: candidateLabels[index])
-    }
-
-    func hypothesisForCandidate(at index: Int) -> VocoHypothesis? {
-        guard hypotheses.indices.contains(index) else { return nil }
-        return hypotheses[index]
-    }
-
-    func sourceDisplayNameForCandidate(at index: Int) -> String? {
-        hypothesisForCandidate(at: index)?.sourceDisplayName
-    }
-
-    var displayReasons: [String] {
-        VocoSignalDisplayFormatter.displayReasons(for: reasons)
-    }
-
-    var displayReviewSignals: [String] {
-        let triggerSummaries = VocoReviewTriggerDisplayFormatter.summaries(for: reviewTriggers)
-        return triggerSummaries.isEmpty ? displayReasons : triggerSummaries
-    }
-}
-
 // MARK: - Fork-specific stored properties via associated objects
 // Since Swift extensions cannot add stored properties,
 // we use a dedicated holder class initialized in VoiceInkEngine.
@@ -96,9 +24,6 @@ class ForkEngineState: ObservableObject {
     @Published var isEditMode: Bool = false
     @Published var editModeSelectedText: String?
     @Published var pendingDictionaryEntry: WordSubstitution?
-    @Published var pendingCandidateReview: VocoCandidateReview?
-    var pendingCandidateContinuation: CheckedContinuation<VocoCandidateSelection?, Never>?
-    var pendingCandidateTimeoutTask: Task<Void, Never>?
     /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
     var editModeDetectionTask: Task<Void, Never>?
 
@@ -153,11 +78,6 @@ extension VoiceInkEngine {
     var pendingDictionaryEntry: WordSubstitution? {
         get { forkState.pendingDictionaryEntry }
         set { forkState.pendingDictionaryEntry = newValue }
-    }
-
-    var pendingCandidateReview: VocoCandidateReview? {
-        get { forkState.pendingCandidateReview }
-        set { forkState.pendingCandidateReview = newValue }
     }
 }
 

@@ -65,7 +65,6 @@ class TranscriptionPipeline {
         onCancel: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
         onEditModeComplete: ((WordSubstitution?) -> Void)? = nil,
-        requestCandidateReview: ((VocoConfidenceAssessment) async -> VocoCandidateSelection?)? = nil,
         assistant: AssistantHooks = .inactive
     ) async {
         let model = transcriptionConfiguration.model
@@ -182,26 +181,6 @@ class TranscriptionPipeline {
             let confidenceAssessment = normalizedOutput.confidenceAssessment
             shadowConfidenceAssessment = confidenceAssessment
             text = normalizationResult.normalizedText
-
-            if !isEditMode,
-               confidenceAssessment.route == .reviewSuggested,
-               let requestCandidateReview,
-               let selection = await requestCandidateReview(confidenceAssessment),
-               !selection.candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let feedbackSignal = VocoCandidateReviewService.acceptCandidate(
-                    selection.candidate,
-                    for: transcription,
-                    normalizationResult: normalizationResult,
-                    confidenceAssessment: confidenceAssessment,
-                    rawTranscript: rawASRText,
-                    selectionSource: selection.source
-                )
-                text = transcription.text
-                CorrectionFeedbackLearningService.stageLearningCandidates(
-                    from: feedbackSignal,
-                    in: modelContext
-                )
-            }
 
             let modeMetadata = transcriptionConfiguration.metadata
 

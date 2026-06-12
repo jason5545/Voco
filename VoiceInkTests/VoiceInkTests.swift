@@ -368,7 +368,7 @@ struct VoiceInkTests {
         #expect(importText.replacements.first?.replacementText == "檔案")
     }
 
-    @Test func confidenceGateFallsBackToRawForLocalCleanupRegression() async throws {
+    @Test func confidenceGateFlagsLocalCleanupRegressionWithoutSelectingRescue() async throws {
         try await requireLoadedPinyinDatabase()
 
         let result = VocoNormalizationResult(
@@ -386,11 +386,11 @@ struct VoiceInkTests {
 
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("raw-cleanup-local-regression"))
-        #expect(assessment.selectedCandidate == "這邊又有語音，語音辨識錯誤，所以你自己修正。")
-        #expect(assessment.hypothesisDetails.contains { $0.source == .customRescue })
+        #expect(assessment.selectedCandidate == result.normalizedText)
+        #expect(!assessment.hypothesisDetails.contains { $0.source == .customRescue })
     }
 
-    @Test func confidenceGateFallsBackToRawForSystemResourceCleanupRegression() async throws {
+    @Test func confidenceGateFlagsSystemResourceCleanupRegressionWithoutSelectingRescue() async throws {
         try await requireLoadedPinyinDatabase()
 
         let result = VocoNormalizationResult(
@@ -408,8 +408,8 @@ struct VoiceInkTests {
 
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("raw-cleanup-local-regression"))
-        #expect(assessment.selectedCandidate.contains("資源耗盡"))
-        #expect(!assessment.selectedCandidate.contains("支援耗盡"))
+        #expect(assessment.selectedCandidate == result.normalizedText)
+        #expect(!assessment.hypothesisDetails.contains { $0.source == .customRescue })
     }
 
     @Test func canonicalizationTreatsVocalAsContextRequiredVocoAlias() async throws {
@@ -828,11 +828,11 @@ struct VoiceInkTests {
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reasons.contains("protected-term-replacement"))
         #expect(assessment.reviewTriggers.contains { $0.reason == "protected-term-replacement" })
-        #expect(assessment.selectedCandidate == "我是要說鑑定的鑑定哦。")
+        #expect(assessment.selectedCandidate == "我是要說簡訊的簡訊哦。")
         #expect(assessment.candidates.contains("我是要說鑑定的鑑定哦。"))
     }
 
-    @Test func hypothesisManagerAddsSegmentRescueForRawDriftWithCanonicalTerms() async throws {
+    @Test func hypothesisManagerDoesNotCreateSegmentRescueForRawDriftWithCanonicalTerms() async throws {
         let result = VocoCanonicalizationService().normalize("我今天要測 voice anc")
         let assessment = VocoConfidenceGateService().assess(
             normalizationResult: result,
@@ -843,21 +843,11 @@ struct VoiceInkTests {
         #expect(assessment.reasons.contains("raw-cleanup-significant"))
         #expect(assessment.candidates == [
             "我今天要測 VoiceInk",
-            "我今天要測 VoiceInk 然後後面還有一大段錯字",
             "我今天要測 voice anc",
             "我今天要測 voice anc 然後後面還有一大段錯字",
         ])
-        #expect(assessment.candidateLabels == ["Recommended", "Segment rescue", "Original", "Raw ASR"])
-
-        let rescue = try #require(assessment.hypothesisDetails.first { $0.source == .segmentRescue })
-        #expect(rescue.text == "我今天要測 VoiceInk 然後後面還有一大段錯字")
-        #expect(rescue.label == "Segment rescue")
-        #expect(rescue.appliedTermIDs == ["product.voiceink"])
-        #expect(rescue.requiresReview)
-        #expect(rescue.reasons.contains("segment-rescue"))
-        #expect((rescue.divergenceFromRecommended ?? 0) > 0)
-        #expect(VocoHypothesisDisplayFormatter.summary(for: rescue)?.contains("Segment rescue") == true)
-        #expect(VocoHypothesisDisplayFormatter.summary(for: rescue)?.contains("Delta") == true)
+        #expect(assessment.candidateLabels == ["Recommended", "Original", "Raw ASR"])
+        #expect(!assessment.hypothesisDetails.contains { $0.source == .segmentRescue })
     }
 
     @Test func hypothesisManagerKeepsRawASRAsTraceableCandidate() async throws {
@@ -1574,8 +1564,18 @@ struct VoiceInkTests {
         #expect(metric.candidateSelectionSource == nil)
 
         let signal = try #require(
-            VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
+            CorrectionFeedbackService.candidateSelectionSignal(
+                normalizationResult: result,
+                assessment: assessment,
+                selectedCandidate: "今天看到炎很大",
+                rawTranscript: result.originalText
+            )
         )
+        transcription.recordCorrectionFeedback(signal)
+        transcription.text = "今天看到炎很大"
+        transcription.selectedCandidate = "今天看到炎很大"
+        transcription.recordCandidateSelectionSource(.userSelection)
+        transcription.userCorrectionDistance = signal.changeRatio
         let refreshed = try SessionMetricRecorder.refreshExistingRecorderSessionMetric(
             transcription: transcription,
             in: context
@@ -1725,10 +1725,6 @@ struct VoiceInkTests {
             "Needs choice (1 suggestion)",
         ])
 
-        let summary = AssistiveSignalSummary(metrics: [metric])
-        #expect(summary.reviewTriggerCount == 2)
-        #expect(summary.reviewTriggerCounts["low-confidence-score"] == 1)
-        #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
     }
 
     @Test func sessionMetricSelectedCandidateSourceUsesFoldedMatch() async throws {
@@ -1752,175 +1748,6 @@ struct VoiceInkTests {
                 selectedCandidate: " lisa "
             ) == VocoHypothesisSource.suggestedRepair.rawValue
         )
-    }
-
-    @Test func assistiveSignalSummaryCountsContextAwareMetrics() async throws {
-        let direct = SessionMetric(
-            transcriptionId: UUID(),
-            wordCount: 4,
-            audioDuration: 2.0,
-            transcriptionModelName: "Qwen3-ASR",
-            transcriptionDuration: 0.5,
-            speedFactor: 4.0,
-            modeName: nil,
-            aiEnhancementModelName: nil,
-            enhancementDuration: nil,
-            canonicalizationReplacementCount: 2,
-            canonicalizationSuggestionCount: 0,
-            confidenceScore: 0.9,
-            confidenceRoute: VocoConfidenceRoute.directInsertion.rawValue,
-            candidateSourceCounts: [
-                VocoHypothesisSource.autoContext.rawValue: 1,
-            ],
-            reviewRequiredCandidateCount: 0,
-            selectedCandidateHypothesisSource: VocoHypothesisSource.autoContext.rawValue,
-            candidateSelectionSource: VocoCandidateSelectionSource.userSelection.rawValue,
-            correctionFeedbackCount: 1,
-            correctiveFeedbackCount: 0,
-            correctionFeedbackReasons: ["candidate-confirmed"],
-            retranscriptionChangeCategory: RetranscriptionChangeCategory.unchanged.rawValue,
-            retranscriptionChangeRatio: 0,
-            retranscriptionEditDistance: 0,
-            retranscriptionConfidenceDelta: 0.02,
-            pasteCommandPosted: true
-        )
-        let review = SessionMetric(
-            transcriptionId: UUID(),
-            wordCount: 5,
-            audioDuration: 3.0,
-            transcriptionModelName: "Qwen3-ASR",
-            transcriptionDuration: 0.8,
-            speedFactor: 3.75,
-            modeName: nil,
-            aiEnhancementModelName: nil,
-            enhancementDuration: nil,
-            canonicalizationReplacementCount: 0,
-            canonicalizationSuggestionCount: 3,
-            confidenceScore: 0.6,
-            confidenceRoute: VocoConfidenceRoute.reviewSuggested.rawValue,
-            reviewTriggerCount: 2,
-            reviewTriggerIDs: [
-                "unresolved-suggestions",
-                "low-confidence-score",
-            ],
-            reviewTriggerSummaries: [
-                "Needs choice (3 suggestions)",
-                "Low score (Score 60% below 78%)",
-            ],
-            candidateSourceCounts: [
-                VocoHypothesisSource.suggestedRepair.rawValue: 1,
-                VocoHypothesisSource.segmentRescue.rawValue: 1,
-                VocoHypothesisSource.rawASR.rawValue: 1,
-            ],
-            reviewRequiredCandidateCount: 2,
-            candidateDivergenceRatio: 0.25,
-            selectedCandidateHypothesisSource: VocoHypothesisSource.suggestedRepair.rawValue,
-            candidateSelectionSource: VocoCandidateSelectionSource.timeoutFallback.rawValue,
-            correctionFeedbackCount: 2,
-            correctiveFeedbackCount: 2,
-            correctionFeedbackReasons: ["candidate-override", "candidate-custom"],
-            styleGuardReasonCount: 3,
-            styleGuardReasons: [
-                "assistant-opener:以下是",
-                "assistant-opener:總而言之",
-                "dropped-mixed-language-term:Qwen3-ASR",
-            ],
-            styleGuardRejectedCharacterCount: 20,
-            retranscriptionChangeCategory: RetranscriptionChangeCategory.meaningfulChange.rawValue,
-            retranscriptionChangeRatio: 0.24,
-            retranscriptionEditDistance: 6,
-            retranscriptionConfidenceDelta: 0.18,
-            pasteCommandPosted: false
-        )
-        let legacy = SessionMetric(
-            transcriptionId: UUID(),
-            wordCount: 2,
-            audioDuration: 1.0,
-            transcriptionModelName: nil,
-            transcriptionDuration: nil,
-            speedFactor: nil,
-            modeName: nil,
-            aiEnhancementModelName: nil,
-            enhancementDuration: nil
-        )
-        let finalPaste = SessionMetric(
-            transcriptionId: UUID(),
-            wordCount: 3,
-            audioDuration: 1.5,
-            transcriptionModelName: "Qwen3-ASR",
-            transcriptionDuration: nil,
-            speedFactor: nil,
-            modeName: nil,
-            aiEnhancementModelName: nil,
-            enhancementDuration: nil,
-            candidateSelectionSource: VocoCandidateSelectionSource.finalPaste.rawValue
-        )
-
-        let summary = AssistiveSignalSummary(metrics: [direct, review, legacy, finalPaste])
-
-        #expect(summary.hasData)
-        #expect(summary.sessionCount == 4)
-        #expect(summary.confidenceRouteSampleCount == 2)
-        #expect(summary.directInsertionCount == 1)
-        #expect(summary.reviewSuggestedCount == 1)
-        #expect(summary.directInsertionRate == 0.5)
-        #expect(summary.reviewSuggestedRate == 0.5)
-        #expect(summary.confidenceScoreSampleCount == 2)
-        #expect(abs((summary.averageConfidenceScore ?? 0) - 0.75) < 0.001)
-        #expect(summary.reviewTriggerSessionCount == 1)
-        #expect(summary.reviewTriggerCount == 2)
-        #expect(summary.reviewTriggerCounts["unresolved-suggestions"] == 1)
-        #expect(summary.reviewTriggerCounts["low-confidence-score"] == 1)
-        #expect(summary.reviewTriggerSummaryCounts["Needs choice (3 suggestions)"] == 1)
-        #expect(summary.reviewTriggerSummaryCounts["Low score (Score 60% below 78%)"] == 1)
-        #expect(summary.reviewTriggerDetail == "1 session / Low score (Score 60% below 78%) 1, Needs choice (3 suggestions) 1")
-        #expect(summary.candidateSelectionCount == 2)
-        #expect(summary.userSelectionCount == 1)
-        #expect(summary.timeoutFallbackCount == 1)
-        #expect(summary.fallbackSelectionCount == 1)
-        #expect(summary.correctionFeedbackSessionCount == 2)
-        #expect(summary.correctionFeedbackCount == 3)
-        #expect(summary.correctiveFeedbackCount == 2)
-        #expect(summary.correctionFeedbackReasonCounts["candidate-confirmed"] == 1)
-        #expect(summary.correctionFeedbackReasonCounts["candidate-override"] == 1)
-        #expect(summary.correctionFeedbackReasonCounts["candidate-custom"] == 1)
-        #expect(summary.correctionFeedbackDetail == "2 corrective / 2 sessions / Candidate changed 1, Candidate confirmed 1")
-        #expect(summary.styleGuardRejectionSessionCount == 1)
-        #expect(summary.styleGuardReasonCount == 3)
-        #expect(summary.styleGuardReasonCounts["assistant-opener:以下是"] == 1)
-        #expect(summary.styleGuardReasonCounts["assistant-opener:總而言之"] == 1)
-        #expect(summary.styleGuardReasonCounts["dropped-mixed-language-term:Qwen3-ASR"] == 1)
-        #expect(summary.styleGuardRejectedCharacterCount == 20)
-        #expect(summary.styleGuardDetail == "1 session / 20 chars rejected / Assistant opener 2, Dropped mixed language term 1")
-        #expect(summary.candidateSourceSampleCount == 2)
-        #expect(summary.candidateSourceCandidateCount == 4)
-        #expect(summary.candidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
-        #expect(summary.candidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
-        #expect(summary.candidateSourceCounts[VocoHypothesisSource.segmentRescue.rawValue] == 1)
-        #expect(summary.candidateSourceCounts[VocoHypothesisSource.rawASR.rawValue] == 1)
-        #expect(summary.reviewRequiredCandidateCount == 2)
-        #expect(summary.candidateDivergenceRatioSampleCount == 1)
-        #expect(abs((summary.averageCandidateDivergenceRatio ?? 0) - 0.25) < 0.001)
-        #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.autoContext.rawValue] == 1)
-        #expect(summary.selectedCandidateSourceCounts[VocoHypothesisSource.suggestedRepair.rawValue] == 1)
-        #expect(summary.candidateSourceDetail == "2 review / AUTO + context 1, Suggestion pass 1, Segment rescue 1 / avg delta 25%")
-        #expect(summary.canonicalizedSessionCount == 1)
-        #expect(summary.suggestedSessionCount == 1)
-        #expect(summary.totalCanonicalizationReplacementCount == 2)
-        #expect(summary.totalCanonicalizationSuggestionCount == 3)
-        #expect(summary.retranscriptionSampleCount == 2)
-        #expect(summary.unchangedRetranscriptionCount == 1)
-        #expect(summary.minorRetranscriptionCount == 0)
-        #expect(summary.meaningfulRetranscriptionCount == 1)
-        #expect(summary.meaningfulRetranscriptionRate == 0.5)
-        #expect(summary.retranscriptionChangeRatioSampleCount == 2)
-        #expect(abs((summary.averageRetranscriptionChangeRatio ?? 0) - 0.12) < 0.001)
-        #expect(summary.retranscriptionConfidenceDeltaSampleCount == 2)
-        #expect(abs((summary.averageRetranscriptionConfidenceDelta ?? 0) - 0.10) < 0.001)
-        #expect(summary.retranscriptionDetail == "1 meaningful / 2 analyzed, avg change 12%, avg confidence +10%")
-        #expect(summary.pasteCommandSampleCount == 2)
-        #expect(summary.pasteCommandPostedCount == 1)
-        #expect(summary.pasteCommandPostedRate == 0.5)
     }
 
     @Test @MainActor func canonicalizationPipelineUsesSingleAssessmentForTranscriptionMetadata() async throws {
@@ -2032,74 +1859,6 @@ struct VoiceInkTests {
         #expect(output.confidenceAssessment.reasons.contains("recent-term-corrections"))
         #expect(output.confidenceAssessment.reviewTriggers.map(\.id).contains("recent-correction-rate"))
         #expect(output.confidenceAssessment.reviewTriggers.map(\.id).contains("recent-term-corrections"))
-    }
-
-    @Test func candidateReviewDisplaysReadableReasonsAndLabels() async throws {
-        let hypothesis = VocoHypothesis(
-            id: "suggestedRepair",
-            text: "今天看到炎很大",
-            label: "With suggestions",
-            source: .suggestedRepair,
-            confidenceScore: 0.62,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [],
-            appliedTermIDs: ["song.homura"],
-            requiresReview: true
-        )
-        let review = VocoCandidateReview(
-            candidates: ["今天看到焰很大", "今天看到炎很大"],
-            candidateLabels: ["Recommended", "With suggestions"],
-            hypotheses: [
-                VocoHypothesis(
-                    id: "autoContext",
-                    text: "今天看到焰很大",
-                    label: "Recommended",
-                    source: .autoContext,
-                    confidenceScore: 0.62,
-                    reasons: ["unresolved-suggestions"],
-                    activeContextIDs: [],
-                    appliedTermIDs: [],
-                    requiresReview: true
-                ),
-                hypothesis,
-            ],
-            confidenceScore: 0.62,
-            reasons: ["unresolved-suggestions", "high-risk-term", "unresolved-suggestions"],
-            reviewTriggers: [
-                VocoReviewTrigger(
-                    id: "low-confidence-score",
-                    reason: "low-confidence-score",
-                    detail: "Score 62% below 78%"
-                ),
-                VocoReviewTrigger(
-                    id: "unresolved-suggestions",
-                    reason: "unresolved-suggestions",
-                    detail: "1 suggestion"
-                ),
-                VocoReviewTrigger(
-                    id: "unresolved-suggestions",
-                    reason: "unresolved-suggestions",
-                    detail: "duplicate ignored"
-                ),
-            ]
-        )
-
-        #expect(review.defaultCandidate == "今天看到焰很大")
-        #expect(review.timeoutFallbackCandidate == "今天看到焰很大")
-        #expect(VocoCandidateReview.timeoutSeconds == 20)
-        #expect(VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: " 今天看到火焰很大 "))
-        #expect(!VocoCandidateReview.shouldRefreshTimeout(forTypedCandidate: "   "))
-        #expect(review.keyboardShortcutForCandidate(at: 0) == "1")
-        #expect(review.keyboardShortcutForCandidate(at: 1) == "2")
-        #expect(review.keyboardShortcutForCandidate(at: 5) == nil)
-        #expect(review.labelForCandidate(at: 1) == "With suggestions")
-        #expect(review.labelForCandidate(at: 4) == "Candidate")
-        #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
-        #expect(review.displayReasons == ["Needs choice", "High-risk term"])
-        #expect(review.displayReviewSignals == [
-            "Low score (Score 62% below 78%)",
-            "Needs choice (1 suggestion)",
-        ])
     }
 
     @Test func signalDisplayFormatterCoversDictationAndFeedbackReasons() async throws {
@@ -2233,167 +1992,6 @@ struct VoiceInkTests {
         #expect(assessment.route == .reviewSuggested)
         #expect(assessment.reviewTriggers.isEmpty)
         #expect(assessment.candidates.count == 2)
-    }
-
-    @Test func candidateReviewPayloadKeepsOnlyActionableCandidates() async throws {
-        let hypothesis = VocoHypothesis(
-            id: "suggestedRepair",
-            text: "今天看到炎很大",
-            label: "With suggestions",
-            source: .suggestedRepair,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [],
-            appliedTermIDs: ["song.homura"],
-            requiresReview: true
-        )
-        let reviewTriggers = [
-            VocoReviewTrigger(
-                id: "unresolved-suggestions",
-                reason: "unresolved-suggestions",
-                detail: "1 suggestion"
-            ),
-        ]
-        let assessment = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            reviewTriggers: reviewTriggers,
-            candidates: [" 今天看到炎很大 ", "今天看到炎很大", ""],
-            candidateLabels: ["With suggestions", "Duplicate", "Empty"],
-            hypothesisDetails: [hypothesis],
-            selectedCandidate: "今天看到焰很大"
-        )
-
-        let review = try #require(VocoCandidateReviewService.review(for: assessment))
-
-        #expect(review.candidates == ["今天看到焰很大", "今天看到炎很大"])
-        #expect(review.candidateLabels == ["Recommended", "With suggestions"])
-        #expect(review.defaultCandidate == "今天看到焰很大")
-        #expect(review.sourceDisplayNameForCandidate(at: 1) == "Suggestion pass")
-        #expect(review.reviewTriggers == reviewTriggers)
-        #expect(review.displayReviewSignals == ["Needs choice (1 suggestion)"])
-    }
-
-    @Test func candidateReviewPayloadDeduplicatesFoldedCandidates() async throws {
-        let lowercase = VocoHypothesis(
-            id: "rawASR",
-            text: "voiceink",
-            label: "Lowercase duplicate",
-            source: .rawASR,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [],
-            appliedTermIDs: [],
-            requiresReview: false
-        )
-        let canonical = VocoHypothesis(
-            id: "autoContext",
-            text: "VoiceInk",
-            label: "Canonical",
-            source: .autoContext,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
-            appliedTermIDs: ["product.voiceink"],
-            requiresReview: true
-        )
-        let product = VocoHypothesis(
-            id: "suggestedRepair",
-            text: "VOCO",
-            label: "Product",
-            source: .suggestedRepair,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
-            appliedTermIDs: ["product.voco"],
-            requiresReview: true
-        )
-        let assessment = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: [" voiceink ", "VoiceInk", "VOCO"],
-            candidateLabels: ["Lowercase duplicate", "Canonical", "Product"],
-            hypothesisDetails: [lowercase, canonical, product],
-            selectedCandidate: "VoiceInk"
-        )
-
-        let review = try #require(VocoCandidateReviewService.review(for: assessment))
-
-        #expect(review.candidates == ["VoiceInk", "VOCO"])
-        #expect(review.candidateLabels == ["Canonical", "Product"])
-        #expect(review.hypotheses.map(\.text) == ["VoiceInk", "VOCO"])
-        #expect(review.hypotheses.map(\.source) == [.autoContext, .suggestedRepair])
-    }
-
-    @Test func candidateReviewPayloadUsesFoldedSelectedCandidateMetadata() async throws {
-        let lowercase = VocoHypothesis(
-            id: "rawASR",
-            text: "voiceink",
-            label: "Lowercase duplicate",
-            source: .rawASR,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [],
-            appliedTermIDs: [],
-            requiresReview: false
-        )
-        let product = VocoHypothesis(
-            id: "suggestedRepair",
-            text: "VOCO",
-            label: "Product",
-            source: .suggestedRepair,
-            confidenceScore: 0.7,
-            reasons: ["unresolved-suggestions"],
-            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
-            appliedTermIDs: ["product.voco"],
-            requiresReview: true
-        )
-        let assessment = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: [" voiceink ", "VOCO"],
-            candidateLabels: ["Lowercase duplicate", "Product"],
-            hypothesisDetails: [lowercase, product],
-            selectedCandidate: "VoiceInk"
-        )
-
-        let review = try #require(VocoCandidateReviewService.review(for: assessment))
-
-        #expect(review.candidates == ["VoiceInk", "VOCO"])
-        #expect(review.candidateLabels == ["Lowercase duplicate", "Product"])
-        #expect(review.hypotheses.map(\.text) == ["voiceink", "VOCO"])
-        #expect(review.hypotheses.map(\.source) == [.rawASR, .suggestedRepair])
-    }
-
-    @Test func candidateReviewPayloadRequiresReviewRouteAndAlternative() async throws {
-        let duplicateOnly = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: ["今天看到焰很大", " 今天看到焰很大 "],
-            selectedCandidate: "今天看到焰很大"
-        )
-        let foldedDuplicateOnly = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: [" voiceink "],
-            selectedCandidate: "VoiceInk"
-        )
-        let directRoute = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .directInsertion,
-            reasons: ["unresolved-suggestions"],
-            candidates: ["今天看到焰很大", "今天看到炎很大"],
-            selectedCandidate: "今天看到焰很大"
-        )
-
-        #expect(VocoCandidateReviewService.review(for: duplicateOnly) == nil)
-        #expect(VocoCandidateReviewService.review(for: foldedDuplicateOnly) == nil)
-        #expect(VocoCandidateReviewService.review(for: directRoute) == nil)
     }
 
     @Test func correctionFeedbackCapturesCandidateOverride() async throws {
@@ -2541,332 +2139,18 @@ struct VoiceInkTests {
         let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
         let transcription = Transcription(text: "今天看到焰很大", duration: 0)
 
-        transcription.recordCandidateReviewFeedback(
+        let signal = CorrectionFeedbackService.candidateSelectionSignal(
             normalizationResult: result,
-            confidenceAssessment: assessment,
+            assessment: assessment,
             selectedCandidate: "今天看到炎很大",
             rawTranscript: result.originalText
         )
+        transcription.recordCorrectionFeedback(signal)
 
-        let signal = try #require(transcription.correctionFeedback.first)
-        #expect(signal.kind == .candidateSelection)
-        #expect(signal.acceptedText == "今天看到炎很大")
-        #expect(signal.reason == "candidate-override")
-    }
-
-    @Test func candidateReviewAcceptanceStoresTypedRescue() async throws {
-        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.normalizedText, duration: 0)
-
-        let signal = try #require(
-            VocoCandidateReviewService.acceptCandidate(
-                "今天看到火焰很大",
-                for: transcription,
-                normalizationResult: result,
-                confidenceAssessment: assessment,
-                rawTranscript: result.originalText
-            )
-        )
-
-        #expect(transcription.text == "今天看到火焰很大")
-        #expect(transcription.normalizedTranscript == result.normalizedText)
-        #expect(transcription.selectedCandidate == "今天看到火焰很大")
-        #expect(signal.reason == "candidate-custom")
-        #expect(transcription.correctionFeedback.first?.reason == "candidate-custom")
-        #expect(transcription.userCorrectionDistance != nil)
-        let customIndex = try #require(transcription.hypotheses.firstIndex(of: "今天看到火焰很大"))
-        #expect(transcription.hypothesisLabels[customIndex] == "Typed correction")
-        #expect(transcription.hypothesisDetails[customIndex].source == .customRescue)
-        #expect(transcription.hypothesisDetails[customIndex].requiresReview == false)
-        #expect(transcription.hypotheses.count <= 5)
-    }
-
-    @Test func candidateReviewAcceptanceUpdatesTranscriptAndFeedback() async throws {
-        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.normalizedText, duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        let signal = try #require(
-            VocoCandidateReviewService.acceptCandidate(
-                "今天看到炎很大",
-                for: transcription,
-                normalizationResult: result,
-                confidenceAssessment: assessment,
-                rawTranscript: result.originalText
-            )
-        )
-
-        #expect(transcription.text == "今天看到炎很大")
-        #expect(transcription.normalizedTranscript == result.normalizedText)
-        #expect(transcription.selectedCandidate == "今天看到炎很大")
-        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
-        #expect(transcription.userCorrectionDistance == signal.changeRatio)
-        #expect(transcription.correctionFeedback.count == 1)
-        #expect(signal.reason == "candidate-override")
-        #expect(signal.isCorrectiveSignal)
-        #expect(signal.termIDs.contains("song.homura"))
-    }
-
-    @Test func candidateReviewAcceptancePreservesAutoNormalizedTranscript() async throws {
-        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.normalizedText, duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        VocoCandidateReviewService.acceptCandidate(
-            "今天看到火焰很大",
-            for: transcription,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            rawTranscript: result.originalText
-        )
-
-        #expect(transcription.rawTranscript == result.originalText)
-        #expect(transcription.normalizedTranscript == result.normalizedText)
-        #expect(transcription.text == "今天看到火焰很大")
-        #expect(transcription.selectedCandidate == "今天看到火焰很大")
-    }
-
-    @Test func candidateReviewConfirmationDoesNotSetCorrectionDistance() async throws {
-        let result = VocoCanonicalizationService().normalize("我現在用 voice ink")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.normalizedText, duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        let signal = try #require(
-            VocoCandidateReviewService.acceptCandidate(
-                "我現在用 VoiceInk",
-                for: transcription,
-                normalizationResult: result,
-                confidenceAssessment: assessment,
-                rawTranscript: result.originalText
-            )
-        )
-
-        #expect(signal.reason == "candidate-confirmed")
-        #expect(signal.isCorrectiveSignal == false)
-        #expect(transcription.text == "我現在用 VoiceInk")
-        #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
-        #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
-        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
-        #expect(transcription.userCorrectionDistance == nil)
-        #expect(transcription.correctionFeedback.count == 1)
-    }
-
-    @Test func candidateReviewTimeoutFallbackUpdatesTranscriptWithoutCorrectionDistance() async throws {
-        let result = VocoCanonicalizationService().normalize("我現在用 voice anc")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.originalText, duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        let signal = try #require(
-            VocoCandidateReviewService.acceptCandidate(
-                "我現在用 VoiceInk",
-                for: transcription,
-                normalizationResult: result,
-                confidenceAssessment: assessment,
-                rawTranscript: result.originalText,
-                selectionSource: .timeoutFallback
-            )
-        )
-
-        #expect(signal.reason == "candidate-timeout-fallback")
-        #expect(signal.isCorrectiveSignal == false)
-        #expect(transcription.text == "我現在用 VoiceInk")
-        #expect(transcription.normalizedTranscript == "我現在用 VoiceInk")
-        #expect(transcription.selectedCandidate == "我現在用 VoiceInk")
-        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.timeoutFallback.rawValue)
-        #expect(transcription.userCorrectionDistance == nil)
-        #expect(transcription.correctionFeedback.count == 1)
-    }
-
-    @Test func persistedCandidateReviewDoesNotDuplicateSameAcceptedCandidate() async throws {
-        let result = VocoCanonicalizationService().normalize("今天看到焰很大")
-        let assessment = VocoConfidenceGateService().assess(normalizationResult: result, rawTranscript: result.originalText)
-        let transcription = Transcription(text: result.normalizedText, duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        _ = VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
-        _ = VocoCandidateReviewService.acceptPersistedCandidate("今天看到炎很大", for: transcription)
-
-        #expect(transcription.text == "今天看到炎很大")
-        #expect(transcription.normalizedTranscript == result.normalizedText)
-        #expect(transcription.selectedCandidate == "今天看到炎很大")
-        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
-        #expect(transcription.correctionFeedback.count == 1)
-        #expect(transcription.correctionFeedback.first?.acceptedText == "今天看到炎很大")
-    }
-
-    @Test func candidateReviewAcceptanceKeepsMetadataAlignedAfterFoldedDeduplication() async throws {
-        let activeContextIDs = [VocoCanonicalizationService.defaultContextPackID]
-        let details = [
-            VocoHypothesis(
-                id: "rawASR",
-                text: "voiceink",
-                label: "Lowercase duplicate",
-                source: .rawASR,
-                confidenceScore: 0.7,
-                reasons: ["unresolved-suggestions"],
-                activeContextIDs: activeContextIDs,
-                appliedTermIDs: [],
-                requiresReview: false
-            ),
-            VocoHypothesis(
-                id: "autoContext",
-                text: "VoiceInk",
-                label: "Canonical",
-                source: .autoContext,
-                confidenceScore: 0.7,
-                reasons: ["unresolved-suggestions"],
-                activeContextIDs: activeContextIDs,
-                appliedTermIDs: ["product.voiceink"],
-                requiresReview: true
-            ),
-            VocoHypothesis(
-                id: "suggestedRepair",
-                text: "VOCO",
-                label: "Product",
-                source: .suggestedRepair,
-                confidenceScore: 0.7,
-                reasons: ["unresolved-suggestions"],
-                activeContextIDs: activeContextIDs,
-                appliedTermIDs: ["product.voco"],
-                requiresReview: true
-            ),
-        ]
-        let assessment = VocoConfidenceAssessment(
-            score: 0.7,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: details.map(\.text),
-            candidateLabels: details.map(\.label),
-            hypothesisDetails: details,
-            selectedCandidate: "voiceink"
-        )
-        let result = VocoNormalizationResult(
-            originalText: "voiceink",
-            normalizedText: "voiceink",
-            activeContextIDs: activeContextIDs,
-            replacements: [],
-            suggestions: []
-        )
-        let transcription = Transcription(text: "voiceink", duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        _ = VocoCandidateReviewService.acceptCandidate(
-            "typed rescue",
-            for: transcription,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            rawTranscript: result.originalText
-        )
-
-        #expect(transcription.hypotheses == ["voiceink", "VOCO", "typed rescue"])
-        #expect(transcription.hypothesisLabels == ["Lowercase duplicate", "Product", "Typed correction"])
-        #expect(transcription.hypothesisDetails.map(\.text) == ["voiceink", "VOCO", "typed rescue"])
-        #expect(transcription.hypothesisDetails.map(\.source) == [.rawASR, .suggestedRepair, .customRescue])
-        #expect(transcription.hypothesisDetails[1].appliedTermIDs == ["product.voco"])
-    }
-
-    @Test func candidateReviewAcceptanceKeepsCustomRescueWithinPersistedLimit() async throws {
-        let candidates = ["first", "second", "third", "fourth", "fifth"]
-        let details = candidates.enumerated().map { index, candidate in
-            VocoHypothesis(
-                id: "candidate.\(index)",
-                text: candidate,
-                label: "Candidate \(index + 1)",
-                source: .autoContext,
-                confidenceScore: 0.62,
-                reasons: ["unresolved-suggestions"],
-                activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
-                appliedTermIDs: [],
-                requiresReview: true
-            )
-        }
-        let assessment = VocoConfidenceAssessment(
-            score: 0.62,
-            route: .reviewSuggested,
-            reasons: ["unresolved-suggestions"],
-            candidates: candidates,
-            candidateLabels: details.map(\.label),
-            hypothesisDetails: details,
-            selectedCandidate: "first"
-        )
-        let result = VocoNormalizationResult(
-            originalText: "first",
-            normalizedText: "first",
-            activeContextIDs: [VocoCanonicalizationService.defaultContextPackID],
-            replacements: [],
-            suggestions: []
-        )
-        let transcription = Transcription(text: "first", duration: 0)
-
-        transcription.recordASRMetadata(
-            rawTranscript: result.originalText,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            asrEngineID: "qwen3:Qwen3-ASR",
-            languageMode: "auto"
-        )
-
-        _ = VocoCandidateReviewService.acceptCandidate(
-            "typed rescue",
-            for: transcription,
-            normalizationResult: result,
-            confidenceAssessment: assessment,
-            rawTranscript: result.originalText
-        )
-
-        #expect(transcription.hypotheses.count == 5)
-        #expect(transcription.hypotheses.contains("typed rescue"))
-        #expect(!transcription.hypotheses.contains("fifth"))
-        let customIndex = try #require(transcription.hypotheses.firstIndex(of: "typed rescue"))
-        #expect(transcription.hypothesisDetails[customIndex].source == .customRescue)
-        #expect(transcription.hypothesisDetails[customIndex].sourceDisplayName == "Custom rescue")
+        let storedSignal = try #require(transcription.correctionFeedback.first)
+        #expect(storedSignal.kind == .candidateSelection)
+        #expect(storedSignal.acceptedText == "今天看到炎很大")
+        #expect(storedSignal.reason == "candidate-override")
     }
 
     @Test @MainActor func correctionRiskProfileCountsOnlyCorrectiveFeedback() async throws {

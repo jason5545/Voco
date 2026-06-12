@@ -374,23 +374,6 @@ final class Transcription {
         candidateSelectionSource = source.rawValue
     }
 
-    @discardableResult
-    func recordCandidateReviewFeedback(
-        normalizationResult: VocoNormalizationResult,
-        confidenceAssessment: VocoConfidenceAssessment,
-        selectedCandidate: String,
-        rawTranscript: String?
-    ) -> CorrectionFeedbackSignal? {
-        let signal = CorrectionFeedbackService.candidateSelectionSignal(
-            normalizationResult: normalizationResult,
-            assessment: confidenceAssessment,
-            selectedCandidate: selectedCandidate,
-            rawTranscript: rawTranscript
-        )
-        recordCorrectionFeedback(signal)
-        return signal
-    }
-
     func recordStyleGuardRejection(response: String, reasons: [String]) {
         styleGuardRejectedText = response
         styleGuardReasons = reasons
