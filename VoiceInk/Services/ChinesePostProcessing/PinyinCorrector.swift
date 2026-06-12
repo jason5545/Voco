@@ -398,7 +398,7 @@ class PinyinCorrector {
         // Process matches from end to start to keep indices valid
         var searchEnd = result.endIndex
         var ranges: [Range<String.Index>] = []
-        while let range = result.range(of: rule.wrong, range: result.startIndex..<searchEnd) {
+        while let range = result.range(of: rule.wrong, options: .backwards, range: result.startIndex..<searchEnd) {
             ranges.append(range)
             searchEnd = range.lowerBound
         }
@@ -413,7 +413,8 @@ class PinyinCorrector {
                 let nextChar = currentChars[matchEnd]
                 if nextChar.isCJK {
                     let rightPair = String(wrongChars.last!) + String(nextChar)
-                    if db.frequency(of: rightPair) > 0 {
+                    if db.frequency(of: rightPair) > 0,
+                       !allowsRightBoundaryPair(rule: rule, nextChar: nextChar) {
                         continue // skip this match
                     }
                 }
@@ -434,6 +435,13 @@ class PinyinCorrector {
         }
 
         return result
+    }
+
+    private func allowsRightBoundaryPair(rule: PinyinCorrectionRule, nextChar: Character) -> Bool {
+        rule.tier == .contextDependent
+            && rule.wrong == "組賽"
+            && rule.correct == "阻塞"
+            && nextChar == "的"
     }
 
     /// Current utterance gets priority. Cached context needs stronger evidence

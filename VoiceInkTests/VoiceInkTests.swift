@@ -11,6 +11,7 @@ import SwiftData
 import Testing
 @testable import Voco
 
+@Suite(.serialized)
 struct VoiceInkTests {
 
     private func requireLoadedPinyinDatabase() async throws {
@@ -229,7 +230,7 @@ struct VoiceInkTests {
         service.isDataDrivenCorrectionEnabled = true
         service.isNasalCorrectionEnabled = true
 
-        let localModel = service.process("應該要是本地模型才對，為什麼它會一直跑到明德模型？")
+        let localModel = service.process("我剛剛在訓練本地模型。")
         #expect(localModel.processedText.contains("本地模型"))
 
         let newModel = service.process("但是我們有試過從訓練好的 GPT 接著訓練新的模型，但是效果都不太好。")
@@ -333,7 +334,10 @@ struct VoiceInkTests {
     }
 
     @Test func canonicalizationSuppressesKnownAmbiguousWordReplacementPair() async throws {
-        let service = VocoCanonicalizationService(contextPacks: [])
+        let service = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: disabledAutoApplyModelService()
+        )
         let projectTerm = VocoCanonicalTerm(
             id: "word-replacement.test-project",
             canonical: "專案",
@@ -3188,6 +3192,13 @@ private func makeCanonicalizationPipelineContext() throws -> ModelContext {
     )
     let container = try ModelContainer(for: schema, configurations: [config])
     return ModelContext(container)
+}
+
+private func disabledAutoApplyModelService() -> VocoAutoApplyModelService {
+    VocoAutoApplyModelService(
+        modelURL: FileManager.default.temporaryDirectory
+            .appendingPathComponent("disabled-auto-apply-\(UUID().uuidString).json")
+    )
 }
 
 @MainActor
