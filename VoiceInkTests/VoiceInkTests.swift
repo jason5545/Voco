@@ -191,28 +191,59 @@ struct VoiceInkTests {
         let oldPinyin = service.isPinyinCorrectionEnabled
         let oldDataDriven = service.isDataDrivenCorrectionEnabled
         let oldNasal = service.isNasalCorrectionEnabled
-        let oldPersonal = service.isPersonalCorrectionEnabled
         defer {
             service.isOpenCCEnabled = oldOpenCC
             service.isPinyinCorrectionEnabled = oldPinyin
             service.isDataDrivenCorrectionEnabled = oldDataDriven
             service.isNasalCorrectionEnabled = oldNasal
-            service.isPersonalCorrectionEnabled = oldPersonal
         }
 
         service.isOpenCCEnabled = true
         service.isPinyinCorrectionEnabled = true
         service.isDataDrivenCorrectionEnabled = true
         service.isNasalCorrectionEnabled = true
-        service.isPersonalCorrectionEnabled = true
-
-        _ = service.process("先觸發個人校正規則載入。")
-        try await Task.sleep(nanoseconds: 3_000_000_000)
 
         let result = service.process("我不是要你鉴定什么的。如果真的要鉴定，我还有一个更严重的CP呢。")
 
         #expect(result.processedText.contains("鑑定"))
         #expect(!result.processedText.contains("簡訊"))
+    }
+
+    @Test @MainActor func chinesePostProcessingDoesNotPromoteModelPhrasesToMingde() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = ChinesePostProcessingService.shared
+        let oldOpenCC = service.isOpenCCEnabled
+        let oldPinyin = service.isPinyinCorrectionEnabled
+        let oldDataDriven = service.isDataDrivenCorrectionEnabled
+        let oldNasal = service.isNasalCorrectionEnabled
+        defer {
+            service.isOpenCCEnabled = oldOpenCC
+            service.isPinyinCorrectionEnabled = oldPinyin
+            service.isDataDrivenCorrectionEnabled = oldDataDriven
+            service.isNasalCorrectionEnabled = oldNasal
+        }
+
+        service.isOpenCCEnabled = true
+        service.isPinyinCorrectionEnabled = true
+        service.isDataDrivenCorrectionEnabled = true
+        service.isNasalCorrectionEnabled = true
+
+        let localModel = service.process("應該要是本地模型才對，為什麼它會一直跑到明德模型？")
+        #expect(localModel.processedText.contains("本地模型"))
+
+        let newModel = service.process("但是我們有試過從訓練好的 GPT 接著訓練新的模型，但是效果都不太好。")
+        #expect(newModel.processedText.contains("新的模型"))
+
+        let regularModel = service.process("因為我們現在已經有個規則性的模型來做這個事情了。")
+        #expect(regularModel.processedText.contains("規則性的模型"))
+
+        let newPrompt = service.process("我必須要開一個新的對話來避免對話污染。")
+        #expect(newPrompt.processedText.contains("新的對話"))
+
+        for result in [localModel, newModel, regularModel, newPrompt] {
+            #expect(!result.processedText.contains("明德模型"))
+        }
     }
 
     @Test func validatorRejectsAggressiveShortRewrite() async throws {

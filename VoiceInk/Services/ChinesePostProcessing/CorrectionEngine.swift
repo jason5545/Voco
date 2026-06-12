@@ -120,6 +120,16 @@ final class CorrectionProtectionList {
         "轉錄的技能",
         "retranscribe",
         "Retranscribe",
+        "本地",
+        "本地模型",
+        "新的",
+        "新的模型",
+        "新對話",
+        "新 prompt",
+        "新 context prompt",
+        "規則性",
+        "規則性的",
+        "規則性的模型",
     ]
     private var words: Set<String>
 

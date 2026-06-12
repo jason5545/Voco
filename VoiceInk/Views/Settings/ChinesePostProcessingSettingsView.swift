@@ -37,14 +37,6 @@ struct ChinesePostProcessingSettingsView: View {
                     if service.isDataDrivenCorrectionEnabled {
                         Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
                             .padding(.leading, 40)
-
-                        Toggle(isOn: $service.isPersonalCorrectionEnabled) {
-                            HStack(spacing: 4) {
-                                Text("Personal Correction")
-                                InfoTip("Automatically learn recurring phonetic error patterns from your transcription history and apply corrections.")
-                            }
-                        }
-                        .padding(.leading, 40)
                     }
                 }
 

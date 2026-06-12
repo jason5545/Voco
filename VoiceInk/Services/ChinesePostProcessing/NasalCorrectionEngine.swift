@@ -9,8 +9,7 @@ import os
 /// 1-4 character words, tries nasal swaps, and applies corrections
 /// when the candidate has overwhelmingly higher word frequency.
 ///
-/// Pipeline position: Step 3, Layer 2.5 (after HomophoneCorrectionEngine,
-/// before PersonalCorrectionEngine).
+/// Pipeline position: Step 3, Layer 2.5 (after HomophoneCorrectionEngine).
 ///
 /// Key differences from HomophoneCorrectionEngine:
 /// - No suspicious detection — scans ALL words (nasal errors produce valid words)

@@ -8955,16 +8955,6 @@
         }
       }
     },
-    "Personal Correction": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "個人修正"
-          }
-        }
-      }
-    },
     "Personal Style Guard": {
       "localizations": {
         "zh-Hant": {

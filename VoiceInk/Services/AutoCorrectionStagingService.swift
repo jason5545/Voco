@@ -61,7 +61,7 @@ final class AutoCorrectionStagingService {
         // Phonetic similarity check
         let hasCJK = origSeg.contains(where: \.isCJK) || editSeg.contains(where: \.isCJK)
         if hasCJK {
-            let similarity = PersonalCorrectionEngine.shared.pinyinSimilarity(origSeg, editSeg)
+            let similarity = PinyinSimilarity.score(origSeg, editSeg)
             guard similarity >= 0.5 else { return nil }
         } else {
             let distance = levenshteinDistance(origClean.lowercased(), editClean.lowercased())
