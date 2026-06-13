@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Testing
 @testable import Voco
 
@@ -96,6 +97,300 @@ struct VocoRuntimeCorrectionModelServiceTests {
         #expect(events.count == 1)
         #expect(events[0].postRuleText == result.normalizedText)
         #expect(events[0].chosenAction == "noop")
+    }
+
+    @Test func gatedApplyContractCanDirectlyChangeFinalTextWhenReplaySafeAndApproved() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(in: root)
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: defaults
+        )
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "runtime 小模型直接改輸出",
+                canonicalizedText: "runtime 小模型直接改輸出",
+                postRuleText: "runtime 小模型直接改輸出",
+                candidateSpans: [
+                    VocoRuntimeCorrectionCandidate(source: "直接改輸出", target: "直接改 final output", score: 0.99)
+                ]
+            )
+        )
+
+        #expect(service.status.isAvailable)
+        #expect(service.isGatedApplyEnabled)
+        #expect(evaluation.changed)
+        #expect(evaluation.outputText == "runtime 小模型直接改 final output")
+        #expect(evaluation.decision?.chosenAction == "apply")
+        #expect(evaluation.decision?.score == 0.99)
+        #expect(evaluation.decision?.reasonCodes.contains("not-worse-than-compiled-json") == true)
+
+        let events = try readRuntimeDecisionEvents(eventLog)
+        #expect(events.count == 1)
+        #expect(events[0].runtimeMode == "gatedApply")
+        #expect(events[0].chosenAction == "apply")
+        #expect(events[0].finalText == "runtime 小模型直接改 final output")
+    }
+
+    @Test func gatedApplyCanonicalizationUsesPortableCandidateSpanModelForNewGap() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(in: root)
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let runtimeDefaults = try runtimeTemporaryDefaults()
+        runtimeDefaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let runtimeService = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: runtimeDefaults
+        )
+        let autoApplyService = VocoAutoApplyModelService(
+            modelURL: try writeRuntimeAutoApplyFixture(in: root),
+            defaults: try runtimeTemporaryDefaults()
+        )
+        let canonicalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: autoApplyService,
+            runtimeCorrectionModelService: runtimeService
+        )
+
+        let result = canonicalization.normalize("runtime 小模型直接改輸出")
+
+        #expect(result.normalizedText == "runtime 小模型直接改 final output")
+        let events = try readRuntimeDecisionEvents(eventLog)
+        #expect(events.count == 1)
+        #expect(events[0].chosenAction == "apply")
+        #expect(events[0].candidates.map(\.target) == ["直接改 final output"])
+    }
+
+    @Test func gatedApplyCanonicalizationCannotRegressCompiledJsonRuleBaseline() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(
+            in: root,
+            candidateEntries: """
+                {
+                  "id": "unsafe-inverse-city-to-program",
+                  "source": "程式",
+                  "target": "城市",
+                  "score": 0.999
+                }
+            """
+        )
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let runtimeDefaults = try runtimeTemporaryDefaults()
+        runtimeDefaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let runtimeService = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: runtimeDefaults
+        )
+        let autoApplyService = VocoAutoApplyModelService(
+            modelURL: try writeRuntimeAutoApplyFixture(in: root),
+            defaults: try runtimeTemporaryDefaults()
+        )
+        let canonicalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: autoApplyService,
+            runtimeCorrectionModelService: runtimeService
+        )
+
+        let result = canonicalization.normalize("那我們又做了把這個模型給載入了，所以他在我們這個城市裡面的角色是什麼？")
+
+        #expect(result.normalizedText == "那我們又做了把這個模型給載入了，所以他在我們這個程式裡面的角色是什麼？")
+        let events = try readRuntimeDecisionEvents(eventLog)
+        #expect(events.count == 1)
+        #expect(events[0].chosenAction == "block")
+        #expect(events[0].fallbackReason == "deterministic-rule-priority")
+        #expect(events[0].candidates.map(\.target) == ["城市"])
+    }
+
+    @Test func gatedApplyCannotOverrideDeterministicJsonRuleOutput() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(in: root)
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: defaults
+        )
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "那我們又做了把這個模型給載入了，所以他在我們這個城市裡面的角色是什麼？",
+                canonicalizedText: "那我們又做了把這個模型給載入了，所以他在我們這個城市裡面的角色是什麼？",
+                postRuleText: "那我們又做了把這個模型給載入了，所以他在我們這個程式裡面的角色是什麼？",
+                deterministicRuleFires: [
+                    VocoAutoApplyPolicyFire(
+                        policyId: "runtime-test-city-to-program",
+                        policyType: "scopedReplacement",
+                        autoApplyMode: "apply",
+                        sourcePattern: "城市",
+                        targetText: "程式",
+                        sourceSlices: ["城市"]
+                    )
+                ],
+                candidateSpans: [
+                    VocoRuntimeCorrectionCandidate(source: "程式", target: "城市", score: 0.999)
+                ]
+            )
+        )
+
+        #expect(evaluation.outputText == "那我們又做了把這個模型給載入了，所以他在我們這個程式裡面的角色是什麼？")
+        #expect(evaluation.changed == false)
+        #expect(evaluation.decision?.chosenAction == "block")
+        #expect(evaluation.decision?.fallbackReason == "deterministic-rule-priority")
+        #expect(evaluation.decision?.reasonCodes.contains("not-worse-than-compiled-json") == true)
+    }
+
+    @Test func gatedApplyArtifactWithoutNotWorseReadinessCannotLoad() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(in: root, notWorse: false)
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: defaults
+        )
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "runtime 小模型直接改輸出",
+                canonicalizedText: "runtime 小模型直接改輸出",
+                postRuleText: "runtime 小模型直接改輸出",
+                candidateSpans: [
+                    VocoRuntimeCorrectionCandidate(source: "直接改輸出", target: "直接改 final output", score: 0.99)
+                ]
+            )
+        )
+
+        #expect(service.status.isAvailable == false)
+        #expect(evaluation.outputText == "runtime 小模型直接改輸出")
+        #expect(FileManager.default.fileExists(atPath: eventLog.path) == false)
+    }
+
+    @Test func gatedApplyArtifactWithInvalidCandidateSpanModelCannotLoad() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(
+            in: root,
+            candidateEntries: """
+                {
+                  "id": "invalid-empty-source",
+                  "source": "",
+                  "target": "直接改 final output",
+                  "score": 0.99
+                }
+            """
+        )
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: defaults
+        )
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "runtime 小模型直接改輸出",
+                canonicalizedText: "runtime 小模型直接改輸出",
+                postRuleText: "runtime 小模型直接改輸出"
+            )
+        )
+
+        #expect(service.status.isAvailable == false)
+        #expect(evaluation.outputText == "runtime 小模型直接改輸出")
+        #expect(FileManager.default.fileExists(atPath: eventLog.path) == false)
+    }
+
+    @Test func gatedApplyFixtureReplayDoesNotRegressRuleBaseline() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(in: root)
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: root.appendingPathComponent("gated-apply-events.jsonl"),
+            defaults: defaults
+        )
+        let ruleFire = VocoAutoApplyPolicyFire(
+            policyId: "runtime-test-city-to-program",
+            policyType: "scopedReplacement",
+            autoApplyMode: "apply",
+            sourcePattern: "城市",
+            targetText: "程式",
+            sourceSlices: ["城市"]
+        )
+        let cases: [(String, VocoRuntimeCorrectionFeatures, String, String)] = [
+            (
+                "rule baseline is preserved",
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: "城市角色",
+                    canonicalizedText: "城市角色",
+                    postRuleText: "程式角色",
+                    deterministicRuleFires: [ruleFire],
+                    candidateSpans: [
+                        VocoRuntimeCorrectionCandidate(source: "程式", target: "城市", score: 0.999)
+                    ]
+                ),
+                "程式角色",
+                "block"
+            ),
+            (
+                "action command is never rewritten",
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: "全部刪除",
+                    canonicalizedText: "全部刪除",
+                    postRuleText: "全部刪除",
+                    actionCommand: true,
+                    candidateSpans: [
+                        VocoRuntimeCorrectionCandidate(source: "全部刪除", target: "全部都刪掉", score: 0.999)
+                    ]
+                ),
+                "全部刪除",
+                "block"
+            ),
+            (
+                "new non-rule gap can improve",
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: "runtime 小模型直接改輸出",
+                    canonicalizedText: "runtime 小模型直接改輸出",
+                    postRuleText: "runtime 小模型直接改輸出",
+                    candidateSpans: [
+                        VocoRuntimeCorrectionCandidate(source: "直接改輸出", target: "直接改 final output", score: 0.99)
+                    ]
+                ),
+                "runtime 小模型直接改 final output",
+                "apply"
+            ),
+            (
+                "low confidence candidate is ignored",
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: "runtime 小模型直接改輸出",
+                    canonicalizedText: "runtime 小模型直接改輸出",
+                    postRuleText: "runtime 小模型直接改輸出",
+                    candidateSpans: [
+                        VocoRuntimeCorrectionCandidate(source: "直接改輸出", target: "直接改 final output", score: 0.9)
+                    ]
+                ),
+                "runtime 小模型直接改輸出",
+                "noop"
+            )
+        ]
+
+        for (name, features, expectedOutput, expectedAction) in cases {
+            let evaluation = service.evaluate(features)
+            #expect(evaluation.outputText == expectedOutput, "\(name) output")
+            #expect(evaluation.decision?.chosenAction == expectedAction, "\(name) action")
+        }
     }
 
     @Test func actionCommandBypassesRuntimeModelTextRewrite() throws {
@@ -240,6 +535,95 @@ private func writeRuntimeShadowArtifact(in root: URL) throws -> URL {
     return url
 }
 
+private func writeRuntimeGatedApplyArtifact(
+    in root: URL,
+    notWorse: Bool = true,
+    candidateEntries: String? = nil
+) throws -> URL {
+    let modelURL = root.appendingPathComponent("runtime-candidate-spans.fixture")
+    let entries = candidateEntries ?? """
+        {
+          "id": "runtime-direct-output",
+          "source": "直接改輸出",
+          "target": "直接改 final output",
+          "score": 0.99
+        }
+    """
+    let model = """
+    {
+      "schema": "voco.runtime-candidate-spans.v1",
+      "candidates": [
+    \(entries)
+      ]
+    }
+    """
+    try Data(model.utf8).write(to: modelURL)
+    let modelSha = try sha256Hex(of: modelURL)
+
+    let url = root.appendingPathComponent("runtime-correction-artifact.json")
+    let artifact = """
+    {
+      "schema": "voco.runtime-correction-model.v1",
+      "artifactId": "runtime-correction-gated-apply-test-contract",
+      "runtimeMode": "gatedApply",
+      "intendedUse": "runtime gated apply correction contract; preserves compiled JSON rule baseline",
+      "model": {
+        "format": "candidate-spans-v1",
+        "modelType": "candidate-ranker",
+        "path": "runtime-candidate-spans.fixture",
+        "portableRuntime": true,
+        "sha256": "\(modelSha)"
+      },
+      "approval": {
+        "allowedModes": ["gatedApply"],
+        "approvedAt": "2026-06-13T10:00:00Z",
+        "approvedBy": "Jason",
+        "approvalToken": "jason-approved-runtime-gated-apply-test",
+        "requiresJasonApprovalForApply": true,
+        "runtimeAllowed": true
+      },
+      "sourceRanker": {
+        "runtimeUsableDirectly": false
+      },
+      "safety": {
+        "actionCommandBypass": true,
+        "artifactMissingFallback": "return-post-rule-text",
+        "compiledJsonLoaderMayLoadJoblib": false,
+        "jsonExactRulePriority": true,
+        "notWorseThanCompiledJson": \(notWorse),
+        "timeoutFallback": "return-post-rule-text"
+      },
+      "decisionSchema": {
+        "schema": "voco.runtime-correction-decision.v1",
+        "actions": ["noop", "suggest", "apply", "block"],
+        "requiresEvidenceEvent": true,
+        "requiresReasonCodes": true,
+        "requiresScore": true
+      },
+      "candidateGenerator": {
+        "required": true,
+        "schema": "voco.runtime-candidate-generator.v1",
+        "sha256": "candidate-generator-test-sha"
+      },
+      "thresholdConfig": {
+        "shadow": 0.0,
+        "suggest": 0.85,
+        "gatedApply": 0.97
+      },
+      "runtimeReadiness": {
+        "actionCommandBypassVerified": true,
+        "baselineReplayPass": true,
+        "finalTextRegressionCount": \(notWorse ? 0 : 1),
+        "gatedApplyReplayPass": \(notWorse),
+        "notWorseThanCompiledJson": \(notWorse),
+        "unsafeApplyFalsePositiveCount": 0
+      }
+    }
+    """
+    try Data(artifact.utf8).write(to: url)
+    return url
+}
+
 private func writeRuntimeAutoApplyFixture(in root: URL) throws -> URL {
     let url = root.appendingPathComponent("full-db.auto-apply-model.json")
     let fixture = """
@@ -266,6 +650,12 @@ private func writeRuntimeAutoApplyFixture(in root: URL) throws -> URL {
     """
     try Data(fixture.utf8).write(to: url)
     return url
+}
+
+private func sha256Hex(of url: URL) throws -> String {
+    let data = try Data(contentsOf: url)
+    let digest = SHA256.hash(data: data)
+    return digest.map { String(format: "%02x", $0) }.joined()
 }
 
 private func readRuntimeDecisionEvents(_ url: URL) throws -> [VocoRuntimeCorrectionDecision] {
