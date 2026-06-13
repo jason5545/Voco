@@ -22,19 +22,32 @@ actor Qwen3ASREngine {
 
     private var model: Qwen3ASRModel?
     private var loadedModelId: String?
+    private var loadedAdapterFingerprint: Qwen3ASRAdapterFingerprint?
     private var hasCompletedWarmup = false
     private var adapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
 
     func loadModel(from directory: URL, modelSize: Qwen3ASRModelSize) throws {
         let modelId = modelSize.defaultModelId
+        let currentAdapterFingerprint = Qwen3ASRAudioAdapterLoader.fingerprint(in: directory)
 
         if loadedModelId == modelId {
-            if let model = model, !hasCompletedWarmup {
+            if loadedAdapterFingerprint != currentAdapterFingerprint, let model = model {
+                Self.logger.info("Qwen3-ASR adapter changed, refreshing audio encoder for \(modelId)")
+                try model.reloadAudioAdapter(from: directory)
+                adapterMetadata = model.adapterMetadata
+                loadedAdapterFingerprint = currentAdapterFingerprint
+                hasCompletedWarmup = false
+                try ensureWarmup(using: model, modelId: modelId, reason: "loadModel(adapter-refresh)")
+                return
+            } else if let model = model, !hasCompletedWarmup {
                 Self.logger.warning("Model \(modelId) loaded but warmup not completed, retrying warmup")
                 try ensureWarmup(using: model, modelId: modelId, reason: "loadModel(reuse)")
+                Self.logger.info("Model \(modelId) already loaded, skipping")
+                return
+            } else {
+                Self.logger.info("Model \(modelId) already loaded, skipping")
+                return
             }
-            Self.logger.info("Model \(modelId) already loaded, skipping")
-            return
         }
 
         unloadModel()
@@ -48,6 +61,7 @@ actor Qwen3ASREngine {
 
         self.model = newModel
         self.loadedModelId = modelId
+        self.loadedAdapterFingerprint = currentAdapterFingerprint
         self.adapterMetadata = newModel.adapterMetadata
         self.hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model loaded successfully")
@@ -176,6 +190,7 @@ actor Qwen3ASREngine {
         model?.audioEncoder.clearPosEmbeddingCache()
         model = nil
         loadedModelId = nil
+        loadedAdapterFingerprint = nil
         adapterMetadata = .unavailable
         hasCompletedWarmup = false
         MetalBudget.unpinMemory()

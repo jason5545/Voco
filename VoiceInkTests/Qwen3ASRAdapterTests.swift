@@ -46,6 +46,33 @@ struct Qwen3ASRAdapterTests {
         #expect(missingWeights.error?.contains("adapters.safetensors") == true)
     }
 
+    @Test func fingerprintTracksAdapterFileChanges() throws {
+        let adapterDirectory = try makeAdapterDirectory()
+        let modelDirectory = adapterDirectory.deletingLastPathComponent().deletingLastPathComponent()
+        let configURL = adapterDirectory.appendingPathComponent("adapter_config.json")
+        let weightsURL = adapterDirectory.appendingPathComponent("adapters.safetensors")
+
+        try validConfigData().write(to: configURL)
+        try Data("fixture-safetensors".utf8).write(to: weightsURL)
+
+        let initial = try #require(Qwen3ASRAudioAdapterLoader.fingerprint(in: modelDirectory))
+        #expect(initial.directoryPath == adapterDirectory.path)
+        #expect(initial.config.exists == true)
+        #expect(initial.weights.exists == true)
+
+        sleep(1)
+        try Data("updated-fixture-safetensors".utf8).write(to: weightsURL)
+
+        let updated = try #require(Qwen3ASRAudioAdapterLoader.fingerprint(in: modelDirectory))
+        #expect(updated != initial)
+        #expect(updated.weights.size != initial.weights.size)
+    }
+
+    @Test func fingerprintIsUnavailableWhenAdapterDirectoryIsMissing() throws {
+        let modelDirectory = try temporaryDirectory()
+        #expect(Qwen3ASRAudioAdapterLoader.fingerprint(in: modelDirectory) == nil)
+    }
+
     @Test func coordinatorLoadsAndAppliesValidAdapter() throws {
         let modelDirectory = try temporaryDirectory()
         let descriptor = try makeDescriptor(in: modelDirectory)

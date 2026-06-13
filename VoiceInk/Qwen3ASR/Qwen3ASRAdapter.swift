@@ -29,6 +29,18 @@ struct Qwen3ASRAdapterDescriptor: Equatable {
     let config: Qwen3ASRAdapterConfig
 }
 
+struct Qwen3ASRAdapterFingerprint: Equatable {
+    struct FileSignature: Equatable {
+        let exists: Bool
+        let size: UInt64?
+        let modificationDate: Date?
+    }
+
+    let directoryPath: String
+    let config: FileSignature
+    let weights: FileSignature
+}
+
 struct Qwen3ASRAdapterDiscovery: Equatable {
     let descriptor: Qwen3ASRAdapterDescriptor?
     let adapterPath: String?
@@ -142,10 +154,27 @@ enum Qwen3ASRAudioAdapterLoader {
     static let adapterDirectoryName = "qwen3-asr-speaker-audio-lora-20260612-balanced-64iter"
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRAdapter")
 
-    static func discover(in modelDirectory: URL, fileManager: FileManager = .default) -> Qwen3ASRAdapterDiscovery {
-        let adapterDirectory = modelDirectory
+    static func adapterDirectory(in modelDirectory: URL) -> URL {
+        modelDirectory
             .appendingPathComponent("adapters", isDirectory: true)
             .appendingPathComponent(adapterDirectoryName, isDirectory: true)
+    }
+
+    static func fingerprint(in modelDirectory: URL, fileManager: FileManager = .default) -> Qwen3ASRAdapterFingerprint? {
+        let adapterDirectory = adapterDirectory(in: modelDirectory)
+        guard fileManager.fileExists(atPath: adapterDirectory.path) else {
+            return nil
+        }
+
+        return Qwen3ASRAdapterFingerprint(
+            directoryPath: adapterDirectory.path,
+            config: fileSignature(for: adapterDirectory.appendingPathComponent("adapter_config.json"), fileManager: fileManager),
+            weights: fileSignature(for: adapterDirectory.appendingPathComponent("adapters.safetensors"), fileManager: fileManager)
+        )
+    }
+
+    static func discover(in modelDirectory: URL, fileManager: FileManager = .default) -> Qwen3ASRAdapterDiscovery {
+        let adapterDirectory = adapterDirectory(in: modelDirectory)
 
         guard fileManager.fileExists(atPath: adapterDirectory.path) else {
             return .unavailable()
@@ -298,5 +327,21 @@ enum Qwen3ASRAudioAdapterLoader {
             )
         }
         linear.update(parameters: ModuleParameters(values: ["weight": .value(newWeight)]))
+    }
+
+    private static func fileSignature(for url: URL, fileManager: FileManager) -> Qwen3ASRAdapterFingerprint.FileSignature {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else {
+            return Qwen3ASRAdapterFingerprint.FileSignature(
+                exists: false,
+                size: nil,
+                modificationDate: nil
+            )
+        }
+
+        return Qwen3ASRAdapterFingerprint.FileSignature(
+            exists: true,
+            size: (attributes[.size] as? NSNumber)?.uint64Value,
+            modificationDate: attributes[.modificationDate] as? Date
+        )
     }
 }
