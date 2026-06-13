@@ -8,13 +8,16 @@ final class VocoCanonicalizationService {
 
     let contextPacks: [VocoContextPack]
     private let autoApplyModelService: VocoAutoApplyModelService
+    private let runtimeCorrectionModelService: VocoRuntimeCorrectionModelService
 
     init(
         contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
-        autoApplyModelService: VocoAutoApplyModelService = .shared
+        autoApplyModelService: VocoAutoApplyModelService = .shared,
+        runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared
     ) {
         self.contextPacks = contextPacks
         self.autoApplyModelService = autoApplyModelService
+        self.runtimeCorrectionModelService = runtimeCorrectionModelService
     }
 
     func normalize(
@@ -84,14 +87,26 @@ final class VocoCanonicalizationService {
         let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
         let autoApplyGuardSuggestions = replacementRecords(from: autoApply.guardBlocks, in: autoApply.outputText)
 
-        let normalizedText = Self.removeStandaloneVocabularyTerminalPeriod(
+        let postRuleText = Self.removeStandaloneVocabularyTerminalPeriod(
             autoApply.outputText,
             vocabularyWords: personalVocabularyWords(in: termSources)
+        )
+        let runtimeCorrection = runtimeCorrectionModelService.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: text,
+                canonicalizedText: canonicalizedText,
+                postRuleText: postRuleText,
+                contextHints: contextHints,
+                deterministicRuleFires: autoApply.applied,
+                actionCommand: VoiceCommandService.shared.detectCommand(in: text) != nil,
+                protectedTermHits: autoApply.guardBlocks.map(\.term),
+                candidateSpans: []
+            )
         )
 
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: normalizedText,
+            normalizedText: runtimeCorrection.outputText,
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
             suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
