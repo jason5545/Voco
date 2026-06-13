@@ -744,10 +744,11 @@ def validate_model(
     skip_raw_input_replay: bool,
 ) -> dict[str, Any]:
     apply_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "apply"]
+    active_control_event_ids = control_event_ids_for_policies(apply_policies)
     protected_guards = protected_term_allowlist_guards(model)
     failures: list[dict[str, Any]] = []
-    positive_results = validate_positive_examples(events, apply_policies, protected_guards)
-    negative_results = validate_negative_examples(events, apply_policies, protected_guards)
+    positive_results = validate_positive_examples(events, apply_policies, active_control_event_ids, protected_guards)
+    negative_results = validate_negative_examples(events, apply_policies, active_control_event_ids, protected_guards)
     failures.extend(item for item in positive_results if not item["passed"])
     failures.extend(item for item in negative_results if not item["passed"])
     exact_conflicts = exact_apply_conflicts(apply_policies)
@@ -759,7 +760,15 @@ def validate_model(
     corpus_reports = []
     if not skip_corpus_replay:
         for name, corpus_dir in [("currentRaw", current_corpus_dir), ("rerawPre12022", reraw_corpus_dir)]:
-            report = corpus_replay_report(name, corpus_dir, model, model_path, replaylab_root, skip_raw_input_replay)
+            report = corpus_replay_report(
+                name,
+                corpus_dir,
+                model,
+                model_path,
+                replaylab_root,
+                skip_raw_input_replay,
+                base_model=base_model,
+            )
             corpus_reports.append(report)
             failures.extend(report.get("failures") or [])
     ready = not failures
@@ -780,13 +789,33 @@ def validate_model(
     }
 
 
+def control_event_ids_for_policies(policies: list[dict[str, Any]]) -> set[str]:
+    event_ids: set[str] = set()
+    for policy in policies:
+        for event_id in policy.get("controlEvidenceEventIds") or []:
+            if isinstance(event_id, str) and event_id:
+                event_ids.add(event_id)
+    return event_ids
+
+
+def should_validate_examples_for_event(event: dict[str, Any], active_control_event_ids: set[str]) -> bool:
+    action = str(event.get("action") or "")
+    if action in {"addCorrection", "addContextLockedRule"}:
+        event_id = str(event.get("eventId") or "")
+        return bool(event_id and event_id in active_control_event_ids)
+    return True
+
+
 def validate_positive_examples(
     events: list[dict[str, Any]],
     apply_policies: list[dict[str, Any]],
+    active_control_event_ids: set[str],
     protected_guards: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for event in events:
+        if not should_validate_examples_for_event(event, active_control_event_ids):
+            continue
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         examples = payload.get("examples") if isinstance(payload.get("examples"), dict) else {}
         for example in examples.get("positive") or []:
@@ -813,10 +842,13 @@ def validate_positive_examples(
 def validate_negative_examples(
     events: list[dict[str, Any]],
     apply_policies: list[dict[str, Any]],
+    active_control_event_ids: set[str],
     protected_guards: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for event in events:
+        if not should_validate_examples_for_event(event, active_control_event_ids):
+            continue
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         examples = payload.get("examples") if isinstance(payload.get("examples"), dict) else {}
         for example in examples.get("negative") or []:
@@ -917,6 +949,8 @@ def corpus_replay_report(
     model_path: Path,
     replaylab_root: Path,
     skip_raw_input_replay: bool,
+    *,
+    base_model: dict[str, Any] | None,
 ) -> dict[str, Any]:
     cleaned_path = corpus_dir / "full-db.cleaned.jsonl"
     raw_path = corpus_dir / "full-db.raw.jsonl"
@@ -938,6 +972,15 @@ def corpus_replay_report(
         else local_corpus_replay(records, model)
     )
     filter_accepted_manual_corpus_changes(cleaned_report, model)
+    baseline_cleaned_report: dict[str, Any] | None = None
+    if base_model:
+        baseline_cleaned_report = (
+            backend["auto_apply"].replay_model(records, base_model)
+            if backend and not protected_term_allowlist_guards(base_model)
+            else local_corpus_replay(records, base_model)
+        )
+        filter_accepted_manual_corpus_changes(baseline_cleaned_report, base_model)
+        suppress_inherited_baseline_corpus_changes(cleaned_report, baseline_cleaned_report)
     failures: list[dict[str, Any]] = []
     if cleaned_report["sentinelFailures"]:
         failures.append(
@@ -982,6 +1025,7 @@ def corpus_replay_report(
         "corpusDir": str(corpus_dir),
         "skipped": False,
         "cleanedReplay": compact_replay_report(cleaned_report),
+        "baselineCleanedReplay": compact_replay_report(baseline_cleaned_report) if baseline_cleaned_report else None,
         "rawInputReplay": raw_input_compact,
         "failures": failures,
     }
@@ -1025,6 +1069,45 @@ def filter_accepted_manual_corpus_changes(report: dict[str, Any], model: dict[st
     elif "autoApplyModelReady" in readiness:
         readiness["autoApplyModelReady"] = True
         readiness["reason"] = "replay passed after accepted manual corpus changes"
+
+
+def suppress_inherited_baseline_corpus_changes(report: dict[str, Any], baseline_report: dict[str, Any]) -> None:
+    unexpected = list(report.get("unexpectedChanges") or [])
+    baseline_unexpected = list(baseline_report.get("unexpectedChanges") or [])
+    if not unexpected or not baseline_unexpected:
+        return
+
+    baseline_keys = {corpus_change_key(item) for item in baseline_unexpected}
+    inherited: list[dict[str, Any]] = []
+    remaining: list[dict[str, Any]] = []
+    for item in unexpected:
+        if corpus_change_key(item) in baseline_keys:
+            inherited.append(item)
+        else:
+            remaining.append(item)
+
+    report["baselineUnexpectedChanges"] = len(baseline_unexpected)
+    report["inheritedBaselineUnexpectedChanges"] = inherited
+    report["unexpectedChanges"] = remaining
+    if report.get("sentinelFailures") or remaining:
+        return
+
+    readiness = report.get("readiness") if isinstance(report.get("readiness"), dict) else {}
+    if "rawInputReplayPass" in readiness:
+        readiness["rawInputReplayPass"] = True
+        readiness["reason"] = "raw input replay passed after inherited baseline changes were ignored"
+    elif "autoApplyModelReady" in readiness:
+        readiness["autoApplyModelReady"] = True
+        readiness["reason"] = "cleaned corpus replay passed; only inherited active-model changes were ignored"
+
+
+def corpus_change_key(item: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        int_or_none(item.get("rowPk")),
+        strict_text_key(str(item.get("before") or "")),
+        strict_text_key(str(item.get("after") or "")),
+        strict_text_key(str(item.get("cleanedText") or "")),
+    )
 
 
 def is_accepted_manual_corpus_change(item: dict[str, Any], policies_by_id: dict[str, dict[str, Any]]) -> bool:
@@ -1126,6 +1209,8 @@ def compact_replay_report(report: dict[str, Any]) -> dict[str, Any]:
         "unexpectedChanges": len(report.get("unexpectedChanges") or []),
         "originalUnexpectedChanges": report.get("originalUnexpectedChanges"),
         "acceptedManualCorpusChanges": len(report.get("acceptedManualCorpusChanges") or []),
+        "baselineUnexpectedChanges": report.get("baselineUnexpectedChanges"),
+        "inheritedBaselineUnexpectedChanges": len(report.get("inheritedBaselineUnexpectedChanges") or []),
         "manualCorpusAcceptanceExceeded": report.get("manualCorpusAcceptanceExceeded"),
         "readiness": report.get("readiness"),
     }
