@@ -2012,8 +2012,7 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     )
     if not validation["ready"]:
         return {"model": str(model_path), "validation": validation_summary(validation), "failed": True}
-    apply_readiness(model, validation)
-    write_model(model_path, model)
+    model_sha = sha256_file(model_path)
     active_model.parent.mkdir(parents=True, exist_ok=True)
     backup_path = create_model_backup(
         active_model,
@@ -2026,7 +2025,7 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
         "activateModel",
         {
             "model": str(model_path),
-            "modelSha256": sha256_file(model_path),
+            "modelSha256": model_sha,
             "activeModel": str(active_model),
             "previousActiveModelSha256": sha256_file(active_model) if active_model.exists() else None,
             "backup": str(backup_path) if backup_path else None,

@@ -1014,6 +1014,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
             control.write_model(candidate, proposal_candidate_model("preserve-active"))
             write_activation_manifest(manifest, candidate, active)
+            candidate_sha = control.sha256_file(candidate)
 
             result = control.activate_model_command(
                 activation_args(root, candidate, active, evidence, activation_manifest=manifest)
@@ -1022,6 +1023,8 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertFalse(result.get("failed"))
             self.assertTrue(result["activationGuard"]["productionRuntimeAllowed"])
             self.assertEqual(result["activationGuard"]["approvedBy"], "Jason")
+            self.assertEqual(control.sha256_file(candidate), candidate_sha)
+            self.assertEqual(control.sha256_file(active), candidate_sha)
             self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 1})
 
     def test_preserve_active_manifest_accepts_replaylab_relative_candidate_path(self):
