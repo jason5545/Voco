@@ -10,7 +10,12 @@ final class VocoConfidenceGateService {
     ) -> VocoConfidenceAssessment {
         var score = 1.0
         var reasons: [String] = []
-        let selectedCandidate = normalizationResult.normalizedText
+        let protectedTermGuarded = hasAutoApplyProtectedTermGuard(normalizationResult.suggestions)
+        let selectedCandidate = selectedCandidate(
+            normalizationResult: normalizationResult,
+            rawTranscript: rawTranscript,
+            protectedTermGuarded: protectedTermGuarded
+        )
 
         let replacementCount = normalizationResult.replacements.count
         let suggestionCount = normalizationResult.suggestions.count
@@ -25,7 +30,7 @@ final class VocoConfidenceGateService {
             reasons.append("unresolved-suggestions")
         }
 
-        if hasAutoApplyProtectedTermGuard(normalizationResult.suggestions) {
+        if protectedTermGuarded {
             score -= 0.24
             reasons.append(VocoAutoApplyModelService.protectedTermGuardReason)
         }
@@ -100,7 +105,8 @@ final class VocoConfidenceGateService {
             rawTranscript: rawTranscript,
             confidenceScore: boundedScore,
             route: route,
-            reasons: reasons
+            reasons: reasons,
+            selectedCandidate: selectedCandidate
         )
 
         return VocoConfidenceAssessment(
@@ -114,6 +120,23 @@ final class VocoConfidenceGateService {
             correctionRiskProfile: correctionRiskProfile,
             selectedCandidate: selectedCandidate
         )
+    }
+
+    private func selectedCandidate(
+        normalizationResult: VocoNormalizationResult,
+        rawTranscript: String?,
+        protectedTermGuarded: Bool
+    ) -> String {
+        guard protectedTermGuarded else {
+            return normalizationResult.normalizedText
+        }
+
+        if let rawTranscript = rawTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !rawTranscript.isEmpty {
+            return rawTranscript
+        }
+
+        return normalizationResult.originalText
     }
 
     private func reviewTriggers(

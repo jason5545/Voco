@@ -6,30 +6,63 @@ enum VocoHypothesisManagerService {
         rawTranscript: String?,
         confidenceScore: Double?,
         route: VocoConfidenceRoute,
-        reasons: [String]
+        reasons: [String],
+        selectedCandidate: String? = nil
     ) -> [VocoHypothesis] {
         let normalized = normalizationResult.normalizedText
         let suggested = applying(
             normalizationResult.replacements + normalizationResult.suggestions,
             to: normalizationResult.originalText
         )
+        let isProtectedTermGuarded = reasons.contains(VocoAutoApplyModelService.protectedTermGuardReason)
+        let normalizedSource: VocoHypothesisSource = normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") }
+            ? .autoApplyModel
+            : .autoContext
+        let normalizedLabel = normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") }
+            ? "Auto-apply model"
+            : "Recommended"
+        let primaryText: String
+        if let selectedCandidate = selectedCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !selectedCandidate.isEmpty {
+            primaryText = selectedCandidate
+        } else {
+            primaryText = normalized
+        }
+        let primaryMatchesNormalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines) == primaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let primarySource = primaryMatchesNormalized
+            ? normalizedSource
+            : source(forPrimaryText: primaryText, normalizationResult: normalizationResult, rawTranscript: rawTranscript)
+        let primaryLabel = primaryMatchesNormalized
+            ? normalizedLabel
+            : "Recommended"
 
         var drafts: [(text: String, label: String, source: VocoHypothesisSource, termIDs: [String], requiresReview: Bool)] = [
             (
-                normalized,
-                normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") } ? "Auto-apply model" : "Recommended",
-                normalizationResult.replacements.contains { $0.reason.hasPrefix("auto-apply-model") } ? .autoApplyModel : .autoContext,
-                normalizationResult.replacements.map(\.termID),
+                primaryText,
+                primaryLabel,
+                primarySource,
+                primarySource == normalizedSource ? normalizationResult.replacements.map(\.termID) : [],
                 route == .reviewSuggested
             ),
-            (
-                suggested,
-                "With suggestions",
-                .suggestedRepair,
-                (normalizationResult.replacements + normalizationResult.suggestions).map(\.termID),
-                true
-            ),
         ]
+
+        if normalized.trimmingCharacters(in: .whitespacesAndNewlines) != primaryText.trimmingCharacters(in: .whitespacesAndNewlines) {
+            drafts.append((
+                normalized,
+                isProtectedTermGuarded ? "Guarded output" : normalizedLabel,
+                normalizedSource,
+                normalizationResult.replacements.map(\.termID),
+                route == .reviewSuggested || isProtectedTermGuarded
+            ))
+        }
+
+        drafts.append((
+            suggested,
+            "With suggestions",
+            .suggestedRepair,
+            (normalizationResult.replacements + normalizationResult.suggestions).map(\.termID),
+            true
+        ))
 
         drafts.append((
             normalizationResult.originalText,
@@ -66,7 +99,7 @@ enum VocoHypothesisManagerService {
                     confidenceScore: confidenceScore,
                     divergenceFromRecommended: divergenceFromRecommended(
                         for: draft.text,
-                        recommended: normalized
+                        recommended: primaryText
                     ),
                     reasons: reasons,
                     activeContextIDs: normalizationResult.activeContextIDs,
@@ -74,6 +107,25 @@ enum VocoHypothesisManagerService {
                     requiresReview: draft.requiresReview
                 )
             }
+    }
+
+    private static func source(
+        forPrimaryText text: String,
+        normalizationResult: VocoNormalizationResult,
+        rawTranscript: String?
+    ) -> VocoHypothesisSource {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let rawTranscript,
+           rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed {
+            return .rawASR
+        }
+        if normalizationResult.originalText.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed {
+            return .originalCleaned
+        }
+        if normalizationResult.replacements.contains(where: { $0.reason.hasPrefix("auto-apply-model") }) {
+            return .autoApplyModel
+        }
+        return .autoContext
     }
 
     private static func applying(_ replacements: [VocoReplacement], to text: String) -> String {

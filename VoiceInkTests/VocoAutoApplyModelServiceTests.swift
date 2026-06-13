@@ -240,6 +240,46 @@ struct VocoAutoApplyModelServiceTests {
         })
     }
 
+    @Test func protectedTermGuardFallsBackFromPrimaryCandidateSurface() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let guardedText = "我明德是這個是 repo。"
+        let rawText = "我講的是這個是 repo。"
+        let normalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: service
+        ).normalize(guardedText, activeContextIDs: [])
+        let assessment = VocoConfidenceGateService().assess(
+            normalizationResult: normalization,
+            rawTranscript: rawText
+        )
+
+        #expect(normalization.suggestions.contains {
+            $0.reason == VocoAutoApplyModelService.protectedTermGuardReason
+        })
+        #expect(assessment.route == .reviewSuggested)
+        #expect(assessment.selectedCandidate == rawText)
+        #expect(assessment.candidates.first == rawText)
+        #expect(assessment.candidateLabels.first == "Recommended")
+        #expect(assessment.candidates.contains(guardedText))
+        #expect(assessment.labelForCandidate(at: assessment.candidates.firstIndex(of: guardedText) ?? -1) == "Guarded output")
+    }
+
+    @Test func bocoScopedReplacementAppliesToVoco() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let result = service.evaluate("你傳一個 prompt 去給那個 Boco 那邊。")
+        #expect(result.outputText == "你傳一個 prompt 去給那個 Voco 那邊。")
+        #expect(result.applied.map(\.policyId) == ["scoped-fixture-boco-voco"])
+        #expect(result.guardBlocks.isEmpty)
+    }
+
     @Test func protectedTermAllowlistGuardComesFromModelMetadata() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true, includeProtectedTermGuards: false),
@@ -366,6 +406,17 @@ struct VocoAutoApplyModelServiceTests {
               "contextAliasesAny": [],
               "contextTokensAny": ["變更", "自動學習", "昨天晚上", "最近"],
               "contextRequired": true,
+              "sourceSlices": ["controlEvidence"]
+            },
+            {
+              "policyId": "scoped-fixture-boco-voco",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "Boco",
+              "targetText": "Voco",
+              "scopedSourcePhrase": "Boco",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
               "sourceSlices": ["controlEvidence"]
             },
             {
