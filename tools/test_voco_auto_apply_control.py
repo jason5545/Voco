@@ -884,6 +884,288 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 0})
             self.assertEqual(control.load_events(evidence), [])
 
+    def test_policy_proposal_replacement_gate_fails_when_ranker_only_drops_active_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            replaylab_root = root / "replaylab"
+            artifact_dir = replaylab_root / "artifacts/probe"
+            release_dir = artifact_dir / "proposal-release-gate-dry-run"
+            corpus_dir = replaylab_root / "artifacts/corpus"
+            output_dir = root / "replacement"
+            release_dir.mkdir(parents=True)
+            corpus_dir.mkdir(parents=True)
+            for name in ["full-db.cleaned.jsonl", "full-db.raw.jsonl", "full-db.trainable-pairs.jsonl"]:
+                (corpus_dir / name).write_text('{"rowPk": 1, "rawASR": "a", "rawOpenCC": "a", "cleanedText": "A"}\n', encoding="utf-8")
+
+            active_model_path = root / "active/full-db.auto-apply-model.json"
+            active_model_path.parent.mkdir()
+            policy_a = proposal_policy("policy-a", "a", "A", 1)
+            policy_b = proposal_policy("policy-b", "b", "B", 2)
+            active_model = tiny_base_model()
+            active_model["policies"] = [policy_a, policy_b]
+            active_model["policyCounts"] = {"apply": 2}
+            active_model["policyTypeCounts"] = {"exactTrainablePair": 2}
+            control.write_model(active_model_path, active_model)
+
+            safety_gate = {
+                "schema": "voco.policy-proposal-safety-gate.v2",
+                "input": {"activeCompiledModel": str(active_model_path), "corpusDir": str(corpus_dir)},
+                "readiness": {"releaseReady": True, "productionRuntimeAllowed": False},
+                "activeModelDiff": {"candidateCoversActiveApplyPolicies": True, "droppedActiveApplyPolicyCount": 0},
+            }
+            (release_dir / "proposal-safety-gate.report.json").write_text(json.dumps(safety_gate), encoding="utf-8")
+            accepted = {
+                "proposalId": "policy-a",
+                "sourcePolicyId": "policy-a",
+                "compileGateDecision": "accepted",
+                "materializedPolicy": policy_a,
+                "ranker": {"prediction": "apply"},
+            }
+            (release_dir / "proposals.accepted.jsonl").write_text(json.dumps(accepted, ensure_ascii=False) + "\n", encoding="utf-8")
+
+            original_backend = control.load_replaylab_backend
+            control.load_replaylab_backend = lambda _root: fake_replacement_backend()
+            try:
+                result = control.run_command(
+                    Namespace(
+                        command="evalProposalReplacementGate",
+                        artifact_dir=artifact_dir,
+                        output_dir=output_dir,
+                        active_model=None,
+                        skip_raw_input_replay=False,
+                        replaylab_root=replaylab_root,
+                    )
+                )
+            finally:
+                control.load_replaylab_backend = original_backend
+
+            self.assertTrue(result["failed"])
+            self.assertEqual(result["schema"], "voco.policy-proposal-replacement-gate.v1")
+            self.assertFalse(result["readiness"]["replacementReady"])
+            self.assertFalse(result["readiness"]["productionRuntimeAllowed"])
+            self.assertEqual(result["rankerOnlyVsActive"]["droppedActiveApplyPolicyCount"], 1)
+            self.assertEqual(result["rankerOnlyVsActive"]["droppedActiveApplyPolicyIds"], ["policy-b"])
+            self.assertFalse(result["rankerOnlyVsActive"]["candidateCoversActiveApplyPolicies"])
+            self.assertEqual(result["cleanedReplayComparison"]["metrics"]["rowsMatchingCleanedText"]["delta"], -1)
+            self.assertEqual(result["rawInputReplayComparison"]["metrics"]["candidateFireCount"]["delta"], -1)
+            self.assertTrue(any(item["kind"] == "droppedActiveApplyPolicies" for item in result["readiness"]["blockers"]))
+            self.assertFalse(result["runtimeBoundaryAudit"]["productionRuntimeAllowed"])
+            self.assertTrue((output_dir / "proposal-replacement-gate.report.json").exists())
+            self.assertTrue((output_dir / "full-db.auto-apply-model.json").exists())
+
+    def test_ranker_only_candidate_cannot_activate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = root / "ranker-only/full-db.auto-apply-model.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            model = proposal_candidate_model("ranker-only-predicted-apply")
+            control.write_model(candidate, model)
+
+            result = control.activate_model_command(activation_args(root, candidate, active, evidence))
+
+            self.assertTrue(result["failed"])
+            self.assertIn("ranker-only", result["activationGuard"]["reason"])
+            self.assertFalse(result["activationGuard"]["productionRuntimeAllowed"])
+            self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 0})
+
+    def test_preserve_active_candidate_requires_approval_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = root / "preserve/full-db.auto-apply-model.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            control.write_model(candidate, proposal_candidate_model("preserve-active"))
+
+            result = control.activate_model_command(activation_args(root, candidate, active, evidence))
+
+            self.assertTrue(result["failed"])
+            self.assertIn("approval activation manifest", result["activationGuard"]["reason"])
+            self.assertFalse(result["activationGuard"]["productionRuntimeAllowed"])
+
+    def test_preserve_active_candidate_rejects_manifest_sha_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = root / "preserve/full-db.auto-apply-model.json"
+            manifest = root / "activation.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            control.write_model(candidate, proposal_candidate_model("preserve-active"))
+            write_activation_manifest(manifest, candidate, active, candidate_sha="not-the-real-sha")
+
+            result = control.activate_model_command(
+                activation_args(root, candidate, active, evidence, activation_manifest=manifest)
+            )
+
+            self.assertTrue(result["failed"])
+            self.assertEqual(result["activationGuard"]["failures"][0]["field"], "candidateModelSha256")
+            self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 0})
+
+    def test_preserve_active_candidate_with_matching_manifest_can_activate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = root / "preserve/full-db.auto-apply-model.json"
+            manifest = root / "activation.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            control.write_model(candidate, proposal_candidate_model("preserve-active"))
+            write_activation_manifest(manifest, candidate, active)
+
+            result = control.activate_model_command(
+                activation_args(root, candidate, active, evidence, activation_manifest=manifest)
+            )
+
+            self.assertFalse(result.get("failed"))
+            self.assertTrue(result["activationGuard"]["productionRuntimeAllowed"])
+            self.assertEqual(result["activationGuard"]["approvedBy"], "Jason")
+            self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 1})
+
+
+def proposal_policy(policy_id: str, source: str, target: str, row_pk: int) -> dict:
+    return {
+        "policyId": policy_id,
+        "autoApplyMode": "apply",
+        "policyType": "exactTrainablePair",
+        "exactInputRequired": True,
+        "inputStrictKey": control.strict_text_key(source),
+        "targetStrictKey": control.strict_text_key(target),
+        "sourcePattern": source,
+        "targetText": target,
+        "contextTokensAny": [],
+        "contextAliasesAny": [],
+        "contextRequired": False,
+        "contextFromContextOnly": False,
+        "requireAlias": False,
+        "evidenceRows": [row_pk],
+        "trainableRows": [row_pk],
+    }
+
+
+def proposal_candidate_model(strategy: str) -> dict:
+    model = tiny_base_model()
+    model["modelType"] = "voco-policy-proposal-candidate"
+    model["proposalSafetyGate"] = {
+        "schema": "voco.policy-proposal-safety-gate.v2",
+        "candidateStrategy": strategy,
+        "releaseReady": strategy == "preserve-active",
+        "productionRuntimeAllowed": False,
+    }
+    model["policies"] = [proposal_policy("policy-a", "a", "A", 1)]
+    model["policyCounts"] = {"apply": 1}
+    model["policyTypeCounts"] = {"exactTrainablePair": 1}
+    if strategy == "ranker-only-predicted-apply":
+        model["proposalReplacementGate"] = {
+            "candidateStrategy": "ranker-only-predicted-apply",
+            "productionRuntimeAllowed": False,
+        }
+    return model
+
+
+def activation_args(
+    root: Path,
+    candidate: Path,
+    active: Path,
+    evidence: Path,
+    *,
+    activation_manifest: Path | None = None,
+) -> Namespace:
+    return Namespace(
+        actor="test",
+        model=candidate,
+        active_model=active,
+        base_model=active,
+        evidence_store=evidence,
+        replaylab_root=root / "missing-replaylab",
+        backup_suffix="test",
+        backup_dir=None,
+        backup_retention=3,
+        activation_manifest=activation_manifest,
+        current_corpus_dir=root / "missing-current",
+        reraw_corpus_dir=root / "missing-reraw",
+        skip_corpus_replay=True,
+        skip_raw_input_replay=True,
+    )
+
+
+def write_activation_manifest(
+    path: Path,
+    candidate: Path,
+    active: Path,
+    *,
+    candidate_sha: str | None = None,
+) -> None:
+    manifest = {
+        "schema": "voco.policy-proposal-runtime-activation.v1",
+        "artifactId": "test-proposal-artifact",
+        "replaylabCommit": "0828c7b",
+        "candidateStrategy": "preserve-active",
+        "candidateModelPath": str(candidate),
+        "candidateModelSha256": candidate_sha or control.sha256_file(candidate),
+        "sourceActiveModelPath": str(active),
+        "sourceActiveModelSha256": control.sha256_file(active),
+        "safetyGateReportPath": "proposal-release-gate-dry-run/proposal-safety-gate.report.json",
+        "safetyGateReportSha256": "fixture",
+        "runtimeActivationEligible": True,
+        "requiresJasonApproval": True,
+        "approvedBy": "Jason",
+        "approvedAt": "2026-06-13T16:38:04+08:00",
+        "approvalToken": "jason-approved-fixture",
+        "allowedActivationCommand": "voco_auto_apply_control.py activateModel --model full-db.auto-apply-model.json",
+    }
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def fake_replacement_backend() -> dict:
+    class AutoApply:
+        @staticmethod
+        def replay_model(_records, model):
+            apply_count = int((model.get("policyCounts") or {}).get("apply") or 0)
+            row_results = [
+                {"rowPk": row_pk, "matchesCleaned": True, "fires": [{"policyId": f"policy-{name}"}]}
+                for row_pk, name in [(1, "a"), (2, "b")][:apply_count]
+            ]
+            return {
+                "rowCount": 2,
+                "applyPolicyCount": apply_count,
+                "candidateFireCount": apply_count,
+                "rowFireCount": apply_count,
+                "changedRows": apply_count,
+                "rowsMatchingCleanedText": apply_count,
+                "unexpectedChanges": [],
+                "sentinelFailures": [],
+                "rowResults": row_results,
+                "readiness": {"autoApplyModelReady": True},
+            }
+
+    class RawEval:
+        @staticmethod
+        def evaluate_raw_input(_raw_path, _cleaned_path, _trainable_path, model_path):
+            model = control.load_model(Path(model_path))
+            apply_count = int((model.get("policyCounts") or {}).get("apply") or 0)
+            row_results = [
+                {"rowPk": row_pk, "matchesCleaned": True, "fires": [{"policyId": f"policy-{name}"}]}
+                for row_pk, name in [(1, "a"), (2, "b")][:apply_count]
+            ]
+            return {
+                "rowCount": 2,
+                "rawAsrRowCount": 2,
+                "applyPolicyCount": apply_count,
+                "candidateFireCount": apply_count,
+                "rowFireCount": apply_count,
+                "changedRows": apply_count,
+                "rowsMatchingCleanedText": apply_count,
+                "unexpectedChanges": [],
+                "sentinelFailures": [],
+                "rowResults": row_results,
+                "readiness": {"rawInputReplayPass": True},
+            }
+
+    return {"auto_apply": AutoApply, "raw_eval": RawEval}
+
 
 def write_policy_proposal_ranker_fixture(root: Path) -> Path:
     artifact_dir = root / "artifacts/policy-proposal-model-20260613-active-122458"

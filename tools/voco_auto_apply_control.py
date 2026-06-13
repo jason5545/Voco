@@ -54,8 +54,10 @@ POLICY_PROPOSAL_MODEL_FILE = "proposal-ranker-model.joblib"
 POLICY_PROPOSAL_MANIFEST_FILE = "dataset-manifest.json"
 POLICY_PROPOSAL_REPORT_FILE = "proposal-ranker-report.json"
 POLICY_PROPOSAL_RELEASE_GATE_DIR = "proposal-release-gate-dry-run"
+POLICY_PROPOSAL_REPLACEMENT_GATE_DIR = "proposal-replacement-gate-dry-run"
 POLICY_PROPOSAL_SAFETY_GATE_DIR = "proposal-safety-gate-dry-run"
 POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE = "proposal-safety-gate.report.json"
+POLICY_PROPOSAL_REPLACEMENT_GATE_REPORT_FILE = "proposal-replacement-gate.report.json"
 
 
 def main() -> int:
@@ -144,6 +146,7 @@ def parse_args() -> argparse.Namespace:
     activate.add_argument("--backup-suffix", default="control")
     activate.add_argument("--backup-dir", type=Path, help="Optional backup directory; default is no backup.")
     activate.add_argument("--backup-retention", type=int, default=DEFAULT_BACKUP_RETENTION)
+    activate.add_argument("--activation-manifest", type=Path, help="Required for ReplayLab proposal candidates.")
     add_validation_args(activate)
 
     rollback = subparsers.add_parser("rollbackModel")
@@ -172,6 +175,12 @@ def parse_args() -> argparse.Namespace:
 
     proposal = subparsers.add_parser("inspectProposalArtifact")
     proposal.add_argument("--artifact-dir", type=Path, required=True)
+
+    replacement = subparsers.add_parser("evalProposalReplacementGate")
+    replacement.add_argument("--artifact-dir", type=Path, required=True)
+    replacement.add_argument("--output-dir", type=Path)
+    replacement.add_argument("--active-model", type=Path)
+    replacement.add_argument("--skip-raw-input-replay", action="store_true")
 
     return parser.parse_args()
 
@@ -229,6 +238,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return explain_rule_match(args.model.expanduser(), args.text, args.context)
     if args.command == "inspectProposalArtifact":
         return inspect_policy_proposal_artifact(args.artifact_dir.expanduser())
+    if args.command == "evalProposalReplacementGate":
+        return eval_policy_proposal_replacement_gate(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 
@@ -619,6 +630,375 @@ def policy_proposal_safety_gate_report_path(artifact_dir: Path) -> Path:
     if release_report.exists():
         return release_report
     return artifact_dir / POLICY_PROPOSAL_SAFETY_GATE_DIR / POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE
+
+
+def eval_policy_proposal_replacement_gate(args: argparse.Namespace) -> dict[str, Any]:
+    artifact_dir = args.artifact_dir.expanduser()
+    release_dir = artifact_dir / POLICY_PROPOSAL_RELEASE_GATE_DIR
+    safety_report_path = release_dir / POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE
+    accepted_path = release_dir / "proposals.accepted.jsonl"
+    if not safety_report_path.exists():
+        raise FileNotFoundError(f"Missing proposal safety gate report: {safety_report_path}")
+    if not accepted_path.exists():
+        raise FileNotFoundError(f"Missing accepted proposal materialization: {accepted_path}")
+
+    replaylab_root = args.replaylab_root.expanduser()
+    safety_report = load_json_object(safety_report_path)
+    report_input = safety_report.get("input") if isinstance(safety_report.get("input"), dict) else {}
+    active_model_path = expanded_optional_path(getattr(args, "active_model", None)) or resolve_replaylab_path(
+        report_input.get("activeCompiledModel"),
+        replaylab_root,
+    )
+    corpus_dir = resolve_replaylab_path(report_input.get("corpusDir"), replaylab_root)
+    if not active_model_path:
+        raise ValueError("replacement gate requires input.activeCompiledModel or --active-model")
+    if not corpus_dir:
+        raise ValueError("replacement gate requires input.corpusDir")
+
+    output_dir = expanded_optional_path(getattr(args, "output_dir", None)) or (
+        REPO_ROOT / "artifacts" / artifact_dir.name / POLICY_PROPOSAL_REPLACEMENT_GATE_DIR
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    active_model = load_model(active_model_path)
+    accepted_rows = load_jsonl(accepted_path)
+    ranker_only_model = materialize_ranker_only_replacement_candidate(active_model, accepted_rows, artifact_dir)
+    ranker_only_model_path = output_dir / DEFAULT_ACTIVE_MODEL.name
+    write_model(ranker_only_model_path, ranker_only_model)
+
+    backend = load_replaylab_backend(replaylab_root)
+    if not backend:
+        raise RuntimeError(f"ReplayLab replay backend unavailable under {replaylab_root}")
+
+    cleaned_path = corpus_dir / "full-db.cleaned.jsonl"
+    raw_path = corpus_dir / "full-db.raw.jsonl"
+    trainable_path = corpus_dir / "full-db.trainable-pairs.jsonl"
+    records = load_jsonl(cleaned_path)
+    active_cleaned = backend["auto_apply"].replay_model(records, active_model)
+    ranker_cleaned = backend["auto_apply"].replay_model(records, ranker_only_model)
+    filter_accepted_manual_corpus_changes(active_cleaned, active_model)
+    filter_accepted_manual_corpus_changes(ranker_cleaned, ranker_only_model)
+
+    active_raw: dict[str, Any] | None = None
+    ranker_raw: dict[str, Any] | None = None
+    raw_report_path: Path | None = None
+    if not getattr(args, "skip_raw_input_replay", False):
+        active_raw = backend["raw_eval"].evaluate_raw_input(raw_path, cleaned_path, trainable_path, active_model_path)
+        ranker_raw = backend["raw_eval"].evaluate_raw_input(raw_path, cleaned_path, trainable_path, ranker_only_model_path)
+        filter_accepted_manual_corpus_changes(active_raw, active_model)
+        filter_accepted_manual_corpus_changes(ranker_raw, ranker_only_model)
+        raw_report_path = output_dir / "ranker-only.full-db.auto-apply-raw-input.report.json"
+        raw_report_path.write_text(json.dumps(ranker_raw, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    active_diff = replacement_active_diff(active_model, ranker_only_model)
+    cleaned_comparison = replay_comparison(active_cleaned, ranker_cleaned)
+    raw_comparison = replay_comparison(active_raw, ranker_raw) if active_raw and ranker_raw else None
+    readiness = replacement_readiness(active_diff, cleaned_comparison, raw_comparison)
+    report = {
+        "schema": "voco.policy-proposal-replacement-gate.v1",
+        "generatedAt": now_iso(),
+        "input": {
+            "artifactDir": str(artifact_dir),
+            "activeCompiledModel": str(active_model_path),
+            "acceptedProposals": str(accepted_path),
+            "corpusDir": str(corpus_dir),
+            "preserveActiveSafetyGate": str(safety_report_path),
+        },
+        "outputs": {
+            "report": str(output_dir / POLICY_PROPOSAL_REPLACEMENT_GATE_REPORT_FILE),
+            "summary": str(output_dir / "proposal-replacement-gate.summary.md"),
+            "rankerOnlyCandidateModel": str(ranker_only_model_path),
+            "rankerOnlyRawInputReplayReport": str(raw_report_path) if raw_report_path else None,
+        },
+        "candidates": {
+            "activeCompiledRulesBaseline": model_summary(active_model, active_model_path),
+            "preserveActiveCandidate": {
+                "sourceReport": str(safety_report_path),
+                "releaseReady": ((safety_report.get("readiness") or {}).get("releaseReady") if isinstance(safety_report.get("readiness"), dict) else None),
+                "productionRuntimeAllowed": ((safety_report.get("readiness") or {}).get("productionRuntimeAllowed") if isinstance(safety_report.get("readiness"), dict) else None),
+                "activeModelDiff": safety_report.get("activeModelDiff"),
+            },
+            "rankerOnlyCandidate": model_summary(ranker_only_model, ranker_only_model_path),
+        },
+        "rankerOnlyVsActive": active_diff,
+        "cleanedReplayComparison": cleaned_comparison,
+        "rawInputReplayComparison": raw_comparison,
+        "readiness": readiness,
+        "runtimeBoundaryAudit": {
+            "rankerModelIsRuntimeModel": False,
+            "joblibActivationAllowed": False,
+            "installOrActivateCommandEmitted": False,
+            "productionRuntimeAllowed": False,
+            "candidateModelFilename": DEFAULT_ACTIVE_MODEL.name,
+            "candidateModelFilenameAllowed": True,
+            "replacementCandidateIsDryRunOnly": True,
+        },
+        "failed": not bool(readiness["replacementReady"]),
+    }
+
+    report_path = output_dir / POLICY_PROPOSAL_REPLACEMENT_GATE_REPORT_FILE
+    summary_path = output_dir / "proposal-replacement-gate.summary.md"
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_path.write_text(replacement_gate_summary(report), encoding="utf-8")
+    return report
+
+
+def resolve_replaylab_path(value: Any, replaylab_root: Path) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value)).expanduser()
+    return path if path.is_absolute() else replaylab_root / path
+
+
+def model_summary(model: dict[str, Any], path: Path) -> dict[str, Any]:
+    return {
+        "modelPath": str(path),
+        "policyCounts": model.get("policyCounts"),
+        "policyTypeCounts": model.get("policyTypeCounts"),
+        "totalPolicyCount": len(model.get("policies") or []),
+    }
+
+
+def materialize_ranker_only_replacement_candidate(
+    active_model: dict[str, Any],
+    accepted_rows: list[dict[str, Any]],
+    artifact_dir: Path,
+) -> dict[str, Any]:
+    policies: list[dict[str, Any]] = []
+    seen_policy_ids: set[str] = set()
+    for row in accepted_rows:
+        policy = row.get("materializedPolicy") if isinstance(row.get("materializedPolicy"), dict) else None
+        if not policy or policy.get("autoApplyMode") != "apply":
+            continue
+        policy_id = str(policy.get("policyId") or "")
+        if not policy_id or policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy_id)
+        policies.append(copy.deepcopy(policy))
+
+    model = {
+        "generatedAt": now_iso(),
+        "intendedUse": "ranker-only replacement gate dry-run; not installed and not production runtime approval",
+        "modelType": "voco-policy-proposal-ranker-only-materialized-candidate",
+        "sourceActiveModelGeneratedAt": active_model.get("generatedAt"),
+        "sourceArtifact": str(artifact_dir),
+        "safetyContract": list(active_model.get("safetyContract") or []),
+        "protectedTermAllowlistGuards": copy.deepcopy(active_model.get("protectedTermAllowlistGuards") or []),
+        "proposalReplacementGate": {
+            "candidateStrategy": "ranker-only-predicted-apply",
+            "productionRuntimeAllowed": False,
+            "joblibRuntimeAllowed": False,
+        },
+        "policies": policies,
+    }
+    model["policyCounts"] = dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in policies))
+    model["policyTypeCounts"] = dict(Counter(str(policy.get("policyType") or "unknown") for policy in policies))
+    return model
+
+
+def replacement_active_diff(active_model: dict[str, Any], candidate_model: dict[str, Any]) -> dict[str, Any]:
+    active_apply = apply_policies_by_id(active_model)
+    candidate_apply = apply_policies_by_id(candidate_model)
+    dropped_ids = sorted(set(active_apply) - set(candidate_apply))
+    added_ids = sorted(set(candidate_apply) - set(active_apply))
+    changed_ids = sorted(
+        policy_id
+        for policy_id in set(active_apply).intersection(candidate_apply)
+        if policy_runtime_fingerprint(active_apply[policy_id]) != policy_runtime_fingerprint(candidate_apply[policy_id])
+    )
+    return {
+        "activePolicyCounts": active_model.get("policyCounts"),
+        "candidatePolicyCounts": candidate_model.get("policyCounts"),
+        "activePolicyTypeCounts": active_model.get("policyTypeCounts"),
+        "candidatePolicyTypeCounts": candidate_model.get("policyTypeCounts"),
+        "droppedActiveApplyPolicyCount": len(dropped_ids),
+        "droppedActiveApplyPolicyIds": dropped_ids,
+        "addedPolicyCount": len(added_ids),
+        "addedPolicyIds": added_ids,
+        "changedPolicyCount": len(changed_ids),
+        "changedPolicyIds": changed_ids,
+        "candidateCoversActiveApplyPolicies": not dropped_ids,
+        "rankerOnlyCanReplaceActiveRules": not dropped_ids and not changed_ids,
+    }
+
+
+def apply_policies_by_id(model: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(policy.get("policyId")): policy
+        for policy in model.get("policies") or []
+        if policy.get("autoApplyMode") == "apply" and policy.get("policyId")
+    }
+
+
+def policy_runtime_fingerprint(policy: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "autoApplyMode": policy.get("autoApplyMode"),
+        "policyType": policy.get("policyType"),
+        "sourcePattern": policy.get("sourcePattern"),
+        "targetText": policy.get("targetText"),
+        "inputStrictKey": policy.get("inputStrictKey"),
+        "targetStrictKey": policy.get("targetStrictKey"),
+        "exactInputRequired": policy.get("exactInputRequired"),
+        "contextRequired": policy.get("contextRequired"),
+        "contextTokensAny": policy.get("contextTokensAny") or [],
+        "contextAliasesAny": policy.get("contextAliasesAny") or [],
+        "requireAlias": policy.get("requireAlias"),
+        "contextFromContextOnly": policy.get("contextFromContextOnly"),
+    }
+
+
+def replay_comparison(active_replay: dict[str, Any], candidate_replay: dict[str, Any]) -> dict[str, Any]:
+    active_rows = replay_rows_by_pk(active_replay)
+    candidate_rows = replay_rows_by_pk(candidate_replay)
+    active_matching = {key for key, row in active_rows.items() if row.get("matchesCleaned")}
+    candidate_matching = {key for key, row in candidate_rows.items() if row.get("matchesCleaned")}
+    lost_matching = sorted(active_matching - candidate_matching)
+    gained_matching = sorted(candidate_matching - active_matching)
+    metrics = {
+        "rowCount": metric_pair(active_replay, candidate_replay, "rowCount"),
+        "applyPolicyCount": metric_pair(active_replay, candidate_replay, "applyPolicyCount"),
+        "candidateFireCount": metric_pair(active_replay, candidate_replay, "candidateFireCount"),
+        "rowFireCount": metric_pair(active_replay, candidate_replay, "rowFireCount"),
+        "changedRows": metric_pair(active_replay, candidate_replay, "changedRows"),
+        "rowsMatchingCleanedText": metric_pair(active_replay, candidate_replay, "rowsMatchingCleanedText"),
+        "unexpectedChanges": metric_pair_len(active_replay, candidate_replay, "unexpectedChanges", "unexpectedChangeCount"),
+        "sentinelFailures": metric_pair_len(active_replay, candidate_replay, "sentinelFailures", "sentinelFailureCount"),
+    }
+    regressions = []
+    improvements = []
+    if metrics["rowsMatchingCleanedText"]["delta"] < 0:
+        regressions.append(
+            {
+                "kind": "rowsMatchingCleanedTextDropped",
+                "delta": metrics["rowsMatchingCleanedText"]["delta"],
+                "lostRowCount": len(lost_matching),
+                "lostRowPks": lost_matching[:50],
+            }
+        )
+    if metrics["candidateFireCount"]["delta"] < 0:
+        regressions.append({"kind": "candidateFireCountDropped", "delta": metrics["candidateFireCount"]["delta"]})
+    if metrics["unexpectedChanges"]["delta"] > 0:
+        regressions.append({"kind": "unexpectedChangesIncreased", "delta": metrics["unexpectedChanges"]["delta"]})
+    if metrics["sentinelFailures"]["delta"] > 0:
+        regressions.append({"kind": "sentinelFailuresIncreased", "delta": metrics["sentinelFailures"]["delta"]})
+    if metrics["rowsMatchingCleanedText"]["delta"] > 0:
+        improvements.append(
+            {
+                "kind": "rowsMatchingCleanedTextImproved",
+                "delta": metrics["rowsMatchingCleanedText"]["delta"],
+                "gainedRowCount": len(gained_matching),
+                "gainedRowPks": gained_matching[:50],
+            }
+        )
+    if metrics["unexpectedChanges"]["delta"] < 0:
+        improvements.append({"kind": "unexpectedChangesReduced", "delta": metrics["unexpectedChanges"]["delta"]})
+    if metrics["sentinelFailures"]["delta"] < 0:
+        improvements.append({"kind": "sentinelFailuresReduced", "delta": metrics["sentinelFailures"]["delta"]})
+    return {
+        "active": compact_replay_report(active_replay),
+        "rankerOnly": compact_replay_report(candidate_replay),
+        "metrics": metrics,
+        "regressions": regressions,
+        "improvements": improvements,
+        "lostMatchingCleanedRowCount": len(lost_matching),
+        "lostMatchingCleanedRowPks": lost_matching[:100],
+        "gainedMatchingCleanedRowCount": len(gained_matching),
+        "gainedMatchingCleanedRowPks": gained_matching[:100],
+    }
+
+
+def replay_rows_by_pk(report: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    rows: dict[int, dict[str, Any]] = {}
+    for row in report.get("rowResults") or []:
+        row_pk = int_or_none(row.get("rowPk")) if isinstance(row, dict) else None
+        if row_pk is not None:
+            rows[row_pk] = row
+    return rows
+
+
+def metric_pair(active: dict[str, Any], candidate: dict[str, Any], key: str) -> dict[str, Any]:
+    active_value = int(active.get(key) or 0)
+    candidate_value = int(candidate.get(key) or 0)
+    return {"active": active_value, "rankerOnly": candidate_value, "delta": candidate_value - active_value}
+
+
+def metric_pair_len(active: dict[str, Any], candidate: dict[str, Any], key: str, count_key: str) -> dict[str, Any]:
+    active_value = count_report_items(active, key, count_key)
+    candidate_value = count_report_items(candidate, key, count_key)
+    return {"active": active_value, "rankerOnly": candidate_value, "delta": candidate_value - active_value}
+
+
+def replacement_readiness(
+    active_diff: dict[str, Any],
+    cleaned_comparison: dict[str, Any],
+    raw_comparison: dict[str, Any] | None,
+) -> dict[str, Any]:
+    blockers: list[dict[str, Any]] = []
+    if active_diff["droppedActiveApplyPolicyCount"]:
+        blockers.append(
+            {
+                "kind": "droppedActiveApplyPolicies",
+                "count": active_diff["droppedActiveApplyPolicyCount"],
+                "samplePolicyIds": active_diff["droppedActiveApplyPolicyIds"][:25],
+            }
+        )
+    if not active_diff["candidateCoversActiveApplyPolicies"]:
+        blockers.append({"kind": "doesNotCoverActiveApplyBehavior"})
+    blockers.extend(cleaned_comparison.get("regressions") or [])
+    if raw_comparison:
+        blockers.extend({"surface": "rawInputReplay", **item} for item in raw_comparison.get("regressions") or [])
+    return {
+        "replacementReady": not blockers,
+        "productionRuntimeAllowed": False,
+        "reason": (
+            "ranker-only candidate matched or improved active compiled-rule behavior in dry-run replay"
+            if not blockers
+            else "ranker-only candidate drops or regresses active compiled-rule behavior; keep ranker as proposal/shadow gate"
+        ),
+        "blockers": blockers,
+    }
+
+
+def replacement_gate_summary(report: dict[str, Any]) -> str:
+    readiness = report["readiness"]
+    diff = report["rankerOnlyVsActive"]
+    cleaned = report["cleanedReplayComparison"]
+    raw = report.get("rawInputReplayComparison")
+    lines = [
+        "# Proposal Replacement Gate Dry Run",
+        "",
+        f"- schema: `{report['schema']}`",
+        f"- replacementReady: `{str(readiness['replacementReady']).lower()}`",
+        f"- productionRuntimeAllowed: `{str(readiness['productionRuntimeAllowed']).lower()}`",
+        f"- reason: {readiness['reason']}",
+        f"- droppedActiveApplyPolicyCount: {diff['droppedActiveApplyPolicyCount']}",
+        f"- candidateCoversActiveApplyPolicies: `{str(diff['candidateCoversActiveApplyPolicies']).lower()}`",
+        "",
+        "## Cleaned Replay",
+        replay_metric_line(cleaned, "candidateFireCount"),
+        replay_metric_line(cleaned, "changedRows"),
+        replay_metric_line(cleaned, "rowsMatchingCleanedText"),
+        replay_metric_line(cleaned, "unexpectedChanges"),
+        replay_metric_line(cleaned, "sentinelFailures"),
+    ]
+    if raw:
+        lines.extend(
+            [
+                "",
+                "## Raw Input Replay",
+                replay_metric_line(raw, "candidateFireCount"),
+                replay_metric_line(raw, "changedRows"),
+                replay_metric_line(raw, "rowsMatchingCleanedText"),
+                replay_metric_line(raw, "unexpectedChanges"),
+                replay_metric_line(raw, "sentinelFailures"),
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
+def replay_metric_line(comparison: dict[str, Any], key: str) -> str:
+    metric = comparison["metrics"][key]
+    return f"- {key}: active {metric['active']} / ranker-only {metric['rankerOnly']} / delta {metric['delta']}"
 
 
 def compile_model_command(args: argparse.Namespace) -> dict[str, Any]:
@@ -1456,6 +1836,124 @@ def apply_readiness(model: dict[str, Any], report: dict[str, Any]) -> None:
     }
 
 
+def proposal_activation_guard(
+    model: dict[str, Any],
+    model_path: Path,
+    active_model: Path,
+    activation_manifest: Path | None,
+) -> dict[str, Any]:
+    proposal_replacement_gate = model.get("proposalReplacementGate") if isinstance(model.get("proposalReplacementGate"), dict) else {}
+    proposal_safety_gate = model.get("proposalSafetyGate") if isinstance(model.get("proposalSafetyGate"), dict) else {}
+    model_type = str(model.get("modelType") or "")
+    candidate_strategy = str(
+        proposal_replacement_gate.get("candidateStrategy")
+        or proposal_safety_gate.get("candidateStrategy")
+        or ""
+    )
+    is_proposal_candidate = bool(proposal_replacement_gate or proposal_safety_gate or "proposal" in model_type)
+
+    if candidate_strategy == "ranker-only-predicted-apply":
+        return {
+            "failed": True,
+            "reason": "ranker-only proposal candidates cannot be activated as Voco runtime models",
+            "candidateStrategy": candidate_strategy,
+            "productionRuntimeAllowed": False,
+        }
+    if not is_proposal_candidate:
+        return {
+            "failed": False,
+            "candidateStrategy": None,
+            "requiresActivationManifest": False,
+            "productionRuntimeAllowed": True,
+            "reason": "standard compiled Voco model activation",
+        }
+
+    if candidate_strategy != "preserve-active":
+        return {
+            "failed": True,
+            "reason": "proposal candidate activation requires preserve-active strategy",
+            "candidateStrategy": candidate_strategy or None,
+            "productionRuntimeAllowed": False,
+        }
+    if not activation_manifest:
+        return {
+            "failed": True,
+            "reason": "preserve-active proposal candidates require an explicit Jason approval activation manifest",
+            "candidateStrategy": candidate_strategy,
+            "productionRuntimeAllowed": False,
+        }
+
+    manifest_path = activation_manifest.expanduser()
+    if not manifest_path.exists():
+        return {
+            "failed": True,
+            "reason": "activation manifest not found",
+            "manifest": str(manifest_path),
+            "candidateStrategy": candidate_strategy,
+            "productionRuntimeAllowed": False,
+        }
+    manifest = load_json_object(manifest_path)
+    failures = proposal_activation_manifest_failures(manifest, model_path, active_model, candidate_strategy)
+    if failures:
+        return {
+            "failed": True,
+            "reason": "activation manifest failed proposal runtime guard",
+            "manifest": str(manifest_path),
+            "candidateStrategy": candidate_strategy,
+            "failures": failures,
+            "productionRuntimeAllowed": False,
+        }
+    return {
+        "failed": False,
+        "reason": "preserve-active proposal candidate approved for this activation transaction",
+        "manifest": str(manifest_path),
+        "candidateStrategy": candidate_strategy,
+        "approvedBy": manifest.get("approvedBy"),
+        "approvedAt": manifest.get("approvedAt"),
+        "productionRuntimeAllowed": True,
+    }
+
+
+def proposal_activation_manifest_failures(
+    manifest: dict[str, Any],
+    model_path: Path,
+    active_model: Path,
+    candidate_strategy: str,
+) -> list[dict[str, Any]]:
+    failures: list[dict[str, Any]] = []
+    required_equals = {
+        "schema": "voco.policy-proposal-runtime-activation.v1",
+        "candidateStrategy": candidate_strategy,
+        "runtimeActivationEligible": True,
+        "requiresJasonApproval": True,
+    }
+    for field, expected in required_equals.items():
+        if manifest.get(field) != expected:
+            failures.append({"field": field, "expected": expected, "actual": manifest.get(field)})
+    if not str(manifest.get("approvalToken") or "").strip():
+        failures.append({"field": "approvalToken", "reason": "missing approval token"})
+    if str(manifest.get("approvedBy") or "").strip().lower() not in {"jason", "jason chien", "jianrui cheng"}:
+        failures.append({"field": "approvedBy", "reason": "Jason approval is required", "actual": manifest.get("approvedBy")})
+    if not str(manifest.get("approvedAt") or "").strip():
+        failures.append({"field": "approvedAt", "reason": "missing approval timestamp"})
+    candidate_sha = manifest.get("candidateModelSha256")
+    actual_candidate_sha = sha256_file(model_path)
+    if candidate_sha != actual_candidate_sha:
+        failures.append({"field": "candidateModelSha256", "expected": actual_candidate_sha, "actual": candidate_sha})
+    manifest_candidate_path = manifest.get("candidateModelPath")
+    if manifest_candidate_path and Path(str(manifest_candidate_path)).expanduser() != model_path:
+        failures.append({"field": "candidateModelPath", "expected": str(model_path), "actual": manifest_candidate_path})
+    source_active_sha = manifest.get("sourceActiveModelSha256")
+    if source_active_sha and active_model.exists():
+        actual_active_sha = sha256_file(active_model)
+        if source_active_sha != actual_active_sha:
+            failures.append({"field": "sourceActiveModelSha256", "expected": actual_active_sha, "actual": source_active_sha})
+    allowed_command = str(manifest.get("allowedActivationCommand") or "")
+    if "activateModel" not in allowed_command:
+        failures.append({"field": "allowedActivationCommand", "reason": "manifest must explicitly allow activateModel"})
+    return failures
+
+
 def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
     active_model = args.active_model.expanduser()
@@ -1463,6 +1961,9 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
     backup_retention = backup_retention_from_args(args)
     model = load_model(model_path)
+    activation_guard = proposal_activation_guard(model, model_path, active_model, getattr(args, "activation_manifest", None))
+    if activation_guard.get("failed"):
+        return {"model": str(model_path), "activationGuard": activation_guard, "failed": True}
     base_model = load_model(args.base_model.expanduser()) if args.base_model.expanduser().exists() else None
     events = load_events(evidence_store)
     validation = validate_model(
@@ -1500,6 +2001,7 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
             "backupDirectory": str(backup_dir) if backup_dir else None,
             "backupRetention": backup_retention if backup_dir else None,
             "validationReady": True,
+            "activationGuard": activation_guard,
         },
     )
     append_event(evidence_store, event)
@@ -1512,6 +2014,7 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
         "backupDirectory": str(backup_dir) if backup_dir else None,
         "backupRetention": backup_retention if backup_dir else None,
         "event": event,
+        "activationGuard": activation_guard,
         "validation": validation_summary(validation),
     }
 
