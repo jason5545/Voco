@@ -41,6 +41,142 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
             with self.assertRaisesRegex(control.RuntimeCorrectionArtifactError, "notWorseThanCompiledJson"):
                 control.validate_artifact(artifact)
 
+    def test_unsafe_model_paths_are_rejected_by_cli_guard(self):
+        unsafe_paths = [
+            "../runtime-candidate-spans.json",
+            "/private/tmp/runtime-candidate-spans.json",
+            "models//runtime-candidate-spans.json",
+            "models/./runtime-candidate-spans.json",
+            "runtime-candidate-spans.JOBLIB",
+        ]
+        for unsafe_path in unsafe_paths:
+            with self.subTest(unsafe_path=unsafe_path):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    artifact = write_gated_apply_fixture(root)
+                    patch_artifact_model_path(artifact, unsafe_path)
+
+                    with self.assertRaisesRegex(control.RuntimeCorrectionArtifactError, "model.path"):
+                        control.validate_artifact(artifact)
+
+    def test_replay_gate_reports_runtime_improvement_without_regression(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_gated_apply_fixture(
+                root / "artifact",
+                candidates=[
+                    {
+                        "id": "runtime-direct-output",
+                        "source": "直接改輸出",
+                        "target": "直接改 final output",
+                        "score": 0.99,
+                    },
+                    {
+                        "id": "action-command-danger",
+                        "source": "全部刪除",
+                        "target": "全部都刪掉",
+                        "score": 0.999,
+                    },
+                    {
+                        "id": "rule-baseline-danger",
+                        "source": "程式",
+                        "target": "城市",
+                        "score": 0.999,
+                    },
+                ],
+            )
+            replay_cases = write_replay_cases_fixture(
+                root,
+                [
+                    {
+                        "id": "new-gap-can-improve",
+                        "postRuleText": "runtime 小模型直接改輸出",
+                        "expectedFinalText": "runtime 小模型直接改 final output",
+                        "allowRuntimeChange": True,
+                    },
+                    {
+                        "id": "action-command-bypass",
+                        "postRuleText": "全部刪除",
+                        "expectedFinalText": "全部刪除",
+                        "actionCommand": True,
+                        "allowRuntimeChange": False,
+                    },
+                    {
+                        "id": "compiled-json-baseline-priority",
+                        "postRuleText": "程式角色",
+                        "expectedFinalText": "程式角色",
+                        "allowRuntimeChange": False,
+                        "deterministicRuleFires": [{"policyId": "city-to-program"}],
+                    },
+                ],
+            )
+
+            report = control.run_runtime_replay_gate(artifact, json.loads(artifact.read_text()), replay_cases)
+
+            self.assertTrue(report["readiness"]["deployReady"])
+            self.assertEqual(report["caseCount"], 3)
+            self.assertEqual(report["candidateEventCount"], 3)
+            self.assertEqual(report["candidateFireCount"], 1)
+            self.assertEqual(report["improvementCount"], 1)
+            self.assertEqual(report["finalTextRegressionCount"], 0)
+            self.assertEqual(report["unsafeApplyFalsePositiveCount"], 0)
+            self.assertEqual(report["actionCommandBypassFailureCount"], 0)
+            self.assertEqual(report["deterministicRuleOverrideCount"], 0)
+
+    def test_replay_gate_blocks_regression_against_compiled_json_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_gated_apply_fixture(
+                root / "artifact",
+                candidates=[
+                    {
+                        "id": "rule-baseline-danger",
+                        "source": "程式",
+                        "target": "城市",
+                        "score": 0.999,
+                    }
+                ],
+            )
+            replay_cases = write_replay_cases_fixture(
+                root,
+                [
+                    {
+                        "id": "compiled-json-output-must-not-regress",
+                        "postRuleText": "程式角色",
+                        "expectedFinalText": "程式角色",
+                        "allowRuntimeChange": False,
+                    }
+                ],
+            )
+
+            report = control.run_runtime_replay_gate(artifact, json.loads(artifact.read_text()), replay_cases)
+
+            self.assertFalse(report["readiness"]["deployReady"])
+            self.assertEqual(report["finalTextRegressionCount"], 1)
+            self.assertEqual(report["unsafeApplyFalsePositiveCount"], 1)
+            self.assertIn("runtime replay is worse than compiled JSON baseline", report["readiness"]["blockers"])
+            with self.assertRaisesRegex(control.RuntimeCorrectionArtifactError, "Voco-side runtime replay gate failed"):
+                control.validate_artifact(artifact, replay_cases_path=replay_cases)
+
+    def test_committed_install_requires_voco_side_replay_cases(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_gated_apply_fixture(root / "artifact")
+            target_dir = root / "runtime"
+            args = type(
+                "Args",
+                (),
+                {
+                    "artifact": artifact,
+                    "target_dir": target_dir,
+                    "backup_dir": None,
+                    "commit_install": True,
+                },
+            )()
+
+            with self.assertRaisesRegex(control.RuntimeCorrectionArtifactError, "requires Voco-side replay cases"):
+                control.install_artifact_command(args)
+
     def test_dry_run_install_does_not_write_runtime_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -88,6 +224,7 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             artifact = write_gated_apply_fixture(root / "artifact")
+            replay_cases = write_replay_cases_fixture(root)
             target_dir = root / "runtime"
             args = type(
                 "Args",
@@ -96,6 +233,8 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
                     "artifact": artifact,
                     "target_dir": target_dir,
                     "backup_dir": None,
+                    "replay_cases": replay_cases,
+                    "replay_report": root / "runtime-replay-gate.report.json",
                     "commit_install": True,
                 },
             )()
@@ -106,6 +245,8 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
             self.assertFalse(result["dryRun"])
             self.assertTrue((target_dir / control.RUNTIME_ARTIFACT_FILE).exists())
             self.assertTrue((target_dir / "runtime-candidate-spans.json").exists())
+            self.assertTrue((root / "runtime-replay-gate.report.json").exists())
+            self.assertTrue(result["vocoReplayGate"]["readiness"]["deployReady"])
 
     def test_committed_install_preserves_nested_model_relative_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -114,6 +255,7 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
                 root / "artifact",
                 model_relative_path=Path("models/runtime-candidate-spans.json"),
             )
+            replay_cases = write_replay_cases_fixture(root)
             target_dir = root / "runtime"
             args = type(
                 "Args",
@@ -122,6 +264,8 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
                     "artifact": artifact,
                     "target_dir": target_dir,
                     "backup_dir": None,
+                    "replay_cases": replay_cases,
+                    "replay_report": None,
                     "commit_install": True,
                 },
             )()
@@ -148,6 +292,7 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
                 root / "artifact",
                 model_relative_path=Path("models/new-runtime-candidate-spans.json"),
             )
+            replay_cases = write_replay_cases_fixture(root)
             args = type(
                 "Args",
                 (),
@@ -155,6 +300,8 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
                     "artifact": artifact,
                     "target_dir": target_dir,
                     "backup_dir": backup_dir,
+                    "replay_cases": replay_cases,
+                    "replay_report": None,
                     "commit_install": True,
                 },
             )()
@@ -218,11 +365,12 @@ def write_gated_apply_fixture(
     *,
     not_worse: bool = True,
     model_relative_path: Path = Path("runtime-candidate-spans.json"),
+    candidates: list[dict] | None = None,
 ) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     model = {
         "schema": "voco.runtime-candidate-spans.v1",
-        "candidates": [
+        "candidates": candidates or [
             {
                 "id": "runtime-direct-output",
                 "source": "直接改輸出",
@@ -295,6 +443,29 @@ def write_gated_apply_fixture(
     artifact_path = root / "runtime-correction-artifact.json"
     artifact_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
     return artifact_path
+
+
+def write_replay_cases_fixture(root: Path, cases: list[dict] | None = None) -> Path:
+    replay_cases = cases or [
+        {
+            "id": "new-gap-can-improve",
+            "postRuleText": "runtime 小模型直接改輸出",
+            "expectedFinalText": "runtime 小模型直接改 final output",
+            "allowRuntimeChange": True,
+        }
+    ]
+    path = root / "runtime-replay-cases.jsonl"
+    path.write_text(
+        "\n".join(json.dumps(case, ensure_ascii=False, sort_keys=True) for case in replay_cases) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def patch_artifact_model_path(artifact_path: Path, model_path: str) -> None:
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    artifact["model"]["path"] = model_path
+    artifact_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

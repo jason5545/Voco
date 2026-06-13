@@ -32,7 +32,13 @@ def main() -> int:
     args = parse_args()
     try:
         if args.command == "validateArtifact":
-            result = validate_artifact(args.artifact.expanduser())
+            result = validate_artifact(
+                args.artifact.expanduser(),
+                replay_cases_path=expanded_optional_path(args.replay_cases),
+                replay_report_path=expanded_optional_path(args.replay_report),
+            )
+        elif args.command == "replayGate":
+            result = replay_gate_command(args)
         elif args.command == "installArtifact":
             result = install_artifact_command(args)
         else:
@@ -54,14 +60,27 @@ def parse_args() -> argparse.Namespace:
 
     validate = subparsers.add_parser("validateArtifact")
     validate.add_argument("--artifact", type=Path, required=True)
+    validate.add_argument("--replay-cases", type=Path)
+    validate.add_argument("--replay-report", type=Path)
+
+    replay = subparsers.add_parser("replayGate")
+    replay.add_argument("--artifact", type=Path, required=True)
+    replay.add_argument("--replay-cases", type=Path, required=True)
+    replay.add_argument("--report", type=Path)
 
     install = subparsers.add_parser("installArtifact")
     install.add_argument("--artifact", type=Path, required=True)
     install.add_argument("--target-dir", type=Path, default=DEFAULT_RUNTIME_MODEL_DIR)
     install.add_argument("--backup-dir", type=Path)
+    install.add_argument("--replay-cases", type=Path)
+    install.add_argument("--replay-report", type=Path)
     install.add_argument("--commit-install", action="store_true")
 
     return parser.parse_args()
+
+
+def expanded_optional_path(path: Path | None) -> Path | None:
+    return path.expanduser() if path else None
 
 
 def load_json(path: Path) -> Any:
@@ -89,14 +108,24 @@ def require(condition: bool, message: str) -> None:
 
 def safe_relative_path(value: Any, field_name: str) -> Path:
     require(isinstance(value, str), f"{field_name} must be a string")
-    path = Path(value)
     require(value != "", f"{field_name} is required")
+    require(not value.lower().endswith(".joblib"), f"{field_name} must not point to a joblib ranker")
+    path = Path(value)
     require(not path.is_absolute(), f"{field_name} must be relative")
-    require(".." not in path.parts, f"{field_name} must not traverse outside the artifact directory")
+    parts = value.split("/")
+    require(
+        all(part not in ("", ".", "..") for part in parts),
+        f"{field_name} must be a safe relative path",
+    )
     return path
 
 
-def validate_artifact(artifact_path: Path) -> dict[str, Any]:
+def validate_artifact(
+    artifact_path: Path,
+    *,
+    replay_cases_path: Path | None = None,
+    replay_report_path: Path | None = None,
+) -> dict[str, Any]:
     artifact_path = artifact_path.resolve()
     require(artifact_path.suffix != ".joblib", "Runtime correction artifact must be a manifest, not a joblib ranker")
     artifact = load_json(artifact_path)
@@ -105,10 +134,22 @@ def validate_artifact(artifact_path: Path) -> dict[str, Any]:
 
     mode = artifact.get("runtimeMode")
     if mode == "shadow":
-        return validate_shadow_artifact(artifact_path, artifact)
-    if mode == "gatedApply":
-        return validate_gated_apply_artifact(artifact_path, artifact)
-    raise RuntimeCorrectionArtifactError(f"Unsupported runtime correction artifact mode: {mode}")
+        result = validate_shadow_artifact(artifact_path, artifact)
+    elif mode == "gatedApply":
+        result = validate_gated_apply_artifact(artifact_path, artifact)
+    else:
+        raise RuntimeCorrectionArtifactError(f"Unsupported runtime correction artifact mode: {mode}")
+
+    if replay_cases_path:
+        require(mode == "gatedApply", "Voco-side runtime replay gate only supports gatedApply artifacts")
+        replay_report = run_runtime_replay_gate(artifact_path, artifact, replay_cases_path)
+        write_json_report_if_requested(replay_report, replay_report_path)
+        require(
+            replay_report["readiness"]["deployReady"] is True,
+            "Voco-side runtime replay gate failed: " + ", ".join(replay_report["readiness"]["blockers"]),
+        )
+        result["vocoReplayGate"] = replay_report
+    return result
 
 
 def validate_shadow_artifact(artifact_path: Path, artifact: dict[str, Any]) -> dict[str, Any]:
@@ -228,6 +269,296 @@ def validate_candidate_span_model(model_path: Path) -> dict[str, Any]:
     return model
 
 
+def replay_gate_command(args: argparse.Namespace) -> dict[str, Any]:
+    artifact_path = args.artifact.expanduser().resolve()
+    artifact = load_json(artifact_path)
+    require(isinstance(artifact, dict), "Runtime correction artifact must be a JSON object")
+    validate_artifact(artifact_path)
+    require(artifact.get("runtimeMode") == "gatedApply", "Runtime replay gate only supports gatedApply artifacts")
+    report = run_runtime_replay_gate(artifact_path, artifact, args.replay_cases.expanduser())
+    write_json_report_if_requested(report, expanded_optional_path(args.report))
+    require(
+        report["readiness"]["deployReady"] is True,
+        "Voco-side runtime replay gate failed: " + ", ".join(report["readiness"]["blockers"]),
+    )
+    return report
+
+
+def write_json_report_if_requested(report: dict[str, Any], report_path: Path | None) -> None:
+    if not report_path:
+        return
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def run_runtime_replay_gate(
+    artifact_path: Path,
+    artifact: dict[str, Any],
+    replay_cases_path: Path,
+) -> dict[str, Any]:
+    artifact_dir = artifact_path.parent
+    model = object_field(artifact, "model")
+    model_path = artifact_dir / safe_relative_path(model.get("path", ""), "model.path")
+    candidate_model = validate_candidate_span_model(model_path)
+    threshold = float(object_field(artifact, "thresholdConfig").get("gatedApply", 1.0))
+    safety = object_field(artifact, "safety")
+    cases = load_replay_cases(replay_cases_path)
+
+    details: list[dict[str, Any]] = []
+    candidate_event_count = 0
+    candidate_fire_count = 0
+    changed_rows = 0
+    baseline_rows_matching_expected = 0
+    rows_matching_expected = 0
+    improvement_count = 0
+    missed_improvement_count = 0
+    final_text_regression_count = 0
+    unsafe_apply_false_positive_count = 0
+    action_command_bypass_failure_count = 0
+    deterministic_rule_override_count = 0
+    protected_term_override_count = 0
+
+    for index, case in enumerate(cases):
+        case_id = str(case.get("id") or f"case-{index + 1}")
+        post_rule_text = required_string(case, "postRuleText", case_id)
+        expected_final_text = required_string(case, "expectedFinalText", case_id)
+        raw_transcript = string_field(case, "rawTranscript", default=post_rule_text)
+        canonicalized_text = string_field(case, "canonicalizedText", default=post_rule_text)
+        context_hints = list_of_strings(case.get("contextHints", []), f"{case_id}.contextHints")
+        app_mode = case.get("appMode")
+        require(app_mode is None or isinstance(app_mode, str), f"{case_id}.appMode must be a string")
+        deterministic_rule_fires = list_field_if_present(case, "deterministicRuleFires")
+        protected_term_hits = list_of_strings(case.get("protectedTermHits", []), f"{case_id}.protectedTermHits")
+        action_command = bool(case.get("actionCommand", False))
+        allow_runtime_change = bool(case.get("allowRuntimeChange", expected_final_text != post_rule_text))
+        unsafe_to_apply = bool(case.get("unsafeToApply", False))
+
+        candidates = runtime_candidates_for_case(
+            candidate_model,
+            raw_transcript=raw_transcript,
+            post_rule_text=post_rule_text,
+            context_hints=context_hints,
+            app_mode=app_mode,
+        )
+        if candidates:
+            candidate_event_count += 1
+        decision = evaluate_runtime_case(
+            artifact=artifact,
+            threshold=threshold,
+            candidates=candidates,
+            post_rule_text=post_rule_text,
+            action_command=action_command,
+            deterministic_rule_fires=deterministic_rule_fires,
+            protected_term_hits=protected_term_hits,
+        )
+        final_text = decision["finalText"]
+        baseline_matches_expected = post_rule_text == expected_final_text
+        runtime_matches_expected = final_text == expected_final_text
+        changed = final_text != post_rule_text
+        if decision["chosenAction"] == "apply":
+            candidate_fire_count += 1
+        if changed:
+            changed_rows += 1
+        if baseline_matches_expected:
+            baseline_rows_matching_expected += 1
+        if runtime_matches_expected:
+            rows_matching_expected += 1
+        if baseline_matches_expected and not runtime_matches_expected:
+            final_text_regression_count += 1
+        if not baseline_matches_expected and runtime_matches_expected:
+            improvement_count += 1
+        if not baseline_matches_expected and not runtime_matches_expected:
+            missed_improvement_count += 1
+        if (unsafe_to_apply or not allow_runtime_change) and changed:
+            unsafe_apply_false_positive_count += 1
+        if action_command and changed:
+            action_command_bypass_failure_count += 1
+        if deterministic_rule_fires and safety.get("jsonExactRulePriority") is True and changed:
+            deterministic_rule_override_count += 1
+        if protected_term_hits and changed:
+            protected_term_override_count += 1
+
+        details.append(
+            {
+                "id": case_id,
+                "postRuleText": post_rule_text,
+                "expectedFinalText": expected_final_text,
+                "finalText": final_text,
+                "chosenAction": decision["chosenAction"],
+                "fallbackReason": decision["fallbackReason"],
+                "candidateCount": len(candidates),
+                "changed": changed,
+                "baselineMatchesExpected": baseline_matches_expected,
+                "runtimeMatchesExpected": runtime_matches_expected,
+                "regression": baseline_matches_expected and not runtime_matches_expected,
+                "improvement": not baseline_matches_expected and runtime_matches_expected,
+            }
+        )
+
+    case_count = len(cases)
+    runtime_replay_pass = case_count > 0 and rows_matching_expected == case_count
+    not_worse_than_compiled_json = (
+        final_text_regression_count == 0
+        and unsafe_apply_false_positive_count == 0
+        and action_command_bypass_failure_count == 0
+        and deterministic_rule_override_count == 0
+        and protected_term_override_count == 0
+    )
+    blockers: list[str] = []
+    if case_count == 0:
+        blockers.append("replay case set is empty")
+    if not runtime_replay_pass:
+        blockers.append("runtime replay does not match expected final text for every case")
+    if not not_worse_than_compiled_json:
+        blockers.append("runtime replay is worse than compiled JSON baseline")
+
+    return {
+        "schema": "voco.runtime-correction-replay-gate.v1",
+        "artifactId": artifact.get("artifactId"),
+        "artifactPath": str(artifact_path),
+        "artifactSha256": sha256_hex(artifact_path),
+        "replayCasesPath": str(replay_cases_path),
+        "caseCount": case_count,
+        "candidateEventCount": candidate_event_count,
+        "candidateFireCount": candidate_fire_count,
+        "changedRows": changed_rows,
+        "baselineRowsMatchingExpectedFinalText": baseline_rows_matching_expected,
+        "rowsMatchingExpectedFinalText": rows_matching_expected,
+        "improvementCount": improvement_count,
+        "missedImprovementCount": missed_improvement_count,
+        "finalTextRegressionCount": final_text_regression_count,
+        "unsafeApplyFalsePositiveCount": unsafe_apply_false_positive_count,
+        "actionCommandBypassFailureCount": action_command_bypass_failure_count,
+        "deterministicRuleOverrideCount": deterministic_rule_override_count,
+        "protectedTermOverrideCount": protected_term_override_count,
+        "readiness": {
+            "runtimeReplayPass": runtime_replay_pass,
+            "notWorseThanCompiledJson": not_worse_than_compiled_json,
+            "deployReady": runtime_replay_pass and not_worse_than_compiled_json,
+            "blockers": blockers,
+        },
+        "details": details,
+    }
+
+
+def load_replay_cases(path: Path) -> list[dict[str, Any]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise RuntimeCorrectionArtifactError(f"Replay cases not found: {path}") from error
+
+    if path.suffix == ".json":
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as error:
+            raise RuntimeCorrectionArtifactError(f"Invalid replay cases JSON: {path}: {error}") from error
+        cases = data.get("cases") if isinstance(data, dict) else data
+        require(isinstance(cases, list), "Replay cases JSON must be a list or an object with cases")
+        require(all(isinstance(case, dict) for case in cases), "Replay cases must be JSON objects")
+        return cases
+
+    cases: list[dict[str, Any]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            case = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise RuntimeCorrectionArtifactError(f"Invalid replay cases JSONL line {line_number}: {error}") from error
+        require(isinstance(case, dict), f"Replay case line {line_number} must be a JSON object")
+        cases.append(case)
+    return cases
+
+
+def runtime_candidates_for_case(
+    candidate_model: dict[str, Any],
+    *,
+    raw_transcript: str,
+    post_rule_text: str,
+    context_hints: list[str],
+    app_mode: str | None,
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for candidate in candidate_model.get("candidates", []):
+        source = candidate["source"]
+        if source not in post_rule_text:
+            continue
+        raw_contains = candidate.get("rawContains")
+        if raw_contains and raw_contains not in raw_transcript:
+            continue
+        post_rule_contains = candidate.get("postRuleContains")
+        if post_rule_contains and post_rule_contains not in post_rule_text:
+            continue
+        context_hint_contains = candidate.get("contextHintContains")
+        if context_hint_contains:
+            has_context = any(context_hint_contains in hint for hint in context_hints)
+            has_context = has_context or (isinstance(app_mode, str) and context_hint_contains in app_mode)
+            if not has_context:
+                continue
+        candidates.append(
+            {
+                "source": source,
+                "target": candidate["target"],
+                "score": float(candidate.get("score", 0)),
+            }
+        )
+    return candidates
+
+
+def evaluate_runtime_case(
+    *,
+    artifact: dict[str, Any],
+    threshold: float,
+    candidates: list[dict[str, Any]],
+    post_rule_text: str,
+    action_command: bool,
+    deterministic_rule_fires: list[Any],
+    protected_term_hits: list[str],
+) -> dict[str, Any]:
+    safety = object_field(artifact, "safety")
+    if action_command:
+        return {"chosenAction": "block", "fallbackReason": "action-command-bypass", "finalText": post_rule_text}
+    if deterministic_rule_fires and safety.get("jsonExactRulePriority") is True:
+        return {"chosenAction": "block", "fallbackReason": "deterministic-rule-priority", "finalText": post_rule_text}
+    if protected_term_hits:
+        return {"chosenAction": "block", "fallbackReason": "protected-term-bypass", "finalText": post_rule_text}
+
+    eligible = [candidate for candidate in candidates if candidate["score"] >= threshold]
+    if not eligible:
+        return {"chosenAction": "noop", "fallbackReason": "no-candidate-above-gated-threshold", "finalText": post_rule_text}
+    candidate = sorted(eligible, key=lambda item: item["score"], reverse=True)[0]
+    if candidate["source"] not in post_rule_text:
+        return {"chosenAction": "noop", "fallbackReason": "candidate-source-not-found", "finalText": post_rule_text}
+    final_text = post_rule_text.replace(candidate["source"], candidate["target"])
+    if final_text == post_rule_text:
+        return {"chosenAction": "noop", "fallbackReason": "candidate-does-not-change-output", "finalText": post_rule_text}
+    return {"chosenAction": "apply", "fallbackReason": "", "finalText": final_text}
+
+
+def required_string(case: dict[str, Any], field: str, case_id: str) -> str:
+    value = case.get(field)
+    require(isinstance(value, str) and value != "", f"{case_id}.{field} is required")
+    return value
+
+
+def string_field(case: dict[str, Any], field: str, *, default: str) -> str:
+    value = case.get(field, default)
+    require(isinstance(value, str), f"{field} must be a string")
+    return value
+
+
+def list_field_if_present(case: dict[str, Any], field: str) -> list[Any]:
+    value = case.get(field, [])
+    require(isinstance(value, list), f"{field} must be a list")
+    return value
+
+
+def list_of_strings(value: Any, field_name: str) -> list[str]:
+    require(isinstance(value, list), f"{field_name} must be a list")
+    require(all(isinstance(item, str) for item in value), f"{field_name} must contain only strings")
+    return value
+
+
 def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
     artifact_path = args.artifact.expanduser().resolve()
     validation = validate_artifact(artifact_path)
@@ -248,10 +579,22 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     if dry_run:
+        if getattr(args, "replay_cases", None):
+            replay_report = run_runtime_replay_gate(artifact_path, load_json(artifact_path), args.replay_cases.expanduser())
+            write_json_report_if_requested(replay_report, expanded_optional_path(getattr(args, "replay_report", None)))
+            result["vocoReplayGate"] = replay_report
         return result
     require(
         validation.get("runtimeMode") == "gatedApply" and validation.get("productionRuntimeAllowed") is True,
         "Committed runtime correction install requires a production-allowed gatedApply artifact",
+    )
+    replay_cases_path = expanded_optional_path(getattr(args, "replay_cases", None))
+    require(replay_cases_path is not None, "Committed runtime correction install requires Voco-side replay cases")
+    replay_report = run_runtime_replay_gate(artifact_path, load_json(artifact_path), replay_cases_path)
+    write_json_report_if_requested(replay_report, expanded_optional_path(getattr(args, "replay_report", None)))
+    require(
+        replay_report["readiness"]["deployReady"] is True,
+        "Committed runtime correction install requires passing Voco-side replay gate",
     )
 
     backup_dir = args.backup_dir.expanduser() if args.backup_dir else default_backup_dir(target_dir)
@@ -264,6 +607,7 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
         shutil.copy2(model_path, model_install_path)
     result["installed"] = True
     result["backupDir"] = str(backup_dir)
+    result["vocoReplayGate"] = replay_report
     return result
 
 
