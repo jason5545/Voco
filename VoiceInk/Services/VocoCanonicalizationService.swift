@@ -84,9 +84,14 @@ final class VocoCanonicalizationService {
         let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
         let autoApplyGuardSuggestions = replacementRecords(from: autoApply.guardBlocks, in: autoApply.outputText)
 
+        let normalizedText = Self.removeStandaloneVocabularyTerminalPeriod(
+            autoApply.outputText,
+            vocabularyWords: personalVocabularyWords(in: termSources)
+        )
+
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: autoApply.outputText,
+            normalizedText: normalizedText,
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
             suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
@@ -136,6 +141,26 @@ final class VocoCanonicalizationService {
                     autoReplaceThreshold: 0.97
                 )
             }
+    }
+
+    static func removeStandaloneVocabularyTerminalPeriod(
+        _ text: String,
+        vocabularyWords: [String]
+    ) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.last == "。" || trimmed.last == "." else { return text }
+
+        let candidate = String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty,
+              candidate.containsCJKOrKana
+        else { return text }
+
+        let vocabulary = Set(
+            vocabularyWords
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        return vocabulary.contains(candidate) ? candidate : text
     }
 
     private static func containsProtectedWord(_ text: String) -> Bool {
@@ -379,6 +404,13 @@ final class VocoCanonicalizationService {
         }
 
         return candidates
+    }
+
+    private func personalVocabularyWords(in termSources: [TermCandidateSource]) -> [String] {
+        termSources
+            .map(\.term)
+            .filter { $0.type == "personal-vocabulary" }
+            .map(\.canonical)
     }
 
     private func replacementRecords(

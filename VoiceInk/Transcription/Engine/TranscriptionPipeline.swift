@@ -456,9 +456,9 @@ class TranscriptionPipeline {
         transcription: Transcription
     ) async -> String {
         var acceptedText = enhancedText
+        let customVocabulary = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
 
         if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
-            let customVocabulary = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
             let protectedTerms = customVocabulary + CorrectionProtectionList.shared.allWords()
             let insertedProtectedTerms = VocoAutoApplyModelService.shared.protectedTermGuardTerms()
             let descriptor = FetchDescriptor<WordReplacement>(predicate: #Predicate { $0.isEnabled })
@@ -521,6 +521,10 @@ class TranscriptionPipeline {
                 }
             }
         }
+        acceptedText = VocoCanonicalizationService.removeStandaloneVocabularyTerminalPeriod(
+            acceptedText,
+            vocabularyWords: customVocabulary
+        )
 
         return acceptedText
     }
