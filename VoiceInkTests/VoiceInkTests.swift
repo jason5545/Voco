@@ -62,6 +62,30 @@ struct VoiceInkTests {
         #expect(result.isValid == true)
     }
 
+    @Test func validatorRejectsInsertedDisallowedMingdeTerm() async throws {
+        let result = LLMResponseValidator.shared.validate(
+            response: "所以你整體看我的構音障礙到底到了什麼程度？我越來越懷疑自己比我自己明德嚴重了。",
+            original: "所以你整體看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。"
+        )
+
+        #expect(result.isValid == false)
+        #expect(result.reasons.contains("inserted-protected-term:明德"))
+    }
+
+    @Test func validatorAllowsMingdeWhenOriginalMentionsErrorOrAllowlistedPhrase() async throws {
+        let complaint = LLMResponseValidator.shared.validate(
+            response: "你看那個明德又出來了。",
+            original: "你看那個明德又出來了。"
+        )
+        #expect(complaint.isValid == true)
+
+        let station = LLMResponseValidator.shared.validate(
+            response: "我們在明德捷運站碰面。",
+            original: "我們在明德捷運站碰面。"
+        )
+        #expect(station.isValid == true)
+    }
+
     @Test func validatorAllowsVocabularyTermWithInsertedDigit() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "我的 M5 Max 128GB 的筆電是在吃電池的。",
@@ -247,6 +271,32 @@ struct VoiceInkTests {
         }
     }
 
+    @Test @MainActor func chinesePostProcessingDoesNotPromoteCorrectRawThoughtPhraseToMingde() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = ChinesePostProcessingService.shared
+        let oldOpenCC = service.isOpenCCEnabled
+        let oldPinyin = service.isPinyinCorrectionEnabled
+        let oldDataDriven = service.isDataDrivenCorrectionEnabled
+        let oldNasal = service.isNasalCorrectionEnabled
+        defer {
+            service.isOpenCCEnabled = oldOpenCC
+            service.isPinyinCorrectionEnabled = oldPinyin
+            service.isDataDrivenCorrectionEnabled = oldDataDriven
+            service.isNasalCorrectionEnabled = oldNasal
+        }
+
+        service.isOpenCCEnabled = true
+        service.isPinyinCorrectionEnabled = true
+        service.isDataDrivenCorrectionEnabled = true
+        service.isNasalCorrectionEnabled = true
+
+        let result = service.process("所以你整体看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。")
+
+        #expect(result.processedText.contains("想的嚴重"))
+        #expect(!result.processedText.contains("明德嚴重"))
+    }
+
     @Test func validatorRejectsAggressiveShortRewrite() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "網葉斑",
@@ -275,6 +325,35 @@ struct VoiceInkTests {
         #expect(service.normalize("我現在用 qwen three asr 的 mlx 版本").normalizedText == "我現在用 Qwen3-ASR 的 MLX 版本")
         #expect(service.normalize("我還是會留 whisper.cpp 支援").normalizedText == "我還是會留 whisper.cpp 支援")
         #expect(service.normalize("我現在跑 Mac OS 26 Tahoe").normalizedText == "我現在跑 macOS 26 Tahoe")
+    }
+
+    @Test func canonicalizationNormalizesCOIToCLIOnlyInCommandRepairContext() async throws {
+        let service = VocoCanonicalizationService(autoApplyModelService: disabledAutoApplyModelService())
+
+        let spaced = service.normalize("所以你可以用 C O I 再修一下。")
+        #expect(spaced.normalizedText == "所以你可以用 CLI 再修一下。")
+        #expect(spaced.replacements.contains {
+            $0.termID == "tool.cli" &&
+                $0.originalText == "C O I" &&
+                $0.replacementText == "CLI"
+        })
+
+        let compact = service.normalize("所以你可以用 COI 再修一下。")
+        #expect(compact.normalizedText == "所以你可以用 CLI 再修一下。")
+        #expect(compact.replacements.contains {
+            $0.termID == "tool.cli" &&
+                $0.originalText == "COI" &&
+                $0.replacementText == "CLI"
+        })
+    }
+
+    @Test func canonicalizationDoesNotRewriteTrueCOIAcronymContext() async throws {
+        let service = VocoCanonicalizationService(autoApplyModelService: disabledAutoApplyModelService())
+
+        let result = service.normalize("這份 COI disclosure 要保留原本縮寫。")
+
+        #expect(result.normalizedText == "這份 COI disclosure 要保留原本縮寫。")
+        #expect(result.replacements.isEmpty)
     }
 
     @Test func canonicalizationSuggestsInactiveContextTermsWithoutAutoReplacing() async throws {

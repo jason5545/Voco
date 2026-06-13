@@ -667,6 +667,13 @@ final class VocoCanonicalizationService {
             indicators.append(contentsOf: Self.vocoDevelopmentContextIndicators)
         }
 
+        if contexts.contains("cli") ||
+            contexts.contains("terminal") ||
+            contexts.contains("command-line") ||
+            term.canonical == "CLI" {
+            indicators.append(contentsOf: Self.cliContextIndicators)
+        }
+
         if contexts.contains("image-generation") ||
             contexts.contains("node-graph") ||
             term.canonical == "ComfyUI" {
@@ -922,6 +929,16 @@ extension VocoCanonicalizationService {
                     autoReplaceThreshold: 0.95
                 ),
                 VocoCanonicalTerm(
+                    id: "tool.cli",
+                    canonical: "CLI",
+                    aliases: ["cli", "C L I", "C O I", "COI"],
+                    type: "tool",
+                    contexts: ["cli", "terminal", "command-line", "development"],
+                    caseSensitive: true,
+                    autoReplaceThreshold: 0.95,
+                    requiresContextForAutoReplace: true
+                ),
+                VocoCanonicalTerm(
                     id: "model.whisper",
                     canonical: "Whisper",
                     aliases: ["whisper"],
@@ -1087,6 +1104,33 @@ extension VocoCanonicalizationService {
         "語音",
         "候選",
         "信心",
+    ]
+
+    fileprivate static let cliContextIndicators = [
+        "CLI",
+        "cli",
+        "terminal",
+        "command",
+        "command line",
+        "command-line",
+        "shell",
+        "bash",
+        "GitHub",
+        "Codex",
+        "repo",
+        "prompt",
+        "rule",
+        "規則",
+        "指令",
+        "命令",
+        "終端機",
+        "修一下",
+        "調一下",
+        "改一下",
+        "補一下",
+        "修",
+        "加模型",
+        "輸出",
     ]
 
     fileprivate static let imageGenerationContextIndicators = [

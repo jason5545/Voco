@@ -41,6 +41,9 @@ class LLMResponseValidator {
     private let mediumContentLengthThreshold = 24
     private let mediumContentEditRatioThreshold = 0.55
     private let suspiciousCountedTermMaxFrequency = 500
+    private let protectedTermAllowlists: [(term: String, allowedPhrases: [String])] = [
+        ("明德", ["明德捷運站", "明德水庫", "明德路", "施明德"]),
+    ]
 
     private let listMarkers = ["第一", "第二", "第三", "首先", "其次", "最後", "1.", "2.", "3.", "（1）", "(1)"]
     private let chineseDigitMap: [Character: Character] = [
@@ -89,6 +92,10 @@ class LLMResponseValidator {
 
         if shouldRejectLatinOnlyCJKInsertion(original: trimmedOriginal, response: trimmedResponse) {
             reasons.append("latin-cjk-insertion")
+        }
+
+        for violation in insertedProtectedTermViolations(original: trimmedOriginal, response: trimmedResponse) {
+            reasons.append("inserted-protected-term:\(violation)")
         }
 
         let termsToPreserve = collectProtectedTerms(original: trimmedOriginal, extras: protectedTerms)
@@ -281,6 +288,56 @@ class LLMResponseValidator {
                 }
             }
         }
+    }
+
+    private func insertedProtectedTermViolations(original: String, response: String) -> [String] {
+        protectedTermAllowlists.compactMap { guardRule in
+            guard response.contains(guardRule.term),
+                  !original.contains(guardRule.term),
+                  !allProtectedTermOccurrencesAreAllowed(
+                    in: response,
+                    term: guardRule.term,
+                    allowedPhrases: guardRule.allowedPhrases
+                  )
+            else { return nil }
+
+            return guardRule.term
+        }
+    }
+
+    private func allProtectedTermOccurrencesAreAllowed(
+        in text: String,
+        term: String,
+        allowedPhrases: [String]
+    ) -> Bool {
+        var searchStart = text.startIndex
+        while searchStart < text.endIndex,
+              let termRange = text.range(of: term, range: searchStart..<text.endIndex) {
+            guard allowedPhraseContains(termRange, in: text, allowedPhrases: allowedPhrases) else {
+                return false
+            }
+            searchStart = termRange.upperBound
+        }
+        return true
+    }
+
+    private func allowedPhraseContains(
+        _ termRange: Range<String.Index>,
+        in text: String,
+        allowedPhrases: [String]
+    ) -> Bool {
+        for phrase in allowedPhrases where !phrase.isEmpty {
+            var searchStart = text.startIndex
+            while searchStart < text.endIndex,
+                  let phraseRange = text.range(of: phrase, range: searchStart..<text.endIndex) {
+                if phraseRange.lowerBound <= termRange.lowerBound,
+                   phraseRange.upperBound >= termRange.upperBound {
+                    return true
+                }
+                searchStart = phraseRange.upperBound
+            }
+        }
+        return false
     }
 
     private func isASCIIAlphanumeric(_ char: Character) -> Bool {
