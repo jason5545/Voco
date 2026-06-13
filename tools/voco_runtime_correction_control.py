@@ -87,7 +87,8 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeCorrectionArtifactError(message)
 
 
-def safe_relative_path(value: str, field_name: str) -> Path:
+def safe_relative_path(value: Any, field_name: str) -> Path:
+    require(isinstance(value, str), f"{field_name} must be a string")
     path = Path(value)
     require(value != "", f"{field_name} is required")
     require(not path.is_absolute(), f"{field_name} must be relative")
@@ -146,7 +147,7 @@ def validate_gated_apply_artifact(artifact_path: Path, artifact: dict[str, Any])
 
     require(model.get("portableRuntime") is True, "Gated apply requires a portable runtime model")
     require(model.get("format") == "candidate-spans-v1", "Portable model format must be candidate-spans-v1")
-    model_relative_path = safe_relative_path(str(model.get("path", "")), "model.path")
+    model_relative_path = safe_relative_path(model.get("path", ""), "model.path")
     require(model_relative_path.suffix != ".joblib", "Portable runtime model must not be a joblib ranker")
     require(bool(model.get("sha256")), "model.sha256 is required")
     model_path = artifact_dir / model_relative_path
@@ -173,6 +174,7 @@ def validate_gated_apply_artifact(artifact_path: Path, artifact: dict[str, Any])
         {
             "candidateSpanCount": len(candidate_model.get("candidates", [])),
             "modelPath": str(model_path),
+            "modelRelativePath": str(model_relative_path),
             "modelSha256": actual_model_sha,
             "thresholdGatedApply": threshold.get("gatedApply"),
             "runtimeReadiness": readiness,
@@ -231,6 +233,7 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
     validation = validate_artifact(artifact_path)
     target_dir = args.target_dir.expanduser()
     model_path = Path(validation["modelPath"]).resolve() if validation.get("modelPath") else None
+    model_relative_path = Path(validation["modelRelativePath"]) if validation.get("modelRelativePath") else None
     dry_run = not args.commit_install
 
     result = dict(validation)
@@ -240,7 +243,7 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
             "dryRun": dry_run,
             "installed": False,
             "artifactInstallPath": str(target_dir / RUNTIME_ARTIFACT_FILE),
-            "modelInstallPath": str(target_dir / Path(model_path.name)) if model_path else None,
+            "modelInstallPath": str(target_dir / model_relative_path) if model_relative_path else None,
             "backupDir": None,
         }
     )
@@ -252,26 +255,54 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     backup_dir = args.backup_dir.expanduser() if args.backup_dir else default_backup_dir(target_dir)
-    backup_existing_runtime_files(target_dir, backup_dir)
+    backup_existing_runtime_files(target_dir, backup_dir, next_model_relative_path=model_relative_path)
     target_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(artifact_path, target_dir / RUNTIME_ARTIFACT_FILE)
-    if model_path:
-        shutil.copy2(model_path, target_dir / model_path.name)
+    if model_path and model_relative_path:
+        model_install_path = target_dir / model_relative_path
+        model_install_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(model_path, model_install_path)
     result["installed"] = True
     result["backupDir"] = str(backup_dir)
     return result
 
 
-def backup_existing_runtime_files(target_dir: Path, backup_dir: Path) -> None:
-    existing = [
-        path for path in target_dir.glob("*")
-        if path.is_file() and path.name in {RUNTIME_ARTIFACT_FILE} | {p.name for p in target_dir.glob("runtime-candidate-*")}
-    ]
+def backup_existing_runtime_files(
+    target_dir: Path,
+    backup_dir: Path,
+    *,
+    next_model_relative_path: Path | None = None,
+) -> None:
+    existing: set[Path] = set()
+    artifact_path = target_dir / RUNTIME_ARTIFACT_FILE
+    if artifact_path.is_file():
+        existing.add(artifact_path)
+        current_model_path = installed_model_path_from_artifact(artifact_path)
+        if current_model_path and current_model_path.is_file():
+            existing.add(current_model_path)
+    if next_model_relative_path:
+        next_model_path = target_dir / next_model_relative_path
+        if next_model_path.is_file():
+            existing.add(next_model_path)
+    existing.update(path for path in target_dir.glob("runtime-candidate-*") if path.is_file())
     if not existing:
         return
     backup_dir.mkdir(parents=True, exist_ok=True)
     for path in existing:
-        shutil.copy2(path, backup_dir / path.name)
+        relative = path.relative_to(target_dir)
+        destination = backup_dir / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+
+
+def installed_model_path_from_artifact(artifact_path: Path) -> Path | None:
+    try:
+        artifact = load_json(artifact_path)
+        model = artifact.get("model", {})
+        relative = safe_relative_path(model.get("path", ""), "model.path")
+        return artifact_path.parent / relative
+    except RuntimeCorrectionArtifactError:
+        return None
 
 
 def default_backup_dir(target_dir: Path) -> Path:

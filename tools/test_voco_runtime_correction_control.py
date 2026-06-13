@@ -107,6 +107,65 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
             self.assertTrue((target_dir / control.RUNTIME_ARTIFACT_FILE).exists())
             self.assertTrue((target_dir / "runtime-candidate-spans.json").exists())
 
+    def test_committed_install_preserves_nested_model_relative_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_gated_apply_fixture(
+                root / "artifact",
+                model_relative_path=Path("models/runtime-candidate-spans.json"),
+            )
+            target_dir = root / "runtime"
+            args = type(
+                "Args",
+                (),
+                {
+                    "artifact": artifact,
+                    "target_dir": target_dir,
+                    "backup_dir": None,
+                    "commit_install": True,
+                },
+            )()
+
+            result = control.install_artifact_command(args)
+
+            self.assertEqual(result["modelRelativePath"], "models/runtime-candidate-spans.json")
+            self.assertEqual(result["modelInstallPath"], str(target_dir / "models/runtime-candidate-spans.json"))
+            self.assertTrue((target_dir / "models/runtime-candidate-spans.json").exists())
+            installed_artifact = json.loads((target_dir / control.RUNTIME_ARTIFACT_FILE).read_text(encoding="utf-8"))
+            self.assertEqual(installed_artifact["model"]["path"], "models/runtime-candidate-spans.json")
+
+    def test_existing_installed_runtime_files_are_backed_up_with_relative_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target_dir = root / "runtime"
+            target_dir.mkdir()
+            write_gated_apply_fixture(
+                target_dir,
+                model_relative_path=Path("models/old-runtime-candidate-spans.json"),
+            )
+            backup_dir = root / "backup"
+            artifact = write_gated_apply_fixture(
+                root / "artifact",
+                model_relative_path=Path("models/new-runtime-candidate-spans.json"),
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "artifact": artifact,
+                    "target_dir": target_dir,
+                    "backup_dir": backup_dir,
+                    "commit_install": True,
+                },
+            )()
+
+            result = control.install_artifact_command(args)
+
+            self.assertTrue(result["installed"])
+            self.assertTrue((backup_dir / control.RUNTIME_ARTIFACT_FILE).exists())
+            self.assertTrue((backup_dir / "models/old-runtime-candidate-spans.json").exists())
+            self.assertTrue((target_dir / "models/new-runtime-candidate-spans.json").exists())
+
 
 def write_shadow_fixture(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
@@ -154,7 +213,12 @@ def write_shadow_fixture(root: Path) -> Path:
     return artifact_path
 
 
-def write_gated_apply_fixture(root: Path, *, not_worse: bool = True) -> Path:
+def write_gated_apply_fixture(
+    root: Path,
+    *,
+    not_worse: bool = True,
+    model_relative_path: Path = Path("runtime-candidate-spans.json"),
+) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     model = {
         "schema": "voco.runtime-candidate-spans.v1",
@@ -167,7 +231,8 @@ def write_gated_apply_fixture(root: Path, *, not_worse: bool = True) -> Path:
             }
         ],
     }
-    model_path = root / "runtime-candidate-spans.json"
+    model_path = root / model_relative_path
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     model_path.write_text(json.dumps(model, ensure_ascii=False, indent=2), encoding="utf-8")
     model_sha = control.sha256_hex(model_path)
     artifact = {
@@ -178,7 +243,7 @@ def write_gated_apply_fixture(root: Path, *, not_worse: bool = True) -> Path:
         "model": {
             "format": "candidate-spans-v1",
             "modelType": "candidate-ranker",
-            "path": model_path.name,
+            "path": str(model_relative_path),
             "portableRuntime": True,
             "sha256": model_sha,
         },
