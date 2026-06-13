@@ -520,14 +520,13 @@ private struct VocoRuntimeCorrectionArtifact: Decodable {
         }
         guard model.portableRuntime,
               model.format == "candidate-spans-v1",
-              !model.path.isEmpty,
-              !model.path.hasSuffix(".joblib"),
               !model.sha256.isEmpty
         else {
             throw VocoRuntimeCorrectionArtifactError.invalidPortableModel
         }
 
-        let modelURL = baseURL.appendingPathComponent(model.path)
+        let modelRelativePath = try Self.safeRelativeModelPath(model.path)
+        let modelURL = baseURL.appendingPathComponent(modelRelativePath)
         guard FileManager.default.fileExists(atPath: modelURL.path) else {
             throw VocoRuntimeCorrectionArtifactError.invalidPortableModel
         }
@@ -602,6 +601,22 @@ private struct VocoRuntimeCorrectionArtifact: Decodable {
         let data = try Data(contentsOf: url)
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func safeRelativeModelPath(_ path: String) throws -> String {
+        guard !path.isEmpty,
+              !path.hasPrefix("/"),
+              !path.lowercased().hasSuffix(".joblib")
+        else {
+            throw VocoRuntimeCorrectionArtifactError.invalidPortableModel
+        }
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.allSatisfy({ component in
+            !component.isEmpty && component != "." && component != ".."
+        }) else {
+            throw VocoRuntimeCorrectionArtifactError.invalidPortableModel
+        }
+        return path
     }
 }
 

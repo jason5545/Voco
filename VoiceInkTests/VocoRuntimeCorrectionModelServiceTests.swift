@@ -311,6 +311,69 @@ struct VocoRuntimeCorrectionModelServiceTests {
         #expect(FileManager.default.fileExists(atPath: eventLog.path) == false)
     }
 
+    @Test func gatedApplyArtifactWithNestedRelativeModelPathCanLoad() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeGatedApplyArtifact(
+            in: root,
+            modelRelativePath: "models/runtime-candidate-spans.fixture"
+        )
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: root.appendingPathComponent("gated-apply-events.jsonl"),
+            defaults: defaults
+        )
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "runtime 小模型直接改輸出",
+                canonicalizedText: "runtime 小模型直接改輸出",
+                postRuleText: "runtime 小模型直接改輸出"
+            )
+        )
+
+        #expect(service.status.isAvailable)
+        #expect(evaluation.outputText == "runtime 小模型直接改 final output")
+    }
+
+    @Test func gatedApplyArtifactWithUnsafeModelPathCannotLoad() throws {
+        let root = try runtimeTemporaryDirectory()
+        let unsafePaths = [
+            "../runtime-candidate-spans.fixture",
+            "/private/tmp/runtime-candidate-spans.fixture",
+            "models//runtime-candidate-spans.fixture",
+            "models/./runtime-candidate-spans.fixture",
+            "proposal-ranker-model.joblib"
+        ]
+
+        for unsafePath in unsafePaths {
+            let artifactRoot = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            let artifact = try writeRuntimeGatedApplyArtifact(
+                in: artifactRoot,
+                artifactModelPath: unsafePath
+            )
+            let defaults = try runtimeTemporaryDefaults()
+            defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+            let service = VocoRuntimeCorrectionModelService(
+                artifactURL: artifact,
+                eventLogURL: artifactRoot.appendingPathComponent("gated-apply-events.jsonl"),
+                defaults: defaults
+            )
+
+            let evaluation = service.evaluate(
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: "runtime 小模型直接改輸出",
+                    canonicalizedText: "runtime 小模型直接改輸出",
+                    postRuleText: "runtime 小模型直接改輸出"
+                )
+            )
+
+            #expect(service.status.isAvailable == false)
+            #expect(evaluation.outputText == "runtime 小模型直接改輸出")
+        }
+    }
+
     @Test func gatedApplyFixtureReplayDoesNotRegressRuleBaseline() throws {
         let root = try runtimeTemporaryDirectory()
         let artifact = try writeRuntimeGatedApplyArtifact(in: root)
@@ -538,9 +601,15 @@ private func writeRuntimeShadowArtifact(in root: URL) throws -> URL {
 private func writeRuntimeGatedApplyArtifact(
     in root: URL,
     notWorse: Bool = true,
-    candidateEntries: String? = nil
+    candidateEntries: String? = nil,
+    modelRelativePath: String = "runtime-candidate-spans.fixture",
+    artifactModelPath: String? = nil
 ) throws -> URL {
-    let modelURL = root.appendingPathComponent("runtime-candidate-spans.fixture")
+    let modelURL = root.appendingPathComponent(modelRelativePath)
+    try FileManager.default.createDirectory(
+        at: modelURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
     let entries = candidateEntries ?? """
         {
           "id": "runtime-direct-output",
@@ -570,7 +639,7 @@ private func writeRuntimeGatedApplyArtifact(
       "model": {
         "format": "candidate-spans-v1",
         "modelType": "candidate-ranker",
-        "path": "runtime-candidate-spans.fixture",
+        "path": "\(artifactModelPath ?? modelRelativePath)",
         "portableRuntime": true,
         "sha256": "\(modelSha)"
       },
