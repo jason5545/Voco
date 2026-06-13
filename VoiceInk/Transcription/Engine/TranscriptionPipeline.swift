@@ -460,6 +460,7 @@ class TranscriptionPipeline {
         if postProcessor.isEnabled && postProcessor.isLLMValidationEnabled {
             let customVocabulary = CustomVocabularyService.shared.getCustomVocabularyWords(from: modelContext)
             let protectedTerms = customVocabulary + CorrectionProtectionList.shared.allWords()
+            let insertedProtectedTerms = VocoAutoApplyModelService.shared.protectedTermGuardTerms()
             let descriptor = FetchDescriptor<WordReplacement>(predicate: #Predicate { $0.isEnabled })
             let replacements = (try? modelContext.fetch(descriptor))?.map {
                 (original: $0.originalText, replacement: $0.replacementText)
@@ -468,6 +469,7 @@ class TranscriptionPipeline {
                 response: acceptedText,
                 original: originalText,
                 protectedTerms: protectedTerms,
+                insertedProtectedTerms: insertedProtectedTerms,
                 wordReplacements: replacements,
                 customVocabulary: customVocabulary
             )
@@ -482,6 +484,7 @@ class TranscriptionPipeline {
                     response: retry.0,
                     original: originalText,
                     protectedTerms: protectedTerms,
+                    insertedProtectedTerms: insertedProtectedTerms,
                     wordReplacements: replacements,
                     customVocabulary: customVocabulary
                    ).isValid {

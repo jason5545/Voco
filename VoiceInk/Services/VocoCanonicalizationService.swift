@@ -51,6 +51,7 @@ final class VocoCanonicalizationService {
             context: ([text] + contextHints).joined(separator: "\n")
         )
         let blockedTerms = Set(initialAutoApply.guardBlocks.map(\.term))
+            .union(autoApplyModelService.protectedTermGuardTerms())
         let protectedTermAccepted = accepted.filter { candidate in
             blockedTerms.contains { term in
                 candidate.replacementText.contains(term) &&

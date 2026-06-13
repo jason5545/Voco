@@ -187,7 +187,7 @@ struct VocoAutoApplyModelServiceTests {
             defaults: try temporaryDefaults()
         )
 
-        for text in ["明德捷運站。", "明德水庫。", "明德路附近。", "明德國中旁邊。", "施明德。"] {
+        for text in ["明德捷運站。", "明德水庫。", "明德路附近。", "施明德。"] {
             let result = service.evaluate(text)
             #expect(result.outputText == text)
             #expect(result.applied.isEmpty)
@@ -296,6 +296,30 @@ struct VocoAutoApplyModelServiceTests {
         })
     }
 
+    @Test func canonicalizationDoesNotCommitAllowedProtectedPhraseWhenRawLacksProtectedTerm() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+        let canonicalizer = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: service
+        )
+        let vocabulary = VocoCanonicalizationService.vocabularyTerms(from: ["明德水庫"])
+        let original = "我們在民德水庫旁邊。"
+
+        let result = canonicalizer.normalize(
+            original,
+            activeContextIDs: [],
+            additionalTerms: vocabulary
+        )
+
+        #expect(result.normalizedText == original)
+        #expect(result.replacements.isEmpty)
+    }
+
     @Test func bocoScopedReplacementAppliesToVoco() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -373,7 +397,7 @@ struct VocoAutoApplyModelServiceTests {
               "guardId": "protected-term-allowlist.mingde",
               "reason": "\(VocoAutoApplyModelService.protectedTermGuardReason)",
               "term": "明德",
-              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "明德國中", "施明德"]
+              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"]
             }
           ],
         """ : ""

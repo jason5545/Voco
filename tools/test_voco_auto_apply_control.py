@@ -128,7 +128,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                     "guardId": "protected-term-allowlist.mingde",
                     "reason": control.PROTECTED_TERM_GUARD_REASON,
                     "term": "明德",
-                    "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "明德國中", "施明德"],
+                    "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"],
                 }
             ]
             model["policies"] = [
@@ -150,11 +150,6 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertFalse(allowed["blocked"])
             self.assertEqual(allowed["outputText"], "明德捷運站。")
             self.assertEqual(allowed["guardBlocks"], [])
-
-            school = control.explain_rule_match(model_path, "明德國中旁邊。", "")
-            self.assertFalse(school["blocked"])
-            self.assertEqual(school["outputText"], "明德國中旁邊。")
-            self.assertEqual(school["guardBlocks"], [])
 
             scoped = control.explain_rule_match(model_path, "我們最明德變更應該有加了自動學習。", "")
             self.assertFalse(scoped["blocked"])
@@ -207,7 +202,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                     model=model_path,
                     guard_id="protected-term-allowlist.mingde",
                     term="明德",
-                    allowed_phrase=["明德路", "明德捷運站", "明德國中", "施明德", "明德水庫"],
+                    allowed_phrase=["明德路", "明德捷運站", "施明德", "明德水庫"],
                     reason=control.PROTECTED_TERM_GUARD_REASON,
                     backup_suffix="test",
                 )
@@ -216,7 +211,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(result["guardCount"], 1)
             updated = control.load_model(model_path)
             self.assertEqual(updated["protectedTermAllowlistGuards"][0]["term"], "明德")
-            self.assertEqual(updated["protectedTermAllowlistGuards"][0]["allowedPhrases"], ["明德路", "明德捷運站", "明德國中", "施明德", "明德水庫"])
+            self.assertEqual(updated["protectedTermAllowlistGuards"][0]["allowedPhrases"], ["明德路", "明德捷運站", "施明德", "明德水庫"])
             self.assertIn("protected term allowlist guards must be declared in the model artifact", "\n".join(updated["safetyContract"]))
             self.assertIsNone(result["backup"])
             self.assertEqual(result["backupMode"], "none")

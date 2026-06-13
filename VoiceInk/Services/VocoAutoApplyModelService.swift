@@ -97,6 +97,15 @@ final class VocoAutoApplyModelService: ObservableObject {
         status.isAvailable
     }
 
+    func protectedTermGuardTerms() -> [String] {
+        guard status.isAvailable, let loadedModel else { return [] }
+        return Array(Set(
+            loadedModel.protectedTermAllowlistGuards
+                .map(\.term)
+                .filter { !$0.isEmpty }
+        )).sorted()
+    }
+
     init(
         modelURL: URL = VocoAutoApplyModelService.defaultModelURL,
         defaults: UserDefaults = .standard

@@ -65,31 +65,68 @@ struct VoiceInkTests {
     @Test func validatorRejectsInsertedDisallowedMingdeTerm() async throws {
         let result = LLMResponseValidator.shared.validate(
             response: "所以你整體看我的構音障礙到底到了什麼程度？我越來越懷疑自己比我自己明德嚴重了。",
-            original: "所以你整體看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。"
+            original: "所以你整體看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。",
+            insertedProtectedTerms: ["明德"]
         )
 
         #expect(result.isValid == false)
         #expect(result.reasons.contains("inserted-protected-term:明德"))
     }
 
-    @Test func validatorAllowsMingdeWhenOriginalMentionsErrorOrAllowlistedPhrase() async throws {
+    @Test func validatorAllowsMingdeWhenOriginalAlreadyContainsTerm() async throws {
         let complaint = LLMResponseValidator.shared.validate(
             response: "你看那個明德又出來了。",
-            original: "你看那個明德又出來了。"
+            original: "你看那個明德又出來了。",
+            insertedProtectedTerms: ["明德"]
         )
         #expect(complaint.isValid == true)
 
         let station = LLMResponseValidator.shared.validate(
             response: "我們在明德捷運站碰面。",
-            original: "我們在明德捷運站碰面。"
+            original: "我們在明德捷運站碰面。",
+            insertedProtectedTerms: ["明德"]
         )
         #expect(station.isValid == true)
 
+        let reservoir = LLMResponseValidator.shared.validate(
+            response: "我們去明德水庫旁邊。",
+            original: "我們去明德水庫旁邊。",
+            insertedProtectedTerms: ["明德"]
+        )
+        #expect(reservoir.isValid == true)
+
         let juniorHighSchool = LLMResponseValidator.shared.validate(
             response: "我們在明德國中旁邊碰面。",
-            original: "我們在明德國中旁邊碰面。"
+            original: "我們在明德國中旁邊碰面。",
+            insertedProtectedTerms: ["明德"]
         )
         #expect(juniorHighSchool.isValid == true)
+    }
+
+    @Test func validatorRejectsInsertedMingdeEvenInsidePreviouslyAllowlistedPhrase() async throws {
+        let station = LLMResponseValidator.shared.validate(
+            response: "我們在明德捷運站碰面。",
+            original: "我們在捷運站碰面。",
+            insertedProtectedTerms: ["明德"]
+        )
+        #expect(station.isValid == false)
+        #expect(station.reasons.contains("inserted-protected-term:明德"))
+
+        let reservoir = LLMResponseValidator.shared.validate(
+            response: "我們去明德水庫旁邊。",
+            original: "我們去水庫旁邊。",
+            insertedProtectedTerms: ["明德"]
+        )
+        #expect(reservoir.isValid == false)
+        #expect(reservoir.reasons.contains("inserted-protected-term:明德"))
+
+        let juniorHighSchool = LLMResponseValidator.shared.validate(
+            response: "我們在明德國中旁邊碰面。",
+            original: "我們在國中旁邊碰面。",
+            insertedProtectedTerms: ["明德"]
+        )
+        #expect(juniorHighSchool.isValid == false)
+        #expect(juniorHighSchool.reasons.contains("inserted-protected-term:明德"))
     }
 
     @Test func validatorAllowsVocabularyTermWithInsertedDigit() async throws {
