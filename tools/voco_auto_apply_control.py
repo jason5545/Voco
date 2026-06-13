@@ -1052,6 +1052,7 @@ def compile_model(
     model = copy.deepcopy(base_model)
     model["generatedAt"] = now_iso()
     model["modelType"] = "control_plane_patched_auto_apply_model"
+    strip_proposal_candidate_metadata(model)
     policies = [copy.deepcopy(policy) for policy in model.get("policies") or []]
     overlay_policy_count = 0
     tombstone_count = 0
@@ -1103,6 +1104,19 @@ def compile_model(
         "tombstoneDispositionCounts": tombstone_disposition_counts,
     }
     return model, report
+
+
+def strip_proposal_candidate_metadata(model: dict[str, Any]) -> None:
+    for key in (
+        "proposalSafetyGate",
+        "proposalReplacementGate",
+        "replayReadiness",
+        "sourceActiveModelGeneratedAt",
+    ):
+        model.pop(key, None)
+    intended_use = str(model.get("intendedUse") or "")
+    if "dry-run" in intended_use.lower() or "do not install" in intended_use.lower():
+        model["intendedUse"] = "local Voco control-plane patched auto-apply runtime model"
 
 
 def exact_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:

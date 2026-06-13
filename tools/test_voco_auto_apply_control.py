@@ -1051,6 +1051,38 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertFalse(result.get("failed"))
             self.assertTrue(result["activationGuard"]["productionRuntimeAllowed"])
 
+    def test_control_plane_compile_strips_proposal_activation_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base_path = root / "proposal-base.json"
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = root / "compiled/full-db.auto-apply-model.json"
+            base_model = proposal_candidate_model("preserve-active")
+            base_model["intendedUse"] = "dry-run candidate only; do not install without separate ReplayLab and Jason approval"
+            control.write_model(base_path, base_model)
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            evidence.write_text("", encoding="utf-8")
+
+            model, _report = control.compile_model(
+                control.load_model(base_path),
+                control.load_events(evidence),
+                base_model_path=base_path,
+                evidence_store=evidence,
+            )
+            control.write_model(candidate, model)
+
+            self.assertEqual(model["modelType"], "control_plane_patched_auto_apply_model")
+            self.assertNotIn("proposalSafetyGate", model)
+            self.assertNotIn("replayReadiness", model)
+            self.assertNotIn("sourceActiveModelGeneratedAt", model)
+            self.assertNotIn("dry-run", model.get("intendedUse", ""))
+
+            result = control.activate_model_command(activation_args(root, candidate, active, evidence))
+
+            self.assertFalse(result.get("failed"))
+            self.assertEqual(result["activationGuard"]["reason"], "standard compiled Voco model activation")
+
 
 def proposal_policy(policy_id: str, source: str, target: str, row_pk: int) -> dict:
     return {
