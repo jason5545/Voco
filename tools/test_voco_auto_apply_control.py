@@ -799,6 +799,199 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             )
             self.assertEqual(len(listed["backups"]), 3)
 
+    def test_policy_proposal_ranker_artifact_is_shadow_contract_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact_dir = write_policy_proposal_ranker_fixture(root)
+
+            result = control.run_command(
+                Namespace(command="inspectProposalArtifact", artifact_dir=artifact_dir)
+            )
+
+            self.assertFalse(result["failed"])
+            self.assertEqual(result["role"], "shadow/proposal contract fixture")
+            self.assertFalse(result["productionRuntimeAllowed"])
+            self.assertEqual(result["runtimeModelFileName"], "full-db.auto-apply-model.json")
+            self.assertEqual(result["proposalCount"], 4898)
+            self.assertEqual(result["decisionCounts"], {"apply": 4550, "block": 93, "abstain": 255})
+            self.assertEqual(result["unsafeApplyFalsePositiveCounts"], {"valid": 0, "test": 0})
+            self.assertTrue(any("full-db.auto-apply-model.json" in item for item in result["safetyBoundary"]))
+            self.assertTrue(any("proposal" in item.lower() and "apply" in item.lower() for item in result["safetyBoundary"]))
+            self.assertTrue(any("replay" in item.lower() and "compiled" in item.lower() for item in result["safetyBoundary"]))
+            safety_gate = result["proposalSafetyGate"]
+            self.assertIsNotNone(safety_gate)
+            self.assertEqual(safety_gate["schema"], "voco.policy-proposal-safety-gate.v2")
+            self.assertEqual(safety_gate["proposalCount"], 4898)
+            self.assertEqual(safety_gate["predictedApplyCount"], 4524)
+            self.assertEqual(safety_gate["acceptedForCompileCount"], 4524)
+            self.assertEqual(safety_gate["unsafeApplyFalsePositiveCount"], 0)
+            self.assertEqual(safety_gate["applyMissCount"], 26)
+            self.assertTrue(safety_gate["candidateReplayPass"])
+            self.assertTrue(safety_gate["rawInputReplayPass"])
+            self.assertEqual(safety_gate["candidateUnexpectedChanges"], 0)
+            self.assertEqual(safety_gate["rawUnexpectedChanges"], 0)
+            self.assertEqual(safety_gate["candidateInheritedBaselineUnexpectedChanges"], 1)
+            self.assertEqual(safety_gate["rawInheritedBaselineUnexpectedChanges"], 1)
+            self.assertEqual(safety_gate["candidateAcceptedManualCorpusChanges"], 0)
+            self.assertEqual(safety_gate["rawAcceptedManualCorpusChanges"], 0)
+            self.assertTrue(safety_gate["dryRunSafetyGatePass"])
+            self.assertFalse(safety_gate["productionRuntimeAllowed"])
+            self.assertTrue(safety_gate["releaseReady"])
+            self.assertEqual(safety_gate["policyCountDelta"], {"apply": 0, "blocked": 0, "replaced": 0})
+            self.assertEqual(safety_gate["addedPolicyCount"], 0)
+            self.assertEqual(safety_gate["changedPolicyCount"], 0)
+            self.assertEqual(safety_gate["droppedActiveApplyPolicyCount"], 0)
+            self.assertEqual(safety_gate["droppedActiveApplyPolicyIds"], [])
+            self.assertTrue(safety_gate["candidateCoversActiveApplyPolicies"])
+            self.assertTrue(safety_gate["candidateIsSubsetOfActive"])
+            self.assertEqual(safety_gate["blockers"], [])
+            self.assertIn("dry-run candidate is not an install approval", safety_gate["warnings"])
+            self.assertFalse(safety_gate["runtimeBoundaryAudit"]["joblibActivationAllowed"])
+            self.assertFalse(safety_gate["runtimeBoundaryAudit"]["installOrActivateCommandEmitted"])
+            self.assertFalse(safety_gate["runtimeBoundaryAudit"]["rankerModelIsRuntimeModel"])
+
+    def test_ranker_joblib_cannot_be_loaded_or_activated_as_runtime_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact_dir = write_policy_proposal_ranker_fixture(root)
+            ranker = artifact_dir / "proposal-ranker-model.joblib"
+            evidence = root / "evidence.jsonl"
+            active = root / "full-db.auto-apply-model.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "not compiled Voco runtime models"):
+                control.load_model(ranker)
+
+            with self.assertRaisesRegex(ValueError, "not compiled Voco runtime models"):
+                control.activate_model_command(
+                    Namespace(
+                        actor="test",
+                        model=ranker,
+                        active_model=active,
+                        base_model=active,
+                        evidence_store=evidence,
+                        replaylab_root=root / "missing-replaylab",
+                        backup_suffix="test",
+                        backup_dir=None,
+                        backup_retention=3,
+                        current_corpus_dir=root / "missing-current",
+                        reraw_corpus_dir=root / "missing-reraw",
+                        skip_corpus_replay=True,
+                        skip_raw_input_replay=True,
+                    )
+                )
+
+            self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 0})
+            self.assertEqual(control.load_events(evidence), [])
+
+
+def write_policy_proposal_ranker_fixture(root: Path) -> Path:
+    artifact_dir = root / "artifacts/policy-proposal-model-20260613-active-122458"
+    artifact_dir.mkdir(parents=True)
+    manifest = {
+        "datasetType": "post-asr-policy-proposal-decision",
+        "intendedUse": "train/evaluate a proposal classifier or ranker; not a Voco runtime model",
+        "counts": {
+            "proposals": 4898,
+            "decisions": {"apply": 4550, "block": 93, "abstain": 255},
+            "splits": {"train": 3938, "valid": 483, "test": 477},
+        },
+        "files": {
+            "all": "artifacts/policy-proposal-model-20260613-active-122458/proposal-all.jsonl",
+            "train": "artifacts/policy-proposal-model-20260613-active-122458/proposal-train.jsonl",
+            "valid": "artifacts/policy-proposal-model-20260613-active-122458/proposal-valid.jsonl",
+            "test": "artifacts/policy-proposal-model-20260613-active-122458/proposal-test.jsonl",
+        },
+        "mergedModel": "artifacts/active-auto-apply-model-snapshots/20260613-122458-current-active-after-13168-cloi-cli/full-db.auto-apply-model.json",
+        "safetyBoundary": [
+            "Rows are training/evaluation examples for proposal decisions only.",
+            "Voco runtime must continue to load compiled full-db.auto-apply-model.json, not model outputs.",
+            "A generated proposal must pass replay gates before it can be compiled into runtime JSON.",
+        ],
+    }
+    report = {
+        "applyThreshold": 0.6,
+        "datasetDir": "artifacts/policy-proposal-model-20260613-active-122458",
+        "intendedUse": "rank/classify post-ASR policy proposals before replay; not a Voco runtime auto-apply model",
+        "labels": ["apply", "suggest", "block", "abstain"],
+        "modelType": "tfidf-charword-logistic-regression-policy-proposal-ranker",
+        "safetyBoundary": [
+            "Predicted apply is only a proposal decision.",
+            "A generated proposal must pass ReplayLab gates before it is compiled into runtime JSON.",
+            "The current dataset has only three suggest examples, all in train; suggest metrics are not meaningful yet.",
+        ],
+        "valid": {"rows": 483, "unsafeApplyFalsePositiveCount": 0, "applyMissCount": 6},
+        "test": {"rows": 477, "unsafeApplyFalsePositiveCount": 0, "applyMissCount": 2},
+    }
+    (artifact_dir / "dataset-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    (artifact_dir / "proposal-ranker-report.json").write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+    (artifact_dir / "proposal-ranker-model.joblib").write_bytes(b"\x80\x04proposal-ranker-fixture")
+    safety_gate_dir = artifact_dir / "proposal-release-gate-dry-run"
+    safety_gate_dir.mkdir()
+    safety_gate = {
+        "schema": "voco.policy-proposal-safety-gate.v2",
+        "rankerGate": {
+            "proposalCount": 4898,
+            "predictedApplyCount": 4524,
+            "acceptedForCompileCount": 4524,
+            "unsafeApplyFalsePositiveCount": 0,
+            "applyMissCount": 26,
+        },
+        "candidateReplay": {
+            "applyPolicyCount": 4524,
+            "candidateFireCount": 560,
+            "changedRows": 140,
+            "sentinelFailures": [],
+            "unexpectedChanges": [],
+            "inheritedBaselineUnexpectedChanges": [{"rowPk": 12291}],
+            "acceptedManualCorpusChanges": [],
+            "readiness": {"autoApplyModelReady": True},
+        },
+        "rawInputReplay": {
+            "applyPolicyCount": 4524,
+            "candidateFireCount": 560,
+            "changedRows": 140,
+            "sentinelFailures": [],
+            "unexpectedChanges": [],
+            "inheritedBaselineUnexpectedChanges": [{"rowPk": 12291}],
+            "acceptedManualCorpusChanges": [],
+            "readiness": {"rawInputReplayPass": True},
+        },
+        "activeModelDiff": {
+            "activePolicyCounts": {"apply": 4550, "blocked": 1, "replaced": 17},
+            "candidatePolicyCounts": {"apply": 4550, "blocked": 1, "replaced": 17},
+            "policyCountDelta": {"apply": 0, "blocked": 0, "replaced": 0},
+            "addedPolicyCount": 0,
+            "removedPolicyCount": 0,
+            "changedPolicyCount": 0,
+            "candidateCoversActiveApplyPolicies": True,
+            "droppedActiveApplyPolicyCount": 0,
+            "droppedActiveApplyPolicyIds": [],
+            "candidateIsSubsetOfActive": True,
+        },
+        "readiness": {
+            "dryRunSafetyGatePass": True,
+            "productionRuntimeAllowed": False,
+            "releaseReady": True,
+            "blockers": [],
+            "warnings": [
+                "dry-run candidate is not an install approval",
+                "ranker artifact is evaluated only as proposal/shadow fixture",
+                "suggest has no valid/test support; do not treat suggest as a release signal",
+            ],
+        },
+        "runtimeBoundaryAudit": {
+            "candidateModelFilename": "full-db.auto-apply-model.json",
+            "candidateModelFilenameAllowed": True,
+            "installOrActivateCommandEmitted": False,
+            "joblibActivationAllowed": False,
+            "rankerModelIsRuntimeModel": False,
+            "productionRuntimeAllowed": False,
+        },
+    }
+    (safety_gate_dir / "proposal-safety-gate.report.json").write_text(json.dumps(safety_gate, ensure_ascii=False), encoding="utf-8")
+    return artifact_dir
+
 
 if __name__ == "__main__":
     unittest.main()

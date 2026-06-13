@@ -344,6 +344,89 @@ struct VocoAutoApplyModelServiceTests {
         #expect(result.requiresReview == false)
     }
 
+    @Test func policyProposalRankerArtifactIsShadowFixtureAndIgnoredByRuntime() throws {
+        let root = try temporaryDirectory()
+        let modelDirectory = root.appendingPathComponent("AutoApplyModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        let compiledRuntimeModel = modelDirectory.appendingPathComponent(VocoAutoApplyModelService.modelFileName)
+        try writeFixture(
+            to: compiledRuntimeModel,
+            ready: true,
+            scopedClaudeTarget: "Compiled Runtime Claude 的 OPUS 模型"
+        )
+        let artifactDirectory = try writePolicyProposalRankerFixture(under: root)
+
+        let manifest = try jsonObject(at: artifactDirectory.appendingPathComponent("dataset-manifest.json"))
+        let report = try jsonObject(at: artifactDirectory.appendingPathComponent("proposal-ranker-report.json"))
+        let safetyGate = try jsonObject(
+            at: artifactDirectory
+                .appendingPathComponent("proposal-release-gate-dry-run", isDirectory: true)
+                .appendingPathComponent("proposal-safety-gate.report.json")
+        )
+        let manifestBoundary = try #require(manifest["safetyBoundary"] as? [String])
+        let reportBoundary = try #require(report["safetyBoundary"] as? [String])
+
+        #expect((manifest["intendedUse"] as? String)?.contains("not a Voco runtime model") == true)
+        #expect((report["intendedUse"] as? String)?.contains("not a Voco runtime auto-apply model") == true)
+        #expect(manifestBoundary.contains {
+            $0.contains("full-db.auto-apply-model.json") && $0.localizedCaseInsensitiveContains("runtime")
+        })
+        #expect(reportBoundary.contains {
+            $0.localizedCaseInsensitiveContains("Predicted apply") && $0.localizedCaseInsensitiveContains("proposal")
+        })
+        #expect(reportBoundary.contains {
+            $0.localizedCaseInsensitiveContains("ReplayLab") && $0.localizedCaseInsensitiveContains("compiled")
+        })
+        let valid = try #require(report["valid"] as? [String: Any])
+        let test = try #require(report["test"] as? [String: Any])
+        #expect(valid["unsafeApplyFalsePositiveCount"] as? Int == 0)
+        #expect(test["unsafeApplyFalsePositiveCount"] as? Int == 0)
+        let rankerGate = try #require(safetyGate["rankerGate"] as? [String: Any])
+        let candidateReplay = try #require(safetyGate["candidateReplay"] as? [String: Any])
+        let rawInputReplay = try #require(safetyGate["rawInputReplay"] as? [String: Any])
+        let activeModelDiff = try #require(safetyGate["activeModelDiff"] as? [String: Any])
+        let readiness = try #require(safetyGate["readiness"] as? [String: Any])
+        let runtimeBoundaryAudit = try #require(safetyGate["runtimeBoundaryAudit"] as? [String: Any])
+        #expect(safetyGate["schema"] as? String == "voco.policy-proposal-safety-gate.v2")
+        #expect(rankerGate["proposalCount"] as? Int == 4898)
+        #expect(rankerGate["predictedApplyCount"] as? Int == 4524)
+        #expect(rankerGate["acceptedForCompileCount"] as? Int == 4524)
+        #expect(rankerGate["unsafeApplyFalsePositiveCount"] as? Int == 0)
+        #expect(rankerGate["applyMissCount"] as? Int == 26)
+        #expect(readiness["dryRunSafetyGatePass"] as? Bool == true)
+        #expect(readiness["productionRuntimeAllowed"] as? Bool == false)
+        #expect(readiness["releaseReady"] as? Bool == true)
+        #expect((candidateReplay["unexpectedChanges"] as? [Any])?.isEmpty == true)
+        #expect((rawInputReplay["unexpectedChanges"] as? [Any])?.isEmpty == true)
+        #expect((candidateReplay["inheritedBaselineUnexpectedChanges"] as? [Any])?.count == 1)
+        #expect((rawInputReplay["inheritedBaselineUnexpectedChanges"] as? [Any])?.count == 1)
+        #expect((candidateReplay["acceptedManualCorpusChanges"] as? [Any])?.isEmpty == true)
+        #expect((rawInputReplay["acceptedManualCorpusChanges"] as? [Any])?.isEmpty == true)
+        #expect((readiness["blockers"] as? [String])?.isEmpty == true)
+        #expect((readiness["warnings"] as? [String])?.contains {
+            $0.contains("not an install approval")
+        } == true)
+        #expect(activeModelDiff["candidateIsSubsetOfActive"] as? Bool == true)
+        #expect(activeModelDiff["candidateCoversActiveApplyPolicies"] as? Bool == true)
+        #expect(activeModelDiff["droppedActiveApplyPolicyCount"] as? Int == 0)
+        #expect(activeModelDiff["addedPolicyCount"] as? Int == 0)
+        #expect(activeModelDiff["changedPolicyCount"] as? Int == 0)
+        #expect(runtimeBoundaryAudit["installOrActivateCommandEmitted"] as? Bool == false)
+        #expect(runtimeBoundaryAudit["joblibActivationAllowed"] as? Bool == false)
+        #expect(runtimeBoundaryAudit["rankerModelIsRuntimeModel"] as? Bool == false)
+        #expect(FileManager.default.fileExists(
+            atPath: artifactDirectory.appendingPathComponent("proposal-ranker-model.joblib").path
+        ))
+
+        let service = VocoAutoApplyModelService(modelURL: compiledRuntimeModel, defaults: try temporaryDefaults())
+        let result = service.evaluate("我在測 Cloud 的 OPUS 模型")
+
+        #expect(service.status.isAvailable == true)
+        #expect(service.status.modelURL == compiledRuntimeModel)
+        #expect(result.outputText == "我在測 Compiled Runtime Claude 的 OPUS 模型")
+        #expect(result.applied.map(\.policyId) == ["scoped-fixture-claude"])
+    }
+
     @Test func gitignoreProtectsProductionAndLocalModelPaths() throws {
         let gitignore = try String(
             contentsOf: URL(fileURLWithPath: "/Users/jianruicheng/GitHub/Voco/.gitignore"),
@@ -661,5 +744,117 @@ struct VocoAutoApplyModelServiceTests {
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
         return defaults
+    }
+
+    private func writePolicyProposalRankerFixture(under root: URL) throws -> URL {
+        let artifactDirectory = root
+            .appendingPathComponent("artifacts", isDirectory: true)
+            .appendingPathComponent("policy-proposal-model-20260613-active-122458", isDirectory: true)
+        try FileManager.default.createDirectory(at: artifactDirectory, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "datasetType": "post-asr-policy-proposal-decision",
+          "intendedUse": "train/evaluate a proposal classifier or ranker; not a Voco runtime model",
+          "counts": {
+            "proposals": 4898,
+            "decisions": { "apply": 4550, "block": 93, "abstain": 255 },
+            "splits": { "train": 3938, "valid": 483, "test": 477 }
+          },
+          "mergedModel": "artifacts/active-auto-apply-model-snapshots/20260613-122458-current-active-after-13168-cloi-cli/full-db.auto-apply-model.json",
+          "safetyBoundary": [
+            "Rows are training/evaluation examples for proposal decisions only.",
+            "Voco runtime must continue to load compiled full-db.auto-apply-model.json, not model outputs.",
+            "A generated proposal must pass replay gates before it can be compiled into runtime JSON."
+          ]
+        }
+        """
+        let report = """
+        {
+          "applyThreshold": 0.6,
+          "datasetDir": "artifacts/policy-proposal-model-20260613-active-122458",
+          "intendedUse": "rank/classify post-ASR policy proposals before replay; not a Voco runtime auto-apply model",
+          "labels": ["apply", "suggest", "block", "abstain"],
+          "modelType": "tfidf-charword-logistic-regression-policy-proposal-ranker",
+          "safetyBoundary": [
+            "Predicted apply is only a proposal decision.",
+            "A generated proposal must pass ReplayLab gates before it is compiled into runtime JSON.",
+            "The current dataset has only three suggest examples, all in train; suggest metrics are not meaningful yet."
+          ],
+          "valid": { "rows": 483, "unsafeApplyFalsePositiveCount": 0, "applyMissCount": 6 },
+          "test": { "rows": 477, "unsafeApplyFalsePositiveCount": 0, "applyMissCount": 2 }
+        }
+        """
+        try Data(manifest.utf8).write(to: artifactDirectory.appendingPathComponent("dataset-manifest.json"))
+        try Data(report.utf8).write(to: artifactDirectory.appendingPathComponent("proposal-ranker-report.json"))
+        try Data([0x80, 0x04, 0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x61, 0x6c]).write(
+            to: artifactDirectory.appendingPathComponent("proposal-ranker-model.joblib")
+        )
+        let safetyGateDirectory = artifactDirectory.appendingPathComponent("proposal-release-gate-dry-run", isDirectory: true)
+        try FileManager.default.createDirectory(at: safetyGateDirectory, withIntermediateDirectories: true)
+        let safetyGate = """
+        {
+          "schema": "voco.policy-proposal-safety-gate.v2",
+          "rankerGate": {
+            "proposalCount": 4898,
+            "predictedApplyCount": 4524,
+            "acceptedForCompileCount": 4524,
+            "unsafeApplyFalsePositiveCount": 0,
+            "applyMissCount": 26
+          },
+          "candidateReplay": {
+            "readiness": { "autoApplyModelReady": true },
+            "sentinelFailures": [],
+            "unexpectedChanges": [],
+            "inheritedBaselineUnexpectedChanges": [{ "rowPk": 12291 }],
+            "acceptedManualCorpusChanges": []
+          },
+          "rawInputReplay": {
+            "readiness": { "rawInputReplayPass": true },
+            "sentinelFailures": [],
+            "unexpectedChanges": [],
+            "inheritedBaselineUnexpectedChanges": [{ "rowPk": 12291 }],
+            "acceptedManualCorpusChanges": []
+          },
+          "activeModelDiff": {
+            "activePolicyCounts": { "apply": 4550, "blocked": 1, "replaced": 17 },
+            "candidatePolicyCounts": { "apply": 4550, "blocked": 1, "replaced": 17 },
+            "policyCountDelta": { "apply": 0, "blocked": 0, "replaced": 0 },
+            "addedPolicyCount": 0,
+            "removedPolicyCount": 0,
+            "changedPolicyCount": 0,
+            "candidateCoversActiveApplyPolicies": true,
+            "droppedActiveApplyPolicyCount": 0,
+            "droppedActiveApplyPolicyIds": [],
+            "candidateIsSubsetOfActive": true
+          },
+          "readiness": {
+            "dryRunSafetyGatePass": true,
+            "productionRuntimeAllowed": false,
+            "releaseReady": true,
+            "blockers": [],
+            "warnings": [
+              "dry-run candidate is not an install approval",
+              "ranker artifact is evaluated only as proposal/shadow fixture",
+              "suggest has no valid/test support; do not treat suggest as a release signal"
+            ]
+          },
+          "runtimeBoundaryAudit": {
+            "candidateModelFilename": "full-db.auto-apply-model.json",
+            "candidateModelFilenameAllowed": true,
+            "installOrActivateCommandEmitted": false,
+            "joblibActivationAllowed": false,
+            "rankerModelIsRuntimeModel": false,
+            "productionRuntimeAllowed": false
+          }
+        }
+        """
+        try Data(safetyGate.utf8).write(to: safetyGateDirectory.appendingPathComponent("proposal-safety-gate.report.json"))
+        return artifactDirectory
+    }
+
+    private func jsonObject(at url: URL) throws -> [String: Any] {
+        let data = try Data(contentsOf: url)
+        return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 }

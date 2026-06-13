@@ -50,6 +50,12 @@ BASELINE_DRIFT_RISK_FLAGS = {
     "rerawStoredBaselineDrift",
     "rerawDriftUncertainShortOrFiller",
 }
+POLICY_PROPOSAL_MODEL_FILE = "proposal-ranker-model.joblib"
+POLICY_PROPOSAL_MANIFEST_FILE = "dataset-manifest.json"
+POLICY_PROPOSAL_REPORT_FILE = "proposal-ranker-report.json"
+POLICY_PROPOSAL_RELEASE_GATE_DIR = "proposal-release-gate-dry-run"
+POLICY_PROPOSAL_SAFETY_GATE_DIR = "proposal-safety-gate-dry-run"
+POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE = "proposal-safety-gate.report.json"
 
 
 def main() -> int:
@@ -164,6 +170,9 @@ def parse_args() -> argparse.Namespace:
     explain.add_argument("--text", required=True)
     explain.add_argument("--context", default="")
 
+    proposal = subparsers.add_parser("inspectProposalArtifact")
+    proposal.add_argument("--artifact-dir", type=Path, required=True)
+
     return parser.parse_args()
 
 
@@ -218,6 +227,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return upsert_protected_term_allowlist_guard_command(args)
     if args.command == "explainRuleMatch":
         return explain_rule_match(args.model.expanduser(), args.text, args.context)
+    if args.command == "inspectProposalArtifact":
+        return inspect_policy_proposal_artifact(args.artifact_dir.expanduser())
     raise AssertionError(f"Unhandled command: {args.command}")
 
 
@@ -388,6 +399,226 @@ def load_events(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"Expected JSON object at {path}:{line_number}")
             events.append(event)
     return events
+
+
+def inspect_policy_proposal_artifact(artifact_dir: Path) -> dict[str, Any]:
+    manifest_path = artifact_dir / POLICY_PROPOSAL_MANIFEST_FILE
+    report_path = artifact_dir / POLICY_PROPOSAL_REPORT_FILE
+    ranker_path = artifact_dir / POLICY_PROPOSAL_MODEL_FILE
+    safety_gate_report_path = policy_proposal_safety_gate_report_path(artifact_dir)
+    failures: list[dict[str, Any]] = []
+
+    for required_path in [manifest_path, report_path, ranker_path]:
+        if not required_path.exists():
+            failures.append(
+                {
+                    "kind": "missingProposalArtifactFile",
+                    "path": str(required_path),
+                    "passed": False,
+                }
+            )
+
+    manifest = load_json_object(manifest_path) if manifest_path.exists() else {}
+    report = load_json_object(report_path) if report_path.exists() else {}
+    manifest_boundary = string_list(manifest.get("safetyBoundary"))
+    report_boundary = string_list(report.get("safetyBoundary"))
+    combined_boundary = manifest_boundary + report_boundary
+
+    manifest_intended_use = str(manifest.get("intendedUse") or "")
+    report_intended_use = str(report.get("intendedUse") or "")
+    if "not a Voco runtime model" not in manifest_intended_use:
+        failures.append(
+            {
+                "kind": "proposalManifestRuntimeBoundaryMissing",
+                "field": "intendedUse",
+                "passed": False,
+            }
+        )
+    if "not a Voco runtime" not in report_intended_use:
+        failures.append(
+            {
+                "kind": "proposalReportRuntimeBoundaryMissing",
+                "field": "intendedUse",
+                "passed": False,
+            }
+        )
+    if not any("full-db.auto-apply-model.json" in item and "runtime" in item.lower() for item in manifest_boundary):
+        failures.append(
+            {
+                "kind": "proposalManifestCompiledRuntimeBoundaryMissing",
+                "field": "safetyBoundary",
+                "passed": False,
+            }
+        )
+    if not any("proposal" in item.lower() and "apply" in item.lower() for item in combined_boundary):
+        failures.append(
+            {
+                "kind": "proposalApplyBoundaryMissing",
+                "field": "safetyBoundary",
+                "passed": False,
+            }
+        )
+    if not any("replay" in item.lower() and "compiled" in item.lower() for item in combined_boundary):
+        failures.append(
+            {
+                "kind": "proposalReplayCompileGateBoundaryMissing",
+                "field": "safetyBoundary",
+                "passed": False,
+            }
+        )
+
+    unsafe_apply_false_positives: dict[str, Any] = {}
+    for split in ["valid", "test"]:
+        split_report = report.get(split) if isinstance(report.get(split), dict) else {}
+        count = split_report.get("unsafeApplyFalsePositiveCount")
+        unsafe_apply_false_positives[split] = count
+        if count != 0:
+            failures.append(
+                {
+                    "kind": "unsafeApplyFalsePositive",
+                    "split": split,
+                    "count": count,
+                    "passed": False,
+                }
+            )
+
+    safety_gate = inspect_policy_proposal_safety_gate(safety_gate_report_path, failures)
+    return {
+        "artifactDir": str(artifact_dir),
+        "role": "shadow/proposal contract fixture",
+        "productionRuntimeAllowed": False,
+        "runtimeModelFileName": DEFAULT_ACTIVE_MODEL.name,
+        "rankerModel": str(ranker_path),
+        "manifest": str(manifest_path),
+        "report": str(report_path),
+        "datasetType": manifest.get("datasetType"),
+        "intendedUse": manifest_intended_use,
+        "proposalCount": ((manifest.get("counts") or {}).get("proposals") if isinstance(manifest.get("counts"), dict) else None),
+        "decisionCounts": ((manifest.get("counts") or {}).get("decisions") if isinstance(manifest.get("counts"), dict) else None),
+        "applyThreshold": report.get("applyThreshold"),
+        "unsafeApplyFalsePositiveCounts": unsafe_apply_false_positives,
+        "safetyBoundary": combined_boundary,
+        "proposalSafetyGate": safety_gate,
+        "failed": bool(failures),
+        "failures": failures,
+    }
+
+
+def inspect_policy_proposal_safety_gate(report_path: Path, failures: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not report_path.exists():
+        return None
+
+    report = load_json_object(report_path)
+    ranker_gate = report.get("rankerGate") if isinstance(report.get("rankerGate"), dict) else {}
+    candidate_replay = report.get("candidateReplay") if isinstance(report.get("candidateReplay"), dict) else {}
+    raw_input_replay = report.get("rawInputReplay") if isinstance(report.get("rawInputReplay"), dict) else {}
+    active_diff = report.get("activeModelDiff") if isinstance(report.get("activeModelDiff"), dict) else {}
+    readiness = report.get("readiness") if isinstance(report.get("readiness"), dict) else {}
+    runtime_boundary = report.get("runtimeBoundaryAudit") if isinstance(report.get("runtimeBoundaryAudit"), dict) else {}
+
+    if readiness.get("productionRuntimeAllowed") is not False:
+        failures.append(
+            {
+                "kind": "proposalSafetyGateRuntimeBoundaryMissing",
+                "field": "readiness.productionRuntimeAllowed",
+                "passed": False,
+            }
+        )
+    if runtime_boundary.get("joblibActivationAllowed") is not False:
+        failures.append(
+            {
+                "kind": "proposalSafetyGateJoblibActivationBoundaryMissing",
+                "field": "runtimeBoundaryAudit.joblibActivationAllowed",
+                "passed": False,
+            }
+        )
+    if runtime_boundary.get("rankerModelIsRuntimeModel") is not False:
+        failures.append(
+            {
+                "kind": "proposalSafetyGateRankerRuntimeBoundaryMissing",
+                "field": "runtimeBoundaryAudit.rankerModelIsRuntimeModel",
+                "passed": False,
+            }
+        )
+    if runtime_boundary.get("installOrActivateCommandEmitted") is not False:
+        failures.append(
+            {
+                "kind": "proposalSafetyGateInstallBoundaryMissing",
+                "field": "runtimeBoundaryAudit.installOrActivateCommandEmitted",
+                "passed": False,
+            }
+        )
+    if runtime_boundary.get("candidateModelFilename") != DEFAULT_ACTIVE_MODEL.name:
+        failures.append(
+            {
+                "kind": "proposalSafetyGateCandidateFilenameUnexpected",
+                "field": "runtimeBoundaryAudit.candidateModelFilename",
+                "passed": False,
+            }
+        )
+
+    candidate_readiness = candidate_replay.get("readiness") if isinstance(candidate_replay.get("readiness"), dict) else {}
+    raw_readiness = raw_input_replay.get("readiness") if isinstance(raw_input_replay.get("readiness"), dict) else {}
+    return {
+        "report": str(report_path),
+        "schema": report.get("schema"),
+        "proposalCount": ranker_gate.get("proposalCount"),
+        "predictedApplyCount": ranker_gate.get("predictedApplyCount"),
+        "acceptedForCompileCount": ranker_gate.get("acceptedForCompileCount"),
+        "unsafeApplyFalsePositiveCount": ranker_gate.get("unsafeApplyFalsePositiveCount"),
+        "applyMissCount": ranker_gate.get("applyMissCount"),
+        "candidateReplayPass": candidate_readiness.get("autoApplyModelReady"),
+        "candidateUnexpectedChanges": count_report_items(candidate_replay, "unexpectedChanges", "unexpectedChangeCount"),
+        "candidateSentinelFailures": count_report_items(candidate_replay, "sentinelFailures", "sentinelFailureCount"),
+        "candidateInheritedBaselineUnexpectedChanges": count_report_items(candidate_replay, "inheritedBaselineUnexpectedChanges"),
+        "candidateAcceptedManualCorpusChanges": count_report_items(candidate_replay, "acceptedManualCorpusChanges"),
+        "rawInputReplayPass": raw_readiness.get("rawInputReplayPass"),
+        "rawUnexpectedChanges": count_report_items(raw_input_replay, "unexpectedChanges", "unexpectedChangeCount"),
+        "rawSentinelFailures": count_report_items(raw_input_replay, "sentinelFailures", "sentinelFailureCount"),
+        "rawInheritedBaselineUnexpectedChanges": count_report_items(raw_input_replay, "inheritedBaselineUnexpectedChanges"),
+        "rawAcceptedManualCorpusChanges": count_report_items(raw_input_replay, "acceptedManualCorpusChanges"),
+        "activePolicyCounts": active_diff.get("activePolicyCounts"),
+        "candidatePolicyCounts": active_diff.get("candidatePolicyCounts"),
+        "policyCountDelta": active_diff.get("policyCountDelta"),
+        "addedPolicyCount": active_diff.get("addedPolicyCount"),
+        "removedPolicyCount": active_diff.get("removedPolicyCount"),
+        "changedPolicyCount": active_diff.get("changedPolicyCount"),
+        "candidateIsSubsetOfActive": active_diff.get("candidateIsSubsetOfActive"),
+        "candidateCoversActiveApplyPolicies": active_diff.get("candidateCoversActiveApplyPolicies"),
+        "droppedActiveApplyPolicyCount": active_diff.get("droppedActiveApplyPolicyCount"),
+        "droppedActiveApplyPolicyIds": active_diff.get("droppedActiveApplyPolicyIds") if isinstance(active_diff.get("droppedActiveApplyPolicyIds"), list) else [],
+        "dryRunSafetyGatePass": readiness.get("dryRunSafetyGatePass"),
+        "productionRuntimeAllowed": readiness.get("productionRuntimeAllowed"),
+        "releaseReady": readiness.get("releaseReady"),
+        "blockers": readiness.get("blockers") if isinstance(readiness.get("blockers"), list) else [],
+        "warnings": readiness.get("warnings") if isinstance(readiness.get("warnings"), list) else [],
+        "runtimeBoundaryAudit": {
+            "candidateModelFilename": runtime_boundary.get("candidateModelFilename"),
+            "candidateModelFilenameAllowed": runtime_boundary.get("candidateModelFilenameAllowed"),
+            "installOrActivateCommandEmitted": runtime_boundary.get("installOrActivateCommandEmitted"),
+            "joblibActivationAllowed": runtime_boundary.get("joblibActivationAllowed"),
+            "rankerModelIsRuntimeModel": runtime_boundary.get("rankerModelIsRuntimeModel"),
+            "productionRuntimeAllowed": runtime_boundary.get("productionRuntimeAllowed"),
+        },
+    }
+
+
+def count_report_items(report: dict[str, Any], key: str, count_key: str | None = None) -> int:
+    if count_key and isinstance(report.get(count_key), int):
+        return int(report[count_key])
+    value = report.get(key)
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, list):
+        return len(value)
+    return 0
+
+
+def policy_proposal_safety_gate_report_path(artifact_dir: Path) -> Path:
+    release_report = artifact_dir / POLICY_PROPOSAL_RELEASE_GATE_DIR / POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE
+    if release_report.exists():
+        return release_report
+    return artifact_dir / POLICY_PROPOSAL_SAFETY_GATE_DIR / POLICY_PROPOSAL_SAFETY_GATE_REPORT_FILE
 
 
 def compile_model_command(args: argparse.Namespace) -> dict[str, Any]:
@@ -1817,7 +2048,25 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def load_model(path: Path) -> dict[str, Any]:
+    if path.name == POLICY_PROPOSAL_MODEL_FILE or path.suffix == ".joblib":
+        raise ValueError(
+            "proposal ranker artifacts are not compiled Voco runtime models; "
+            "use full-db.auto-apply-model.json for production auto-apply"
+        )
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_json_object(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"Expected JSON object at {path}")
+    return value
+
+
+def string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
 
 
 def write_model(path: Path, model: dict[str, Any]) -> None:
