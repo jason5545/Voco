@@ -268,6 +268,34 @@ struct VocoAutoApplyModelServiceTests {
         #expect(assessment.labelForCandidate(at: assessment.candidates.firstIndex(of: guardedText) ?? -1) == "Guarded output")
     }
 
+    @Test func canonicalizationDoesNotCommitProtectedVocabularyPhoneticCandidate() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+        let canonicalizer = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: service
+        )
+        let vocabulary = VocoCanonicalizationService.vocabularyTerms(from: ["明德"])
+        let original = "所以你整體看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。"
+
+        let result = canonicalizer.normalize(
+            original,
+            activeContextIDs: [],
+            additionalTerms: vocabulary
+        )
+
+        #expect(result.normalizedText == original)
+        #expect(result.replacements.isEmpty)
+        #expect(result.suggestions.contains {
+            $0.reason == VocoAutoApplyModelService.protectedTermGuardReason &&
+                $0.replacementText == "明德"
+        })
+    }
+
     @Test func bocoScopedReplacementAppliesToVoco() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -593,6 +621,15 @@ struct VocoAutoApplyModelServiceTests {
         }
 
         try #require(condition())
+    }
+
+    private func requireLoadedPinyinDatabase() async throws {
+        for _ in 0..<100 {
+            if PinyinDatabase.shared.isLoaded { return }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        try #require(PinyinDatabase.shared.isLoaded)
     }
 
     private func temporaryDefaults() throws -> UserDefaults {

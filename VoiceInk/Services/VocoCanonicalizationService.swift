@@ -45,12 +45,41 @@ final class VocoCanonicalizationService {
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
-        let normalizedText = applying(accepted, to: text)
-        let autoApply = autoApplyModelService.evaluate(
-            normalizedText,
+        let canonicalizedText = applying(accepted, to: text)
+        let initialAutoApply = autoApplyModelService.evaluate(
+            canonicalizedText,
             context: ([text] + contextHints).joined(separator: "\n")
         )
-        let autoApplyReplacements = replacementRecords(from: autoApply.applied, in: normalizedText)
+        let blockedTerms = Set(initialAutoApply.guardBlocks.map(\.term))
+        let protectedTermAccepted = accepted.filter { candidate in
+            blockedTerms.contains { term in
+                candidate.replacementText.contains(term) &&
+                    !candidate.originalText.contains(term)
+            }
+        }
+        let safeAccepted: [ReplacementCandidate]
+        let autoApply: VocoAutoApplyEvaluation
+        if protectedTermAccepted.isEmpty {
+            safeAccepted = accepted
+            autoApply = initialAutoApply
+        } else {
+            safeAccepted = accepted.filter { candidate in
+                !protectedTermAccepted.contains(where: { $0.range == candidate.range })
+            }
+            let safeCanonicalizedText = applying(safeAccepted, to: text)
+            let safeAutoApply = autoApplyModelService.evaluate(
+                safeCanonicalizedText,
+                context: ([text] + contextHints).joined(separator: "\n")
+            )
+            autoApply = VocoAutoApplyEvaluation(
+                inputText: safeAutoApply.inputText,
+                outputText: safeAutoApply.outputText,
+                applied: safeAutoApply.applied,
+                suggestions: safeAutoApply.suggestions,
+                guardBlocks: initialAutoApply.guardBlocks + safeAutoApply.guardBlocks
+            )
+        }
+        let autoApplyReplacements = replacementRecords(from: autoApply.applied, in: autoApply.inputText)
         let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
         let autoApplyGuardSuggestions = replacementRecords(from: autoApply.guardBlocks, in: autoApply.outputText)
 
@@ -58,7 +87,7 @@ final class VocoCanonicalizationService {
             originalText: text,
             normalizedText: autoApply.outputText,
             activeContextIDs: activeContextIDs,
-            replacements: accepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
+            replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
             suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
         )
     }
