@@ -600,11 +600,11 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
     backup_dir = args.backup_dir.expanduser() if args.backup_dir else default_backup_dir(target_dir)
     backup_existing_runtime_files(target_dir, backup_dir, next_model_relative_path=model_relative_path)
     target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(artifact_path, target_dir / RUNTIME_ARTIFACT_FILE)
     if model_path and model_relative_path:
         model_install_path = target_dir / model_relative_path
         model_install_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(model_path, model_install_path)
+    shutil.copy2(artifact_path, target_dir / RUNTIME_ARTIFACT_FILE)
     result["installed"] = True
     result["backupDir"] = str(backup_dir)
     result["vocoReplayGate"] = replay_report

@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Darwin
 import OSLog
 
 struct VocoRuntimeCorrectionCandidate: Codable, Equatable {
@@ -102,8 +103,12 @@ final class VocoRuntimeCorrectionModelService {
     private let eventLogURL: URL?
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "RuntimeCorrectionModel")
+    private let watchQueue = DispatchQueue(label: "com.jasonchien.Voco.runtimeCorrectionModelWatcher")
     private var loadedArtifact: VocoRuntimeCorrectionArtifact?
     private var loadedCandidateSpanModel: VocoRuntimeCandidateSpanModel?
+    private var artifactFileWatcher: DispatchSourceFileSystemObject?
+    private var artifactDirectoryWatcher: DispatchSourceFileSystemObject?
+    private var pendingArtifactReload: DispatchWorkItem?
 
     private(set) var status: VocoRuntimeCorrectionModelStatus
 
@@ -134,6 +139,13 @@ final class VocoRuntimeCorrectionModelService {
             artifactURL: artifactURL
         )
         reload()
+        startWatchingArtifactChanges()
+    }
+
+    deinit {
+        pendingArtifactReload?.cancel()
+        artifactFileWatcher?.cancel()
+        artifactDirectoryWatcher?.cancel()
     }
 
     func reload() {
@@ -378,6 +390,76 @@ final class VocoRuntimeCorrectionModelService {
         } catch {
             logger.error("Failed to append runtime correction shadow event: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func startWatchingArtifactChanges() {
+        watchQueue.async { [weak self] in
+            self?.installDirectoryWatcher()
+            self?.installArtifactFileWatcher()
+        }
+    }
+
+    private func installDirectoryWatcher() {
+        guard artifactDirectoryWatcher == nil else { return }
+
+        let directoryURL = artifactURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let descriptor = open(directoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else {
+            logger.error("Failed to watch runtime correction artifact directory: \(directoryURL.path, privacy: .public)")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .delete, .rename, .attrib, .link, .revoke],
+            queue: watchQueue
+        )
+        source.setEventHandler { [weak self] in
+            self?.installArtifactFileWatcher()
+            self?.scheduleArtifactReload()
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        artifactDirectoryWatcher = source
+        source.resume()
+    }
+
+    private func installArtifactFileWatcher() {
+        artifactFileWatcher?.cancel()
+        artifactFileWatcher = nil
+
+        let descriptor = open(artifactURL.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .extend, .delete, .rename, .attrib, .link, .revoke],
+            queue: watchQueue
+        )
+        source.setEventHandler { [weak self, weak source] in
+            guard let self else { return }
+            let events = source?.data ?? []
+            scheduleArtifactReload()
+            if events.contains(.delete) || events.contains(.rename) || events.contains(.revoke) {
+                installArtifactFileWatcher()
+            }
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        artifactFileWatcher = source
+        source.resume()
+    }
+
+    private func scheduleArtifactReload() {
+        pendingArtifactReload?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.reload()
+        }
+        pendingArtifactReload = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(750), execute: workItem)
     }
 }
 

@@ -374,6 +374,35 @@ struct VocoRuntimeCorrectionModelServiceTests {
         }
     }
 
+    @Test func runtimeCorrectionArtifactChangesAreReloadedAutomatically() async throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = root.appendingPathComponent("runtime-correction-artifact.json")
+        let eventLog = root.appendingPathComponent("gated-apply-events.jsonl")
+        let defaults = try runtimeTemporaryDefaults()
+        defaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let service = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: defaults
+        )
+
+        #expect(service.status.isAvailable == false)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        _ = try writeRuntimeGatedApplyArtifact(in: root)
+        try await waitForRuntimeCorrectionModelAvailability(service)
+
+        let evaluation = service.evaluate(
+            VocoRuntimeCorrectionFeatures(
+                rawTranscript: "runtime 小模型直接改輸出",
+                canonicalizedText: "runtime 小模型直接改輸出",
+                postRuleText: "runtime 小模型直接改輸出"
+            )
+        )
+
+        #expect(service.status.isAvailable)
+        #expect(evaluation.outputText == "runtime 小模型直接改 final output")
+    }
+
     @Test func gatedApplyFixtureReplayDoesNotRegressRuleBaseline() throws {
         let root = try runtimeTemporaryDirectory()
         let artifact = try writeRuntimeGatedApplyArtifact(in: root)
@@ -549,6 +578,19 @@ private func runtimeTemporaryDefaults() throws -> UserDefaults {
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defaults.removePersistentDomain(forName: suiteName)
     return defaults
+}
+
+private func waitForRuntimeCorrectionModelAvailability(
+    _ service: VocoRuntimeCorrectionModelService,
+    timeout: TimeInterval = 3.0
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if service.status.isAvailable {
+            return
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+    }
 }
 
 private func writeRuntimeShadowArtifact(in root: URL) throws -> URL {
