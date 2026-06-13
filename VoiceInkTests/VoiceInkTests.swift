@@ -84,6 +84,12 @@ struct VoiceInkTests {
             original: "我們在明德捷運站碰面。"
         )
         #expect(station.isValid == true)
+
+        let juniorHighSchool = LLMResponseValidator.shared.validate(
+            response: "我們在明德國中旁邊碰面。",
+            original: "我們在明德國中旁邊碰面。"
+        )
+        #expect(juniorHighSchool.isValid == true)
     }
 
     @Test func validatorAllowsVocabularyTermWithInsertedDigit() async throws {

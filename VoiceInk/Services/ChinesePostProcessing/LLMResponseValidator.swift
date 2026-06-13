@@ -42,7 +42,7 @@ class LLMResponseValidator {
     private let mediumContentEditRatioThreshold = 0.55
     private let suspiciousCountedTermMaxFrequency = 500
     private let protectedTermAllowlists: [(term: String, allowedPhrases: [String])] = [
-        ("明德", ["明德捷運站", "明德水庫", "明德路", "施明德"]),
+        ("明德", ["明德捷運站", "明德水庫", "明德路", "明德國中", "施明德"]),
     ]
 
     private let listMarkers = ["第一", "第二", "第三", "首先", "其次", "最後", "1.", "2.", "3.", "（1）", "(1)"]

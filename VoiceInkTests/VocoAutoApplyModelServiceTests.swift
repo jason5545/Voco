@@ -187,7 +187,7 @@ struct VocoAutoApplyModelServiceTests {
             defaults: try temporaryDefaults()
         )
 
-        for text in ["明德捷運站。", "明德水庫。", "明德路附近。", "施明德。"] {
+        for text in ["明德捷運站。", "明德水庫。", "明德路附近。", "明德國中旁邊。", "施明德。"] {
             let result = service.evaluate(text)
             #expect(result.outputText == text)
             #expect(result.applied.isEmpty)
@@ -373,7 +373,7 @@ struct VocoAutoApplyModelServiceTests {
               "guardId": "protected-term-allowlist.mingde",
               "reason": "\(VocoAutoApplyModelService.protectedTermGuardReason)",
               "term": "明德",
-              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"]
+              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "明德國中", "施明德"]
             }
           ],
         """ : ""
