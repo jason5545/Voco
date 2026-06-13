@@ -64,6 +64,95 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
             self.assertFalse(result["installed"])
             self.assertFalse(target_dir.exists())
 
+    def test_committed_install_rejects_shadow_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_shadow_fixture(root / "artifact")
+            target_dir = root / "runtime"
+            args = type(
+                "Args",
+                (),
+                {
+                    "artifact": artifact,
+                    "target_dir": target_dir,
+                    "backup_dir": None,
+                    "commit_install": True,
+                },
+            )()
+
+            with self.assertRaisesRegex(control.RuntimeCorrectionArtifactError, "production-allowed gatedApply"):
+                control.install_artifact_command(args)
+            self.assertFalse(target_dir.exists())
+
+    def test_committed_install_writes_only_valid_gated_apply_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = write_gated_apply_fixture(root / "artifact")
+            target_dir = root / "runtime"
+            args = type(
+                "Args",
+                (),
+                {
+                    "artifact": artifact,
+                    "target_dir": target_dir,
+                    "backup_dir": None,
+                    "commit_install": True,
+                },
+            )()
+
+            result = control.install_artifact_command(args)
+
+            self.assertTrue(result["installed"])
+            self.assertFalse(result["dryRun"])
+            self.assertTrue((target_dir / control.RUNTIME_ARTIFACT_FILE).exists())
+            self.assertTrue((target_dir / "runtime-candidate-spans.json").exists())
+
+
+def write_shadow_fixture(root: Path) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    artifact = {
+        "schema": "voco.runtime-correction-model.v1",
+        "artifactId": "runtime-correction-shadow-test",
+        "runtimeMode": "shadow",
+        "intendedUse": "runtime shadow contract",
+        "model": {
+            "format": "none",
+            "modelType": "shadow-contract-only",
+            "path": "",
+            "portableRuntime": False,
+            "sha256": "",
+        },
+        "approval": {
+            "allowedModes": ["shadow"],
+            "runtimeAllowed": False,
+        },
+        "sourceRanker": {
+            "runtimeUsableDirectly": False,
+        },
+        "safety": {
+            "actionCommandBypass": True,
+            "artifactMissingFallback": "return-post-rule-text",
+            "compiledJsonLoaderMayLoadJoblib": False,
+            "jsonExactRulePriority": True,
+            "timeoutFallback": "return-post-rule-text",
+        },
+        "decisionSchema": {
+            "schema": "voco.runtime-correction-decision.v1",
+            "actions": ["noop", "block"],
+            "requiresEvidenceEvent": True,
+            "requiresReasonCodes": True,
+            "requiresScore": True,
+        },
+        "candidateGenerator": {
+            "required": True,
+            "schema": "voco.runtime-candidate-generator.v1",
+            "sha256": "candidate-generator-test-sha",
+        },
+    }
+    artifact_path = root / "runtime-correction-artifact.json"
+    artifact_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+    return artifact_path
+
 
 def write_gated_apply_fixture(root: Path, *, not_worse: bool = True) -> Path:
     root.mkdir(parents=True, exist_ok=True)

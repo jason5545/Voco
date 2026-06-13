@@ -246,6 +246,10 @@ def install_artifact_command(args: argparse.Namespace) -> dict[str, Any]:
     )
     if dry_run:
         return result
+    require(
+        validation.get("runtimeMode") == "gatedApply" and validation.get("productionRuntimeAllowed") is True,
+        "Committed runtime correction install requires a production-allowed gatedApply artifact",
+    )
 
     backup_dir = args.backup_dir.expanduser() if args.backup_dir else default_backup_dir(target_dir)
     backup_existing_runtime_files(target_dir, backup_dir)
