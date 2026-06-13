@@ -1841,6 +1841,7 @@ def proposal_activation_guard(
     model_path: Path,
     active_model: Path,
     activation_manifest: Path | None,
+    replaylab_root: Path,
 ) -> dict[str, Any]:
     proposal_replacement_gate = model.get("proposalReplacementGate") if isinstance(model.get("proposalReplacementGate"), dict) else {}
     proposal_safety_gate = model.get("proposalSafetyGate") if isinstance(model.get("proposalSafetyGate"), dict) else {}
@@ -1893,7 +1894,14 @@ def proposal_activation_guard(
             "productionRuntimeAllowed": False,
         }
     manifest = load_json_object(manifest_path)
-    failures = proposal_activation_manifest_failures(manifest, model_path, active_model, candidate_strategy)
+    failures = proposal_activation_manifest_failures(
+        manifest,
+        model_path,
+        active_model,
+        candidate_strategy,
+        manifest_path,
+        replaylab_root,
+    )
     if failures:
         return {
             "failed": True,
@@ -1919,6 +1927,8 @@ def proposal_activation_manifest_failures(
     model_path: Path,
     active_model: Path,
     candidate_strategy: str,
+    manifest_path: Path,
+    replaylab_root: Path,
 ) -> list[dict[str, Any]]:
     failures: list[dict[str, Any]] = []
     required_equals = {
@@ -1941,7 +1951,12 @@ def proposal_activation_manifest_failures(
     if candidate_sha != actual_candidate_sha:
         failures.append({"field": "candidateModelSha256", "expected": actual_candidate_sha, "actual": candidate_sha})
     manifest_candidate_path = manifest.get("candidateModelPath")
-    if manifest_candidate_path and Path(str(manifest_candidate_path)).expanduser() != model_path:
+    if manifest_candidate_path and not manifest_path_matches_candidate(
+        manifest_candidate_path,
+        model_path,
+        manifest_path,
+        replaylab_root,
+    ):
         failures.append({"field": "candidateModelPath", "expected": str(model_path), "actual": manifest_candidate_path})
     source_active_sha = manifest.get("sourceActiveModelSha256")
     if source_active_sha and active_model.exists():
@@ -1954,6 +1969,18 @@ def proposal_activation_manifest_failures(
     return failures
 
 
+def manifest_path_matches_candidate(
+    manifest_candidate_path: Any,
+    model_path: Path,
+    manifest_path: Path,
+    replaylab_root: Path,
+) -> bool:
+    raw_path = Path(str(manifest_candidate_path)).expanduser()
+    candidates = [raw_path] if raw_path.is_absolute() else [replaylab_root / raw_path, manifest_path.parent / raw_path]
+    expected = model_path.expanduser().resolve()
+    return any(candidate.expanduser().resolve() == expected for candidate in candidates)
+
+
 def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
     active_model = args.active_model.expanduser()
@@ -1961,7 +1988,13 @@ def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
     backup_retention = backup_retention_from_args(args)
     model = load_model(model_path)
-    activation_guard = proposal_activation_guard(model, model_path, active_model, getattr(args, "activation_manifest", None))
+    activation_guard = proposal_activation_guard(
+        model,
+        model_path,
+        active_model,
+        getattr(args, "activation_manifest", None),
+        args.replaylab_root.expanduser(),
+    )
     if activation_guard.get("failed"):
         return {"model": str(model_path), "activationGuard": activation_guard, "failed": True}
     base_model = load_model(args.base_model.expanduser()) if args.base_model.expanduser().exists() else None

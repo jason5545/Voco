@@ -1024,6 +1024,30 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(result["activationGuard"]["approvedBy"], "Jason")
             self.assertEqual(json.loads(active.read_text(encoding="utf-8"))["policyCounts"], {"apply": 1})
 
+    def test_preserve_active_manifest_accepts_replaylab_relative_candidate_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            replaylab_root = root / "ReplayLab"
+            active = root / "active.json"
+            evidence = root / "evidence.jsonl"
+            candidate = replaylab_root / "artifacts/probe/proposal-release-gate-dry-run/full-db.auto-apply-model.json"
+            manifest = replaylab_root / "artifacts/probe/proposal-release-gate-dry-run/activation.json"
+            active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            control.write_model(candidate, proposal_candidate_model("preserve-active"))
+            write_activation_manifest(
+                manifest,
+                candidate,
+                active,
+                candidate_path_value="artifacts/probe/proposal-release-gate-dry-run/full-db.auto-apply-model.json",
+            )
+
+            result = control.activate_model_command(
+                activation_args(root, candidate, active, evidence, activation_manifest=manifest, replaylab_root=replaylab_root)
+            )
+
+            self.assertFalse(result.get("failed"))
+            self.assertTrue(result["activationGuard"]["productionRuntimeAllowed"])
+
 
 def proposal_policy(policy_id: str, source: str, target: str, row_pk: int) -> dict:
     return {
@@ -1072,6 +1096,7 @@ def activation_args(
     evidence: Path,
     *,
     activation_manifest: Path | None = None,
+    replaylab_root: Path | None = None,
 ) -> Namespace:
     return Namespace(
         actor="test",
@@ -1079,7 +1104,7 @@ def activation_args(
         active_model=active,
         base_model=active,
         evidence_store=evidence,
-        replaylab_root=root / "missing-replaylab",
+        replaylab_root=replaylab_root or root / "missing-replaylab",
         backup_suffix="test",
         backup_dir=None,
         backup_retention=3,
@@ -1097,13 +1122,14 @@ def write_activation_manifest(
     active: Path,
     *,
     candidate_sha: str | None = None,
+    candidate_path_value: str | None = None,
 ) -> None:
     manifest = {
         "schema": "voco.policy-proposal-runtime-activation.v1",
         "artifactId": "test-proposal-artifact",
         "replaylabCommit": "0828c7b",
         "candidateStrategy": "preserve-active",
-        "candidateModelPath": str(candidate),
+        "candidateModelPath": candidate_path_value or str(candidate),
         "candidateModelSha256": candidate_sha or control.sha256_file(candidate),
         "sourceActiveModelPath": str(active),
         "sourceActiveModelSha256": control.sha256_file(active),
