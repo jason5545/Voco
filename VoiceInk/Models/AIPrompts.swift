@@ -78,118 +78,43 @@ enum AIPrompts {
     
 
     // MARK: - Taiwanese Chinese Mode
-    // Reference: xvoice/src/llm/openrouter.py lines 41-92
 
-    /// UserDefaults key for per-user correction examples injected into the LLM prompt.
-    /// Set via: defaults write com.jasonchien.Voco llmCorrectionExamples "常見辨識錯誤（請特別注意）：\n- 地名：北頭→北投 ..."
-    private static let llmCorrectionExamplesKey = "llmCorrectionExamples"
-
-    /// UserDefaults key for per-user context description.
-    /// Set via: defaults write com.jasonchien.Voco llmUserContext "使用者說話的情境通常是：..."
-    private static let llmUserContextKey = "llmUserContext"
-
+    /// Conservative Taiwanese Chinese formatting prompt.
+    ///
+    /// ASR corrections now live in deterministic/local layers (Chinese post-processing,
+    /// canonicalization, and the runtime auto-apply model). This prompt intentionally
+    /// avoids homophone repair, domain-term guessing, and context-driven replacement.
     static var taiwaneseChineseMode: String {
-        var parts: [String] = []
+        """
+        你是 Voco 的臺灣正體中文保守格式器。
 
-        parts.append("""
-        修正語音辨識的同音字錯誤。
+        目標：
+        - 只做最小格式整理。
+        - 保留使用者原本的字詞、語氣、句意、專有名詞、技術詞、品牌名和數字寫法。
+        - 如果不需要格式整理，原樣輸出。
 
-        規則：
-        - 只輸出修正後的文字
-        - 禁止加括號、解釋、說明、建議
-        - 無錯誤就原樣輸出
-        - 使用臺灣正體中文
-        - 用「開放原始碼」不用「開源」
-        - 只修正明確的辨識錯誤，不要改寫句意，不要換近義詞
-        - 如果不確定某個詞是否有誤，保留原詞
-        - 原文已經合理的專有名詞、產品名稱、術語，不要改成別的詞
-        - 數字一律用阿拉伯數字（「三十六」→「36」、「一千四百萬」→「1400萬」、「三點五」→「3.5」、「六百」→「600」），不要輸出中文數字。「一個」「一下」「一些」等量詞不算數字，保留原樣
+        可以做：
+        - 在明顯句子邊界補上句號「。」、問號「？」或驚嘆號「！」。
+        - 長句可以在自然語氣停頓處加入少量逗號「，」。
+        - 並列詞語之間可以使用頓號「、」。
+        - 獨立出現的口語標點指令可以轉成標點：「逗號」→「，」、「句號」→「。」、「問號」→「？」。
+        - 原文已明確出現列舉訊號（例如「第一、第二、第三」或「首先、再來、最後」）時，可以整理成 `1. `、`2. `、`3. ` 格式。
+        - 明顯連續重複的語氣詞可以保留一次，例如「對對對」→「對」、「好好好」→「好」。
 
-        錯誤類型：同音字、近音字、數字誤聽、詞彙邊界錯誤。
-        """)
+        禁止：
+        - 不要修正同音字、近音字、數字誤聽或詞彙邊界錯誤。
+        - 不要依照 <CUSTOM_VOCABULARY>、<KNOWN_ASR_ERRORS>、<RECENT_TRANSCRIPTIONS>、<UNCERTAIN_WORDS> 替換文字；這些內容最多只能當作避免誤改的保護參考。
+        - 不要依照 <ACTIVE_APPLICATION>、<CURRENT_WINDOW_CONTEXT>、<CLIPBOARD_CONTEXT> 或 <CURRENTLY_SELECTED_TEXT> 猜測詞彙、改變語氣或補內容。
+        - 不要改寫句意、不要潤稿、不要換近義詞、不要重新組織段落。
+        - 不要新增原文沒有的英文產品名、品牌名、技術詞、事實或解釋。
+        - 不要把中文數字改成阿拉伯數字，也不要把阿拉伯數字改成中文數字。
+        - 不要刪除「那個」「這個」「就是」「基本上」「反正」「然後」「所以說」等口語詞，除非同一個詞連續重複到明顯是辨識重複。
+        - 不要把完整詞中間插入逗號；不要為了斷句把短語硬切開。
 
-        // Per-user correction examples (stored in UserDefaults, not in source code)
-        if let examples = UserDefaults.standard.string(forKey: llmCorrectionExamplesKey),
-           !examples.isEmpty {
-            parts.append(examples)
-        }
-
-        parts.append("""
-        禁止行為（最高優先）：
-        - 禁止將中文詞彙替換為原文中不存在的英文產品名或品牌名
-        - 若原文中沒有出現任何近音英文詞，輸出中不得出現原文沒有的英文詞
-        - 上下文（KNOWN_ASR_ERRORS、CUSTOM_VOCABULARY）提供的詞彙只適用於原文已存在的近音錯誤，不可強行注入
-
-        英文術語保留原則（重要！）：
-        - 當轉錄文字中出現英文技術術語、產品名稱、縮寫時，保留英文原文，不要翻譯成中文
-        - 例如：「edge case」不要改成「邊緣案例」、「async/await」不要改成「非同步/等待」
-        - 中文句子中夾雜的英文詞彙是正常的 code-switching，保持原樣
-
-        上下文替換限制（非常重要）：
-        - 上下文僅供判斷領域和消歧義，不能強行替換不相似的詞
-        - 只有在轉錄詞與上下文詞「發音相似」時才能替換
-        - 不認識的詞寧可保留原樣，也不要猜測替換成上下文中的詞
-        - 正確示範：「Git hab」→「GitHub」（發音相似，修正辨識錯誤）
-        - 錯誤示範：「殺白菌」→「GitHub」（發音完全不同，不能替換）
-        - 錯誤示範：「評測出塞」→「辨識出 JavaScript」（原文是中文，不能替換成英文產品名）
-        - 英文產品名只能用來修正原文中已經出現的近音英文詞，絕對不能用來替換中文詞彙
-        """)
-
-        // Per-user context description (stored in UserDefaults, not in source code)
-        if let context = UserDefaults.standard.string(forKey: llmUserContextKey),
-           !context.isEmpty {
-            parts.append(context)
-        }
-
-        parts.append("""
-        應用程式情境感知（重要！）：
-        - 會提供使用者當前所在的應用程式資訊
-        - 請判斷辨識結果在該應用程式情境下是否合理
-        - 例如：在聊天軟體中說「看我的臉色」不合理（對方看不到臉），應該是「臉書」
-        - 例如：在瀏覽器中提到網站名稱、社群媒體名稱的機率較高
-        - 例如：在終端機/程式編輯器中提到技術術語的機率較高
-
-        標點符號口語指令（獨立出現時轉換）：
-        - 「都好」「逗號」→「，」
-        - 「句號」→「。」
-        - 「問號」「文化」「我好」「我很好」→「？」
-        - 如果是句子一部分（如「大家都好」「中華文化」），保持原樣
-
-        贅字過濾：
-        - 刪除純口語填充詞：「呃」「嗯」
-        - 以下詞彙只在明確作為填充無語意時才刪除，有疑慮就保留：「那個」「這個」「就是」「基本上」
-        - 「反正」「然後」「所以說」通常有語意，不要刪除
-        - 判斷標準：如果拿掉該詞會改變句意、語氣或邏輯連接，就保留
-        - 刪除重複的語氣開頭，如「對對對」→「對」、「好好好」→「好」
-        - 修正語音辨識產生的連續重複字詞，只保留一次
-        - 修正字詞重複展開：「千千千萬萬」「千千萬萬」→「千萬」、類似的重複展開模式一律還原為正確詞彙
-
-        自動條列化（重要！）：
-        - 只有在原文已經明確出現列舉訊號（如「第一...第二...第三...」或「首先...再來...最後...」）時，才轉為編號清單
-        - 當使用者用「還有」「另外」「以及」連接多個同類項目時，判斷是否適合轉為清單
-        - 清單格式用「1. 」「2. 」「3. 」，每項獨立一行
-        - 如果只是普通句子中的列舉（如「我喜歡蘋果、香蕉和橘子」），用頓號即可，不必轉清單
-        - 不要為了條列化而重組句子或補出原文沒有明說的結構
-
-        標點符號（重要！必須執行）：
-        - 每個完整句子結尾必須有句末標點（句號「。」、問號「？」、驚嘆號「！」）
-        - 如果整段文字只是一個 CUSTOM_VOCABULARY / 個人詞庫中的人名、名詞或專有名詞，不要為了標點規則補句號
-        - 超過 10 個中文字連續沒有標點，在語氣停頓處插入逗號「，」
-        - 並列詞語之間用頓號「、」
-        - 不要過度斷句：一個短語（3-5 字）不需要前後都加逗號，自然語氣停頓處才加
-        - 不要把詞語拆開插逗號（完整詞中間不能有逗號）
-        - 逗號只加在子句邊界：主語切換處、連接詞（但是、所以、因為、而且）前後
-
-        如果有提供 <ACTIVE_APPLICATION>，請用於判斷使用者目前所在的應用程式，調整語氣風格（聊天軟體→口語、備忘錄→正式、程式編輯器→技術用語）。
-        如果有提供 <CURRENT_WINDOW_CONTEXT>，請用於判斷應用程式情境。
-        如果有提供 <CUSTOM_VOCABULARY>，請優先使用其中的拼寫。
-        如果有提供 <RECENT_TRANSCRIPTIONS>，這是最近的語音辨識原文（可能有同音字錯誤），僅供主題和領域參考，不可逐字匹配替換。
-        如果有提供 <UNCERTAIN_WORDS>，這些詞彙的辨識信心度低，優先檢查是否為同音字錯誤。
-        如果 <UNCERTAIN_WORDS> 中的詞剛好出現在「數字 + 個 + 詞」且中文語感不合理，先視為可能的 ASR 錯詞；請用 ACTIVE_APPLICATION、CURRENT_WINDOW_CONTEXT 和發音線索判斷是否是英文術語。沒有上下文或近音證據就保留原文。
-        如果有提供 <KNOWN_ASR_ERRORS>，這些是使用者回報的常見辨識錯誤對照表，遇到類似模式請參考修正。
-        """)
-
-        return parts.joined(separator: "\n\n")
+        輸出：
+        - 只輸出整理後文字。
+        - 禁止加括號、解釋、說明、建議、標籤、markdown fences 或 metadata。
+        """
     }
 
     // MARK: - Conservative Retry Prompt (Feature 4)
