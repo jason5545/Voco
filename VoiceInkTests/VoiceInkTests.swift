@@ -3193,6 +3193,41 @@ struct VoiceInkTests {
         #expect(!EditModeDetectionPolicy.cacheMatchesFrontmostApp(cachedPID: 42, currentPID: nil))
     }
 
+    @Test func editModeRequiresTrustedEditableSignalAndSelection() {
+        #expect(EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: "selected text"))
+        #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: false, selectedText: "selected text"))
+        #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: nil))
+        #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: " \n\t "))
+    }
+
+    @Test func editModeElectronFallbackRequiresKnownBundleCacheMatchAndUnavailableFocus() {
+        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.anthropic.claudefordesktop"))
+        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.todesktop.230313mzl4w4u92"))
+        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.microsoft.VSCode"))
+        #expect(!EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.apple.TextEdit"))
+
+        #expect(EditModeDetectionPolicy.canUseElectronSelectionFallback(
+            bundleID: "com.anthropic.claudefordesktop",
+            cacheMatchesFrontmostApp: true,
+            focusedElementUnavailable: true
+        ))
+        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
+            bundleID: "com.anthropic.claudefordesktop",
+            cacheMatchesFrontmostApp: false,
+            focusedElementUnavailable: true
+        ))
+        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
+            bundleID: "com.anthropic.claudefordesktop",
+            cacheMatchesFrontmostApp: true,
+            focusedElementUnavailable: false
+        ))
+        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
+            bundleID: "com.apple.TextEdit",
+            cacheMatchesFrontmostApp: true,
+            focusedElementUnavailable: true
+        ))
+    }
+
     @Test func editModeDictionaryConfirmationTakesPriorityInRecorder() {
         #expect(
             RecorderSupplementaryPresentation.resolve(

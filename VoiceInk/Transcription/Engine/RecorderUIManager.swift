@@ -266,41 +266,90 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
     private func detectEditMode(engine: VoiceInkEngine) async {
         defer { EditModeCacheService.shared.stopPolling() }
 
-        let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        let bundleID = frontmostApplication?.bundleIdentifier
+        let currentPID = frontmostApplication?.processIdentifier
         if let bundleID, EditModeCacheService.terminalBundleIDs.contains(bundleID) {
             engine.forkState.clearEditMode()
             return
         }
 
+        guard let currentPID else {
+            engine.forkState.clearEditMode()
+            return
+        }
+
         let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-        let currentPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let cacheMatchesFrontmostApp = EditModeDetectionPolicy.cacheMatchesFrontmostApp(
             cachedPID: snapshot.pid,
             currentPID: currentPID
         )
 
         if cacheMatchesFrontmostApp,
-           snapshot.isEditable,
-           let selectedText = snapshot.selectedText,
-           !selectedText.isEmpty {
+           !snapshot.isEditable,
+           !EditModeDetectionPolicy.canUseElectronSelectionFallback(
+               bundleID: bundleID,
+               cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+               focusedElementUnavailable: snapshot.focusedElementUnavailable
+           ) {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        await applyLiveEditModeDetection(
+            engine: engine,
+            pid: currentPID,
+            bundleID: bundleID,
+            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+            focusedElementUnavailable: snapshot.focusedElementUnavailable
+        )
+    }
+
+    private func applyLiveEditModeDetection(
+        engine: VoiceInkEngine,
+        pid: pid_t,
+        bundleID: String?,
+        cacheMatchesFrontmostApp: Bool,
+        focusedElementUnavailable: Bool
+    ) async {
+        if SelectedTextService.isEditableTextFocused(for: pid) {
+            let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
+            applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
+            return
+        }
+
+        guard EditModeDetectionPolicy.canUseElectronSelectionFallback(
+            bundleID: bundleID,
+            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+            focusedElementUnavailable: focusedElementUnavailable
+        ) else {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        let selectedText = await SelectedTextService.fetchSelectedText()
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
+    }
+
+    private func applyEditModeResult(
+        engine: VoiceInkEngine,
+        hasTrustedEditableSignal: Bool,
+        selectedText: String?
+    ) {
+        if EditModeDetectionPolicy.shouldEnterEditMode(
+            hasTrustedEditableSignal: hasTrustedEditableSignal,
+            selectedText: selectedText
+        ) {
             engine.forkState.isEditMode = true
             engine.forkState.editModeSelectedText = selectedText
-        } else if cacheMatchesFrontmostApp, snapshot.isEditable {
-            if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                engine.forkState.isEditMode = true
-                engine.forkState.editModeSelectedText = selectedText
-            } else {
-                engine.forkState.clearEditMode()
-            }
-        } else if !cacheMatchesFrontmostApp || snapshot.focusedElementUnavailable {
-            engine.forkState.clearEditMode()
-            engine.forkState.editModeDetectionTask = Task { @MainActor [weak engine] in
-                guard let engine else { return }
-                if let selectedText = await SelectedTextService.fetchSelectedText(), !selectedText.isEmpty {
-                    engine.forkState.isEditMode = true
-                    engine.forkState.editModeSelectedText = selectedText
-                }
-            }
         } else {
             engine.forkState.clearEditMode()
         }
@@ -342,8 +391,42 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
 }
 
 enum EditModeDetectionPolicy {
+    private static let electronSelectionFallbackBundleIDs: Set<String> = [
+        "com.anthropic.claudefordesktop",
+        "com.exafunction.windsurf",
+        "com.microsoft.VSCode",
+        "com.openai.chat",
+        "com.openai.codex",
+        "com.todesktop.230313mzl4w4u92",
+        "dev.kiro.desktop",
+    ]
+
     static func cacheMatchesFrontmostApp(cachedPID: pid_t?, currentPID: pid_t?) -> Bool {
         guard let cachedPID, let currentPID else { return false }
         return cachedPID == currentPID
+    }
+
+    static func isElectronSelectionFallbackBundleID(_ bundleID: String?) -> Bool {
+        guard let bundleID else { return false }
+        return electronSelectionFallbackBundleIDs.contains(bundleID)
+    }
+
+    static func canUseElectronSelectionFallback(
+        bundleID: String?,
+        cacheMatchesFrontmostApp: Bool,
+        focusedElementUnavailable: Bool
+    ) -> Bool {
+        cacheMatchesFrontmostApp &&
+            focusedElementUnavailable &&
+            isElectronSelectionFallbackBundleID(bundleID)
+    }
+
+    static func shouldEnterEditMode(hasTrustedEditableSignal: Bool, selectedText: String?) -> Bool {
+        guard hasTrustedEditableSignal,
+              let selectedText,
+              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return true
     }
 }
