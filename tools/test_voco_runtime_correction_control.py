@@ -26,6 +26,20 @@ class VocoRuntimeCorrectionControlTests(unittest.TestCase):
             self.assertTrue(result["productionRuntimeAllowed"])
             self.assertEqual(result["candidateSpanCount"], 1)
 
+    def test_checked_in_demo_artifact_passes_cli_guard_and_replay_gate(self):
+        repo_root = Path(__file__).resolve().parent.parent
+        artifact = repo_root / "examples/correction-model-demo/RuntimeCorrectionModels/runtime-correction-artifact.json"
+        replay_cases = repo_root / "examples/correction-model-demo/RuntimeCorrectionModels/replay-cases/runtime-replay-cases.jsonl"
+
+        result = control.validate_artifact(artifact, replay_cases_path=replay_cases)
+
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["runtimeMode"], "gatedApply")
+        self.assertTrue(result["productionRuntimeAllowed"])
+        self.assertEqual(result["candidateSpanCount"], 3)
+        self.assertTrue(result["vocoReplayGate"]["readiness"]["deployReady"])
+        self.assertEqual(result["vocoReplayGate"]["improvementCount"], 3)
+
     def test_joblib_is_rejected_as_runtime_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             joblib = Path(tmp) / "proposal-ranker-model.joblib"

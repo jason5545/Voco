@@ -1,0 +1,63 @@
+{
+  "schema": "voco.runtime-correction-model.v1",
+  "artifactId": "voco-runtime-correction-demo-ex-data-20260614",
+  "runtimeMode": "gatedApply",
+  "intendedUse": "Demo runtime gated-apply correction contract using non-personal example data.",
+  "model": {
+    "format": "candidate-spans-v1",
+    "modelType": "candidate-span-demo",
+    "path": "models/runtime-candidate-spans.json",
+    "portableRuntime": true,
+    "sha256": "4458c2b7a7ab2831d4cdc60520a85bd0a7d95d2cd8f61f6c47f2ed5400a3ad0d"
+  },
+  "approval": {
+    "allowedModes": [
+      "gatedApply"
+    ],
+    "approvedAt": "2026-06-14T00:00:00Z",
+    "approvedBy": "Jason",
+    "approvalToken": "demo-ex-data-approved-for-install-flow-only",
+    "requiresJasonApprovalForApply": true,
+    "runtimeAllowed": true
+  },
+  "sourceRanker": {
+    "runtimeUsableDirectly": false
+  },
+  "safety": {
+    "actionCommandBypass": true,
+    "artifactMissingFallback": "return-post-rule-text",
+    "compiledJsonLoaderMayLoadJoblib": false,
+    "jsonExactRulePriority": true,
+    "notWorseThanCompiledJson": true,
+    "timeoutFallback": "return-post-rule-text"
+  },
+  "decisionSchema": {
+    "schema": "voco.runtime-correction-decision.v1",
+    "actions": [
+      "noop",
+      "block",
+      "apply"
+    ],
+    "requiresEvidenceEvent": true,
+    "requiresReasonCodes": true,
+    "requiresScore": true
+  },
+  "candidateGenerator": {
+    "required": true,
+    "schema": "voco.runtime-candidate-generator.v1",
+    "sha256": "demo-candidate-generator-ex-data-v1"
+  },
+  "thresholdConfig": {
+    "shadow": 0.0,
+    "suggest": 0.85,
+    "gatedApply": 0.97
+  },
+  "runtimeReadiness": {
+    "actionCommandBypassVerified": true,
+    "baselineReplayPass": true,
+    "finalTextRegressionCount": 0,
+    "gatedApplyReplayPass": true,
+    "notWorseThanCompiledJson": true,
+    "unsafeApplyFalsePositiveCount": 0
+  }
+}

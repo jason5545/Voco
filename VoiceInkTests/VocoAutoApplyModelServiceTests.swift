@@ -24,6 +24,28 @@ struct VocoAutoApplyModelServiceTests {
         #expect(service.settingsToggleIsEnabled == true)
     }
 
+    @Test func checkedInDemoAutoApplyFixtureLoadsAndAppliesExampleData() throws {
+        let url = projectRootURL()
+            .appendingPathComponent("examples/correction-model-demo/AutoApplyModels/full-db.auto-apply-model.json")
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        #expect(service.status.isAvailable == true)
+        #expect(service.settingsToggleIsOn == true)
+        #expect(service.settingsToggleIsEnabled == true)
+
+        let exact = service.evaluate("open AI API key 要放在哪裡？")
+        #expect(exact.outputText == "OpenAI API key 要放在哪裡？")
+        #expect(exact.applied.map(\.policyId) == ["demo-exact-openai-question"])
+
+        let scoped = service.evaluate("我用 VS code 開這個 repo。", context: "editor 開發 程式")
+        #expect(scoped.outputText == "我用 VS Code 開這個 repo。")
+        #expect(scoped.applied.map(\.policyId) == ["demo-scoped-vs-code"])
+
+        let noContext = service.evaluate("我用 VS code 開這個 repo。", context: "一般聊天")
+        #expect(noContext.outputText == "我用 VS code 開這個 repo。")
+        #expect(noContext.applied.isEmpty)
+    }
+
     @Test func modelFileChangesAreReloadedAutomatically() async throws {
         let url = try temporaryDirectory().appendingPathComponent("watched-auto-apply-fixture.json")
         try writeFixture(to: url, ready: true)
@@ -856,5 +878,11 @@ struct VocoAutoApplyModelServiceTests {
     private func jsonObject(at url: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: url)
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func projectRootURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }

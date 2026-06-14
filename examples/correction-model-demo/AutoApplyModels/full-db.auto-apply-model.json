@@ -1,0 +1,97 @@
+{
+  "policyCounts": {
+    "apply": 3,
+    "suggest": 1,
+    "replaced": 0,
+    "blocked": 0
+  },
+  "policyTypeCounts": {
+    "exactTrainablePair": 1,
+    "scopedReplacement": 3
+  },
+  "safetyContract": [
+    "Demo-only example data; do not train from personal transcripts.",
+    "Exact trainable-pair policies may auto-apply only on normalized whole-utterance match.",
+    "Scoped replacement examples should be small, auditable, and reversible."
+  ],
+  "mergedReplayReadiness": {
+    "mergedAutoApplyModelReady": true,
+    "failures": []
+  },
+  "protectedTermAllowlistGuards": [],
+  "policies": [
+    {
+      "policyId": "demo-exact-openai-question",
+      "autoApplyMode": "apply",
+      "policyType": "exactTrainablePair",
+      "exactInputRequired": true,
+      "inputStrictKey": "open ai api key 要放在哪裡?",
+      "sourcePattern": "open AI API key 要放在哪裡？",
+      "targetText": "OpenAI API key 要放在哪裡？",
+      "sourceSlices": [
+        "example-data"
+      ],
+      "reviewGateConflictRows": []
+    },
+    {
+      "policyId": "demo-scoped-vs-code",
+      "autoApplyMode": "apply",
+      "policyType": "scopedReplacement",
+      "sourcePattern": "VS code",
+      "targetText": "VS Code",
+      "scopedSourcePhrase": "VS code",
+      "contextAliasesAny": [],
+      "contextTokensAny": [
+        "editor",
+        "IDE",
+        "開發",
+        "程式"
+      ],
+      "contextRequired": true,
+      "sourceSlices": [
+        "example-data"
+      ],
+      "reviewGateConflictRows": []
+    },
+    {
+      "policyId": "demo-scoped-cloudflare",
+      "autoApplyMode": "apply",
+      "policyType": "scopedReplacement",
+      "sourcePattern": "Cloud Flare",
+      "targetText": "Cloudflare",
+      "scopedSourcePhrase": "Cloud Flare",
+      "contextAliasesAny": [],
+      "contextTokensAny": [
+        "Cloudflare",
+        "Workers",
+        "DNS",
+        "部署"
+      ],
+      "contextRequired": true,
+      "sourceSlices": [
+        "example-data"
+      ],
+      "reviewGateConflictRows": []
+    },
+    {
+      "policyId": "demo-suggest-local-import",
+      "autoApplyMode": "suggest",
+      "policyType": "scopedReplacement",
+      "sourcePattern": "本地轉入",
+      "targetText": "本地轉錄",
+      "scopedSourcePhrase": "本地轉入",
+      "contextAliasesAny": [],
+      "contextTokensAny": [
+        "ASR",
+        "audio import",
+        "本地音檔",
+        "轉錄"
+      ],
+      "contextRequired": true,
+      "sourceSlices": [
+        "example-data"
+      ],
+      "reviewGateConflictRows": []
+    }
+  ]
+}

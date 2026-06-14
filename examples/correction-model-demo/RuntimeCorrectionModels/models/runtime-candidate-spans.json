@@ -1,0 +1,26 @@
+{
+  "schema": "voco.runtime-candidate-spans.v1",
+  "candidates": [
+    {
+      "id": "demo-runtime-cloudflare-pages",
+      "source": "Cloud Flare Pages",
+      "target": "Cloudflare Pages",
+      "score": 0.99,
+      "contextHintContains": "Cloudflare"
+    },
+    {
+      "id": "demo-runtime-d1",
+      "source": "D one",
+      "target": "D1",
+      "score": 0.98,
+      "contextHintContains": "Cloudflare"
+    },
+    {
+      "id": "demo-runtime-vs-code",
+      "source": "VS code",
+      "target": "VS Code",
+      "score": 0.97,
+      "contextHintContains": "editor"
+    }
+  ]
+}
