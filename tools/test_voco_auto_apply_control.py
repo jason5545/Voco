@@ -1296,6 +1296,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             candidate = root / "compiled/full-db.auto-apply-model.json"
             base_model = proposal_candidate_model("preserve-active")
             base_model["intendedUse"] = "dry-run candidate only; do not install without separate ReplayLab and Jason approval"
+            base_model["promotionPolicyGuard"] = {"blockedPolicies": [{"policyId": "stale-audit"}]}
             control.write_model(base_path, base_model)
             active.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
             evidence.write_text("", encoding="utf-8")
@@ -1310,6 +1311,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
 
             self.assertEqual(model["modelType"], "control_plane_patched_auto_apply_model")
             self.assertNotIn("proposalSafetyGate", model)
+            self.assertNotIn("promotionPolicyGuard", model)
             self.assertNotIn("replayReadiness", model)
             self.assertNotIn("sourceActiveModelGeneratedAt", model)
             self.assertNotIn("dry-run", model.get("intendedUse", ""))

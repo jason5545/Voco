@@ -56,7 +56,8 @@ class AudioTranscriptionService: ObservableObject {
             )
             let requestContext = TranscriptionRequestContext(
                 language: language,
-                prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+                prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt"),
+                usesQwen3AudioAdapter: false
             )
             let modeName = (mode?.isEnabled == true) ? mode?.name : nil
             let modeEmoji = (mode?.isEnabled == true) ? mode?.icon.legacyEmojiValue : nil

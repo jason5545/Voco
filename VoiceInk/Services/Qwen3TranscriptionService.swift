@@ -110,7 +110,11 @@ class Qwen3TranscriptionService: TranscriptionService {
 
         // Ensure model is loaded
         let modelDir = Qwen3ModelManager.modelDirectory(for: qwen3Model.modelId)
-        try await engine.loadModel(from: modelDir, modelSize: qwen3Model.modelSize)
+        try await engine.loadModel(
+            from: modelDir,
+            modelSize: qwen3Model.modelSize,
+            usesAudioAdapter: context.usesQwen3AudioAdapter
+        )
         self.lastAdapterMetadata = await engine.currentAdapterMetadata()
 
         // Read audio samples from WAV file
@@ -121,7 +125,34 @@ class Qwen3TranscriptionService: TranscriptionService {
 
         logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")
 
-        let result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
+        var result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
+        let audioDurationSeconds = Double(audioSamples.count) / 16_000.0
+        if Qwen3ASRAdapterRuntimeGuard.shouldProbeBaseFallback(
+            adapterTranscript: result.text,
+            adapterMetadata: lastAdapterMetadata,
+            audioDurationSeconds: audioDurationSeconds
+        ) {
+            do {
+                let baseResult = try await engine.transcribeBaseOnlyForAdapterGuard(
+                    samples: audioSamples,
+                    language: selectedLanguage,
+                    prompt: prompt
+                )
+                self.lastAdapterMetadata = await engine.currentAdapterMetadata()
+                if Qwen3ASRAdapterRuntimeGuard.shouldUseBaseFallback(
+                    adapterTranscript: result.text,
+                    baseTranscript: baseResult.text
+                ) {
+                    logger.warning("Qwen3-ASR adapter guard used base fallback for long action-command transcript (duration: \(audioDurationSeconds, format: .fixed(precision: 3), privacy: .public)s)")
+                    result = baseResult
+                } else {
+                    logger.info("Qwen3-ASR adapter guard kept adapter action-command transcript after base probe")
+                }
+            } catch {
+                self.lastAdapterMetadata = await engine.currentAdapterMetadata()
+                logger.error("Qwen3-ASR adapter guard base probe failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         self.lastAvgLogProb = result.avgLogProb
         self.lastDetectedLanguage = result.detectedLanguage
         self.lastUncertainWords = result.uncertainWords

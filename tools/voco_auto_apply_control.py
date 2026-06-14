@@ -1191,6 +1191,7 @@ def strip_proposal_candidate_metadata(model: dict[str, Any]) -> None:
     for key in (
         "proposalSafetyGate",
         "proposalReplacementGate",
+        "promotionPolicyGuard",
         "replayReadiness",
         "sourceActiveModelGeneratedAt",
     ):

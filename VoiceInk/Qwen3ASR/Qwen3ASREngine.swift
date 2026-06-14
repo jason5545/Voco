@@ -22,20 +22,40 @@ actor Qwen3ASREngine {
 
     private var model: Qwen3ASRModel?
     private var loadedModelId: String?
+    private var loadedModelDirectory: URL?
+    private var loadedUsesAudioAdapter = false
     private var loadedAdapterFingerprint: Qwen3ASRAdapterFingerprint?
     private var hasCompletedWarmup = false
     private var adapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
 
-    func loadModel(from directory: URL, modelSize: Qwen3ASRModelSize) throws {
+    func loadModel(from directory: URL, modelSize: Qwen3ASRModelSize, usesAudioAdapter: Bool = true) throws {
         let modelId = modelSize.defaultModelId
-        let currentAdapterFingerprint = Qwen3ASRAudioAdapterLoader.fingerprint(in: directory)
+        let currentAdapterFingerprint = usesAudioAdapter
+            ? Qwen3ASRAudioAdapterLoader.fingerprint(in: directory)
+            : nil
 
         if loadedModelId == modelId {
-            if loadedAdapterFingerprint != currentAdapterFingerprint, let model = model {
+            if loadedUsesAudioAdapter != usesAudioAdapter, let model = model {
+                Self.logger.info("Qwen3-ASR adapter usage changed, refreshing audio encoder for \(modelId)")
+                if usesAudioAdapter {
+                    try model.reloadAudioAdapter(from: directory)
+                } else {
+                    try model.reloadAudioEncoderBaseOnly(from: directory)
+                }
+                adapterMetadata = model.adapterMetadata
+                loadedModelDirectory = directory
+                loadedAdapterFingerprint = currentAdapterFingerprint
+                loadedUsesAudioAdapter = usesAudioAdapter
+                hasCompletedWarmup = false
+                try ensureWarmup(using: model, modelId: modelId, reason: "loadModel(adapter-usage-refresh)")
+                return
+            } else if loadedAdapterFingerprint != currentAdapterFingerprint, let model = model {
                 Self.logger.info("Qwen3-ASR adapter changed, refreshing audio encoder for \(modelId)")
                 try model.reloadAudioAdapter(from: directory)
                 adapterMetadata = model.adapterMetadata
+                loadedModelDirectory = directory
                 loadedAdapterFingerprint = currentAdapterFingerprint
+                loadedUsesAudioAdapter = usesAudioAdapter
                 hasCompletedWarmup = false
                 try ensureWarmup(using: model, modelId: modelId, reason: "loadModel(adapter-refresh)")
                 return
@@ -57,11 +77,13 @@ actor Qwen3ASREngine {
             audioConfig: modelSize.audioConfig,
             textConfig: modelSize.textConfig
         )
-        try newModel.load(from: directory, modelSize: modelSize)
+        try newModel.load(from: directory, modelSize: modelSize, usesAudioAdapter: usesAudioAdapter)
 
         self.model = newModel
         self.loadedModelId = modelId
+        self.loadedModelDirectory = directory
         self.loadedAdapterFingerprint = currentAdapterFingerprint
+        self.loadedUsesAudioAdapter = usesAudioAdapter
         self.adapterMetadata = newModel.adapterMetadata
         self.hasCompletedWarmup = false
         Self.logger.info("Qwen3-ASR model loaded successfully")
@@ -150,6 +172,58 @@ actor Qwen3ASREngine {
         return Qwen3ASRModel.TranscriptionResult(text: mergedText, avgLogProb: weightedLogProb, tokenCount: totalTokens, detectedLanguage: chunkResults.first?.detectedLanguage, uncertainWords: mergedUncertainWords, wordConfidences: mergedWordConfidences)
     }
 
+    func transcribeBaseOnlyForAdapterGuard(
+        samples: [Float],
+        language: String?,
+        prompt: String? = nil,
+        decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions()
+    ) throws -> Qwen3ASRModel.TranscriptionResult {
+        guard let model = model,
+              let loadedModelId = loadedModelId,
+              let loadedModelDirectory = loadedModelDirectory
+        else {
+            throw Qwen3ASRModelError.textDecoderNotLoaded
+        }
+
+        let originalUsesAudioAdapter = loadedUsesAudioAdapter
+        try model.reloadAudioEncoderBaseOnly(from: loadedModelDirectory)
+        adapterMetadata = model.adapterMetadata
+        loadedUsesAudioAdapter = false
+        loadedAdapterFingerprint = nil
+        hasCompletedWarmup = false
+
+        defer {
+            do {
+                if originalUsesAudioAdapter {
+                    try model.reloadAudioAdapter(from: loadedModelDirectory)
+                } else {
+                    try model.reloadAudioEncoderBaseOnly(from: loadedModelDirectory)
+                }
+                adapterMetadata = model.adapterMetadata
+                loadedUsesAudioAdapter = originalUsesAudioAdapter
+                loadedAdapterFingerprint = originalUsesAudioAdapter
+                    ? Qwen3ASRAudioAdapterLoader.fingerprint(in: loadedModelDirectory)
+                    : nil
+                hasCompletedWarmup = false
+            } catch {
+                adapterMetadata = model.adapterMetadata
+                loadedUsesAudioAdapter = model.adapterMetadata.adapterApplied
+                loadedAdapterFingerprint = loadedUsesAudioAdapter
+                    ? Qwen3ASRAudioAdapterLoader.fingerprint(in: loadedModelDirectory)
+                    : nil
+                hasCompletedWarmup = false
+                Self.logger.error("Failed to restore Qwen3-ASR adapter after base guard retry for \(loadedModelId): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        return try transcribe(
+            samples: samples,
+            language: language,
+            prompt: prompt,
+            decodingOptions: decodingOptions
+        )
+    }
+
     /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
     private static func findSilenceCutPoint(in samples: [Float], targetCut: Int) -> Int {
         let searchStart = max(0, targetCut - silenceSearchWindow)
@@ -190,6 +264,8 @@ actor Qwen3ASREngine {
         model?.audioEncoder.clearPosEmbeddingCache()
         model = nil
         loadedModelId = nil
+        loadedModelDirectory = nil
+        loadedUsesAudioAdapter = false
         loadedAdapterFingerprint = nil
         adapterMetadata = .unavailable
         hasCompletedWarmup = false

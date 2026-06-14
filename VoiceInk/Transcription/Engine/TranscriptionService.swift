@@ -3,11 +3,27 @@ import Foundation
 struct TranscriptionRequestContext {
     let language: String?
     let prompt: String?
+    let usesQwen3AudioAdapter: Bool
 
     static var currentDefaults: TranscriptionRequestContext {
         TranscriptionRequestContext(
             language: UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto",
-            prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt")
+            prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt"),
+            usesQwen3AudioAdapter: true
+        )
+    }
+
+    init(language: String?, prompt: String?, usesQwen3AudioAdapter: Bool = true) {
+        self.language = language
+        self.prompt = prompt
+        self.usesQwen3AudioAdapter = usesQwen3AudioAdapter
+    }
+
+    func withQwen3AudioAdapter(_ enabled: Bool) -> TranscriptionRequestContext {
+        TranscriptionRequestContext(
+            language: language,
+            prompt: prompt,
+            usesQwen3AudioAdapter: enabled
         )
     }
 }

@@ -107,7 +107,7 @@ class Qwen3ASRModel {
     }
 
     /// Load model weights from a directory
-    func load(from directory: URL, modelSize: Qwen3ASRModelSize) throws {
+    func load(from directory: URL, modelSize: Qwen3ASRModelSize, usesAudioAdapter: Bool = true) throws {
         // Load tokenizer
         let vocabPath = directory.appendingPathComponent("vocab.json")
         if FileManager.default.fileExists(atPath: vocabPath.path) {
@@ -118,10 +118,15 @@ class Qwen3ASRModel {
 
         Self.logger.info("Loading audio encoder weights...")
         try Qwen3WeightLoader.loadAudioEncoderWeights(into: audioEncoder, from: directory)
-        adapterMetadata = Qwen3ASRAudioAdapterLoader.loadAndApplyIfPresent(
-            modelDirectory: directory,
-            audioEncoder: audioEncoder
-        )
+        if usesAudioAdapter {
+            adapterMetadata = Qwen3ASRAudioAdapterLoader.loadAndApplyIfPresent(
+                modelDirectory: directory,
+                audioEncoder: audioEncoder
+            )
+        } else {
+            adapterMetadata = .unavailable
+            Self.logger.info("Qwen3-ASR audio LoRA adapter skipped for this transcription context")
+        }
 
         Self.logger.info("Loading text decoder weights...")
         let decoder = Qwen3QuantizedTextModel(config: textConfig)
@@ -141,6 +146,15 @@ class Qwen3ASRModel {
         )
         Memory.clearCache()
         Self.logger.info("Qwen3-ASR audio adapter refresh complete")
+    }
+
+    func reloadAudioEncoderBaseOnly(from directory: URL) throws {
+        Self.logger.info("Reloading Qwen3-ASR base audio encoder weights for adapter guard...")
+        audioEncoder.clearPosEmbeddingCache()
+        try Qwen3WeightLoader.loadAudioEncoderWeights(into: audioEncoder, from: directory)
+        adapterMetadata = .unavailable
+        Memory.clearCache()
+        Self.logger.info("Qwen3-ASR base audio encoder reload complete")
     }
 
     /// Transcribe audio to text

@@ -158,10 +158,11 @@ class AudioTranscriptionManager: ObservableObject {
             // Phase: Transcribing
             item.status = .processing(phase: .transcribing)
             let transcriptionStart = Date()
+            let requestContext = transcriptionConfiguration.requestContext.withQwen3AudioAdapter(false)
             var text = try await serviceRegistry.transcribe(
                 audioURL: permanentURL,
                 model: currentModel,
-                context: transcriptionConfiguration.requestContext
+                context: requestContext
             )
             let rawASRText = text
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)

@@ -112,6 +112,57 @@ struct Qwen3ASRAdapterTests {
         #expect(metadata.adapterLoadError?.contains("fixture load failed") == true)
     }
 
+    @Test func runtimeGuardOnlyProbesLongAdapterActionCommandOutputs() throws {
+        let adapterMetadata = Qwen3ASRAdapterMetadata(
+            adapterDetected: true,
+            adapterLoaded: true,
+            adapterApplied: true,
+            adapterPath: "/tmp/adapter",
+            adapterLoadError: nil
+        )
+
+        #expect(Qwen3ASRAdapterRuntimeGuard.shouldProbeBaseFallback(
+            adapterTranscript: "全部刪除。",
+            adapterMetadata: adapterMetadata,
+            audioDurationSeconds: 9.664
+        ))
+        #expect(!Qwen3ASRAdapterRuntimeGuard.shouldProbeBaseFallback(
+            adapterTranscript: "全部刪除。",
+            adapterMetadata: adapterMetadata,
+            audioDurationSeconds: 2.464
+        ))
+        #expect(!Qwen3ASRAdapterRuntimeGuard.shouldProbeBaseFallback(
+            adapterTranscript: "Repo 內的 Markdown。",
+            adapterMetadata: adapterMetadata,
+            audioDurationSeconds: 9.664
+        ))
+    }
+
+    @Test func runtimeGuardUsesBaseFallbackOnlyWhenBaseRestoresSurroundingActionCommandContext() throws {
+        #expect(Qwen3ASRAdapterRuntimeGuard.shouldUseBaseFallback(
+            adapterTranscript: "全部刪除。",
+            baseTranscript: "好了，Happy Graduation！全部删除。"
+        ))
+        #expect(!Qwen3ASRAdapterRuntimeGuard.shouldUseBaseFallback(
+            adapterTranscript: "全部刪除。",
+            baseTranscript: "全部删除。"
+        ))
+        #expect(!Qwen3ASRAdapterRuntimeGuard.shouldUseBaseFallback(
+            adapterTranscript: "Repo 內的 Markdown。",
+            baseTranscript: "Repo 內的 Markdown。"
+        ))
+    }
+
+    @Test func requestContextDefaultsToAdapterButAudioFileCallersCanDisableIt() throws {
+        let defaultContext = TranscriptionRequestContext(language: "Chinese", prompt: nil)
+        #expect(defaultContext.usesQwen3AudioAdapter)
+
+        let fileContext = defaultContext.withQwen3AudioAdapter(false)
+        #expect(fileContext.language == "Chinese")
+        #expect(fileContext.prompt == nil)
+        #expect(!fileContext.usesQwen3AudioAdapter)
+    }
+
     @Test func actualWAVSmokeConfirmsAdapterMetadataAndNoRegression() async throws {
         guard ProcessInfo.processInfo.environment["VOCO_QWEN3_ADAPTER_SMOKE"] == "1"
                 || FileManager.default.fileExists(
