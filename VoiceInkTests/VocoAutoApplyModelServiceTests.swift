@@ -104,6 +104,36 @@ struct VocoAutoApplyModelServiceTests {
         #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
     }
 
+    @Test func largeSyntheticModelKeepsIndexedExactScopedSuggestAndGuardBehavior() throws {
+        let url = try temporaryDirectory().appendingPathComponent("large-synthetic-auto-apply-fixture.json")
+        try Data(largeSyntheticFixtureJSON(fillerExactCount: 6_000).utf8).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let exact = service.evaluate("Cloud 的 OPUS 模型")
+        #expect(exact.outputText == "Exact whole utterance wins")
+        #expect(exact.applied.map(\.policyId) == ["large-exact-cloud"])
+        #expect(exact.suggestions.map(\.policyId) == ["large-suggest-cloud"])
+
+        let scoped = service.evaluate("alpha beta")
+        #expect(scoped.outputText == "gamma gamma")
+        #expect(scoped.applied.map(\.policyId) == ["large-scoped-alpha-beta", "large-scoped-beta-gamma"])
+
+        let contextLocked = service.evaluate("請幫我轉入文字", context: "Voco ASR 轉錄")
+        #expect(contextLocked.outputText == "請幫我轉錄文字")
+        #expect(contextLocked.applied.map(\.policyId) == ["large-scoped-context"])
+        #expect(service.evaluate("請幫我轉入文字", context: "表格匯入").outputText == "請幫我轉入文字")
+
+        let guarded = service.evaluate("這個明德變更怪怪的。")
+        #expect(guarded.outputText == "這個明德變更怪怪的。")
+        #expect(guarded.applied.isEmpty)
+        #expect(guarded.guardBlocks.map(\.guardId) == ["large-protected-mingde"])
+
+        let command = service.evaluate("全部刪除")
+        #expect(command.outputText == "全部刪除")
+        #expect(command.applied.isEmpty)
+        #expect(command.suggestions.isEmpty)
+    }
+
     @Test func migratedSwiftContextRulesApplyOnlyWithLockContext() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -731,6 +761,141 @@ struct VocoAutoApplyModelServiceTests {
               "contextRequired": true,
               "sourceSlices": ["controlEvidence"]
             }
+          ]
+        }
+        """
+    }
+
+    private func largeSyntheticFixtureJSON(fillerExactCount: Int) -> String {
+        let exactInput = "Cloud 的 OPUS 模型"
+        var policies = (0..<fillerExactCount).map { index in
+            """
+            {
+              "policyId": "large-filler-exact-\(index)",
+              "autoApplyMode": "apply",
+              "policyType": "exactTrainablePair",
+              "exactInputRequired": true,
+              "inputStrictKey": "synthetic exact \(index)",
+              "sourcePattern": "synthetic exact \(index)",
+              "targetText": "synthetic target \(index)",
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        }
+
+        policies.append(
+            """
+            {
+              "policyId": "large-exact-cloud",
+              "autoApplyMode": "apply",
+              "policyType": "exactTrainablePair",
+              "exactInputRequired": true,
+              "inputStrictKey": "\(VocoAutoApplyModelService.strictTextKey(exactInput))",
+              "sourcePattern": "\(exactInput)",
+              "targetText": "Exact whole utterance wins",
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+        policies.append(
+            """
+            {
+              "policyId": "large-scoped-cloud",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "Cloud",
+              "targetText": "Claude",
+              "scopedSourcePhrase": "Cloud",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+        policies.append(
+            """
+            {
+              "policyId": "large-scoped-alpha-beta",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "alpha",
+              "targetText": "beta",
+              "scopedSourcePhrase": "alpha",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+        policies.append(
+            """
+            {
+              "policyId": "large-scoped-beta-gamma",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "beta",
+              "targetText": "gamma",
+              "scopedSourcePhrase": "beta",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+        policies.append(
+            """
+            {
+              "policyId": "large-scoped-context",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "轉入",
+              "targetText": "轉錄",
+              "scopedSourcePhrase": "轉入",
+              "contextAliasesAny": [],
+              "contextTokensAny": ["ASR", "轉錄", "Voco"],
+              "contextRequired": true,
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+        policies.append(
+            """
+            {
+              "policyId": "large-suggest-cloud",
+              "autoApplyMode": "suggest",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "\(exactInput)",
+              "targetText": "Claude 的 OPUS 模型",
+              "scopedSourcePhrase": "\(exactInput)",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["synthetic"]
+            }
+            """
+        )
+
+        return """
+        {
+          "policyCounts": { "apply": \(fillerExactCount + 5), "suggest": 1, "replaced": 0 },
+          "policyTypeCounts": { "exactTrainablePair": \(fillerExactCount + 1), "scopedReplacement": 5 },
+          "safetyContract": [
+            "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
+            "Voco action commands such as 全部刪除 are blocked from text auto-apply training"
+          ],
+          "mergedReplayReadiness": {
+            "mergedAutoApplyModelReady": true,
+            "failures": []
+          },
+          "protectedTermAllowlistGuards": [
+            {
+              "guardId": "large-protected-mingde",
+              "reason": "\(VocoAutoApplyModelService.protectedTermGuardReason)",
+              "term": "明德",
+              "allowedPhrases": ["明德水庫"]
+            }
+          ],
+          "policies": [
+            \(policies.joined(separator: ",\n"))
           ]
         }
         """

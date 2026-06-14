@@ -72,7 +72,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AutoApplyModel")
     private let watchQueue = DispatchQueue(label: "com.jasonchien.Voco.autoApplyModelWatcher")
-    private var loadedModel: VocoAutoApplyModel?
+    private var loadedModel: VocoAutoApplyRuntimeModel?
     private var modelFileWatcher: DispatchSourceFileSystemObject?
     private var modelDirectoryWatcher: DispatchSourceFileSystemObject?
     private var pendingModelReload: DispatchWorkItem?
@@ -151,7 +151,7 @@ final class VocoAutoApplyModelService: ObservableObject {
                 return
             }
 
-            loadedModel = model
+            loadedModel = VocoAutoApplyRuntimeModel(model: model)
             let applyCount = model.policyCounts["apply"] ?? model.applyPolicies.count
             let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
             let replacedCount = model.policyCounts["replaced"] ?? 0
@@ -250,8 +250,7 @@ final class VocoAutoApplyModelService: ObservableObject {
             return VocoAutoApplyEvaluation(inputText: text, outputText: text, applied: [], suggestions: [])
         }
 
-        let exactApplyPolicies = model.applyPolicies.filter { $0.policyType == .exactTrainablePair }
-        if let exact = firstExactPolicy(in: exactApplyPolicies, matching: text),
+        if let exact = firstExactPolicy(in: model, matching: text),
            exact.isSafeApplyPolicy {
             let target = exact.targetText ?? text
             return guardedEvaluation(
@@ -265,9 +264,8 @@ final class VocoAutoApplyModelService: ObservableObject {
 
         var output = text
         var applied: [VocoAutoApplyPolicyFire] = []
-        for policy in model.applyPolicies where policy.policyType != .exactTrainablePair {
-            guard policy.isSafeApplyPolicy,
-                  policyFires(policy, text: output, context: context),
+        for policy in model.scopedApplyPolicies {
+            guard policyFires(policy, text: output, context: context),
                   let sourcePattern = policy.sourcePattern,
                   let targetText = policy.targetText
             else { continue }
@@ -318,13 +316,11 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     private func firstExactPolicy(
-        in policies: [VocoAutoApplyPolicy],
+        in model: VocoAutoApplyRuntimeModel,
         matching text: String
     ) -> VocoAutoApplyPolicy? {
         let key = Self.strictTextKey(text)
-        return policies.first {
-            $0.inputStrictKey == key && $0.exactInputRequired == true
-        }
+        return model.exactApplyPolicyByStrictKey[key]
     }
 
     private func suggestFires(
@@ -515,6 +511,48 @@ private struct VocoAutoApplyModel: Decodable {
             []
         policies = try container.decode([VocoAutoApplyPolicy].self, forKey: .policies)
         mergedReplayReadiness = try container.decode(VocoMergedReplayReadiness.self, forKey: .mergedReplayReadiness)
+    }
+}
+
+private struct VocoAutoApplyRuntimeModel {
+    let protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
+    let exactApplyPolicyByStrictKey: [String: VocoAutoApplyPolicy]
+    let scopedApplyPolicies: [VocoAutoApplyPolicy]
+    let suggestPolicies: [VocoAutoApplyPolicy]
+
+    init(model: VocoAutoApplyModel) {
+        protectedTermAllowlistGuards = model.protectedTermAllowlistGuards
+
+        var exactApplyPolicyByStrictKey: [String: VocoAutoApplyPolicy] = [:]
+        var scopedApplyPolicies: [VocoAutoApplyPolicy] = []
+        var suggestPolicies: [VocoAutoApplyPolicy] = []
+
+        for policy in model.policies {
+            switch policy.autoApplyMode {
+            case .apply:
+                switch policy.policyType {
+                case .exactTrainablePair:
+                    guard policy.exactInputRequired == true,
+                          let inputStrictKey = policy.inputStrictKey
+                    else { break }
+                    if exactApplyPolicyByStrictKey[inputStrictKey] == nil {
+                        exactApplyPolicyByStrictKey[inputStrictKey] = policy
+                    }
+                case .scopedReplacement:
+                    if policy.isSafeApplyPolicy {
+                        scopedApplyPolicies.append(policy)
+                    }
+                }
+            case .suggest:
+                suggestPolicies.append(policy)
+            case .blocked, .replaced:
+                break
+            }
+        }
+
+        self.exactApplyPolicyByStrictKey = exactApplyPolicyByStrictKey
+        self.scopedApplyPolicies = scopedApplyPolicies
+        self.suggestPolicies = suggestPolicies
     }
 }
 
