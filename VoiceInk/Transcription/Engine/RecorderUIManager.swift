@@ -330,13 +330,20 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
             return
         }
 
-        let selectedText = await SelectedTextService.fetchSelectedText()
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
-            engine.forkState.clearEditMode()
-            return
-        }
+        engine.forkState.clearEditMode()
+        engine.forkState.editModeDetectionTask = Task { @MainActor [weak self, weak engine] in
+            guard let self, let engine else { return }
 
-        applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
+            let selectedText = await SelectedTextService.fetchSelectedText()
+            guard !Task.isCancelled else { return }
+
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                engine.forkState.clearEditMode()
+                return
+            }
+
+            self.applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
+        }
     }
 
     private func applyEditModeResult(

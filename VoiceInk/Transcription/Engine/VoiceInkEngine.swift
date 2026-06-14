@@ -114,6 +114,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
             partialTranscript = ""
             recordingState = .transcribing
             await recorder.stopRecording()
+            await waitForEditModeDetectionIfNeeded()
 
             if let recordedFile {
                 if !shouldCancelRecording {
@@ -338,6 +339,30 @@ class VoiceInkEngine: NSObject, ObservableObject {
     }
 
     // MARK: - Pipeline Dispatch
+
+    private func waitForEditModeDetectionIfNeeded(timeoutNanoseconds: UInt64 = 500_000_000) async {
+        guard let task = forkState.editModeDetectionTask else { return }
+
+        let completed = await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await task.value
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return false
+            }
+
+            let completed = await group.next() ?? false
+            group.cancelAll()
+            return completed
+        }
+
+        if !completed {
+            task.cancel()
+        }
+        forkState.editModeDetectionTask = nil
+    }
 
     private func runPipeline(
         on transcription: Transcription,
