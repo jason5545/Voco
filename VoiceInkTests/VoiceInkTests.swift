@@ -441,7 +441,7 @@ struct VoiceInkTests {
         try await requireLoadedPinyinDatabase()
 
         let service = VocoCanonicalizationService(contextPacks: [])
-        let vocabulary = VocoCanonicalizationService.vocabularyTerms(from: ["明德", "簡瑞成"])
+        let vocabulary = VocoCanonicalizationService.vocabularyTerms(from: ["明德", "王小明"])
 
         let regression = service.normalize(
             "我們最近的變更應該有加了自動學習的那個",
@@ -450,8 +450,8 @@ struct VoiceInkTests {
         #expect(regression.normalizedText == "我們最近的變更應該有加了自動學習的那個")
         #expect(regression.replacements.isEmpty)
 
-        let fullName = service.normalize("簡銳城", additionalTerms: vocabulary)
-        #expect(fullName.normalizedText == "簡瑞成")
+        let fullName = service.normalize("汪曉鳴", additionalTerms: vocabulary)
+        #expect(fullName.normalizedText == "王小明")
         #expect(fullName.replacements.first?.reason == "vocabulary-phonetic-match")
     }
 

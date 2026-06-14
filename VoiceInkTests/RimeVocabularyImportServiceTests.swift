@@ -11,17 +11,17 @@ struct RimeVocabularyImportServiceTests {
         # Rime table
         # coding: utf-8
         # 人名
-        簡瑞成\tjian rui cheng\t42
-        瑞成\trui cheng
+        王小明\twang xiao ming\t42
+        小明\txiao ming
         """
 
         let candidates = service.parse(text, sourceFile: .personalDictionary)
 
         #expect(candidates.count == 2)
-        #expect(candidates[0].term == "簡瑞成")
+        #expect(candidates[0].term == "王小明")
         #expect(candidates[0].sourceFile == "personal_dict.txt")
         #expect(candidates[0].section == "人名")
-        #expect(candidates[0].code == "jian rui cheng")
+        #expect(candidates[0].code == "wang xiao ming")
         #expect(candidates[0].weight == 42)
         #expect(candidates[0].categoryGuess == .personName)
         #expect(candidates[1].weight == nil)
@@ -31,7 +31,7 @@ struct RimeVocabularyImportServiceTests {
         let personal = service.parse(
             """
             # 人名
-            簡瑞成\tjian rui cheng
+            王小明\twang xiao ming
             # 一般詞
             天空\ttian kong
             """,
@@ -84,7 +84,7 @@ struct RimeVocabularyImportServiceTests {
             okay\tokay
             x\tx
             updated.\tupdated
-            jason5545@gmail.com\temail
+            person@example.com\temail
             這是一個很長很長很長的句子。\tlong
             """,
             sourceFile: .customPhrase
@@ -100,7 +100,7 @@ struct RimeVocabularyImportServiceTests {
         #expect(preview.items.contains { $0.candidate.term == "okay" && $0.skipReasons.contains("common term") })
         #expect(preview.items.contains { $0.candidate.term == "x" && $0.skipReasons.contains("too short") })
         #expect(preview.items.contains { $0.candidate.term == "updated." && $0.skipReasons.contains("too much punctuation") })
-        #expect(preview.items.contains { $0.candidate.term == "jason5545@gmail.com" && $0.skipReasons.contains("email-like") })
+        #expect(preview.items.contains { $0.candidate.term == "person@example.com" && $0.skipReasons.contains("email-like") })
         #expect(preview.items.contains { $0.candidate.term.hasPrefix("這是一個") && $0.skipReasons.contains("sentence-like") })
     }
 
@@ -112,7 +112,7 @@ struct RimeVocabularyImportServiceTests {
         let directory = try temporaryRimeDirectory(
             personal: """
             # 人名
-            簡瑞成\tjian rui cheng
+            王小明\twang xiao ming
             """,
             custom: """
             # 技術縮寫
@@ -132,7 +132,7 @@ struct RimeVocabularyImportServiceTests {
 
         #expect(beforeWords == afterWords)
         #expect(preview.summary.existingCount == 2)
-        #expect(!protectionList.words.contains("簡瑞成"))
+        #expect(!protectionList.words.contains("王小明"))
     }
 
     @Test @MainActor func importSelectedCandidatesOnly() throws {
@@ -142,8 +142,8 @@ struct RimeVocabularyImportServiceTests {
         let personCandidates = service.parse(
             """
             # 人名
-            簡瑞成\tjian rui cheng
-            瑞成\trui cheng
+            王小明\twang xiao ming
+            小明\txiao ming
             """,
             sourceFile: .personalDictionary
         )
@@ -159,7 +159,7 @@ struct RimeVocabularyImportServiceTests {
             existingVocabularyWords: [],
             existingProtectedTerms: []
         )
-        let selected = preview.items.filter { $0.candidate.term == "簡瑞成" }
+        let selected = preview.items.filter { $0.candidate.term == "王小明" }
 
         let result = try service.importSelectedItems(
             selected,
@@ -170,8 +170,8 @@ struct RimeVocabularyImportServiceTests {
 
         #expect(result.insertedVocabularyCount == 1)
         #expect(result.insertedProtectedTermCount == 1)
-        #expect(words == ["簡瑞成"])
-        #expect(protectionList.words == ["簡瑞成"])
+        #expect(words == ["王小明"])
+        #expect(protectionList.words == ["王小明"])
     }
 }
 

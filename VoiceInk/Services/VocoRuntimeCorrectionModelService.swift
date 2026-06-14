@@ -670,9 +670,7 @@ private struct VocoRuntimeCorrectionArtifact: Decodable {
     }
 
     private static let allowedJasonApprovers = [
-        "Jason",
-        "Jason Chien",
-        "Jianrui Cheng"
+        "Jason"
     ]
 
     private func modelURL(baseURL: URL) -> URL {

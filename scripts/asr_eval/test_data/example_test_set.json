@@ -1,0 +1,26 @@
+[
+  {
+    "audio_path": "path/to/private-recording-1.wav",
+    "duration": 6.2,
+    "asr_text": "請把 Cloud Flare Pages 的設定打開。",
+    "enhanced_text": "請把 Cloudflare Pages 的設定打開。",
+    "original_model": "example-asr-model",
+    "tags": [
+      "code_switching",
+      "medium",
+      "light_correction"
+    ]
+  },
+  {
+    "audio_path": "path/to/private-recording-2.wav",
+    "duration": 4.1,
+    "asr_text": "我用 VS code 開這個 repo。",
+    "enhanced_text": "我用 VS Code 開這個 repo。",
+    "original_model": "example-asr-model",
+    "tags": [
+      "code_switching",
+      "short",
+      "light_correction"
+    ]
+  }
+]

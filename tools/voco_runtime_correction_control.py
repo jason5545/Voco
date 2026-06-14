@@ -21,7 +21,7 @@ from typing import Any
 APP_SUPPORT = Path.home() / "Library/Application Support/com.jasonchien.Voco"
 DEFAULT_RUNTIME_MODEL_DIR = APP_SUPPORT / "RuntimeCorrectionModels"
 RUNTIME_ARTIFACT_FILE = "runtime-correction-artifact.json"
-ALLOWED_JASON_APPROVERS = {"Jason", "Jason Chien", "Jianrui Cheng"}
+ALLOWED_JASON_APPROVERS = {"Jason"}
 
 
 class RuntimeCorrectionArtifactError(ValueError):

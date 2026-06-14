@@ -109,8 +109,15 @@ scripts/asr_eval/models/
 scripts/convert_whisper_coreml/
 transcript.txt
 
+# Local ASR eval data generated from private recordings
+scripts/asr_eval/test_data/*.json
+!scripts/asr_eval/test_data/example_test_set.json
+scripts/asr_eval/results/*.json
+scripts/asr_eval/transcript.txt
+
 # Local auto-apply model artifacts
 LocalModels/
+artifacts/
 Support/AutoApplyModels/
 full-db.auto-apply-model.json
 
@@ -121,6 +128,7 @@ qwen3-asr-speaker-audio-lora-20260612-balanced-64iter/
 adapters.safetensors
 
 # Claude Code
+.claude/
 CLAUDE.md
 AI_HANDOFF.md
 UPSTREAM_PR_GUIDE.md

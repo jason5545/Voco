@@ -35,7 +35,7 @@ DEFAULT_ACTIVE_MODEL = APP_SUPPORT / "AutoApplyModels/full-db.auto-apply-model.j
 DEFAULT_CONTROL_DIR = APP_SUPPORT / "AutoApplyControl"
 DEFAULT_EVIDENCE_STORE = DEFAULT_CONTROL_DIR / "evidence.jsonl"
 DEFAULT_OUTPUT_ROOT = DEFAULT_CONTROL_DIR / "artifacts"
-DEFAULT_REPLAYLAB_ROOT = Path.home() / "GitHub/VocoReplayLab"
+DEFAULT_REPLAYLAB_ROOT = Path.home() / "VocoReplayLab"
 DEFAULT_CURRENT_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-raw-cleaned-20260611-093103-context10"
 DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cleaned-20260611-pre12022-context10"
 CONTROL_SCHEMA_VERSION = 1
@@ -1956,7 +1956,7 @@ def proposal_activation_manifest_failures(
             failures.append({"field": field, "expected": expected, "actual": manifest.get(field)})
     if not str(manifest.get("approvalToken") or "").strip():
         failures.append({"field": "approvalToken", "reason": "missing approval token"})
-    if str(manifest.get("approvedBy") or "").strip().lower() not in {"jason", "jason chien", "jianrui cheng"}:
+    if str(manifest.get("approvedBy") or "").strip().lower() not in {"jason"}:
         failures.append({"field": "approvedBy", "reason": "Jason approval is required", "actual": manifest.get("approvedBy")})
     if not str(manifest.get("approvedAt") or "").strip():
         failures.append({"field": "approvedAt", "reason": "missing approval timestamp"})

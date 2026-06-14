@@ -451,7 +451,7 @@ struct VocoAutoApplyModelServiceTests {
 
     @Test func gitignoreProtectsProductionAndLocalModelPaths() throws {
         let gitignore = try String(
-            contentsOf: URL(fileURLWithPath: "/Users/jianruicheng/GitHub/Voco/.gitignore"),
+            contentsOf: projectRootURL().appendingPathComponent(".gitignore"),
             encoding: .utf8
         )
 

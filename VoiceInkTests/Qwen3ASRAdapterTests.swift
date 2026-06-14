@@ -114,7 +114,11 @@ struct Qwen3ASRAdapterTests {
 
     @Test func actualWAVSmokeConfirmsAdapterMetadataAndNoRegression() async throws {
         guard ProcessInfo.processInfo.environment["VOCO_QWEN3_ADAPTER_SMOKE"] == "1"
-                || FileManager.default.fileExists(atPath: "/Users/jianruicheng/GitHub/Voco/LocalModels/.run-qwen3-adapter-smoke") else {
+                || FileManager.default.fileExists(
+                    atPath: projectRootURL()
+                        .appendingPathComponent("LocalModels/.run-qwen3-adapter-smoke")
+                        .path
+                ) else {
             return
         }
 
@@ -237,7 +241,15 @@ private struct ReplayLabAdapterFixture {
 }
 
 private enum ReplayLabAdapterFixtures {
-    static let artifactDirectory = URL(fileURLWithPath: "/Users/jianruicheng/GitHub/VocoReplayLab/artifacts/audio-adapter-training-data-20260612-voco-existing-audio", isDirectory: true)
+    static var artifactDirectory: URL {
+        if let override = ProcessInfo.processInfo.environment["VOCO_REPLAYLAB_ADAPTER_ARTIFACT_DIR"],
+           !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+
+        return projectRootURL()
+            .appendingPathComponent("LocalModels/ReplayLab/audio-adapter-training-data", isDirectory: true)
+    }
 
     static func load(rows: [Int]) throws -> [ReplayLabAdapterFixture] {
         let evalRows = try keyedRows(from: artifactDirectory.appendingPathComponent("asr-adapter-eval.jsonl"))
@@ -278,7 +290,11 @@ private enum ReplayLabAdapterFixtures {
 private enum EdgeTTSCenturyWindFixture {
     static var isEnabled: Bool {
         ProcessInfo.processInfo.environment["VOCO_QWEN3_ADAPTER_EDGE_TTS_SMOKE"] == "1"
-            || FileManager.default.fileExists(atPath: "/Users/jianruicheng/GitHub/Voco/LocalModels/.run-qwen3-adapter-edge-tts-smoke")
+            || FileManager.default.fileExists(
+                atPath: projectRootURL()
+                    .appendingPathComponent("LocalModels/.run-qwen3-adapter-edge-tts-smoke")
+                    .path
+            )
     }
 
     static var audioURL: URL {
@@ -286,9 +302,8 @@ private enum EdgeTTSCenturyWindFixture {
             return URL(fileURLWithPath: override)
         }
 
-        return URL(
-            fileURLWithPath: "/Users/jianruicheng/GitHub/Voco/LocalModels/EdgeTTSSmoke/century-wind-2072-stock-183.wav"
-        )
+        return projectRootURL()
+            .appendingPathComponent("LocalModels/EdgeTTSSmoke/century-wind-2072-stock-183.wav")
     }
 }
 
@@ -345,6 +360,12 @@ private func temporaryDirectory() throws -> URL {
         .appendingPathComponent("Qwen3ASRAdapterTests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     return directory
+}
+
+private func projectRootURL() -> URL {
+    URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
 }
 
 private func cer(_ hypothesis: String, _ reference: String) -> Double {
