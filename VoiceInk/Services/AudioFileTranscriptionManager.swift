@@ -184,7 +184,8 @@ class AudioTranscriptionManager: ObservableObject {
                 cleanedText,
                 rawTranscript: rawASRText,
                 model: currentModel,
-                modelContext: modelContext
+                modelContext: modelContext,
+                correctionPolicy: .skipPostASRCorrectionModels
             )
             let normalizationResult = normalizedOutput.normalizationResult
             let confidenceAssessment = normalizedOutput.confidenceAssessment

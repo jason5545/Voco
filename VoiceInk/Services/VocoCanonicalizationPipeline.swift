@@ -10,7 +10,8 @@ enum VocoCanonicalizationPipeline {
         modelContext: ModelContext,
         transcription: Transcription? = nil,
         appName: String? = nil,
-        windowTitle: String? = nil
+        windowTitle: String? = nil,
+        correctionPolicy: VocoCanonicalizationCorrectionPolicy = .full
     ) -> VocoNormalizationResult {
         normalizeWithAssessment(
             text,
@@ -19,7 +20,8 @@ enum VocoCanonicalizationPipeline {
             modelContext: modelContext,
             transcription: transcription,
             appName: appName,
-            windowTitle: windowTitle
+            windowTitle: windowTitle,
+            correctionPolicy: correctionPolicy
         ).normalizationResult
     }
 
@@ -30,7 +32,8 @@ enum VocoCanonicalizationPipeline {
         modelContext: ModelContext,
         transcription: Transcription? = nil,
         appName: String? = nil,
-        windowTitle: String? = nil
+        windowTitle: String? = nil,
+        correctionPolicy: VocoCanonicalizationCorrectionPolicy = .full
     ) -> (normalizationResult: VocoNormalizationResult, confidenceAssessment: VocoConfidenceAssessment) {
         let activeMode = ModeManager.shared.currentActiveConfiguration
         let result = VocoCanonicalizationService.shared.normalize(
@@ -41,7 +44,8 @@ enum VocoCanonicalizationPipeline {
                 mode: activeMode,
                 appName: appName,
                 windowTitle: windowTitle
-            )
+            ),
+            correctionPolicy: correctionPolicy
         )
         let assessment = confidenceAssessment(
             for: result,

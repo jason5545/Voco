@@ -99,6 +99,39 @@ struct VocoRuntimeCorrectionModelServiceTests {
         #expect(events[0].chosenAction == "noop")
     }
 
+    @Test func skipPostASRCorrectionModelsPolicyBypassesAutoApplyAndRuntimeModels() throws {
+        let root = try runtimeTemporaryDirectory()
+        let artifact = try writeRuntimeShadowArtifact(in: root)
+        let eventLog = root.appendingPathComponent("shadow-events.jsonl")
+        let runtimeDefaults = try runtimeTemporaryDefaults()
+        runtimeDefaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let runtimeService = VocoRuntimeCorrectionModelService(
+            artifactURL: artifact,
+            eventLogURL: eventLog,
+            defaults: runtimeDefaults
+        )
+        let autoApplyService = VocoAutoApplyModelService(
+            modelURL: try writeRuntimeAutoApplyFixture(in: root),
+            defaults: try runtimeTemporaryDefaults()
+        )
+        let canonicalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: autoApplyService,
+            runtimeCorrectionModelService: runtimeService
+        )
+
+        let input = "那我們又做了把這個模型給載入了，所以他在我們這個城市裡面的角色是什麼？"
+        let result = canonicalization.normalize(
+            input,
+            correctionPolicy: .skipPostASRCorrectionModels
+        )
+
+        #expect(result.normalizedText == input)
+        #expect(result.replacements.isEmpty)
+        #expect(result.suggestions.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: eventLog.path) == false)
+    }
+
     @Test func gatedApplyContractCanDirectlyChangeFinalTextWhenReplaySafeAndApproved() throws {
         let root = try runtimeTemporaryDirectory()
         let artifact = try writeRuntimeGatedApplyArtifact(in: root)
@@ -540,6 +573,37 @@ struct VocoRuntimeCorrectionModelServiceTests {
         #expect(service.status.isAvailable == false)
         #expect(evaluation.outputText == "規則後")
         #expect(evaluation.decision == nil)
+    }
+
+    @Test func missingPostASRCorrectionModelsKeepCanonicalizationUsable() throws {
+        let root = try runtimeTemporaryDirectory()
+        let eventLog = root.appendingPathComponent("shadow-events.jsonl")
+        let runtimeDefaults = try runtimeTemporaryDefaults()
+        runtimeDefaults.set(true, forKey: VocoRuntimeCorrectionModelService.enabledKey)
+        let runtimeService = VocoRuntimeCorrectionModelService(
+            artifactURL: root.appendingPathComponent("missing-runtime-correction-artifact.json"),
+            eventLogURL: eventLog,
+            defaults: runtimeDefaults
+        )
+        let autoApplyService = VocoAutoApplyModelService(
+            modelURL: root.appendingPathComponent("missing-auto-apply-model.json"),
+            defaults: try runtimeTemporaryDefaults()
+        )
+        let canonicalization = VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: autoApplyService,
+            runtimeCorrectionModelService: runtimeService
+        )
+
+        let input = "沒有安裝後處理模型時，基本轉錄結果仍然可以保存。"
+        let result = canonicalization.normalize(input)
+
+        #expect(autoApplyService.status.isAvailable == false)
+        #expect(runtimeService.status.isAvailable == false)
+        #expect(result.normalizedText == input)
+        #expect(result.replacements.isEmpty)
+        #expect(result.suggestions.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: eventLog.path) == false)
     }
 
     @Test func joblibCannotBeLoadedByRuntimeOrCompiledJsonBoundaries() throws {

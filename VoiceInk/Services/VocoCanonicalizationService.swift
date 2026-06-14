@@ -1,5 +1,18 @@
 import Foundation
 
+enum VocoCanonicalizationCorrectionPolicy: Equatable {
+    case full
+    case skipPostASRCorrectionModels
+
+    var usesAutoApplyModel: Bool {
+        self == .full
+    }
+
+    var usesRuntimeCorrectionModel: Bool {
+        self == .full
+    }
+}
+
 final class VocoCanonicalizationService {
     static let shared = VocoCanonicalizationService()
     static let defaultContextPackID = "builtin.voco-development"
@@ -24,7 +37,8 @@ final class VocoCanonicalizationService {
         _ text: String,
         activeContextIDs: [String] = VocoCanonicalizationService.defaultActiveContextIDs,
         additionalTerms: [VocoCanonicalTerm] = [],
-        contextHints: [String] = []
+        contextHints: [String] = [],
+        correctionPolicy: VocoCanonicalizationCorrectionPolicy = .full
     ) -> VocoNormalizationResult {
         guard !text.isEmpty else {
             return VocoNormalizationResult(
@@ -49,18 +63,34 @@ final class VocoCanonicalizationService {
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
             .map { replacementRecord(for: $0, in: text) }
         let canonicalizedText = applying(accepted, to: text)
-        let initialAutoApply = autoApplyModelService.evaluate(
-            canonicalizedText,
-            context: ([text] + contextHints).joined(separator: "\n")
-        )
-        let blockedTerms = Set(initialAutoApply.guardBlocks.map(\.term))
-            .union(autoApplyModelService.protectedTermGuardTerms())
-        let protectedTermAccepted = accepted.filter { candidate in
-            blockedTerms.contains { term in
-                candidate.replacementText.contains(term) &&
-                    !candidate.originalText.contains(term)
-            }
+        let autoApplyContext = ([text] + contextHints).joined(separator: "\n")
+        let initialAutoApply: VocoAutoApplyEvaluation
+        if correctionPolicy.usesAutoApplyModel {
+            initialAutoApply = autoApplyModelService.evaluate(
+                canonicalizedText,
+                context: autoApplyContext
+            )
+        } else {
+            initialAutoApply = VocoAutoApplyEvaluation(
+                inputText: canonicalizedText,
+                outputText: canonicalizedText,
+                applied: [],
+                suggestions: []
+            )
         }
+
+        let blockedTerms = correctionPolicy.usesAutoApplyModel
+            ? Set(initialAutoApply.guardBlocks.map(\.term))
+                .union(autoApplyModelService.protectedTermGuardTerms())
+            : []
+        let protectedTermAccepted = correctionPolicy.usesAutoApplyModel
+            ? accepted.filter { candidate in
+                blockedTerms.contains { term in
+                    candidate.replacementText.contains(term) &&
+                        !candidate.originalText.contains(term)
+                }
+            }
+            : []
         let safeAccepted: [ReplacementCandidate]
         let autoApply: VocoAutoApplyEvaluation
         if protectedTermAccepted.isEmpty {
@@ -73,7 +103,7 @@ final class VocoCanonicalizationService {
             let safeCanonicalizedText = applying(safeAccepted, to: text)
             let safeAutoApply = autoApplyModelService.evaluate(
                 safeCanonicalizedText,
-                context: ([text] + contextHints).joined(separator: "\n")
+                context: autoApplyContext
             )
             autoApply = VocoAutoApplyEvaluation(
                 inputText: safeAutoApply.inputText,
@@ -91,18 +121,27 @@ final class VocoCanonicalizationService {
             autoApply.outputText,
             vocabularyWords: personalVocabularyWords(in: termSources)
         )
-        let runtimeCorrection = runtimeCorrectionModelService.evaluate(
-            VocoRuntimeCorrectionFeatures(
-                rawTranscript: text,
-                canonicalizedText: canonicalizedText,
-                postRuleText: postRuleText,
-                contextHints: contextHints,
-                deterministicRuleFires: autoApply.applied,
-                actionCommand: VoiceCommandService.shared.detectCommand(in: text) != nil,
-                protectedTermHits: autoApply.guardBlocks.map(\.term),
-                candidateSpans: []
+        let runtimeCorrection: VocoRuntimeCorrectionEvaluation
+        if correctionPolicy.usesRuntimeCorrectionModel {
+            runtimeCorrection = runtimeCorrectionModelService.evaluate(
+                VocoRuntimeCorrectionFeatures(
+                    rawTranscript: text,
+                    canonicalizedText: canonicalizedText,
+                    postRuleText: postRuleText,
+                    contextHints: contextHints,
+                    deterministicRuleFires: autoApply.applied,
+                    actionCommand: VoiceCommandService.shared.detectCommand(in: text) != nil,
+                    protectedTermHits: autoApply.guardBlocks.map(\.term),
+                    candidateSpans: []
+                )
             )
-        )
+        } else {
+            runtimeCorrection = VocoRuntimeCorrectionEvaluation(
+                inputText: postRuleText,
+                outputText: postRuleText,
+                decision: nil
+            )
+        }
 
         return VocoNormalizationResult(
             originalText: text,
