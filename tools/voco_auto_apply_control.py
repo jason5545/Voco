@@ -118,6 +118,21 @@ def parse_args() -> argparse.Namespace:
     context_rule.add_argument("--negative-context", default="")
     context_rule.add_argument("--note")
 
+    replacement_rule = subparsers.add_parser("addReplacementRule")
+    replacement_rule.add_argument("--source-pattern", required=True)
+    replacement_rule.add_argument("--target-text", required=True)
+    replacement_rule.add_argument("--source-text")
+    replacement_rule.add_argument("--row-pk", type=int)
+    replacement_rule.add_argument("--rule-name")
+    replacement_rule.add_argument("--positive", action="append", default=[], help="TEXT||CONTEXT||EXPECTED")
+    replacement_rule.add_argument("--negative", action="append", default=[], help="TEXT or TEXT||CONTEXT")
+    replacement_rule.add_argument("--positive-text")
+    replacement_rule.add_argument("--positive-context", default="")
+    replacement_rule.add_argument("--expected-text")
+    replacement_rule.add_argument("--negative-text")
+    replacement_rule.add_argument("--negative-context", default="")
+    replacement_rule.add_argument("--note")
+
     disable = subparsers.add_parser("disableRule")
     disable.add_argument("--policy-id")
     disable.add_argument("--source-pattern")
@@ -211,6 +226,10 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
     if args.command == "addContextLockedRule":
         event = context_locked_rule_event(args)
+        append_event(args.evidence_store.expanduser(), event)
+        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+    if args.command == "addReplacementRule":
+        event = replacement_rule_event(args)
         append_event(args.evidence_store.expanduser(), event)
         return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
     if args.command == "disableRule":
@@ -358,6 +377,65 @@ def context_locked_rule_event(args: argparse.Namespace) -> dict[str, Any]:
         },
     }
     return make_event(args.actor, "addContextLockedRule", payload)
+
+
+def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
+    source_pattern = str(args.source_pattern)
+    target_text = str(args.target_text)
+    if not source_pattern.strip():
+        raise SystemExit("addReplacementRule requires non-empty --source-pattern")
+    if not target_text.strip():
+        raise SystemExit("addReplacementRule requires non-empty --target-text")
+    if strict_text_key(source_pattern) == strict_text_key(target_text):
+        raise SystemExit("addReplacementRule source and target normalize to the same text")
+
+    source_text = args.source_text or source_pattern
+    positive_examples = parse_positive_examples(args.positive)
+    negative_examples = parse_negative_examples(args.negative)
+    if args.positive_text:
+        positive_examples.append(
+            {
+                "text": args.positive_text,
+                "context": args.positive_context or "",
+                "expectedText": args.expected_text or replace_text(args.positive_text, source_pattern, target_text),
+            }
+        )
+    if not positive_examples:
+        positive_examples.append(
+            {
+                "text": source_text,
+                "context": "",
+                "expectedText": replace_text(source_text, source_pattern, target_text),
+            }
+        )
+    if args.negative_text:
+        negative_examples.append(
+            {
+                "text": args.negative_text,
+                "context": args.negative_context or "",
+                "expectedText": args.negative_text,
+                "forbiddenText": target_text,
+            }
+        )
+
+    payload = {
+        "ruleType": "unlockedReplacement",
+        "rowPk": args.row_pk,
+        "sourceText": source_text,
+        "sourcePattern": source_pattern,
+        "targetText": target_text,
+        "ruleName": args.rule_name or f"manual-replacement:{short_digest(source_pattern + '->' + target_text)}",
+        "examples": {
+            "positive": positive_examples,
+            "negative": negative_examples,
+        },
+        "provenance": {
+            "manualLabel": "confirmed-unlocked-replacement-rule",
+            "evidenceTier": "T4_GOLD",
+            "note": args.note,
+        },
+    }
+    return make_event(args.actor, "addReplacementRule", payload)
 
 
 def disable_rule_event(args: argparse.Namespace) -> dict[str, Any]:
@@ -1066,6 +1144,9 @@ def compile_model(
         elif action == "addContextLockedRule":
             policy = context_policy_from_event(event)
             overlay_policy_count += upsert_policy(policies, policy, event)
+        elif action == "addReplacementRule":
+            policy = replacement_policy_from_event(event)
+            overlay_policy_count += upsert_policy(policies, policy, event)
         elif action in {"disableRule", "addHallucination"}:
             tombstone = payload.get("tombstone") if isinstance(payload.get("tombstone"), dict) else {}
             tombstone_count += tombstone_matching_policies(policies, tombstone, event)
@@ -1229,9 +1310,77 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
+    payload = event["payload"]
+    source_pattern = str(payload["sourcePattern"])
+    target_text = str(payload["targetText"])
+    source_text = str(payload.get("sourceText") or source_pattern)
+    row_pk = payload.get("rowPk")
+    evidence_rows = [int(row_pk)] if row_pk else []
+    policy_id_key = json.dumps(
+        {
+            "sourcePattern": source_pattern,
+            "targetText": target_text,
+            "ruleName": payload.get("ruleName"),
+            "ruleType": "unlockedReplacement",
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return {
+        "policyId": f"manual-replacement-{short_digest(policy_id_key, length=16)}",
+        "policyType": "scopedReplacement",
+        "autoApplyMode": "apply",
+        "decisionReason": "manual unlocked scoped replacement from control-plane evidence",
+        "source": source_text,
+        "target": target_text,
+        "sourcePattern": source_pattern,
+        "targetText": target_text,
+        "lockName": payload.get("ruleName") or "manual-unlocked-replacement",
+        "contextRequired": False,
+        "contextTokensAny": [],
+        "contextAliasesAny": [],
+        "contextFromContextOnly": False,
+        "requireAlias": False,
+        "scopedSourcePhrase": source_pattern,
+        "scopeWindow": "manual unlocked replacement; ASCII sources use runtime token-boundary matching",
+        "evidenceRows": evidence_rows,
+        "trainableRows": evidence_rows,
+        "reviewRows": [],
+        "evidenceCount": len(evidence_rows) or 1,
+        "trainableEvidenceCount": len(evidence_rows) or 1,
+        "reviewEvidenceCount": 0,
+        "riskFlagCounts": {"manualUnlockedReplacement": 1},
+        "labelTierCounts": {"T4_GOLD": 1},
+        "cleanedSourceCounts": {"manualControlPlane": 1},
+        "pairContextRequiredRows": [],
+        "storedOutputDisagreesRows": [],
+        "reviewGateConflictRows": [],
+        "manualOverrideRows": [],
+        "exactInputRequired": False,
+        "inputText": None,
+        "inputStrictKey": None,
+        "targetStrictKey": strict_text_key(target_text),
+        "exactInputResolution": None,
+        "sourceSlices": ["manualControlPlane"],
+        "sourcePolicies": [],
+        "controlEvidenceEventIds": [event["eventId"]],
+    }
+
+
 def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], event: dict[str, Any]) -> int:
-    for policy in policies:
+    for index, policy in enumerate(policies):
         if policy_identity(policy) == policy_identity(new_policy):
+            if policy.get("autoApplyMode") != new_policy.get("autoApplyMode") or isinstance(policy.get("tombstone"), dict):
+                superseded_ids = list(policy.get("controlEvidenceEventIds") or [])
+                superseded_tombstone = policy.get("tombstone") if isinstance(policy.get("tombstone"), dict) else None
+                replacement = copy.deepcopy(new_policy)
+                if superseded_ids:
+                    replacement["supersededControlEvidenceEventIds"] = superseded_ids
+                if superseded_tombstone:
+                    replacement["supersededTombstone"] = superseded_tombstone
+                policies[index] = replacement
+                return 0
             ids = list(policy.get("controlEvidenceEventIds") or [])
             if event["eventId"] not in ids:
                 ids.append(event["eventId"])
@@ -1314,6 +1463,7 @@ def append_safety_contract(model: dict[str, Any]) -> None:
     additions = [
         "control-plane rule changes must originate from append-only evidence JSONL events",
         "manual context-locked scoped replacements require explicit context tokens or aliases",
+        "manual unlocked replacements are reserved for closed-form strings with explicit examples and no context requirement",
         "manual tombstones preserve provenance by marking policies blocked or replaced instead of deleting evidence",
         "activation requires positive examples, negative examples, sentinel replay, and corpus replay when available",
         "protected term allowlist guards must be declared in the model artifact, not hard-coded in runtime services",
@@ -1380,6 +1530,8 @@ def validate_model(
     failures.extend(exact_conflicts)
     manual_context_failures = manual_context_lock_failures(apply_policies)
     failures.extend(manual_context_failures)
+    manual_replacement_failures = manual_replacement_rule_failures(apply_policies)
+    failures.extend(manual_replacement_failures)
     count_report = policy_count_report(model, base_model)
     failures.extend(count_report["failures"])
     corpus_reports = []
@@ -1406,6 +1558,7 @@ def validate_model(
         "negativeExamples": negative_results,
         "exactApplyConflicts": exact_conflicts,
         "manualContextLockFailures": manual_context_failures,
+        "manualReplacementFailures": manual_replacement_failures,
         "policyCounts": model.get("policyCounts") or {},
         "policyTypeCounts": model.get("policyTypeCounts") or {},
         "policyCountReport": count_report,
@@ -1425,7 +1578,7 @@ def control_event_ids_for_policies(policies: list[dict[str, Any]]) -> set[str]:
 
 def should_validate_examples_for_event(event: dict[str, Any], active_control_event_ids: set[str]) -> bool:
     action = str(event.get("action") or "")
-    if action in {"addCorrection", "addContextLockedRule"}:
+    if action in {"addCorrection", "addContextLockedRule", "addReplacementRule"}:
         event_id = str(event.get("eventId") or "")
         return bool(event_id and event_id in active_control_event_ids)
     return True
@@ -1543,6 +1696,29 @@ def manual_context_lock_failures(apply_policies: list[dict[str, Any]]) -> list[d
     return failures
 
 
+def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    failures: list[dict[str, Any]] = []
+    for policy in apply_policies:
+        policy_id = str(policy.get("policyId") or "")
+        if not policy_id.startswith("manual-replacement-"):
+            continue
+        source = str(policy.get("sourcePattern") or "")
+        target = str(policy.get("targetText") or "")
+        if policy.get("policyType") != "scopedReplacement":
+            failures.append({"kind": "manualReplacementUnexpectedPolicyType", "policyId": policy_id, "passed": False})
+        if policy.get("contextRequired") is not False:
+            failures.append({"kind": "manualReplacementMustNotRequireContext", "policyId": policy_id, "passed": False})
+        if policy.get("contextTokensAny") or policy.get("contextAliasesAny") or policy.get("requireAlias"):
+            failures.append({"kind": "manualReplacementHasContextLockFields", "policyId": policy_id, "passed": False})
+        if not source.strip() or not target.strip():
+            failures.append({"kind": "manualReplacementMissingSourceOrTarget", "policyId": policy_id, "passed": False})
+        if strict_text_key(source) == strict_text_key(target):
+            failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
+        if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
+            failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
+    return failures
+
+
 def policy_count_report(model: dict[str, Any], base_model: dict[str, Any] | None) -> dict[str, Any]:
     failures: list[dict[str, Any]] = []
     if not base_model:
@@ -1631,6 +1807,8 @@ def corpus_replay_report(
     if backend and not skip_raw_input_replay and raw_path.exists() and trainable_path.exists() and model_path.exists():
         raw_report = backend["raw_eval"].evaluate_raw_input(raw_path, cleaned_path, trainable_path, model_path)
         filter_accepted_manual_corpus_changes(raw_report, model)
+        if base_model:
+            suppress_inherited_baseline_policy_fires(raw_report, base_model)
         raw_input_compact = compact_replay_report(raw_report)
         if not raw_report["readiness"]["rawInputReplayPass"]:
             failures.append(
@@ -1726,6 +1904,43 @@ def suppress_inherited_baseline_corpus_changes(report: dict[str, Any], baseline_
         readiness["reason"] = "cleaned corpus replay passed; only inherited active-model changes were ignored"
 
 
+def suppress_inherited_baseline_policy_fires(report: dict[str, Any], base_model: dict[str, Any]) -> None:
+    unexpected = list(report.get("unexpectedChanges") or [])
+    if not unexpected:
+        return
+
+    base_apply_policy_ids = {
+        str(policy.get("policyId"))
+        for policy in base_model.get("policies") or []
+        if policy.get("autoApplyMode") == "apply" and policy.get("policyId")
+    }
+    inherited: list[dict[str, Any]] = []
+    remaining: list[dict[str, Any]] = []
+    for item in unexpected:
+        fire_ids = [
+            str((fire if isinstance(fire, dict) else {}).get("policyId") or "")
+            for fire in item.get("fires") or []
+        ]
+        if fire_ids and all(policy_id in base_apply_policy_ids for policy_id in fire_ids):
+            inherited.append(item)
+        else:
+            remaining.append(item)
+
+    report["baselineUnexpectedChanges"] = len(unexpected)
+    report["inheritedBaselineUnexpectedChanges"] = inherited
+    report["unexpectedChanges"] = remaining
+    if report.get("sentinelFailures") or remaining:
+        return
+
+    readiness = report.get("readiness") if isinstance(report.get("readiness"), dict) else {}
+    if "rawInputReplayPass" in readiness:
+        readiness["rawInputReplayPass"] = True
+        readiness["reason"] = "raw input replay passed; only inherited active-model policy fires were ignored"
+    elif "autoApplyModelReady" in readiness:
+        readiness["autoApplyModelReady"] = True
+        readiness["reason"] = "cleaned corpus replay passed; only inherited active-model policy fires were ignored"
+
+
 def corpus_change_key(item: dict[str, Any]) -> tuple[Any, ...]:
     return (
         int_or_none(item.get("rowPk")),
@@ -1752,6 +1967,8 @@ def is_accepted_manual_corpus_change(item: dict[str, Any], policies_by_id: dict[
     if row_pk is not None:
         for policy_id, policy in fired_policies:
             if manual_exact_policy_accepts_change(policy_id, policy, row_pk, item):
+                return True
+            if manual_replacement_policy_accepts_change(policy_id, policy, item):
                 return True
 
     return is_accepted_manual_baseline_drift(item, fired_policies)
@@ -1808,6 +2025,32 @@ def manual_exact_policy_accepts_change(
     if strict_text_key(after) != target_key:
         return False
     return strict_text_key(after) != strict_text_key(cleaned)
+
+
+def manual_replacement_policy_accepts_change(
+    policy_id: str,
+    policy: dict[str, Any],
+    item: dict[str, Any],
+) -> bool:
+    if not policy_id.startswith("manual-replacement-"):
+        return False
+    if policy.get("policyType") != "scopedReplacement" or policy.get("contextRequired") is not False:
+        return False
+    source = str(policy.get("sourcePattern") or "")
+    target = str(policy.get("targetText") or "")
+    if not source or not target:
+        return False
+    if not contains_ascii_token(source) or not contains_ascii_token(target):
+        return False
+
+    before = str(item.get("before") or "")
+    after = str(item.get("after") or "")
+    cleaned = str(item.get("cleanedText") or "")
+    if not before or not after or not cleaned:
+        return False
+    if strict_text_key(after) == strict_text_key(cleaned):
+        return False
+    return strict_text_key(replace_policy_source(before, source, target)) == strict_text_key(after)
 
 
 def policy_contains_row(policy: dict[str, Any], field: str, row_pk: int) -> bool:

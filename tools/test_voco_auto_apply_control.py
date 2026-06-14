@@ -116,6 +116,242 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "應該是要重新建立的才對吧？")
             self.assertEqual(validation["negativeExamples"][0]["actualText"], "手機要充電。")
 
+    def test_unlocked_replacement_rule_compiles_without_context_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="A 三八零",
+                target_text="A380",
+                source_text="這一家的 A 三八零 很好。",
+                row_pk=13560,
+                rule_name="aircraft-model-a380",
+                positive=[],
+                negative=[],
+                positive_text="這一家的 A 三八零 很好。",
+                positive_context="",
+                expected_text="這一家的 A380 很好。",
+                negative_text="XA 三八零B 不應該改。",
+                negative_context="",
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(validation["positiveExamples"][0]["actualText"], "這一家的 A380 很好。")
+            self.assertEqual(validation["negativeExamples"][0]["actualText"], "XA 三八零B 不應該改。")
+            policy = model["policies"][0]
+            self.assertTrue(policy["policyId"].startswith("manual-replacement-"))
+            self.assertEqual(policy["policyType"], "scopedReplacement")
+            self.assertFalse(policy["contextRequired"])
+            self.assertEqual(policy["contextTokensAny"], [])
+            self.assertEqual(policy["contextAliasesAny"], [])
+
+    def test_readded_replacement_after_tombstone_validates_only_new_event_examples(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            old_args = Namespace(
+                actor="test",
+                source_pattern="A 三八零",
+                target_text="A380",
+                source_text="就有人把 A 三八零批評的一文不值。",
+                row_pk=13557,
+                rule_name="aircraft-model-a380",
+                positive=[],
+                negative=[],
+                positive_text="就有人把 A 三八零批評的一文不值。",
+                positive_context="",
+                expected_text="bad expected text",
+                negative_text=None,
+                negative_context="",
+                note=None,
+            )
+            new_args = Namespace(
+                actor="test",
+                source_pattern="A 三八零",
+                target_text="A380",
+                source_text="這架 A 三八零 很穩。",
+                row_pk=13557,
+                rule_name="aircraft-model-a380-v2",
+                positive=[],
+                negative=[],
+                positive_text="這架 A 三八零 很穩。",
+                positive_context="",
+                expected_text="這架 A380 很穩。",
+                negative_text=None,
+                negative_context="",
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(old_args))
+            control.append_event(
+                evidence,
+                control.disable_rule_event(
+                    Namespace(
+                        actor="test",
+                        policy_id=None,
+                        source_pattern="A 三八零",
+                        target_text="A380",
+                        reason="Replace overlapping replacement example.",
+                        disposition="replaced",
+                    )
+                ),
+            )
+            control.append_event(evidence, control.replacement_rule_event(new_args))
+            events = control.load_events(evidence)
+            model, _report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(len(validation["positiveExamples"]), 1)
+            self.assertEqual(validation["positiveExamples"][0]["actualText"], "這架 A380 很穩。")
+            policy = model["policies"][0]
+            self.assertEqual(policy["controlEvidenceEventIds"], [events[-1]["eventId"]])
+            self.assertEqual(policy["supersededControlEvidenceEventIds"], [events[0]["eventId"], events[1]["eventId"]])
+
+    def test_unlocked_ascii_replacement_corpus_drift_is_accepted_with_replay_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            corpus = root / "corpus"
+            corpus.mkdir()
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="A三五零",
+                target_text="A350",
+                source_text="如果A三五零的話，有貨機就好了。",
+                row_pk=13553,
+                rule_name="aircraft-model-a350",
+                positive=[],
+                negative=[],
+                positive_text="如果A三五零的話，有貨機就好了。",
+                positive_context="",
+                expected_text="如果A350的話，有貨機就好了。",
+                negative_text=None,
+                negative_context="",
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(args))
+            events = control.load_events(evidence)
+            model, _report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            (corpus / "full-db.cleaned.jsonl").write_text(
+                json.dumps(
+                    {
+                        "rowPk": 11646,
+                        "rawOpenCC": "你剛才提到A三二零，那是不是說A三五零就沒有這個東西了？",
+                        "cleanedText": "你剛才提到A三二零，那是不是說A三五零就沒有這個東西了？",
+                        "requiresReview": False,
+                        "riskFlags": [],
+                        "context": {"before": []},
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=corpus,
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=False,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            cleaned = validation["corpusReplay"][0]["cleanedReplay"]
+            self.assertEqual(cleaned["acceptedManualCorpusChanges"], 1)
+            self.assertEqual(cleaned["unexpectedChanges"], 0)
+
+    def test_inherited_baseline_policy_fire_is_suppressed_from_raw_replay_failures(self):
+        report = {
+            "sentinelFailures": [],
+            "unexpectedChanges": [
+                {
+                    "rowPk": 10802,
+                    "before": "成都。",
+                    "after": "程度。",
+                    "cleanedText": "成都。",
+                    "fires": [{"policyId": "temporary-replacement-guard-9779e48749170520"}],
+                },
+                {
+                    "rowPk": 13553,
+                    "before": "如果A三五零的話，有貨機就好了。",
+                    "after": "如果A350的話，有貨機就好了。",
+                    "cleanedText": "如果A三五零的話，有貨機就好了。",
+                    "fires": [{"policyId": "manual-replacement-new"}],
+                },
+            ],
+            "readiness": {"rawInputReplayPass": False, "reason": "raw input replay produced unexpected changes"},
+        }
+        base_model = tiny_base_model()
+        base_model["policies"] = [
+            {
+                "policyId": "temporary-replacement-guard-9779e48749170520",
+                "autoApplyMode": "apply",
+            }
+        ]
+
+        control.suppress_inherited_baseline_policy_fires(report, base_model)
+
+        self.assertEqual(len(report["inheritedBaselineUnexpectedChanges"]), 1)
+        self.assertEqual(report["unexpectedChanges"][0]["rowPk"], 13553)
+        self.assertFalse(report["readiness"]["rawInputReplayPass"])
+
     def test_protected_mingde_guard_matches_runtime_policy_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
