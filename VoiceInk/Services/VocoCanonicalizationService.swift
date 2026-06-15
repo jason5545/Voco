@@ -153,16 +153,22 @@ final class VocoCanonicalizationService {
         if correctionPolicy.usesTextCleanupLoRA {
             textLoRA = textCleanupLoRAService.evaluate(
                 runtimeCorrection.outputText,
+                rawTranscript: text,
+                postRuleText: postRuleText,
                 contextHints: contextHints
             )
         } else {
             textLoRA = VocoTextCleanupLoRAEvaluation(
                 inputText: runtimeCorrection.outputText,
+                rawTranscript: text,
+                postRuleText: postRuleText,
                 outputText: runtimeCorrection.outputText,
                 candidateText: nil,
                 mode: .off,
+                chosenAction: "noop",
                 applied: false,
-                status: "policy-disabled"
+                status: "policy-disabled",
+                reasonCodes: ["policy-disabled"]
             )
         }
 
@@ -171,7 +177,8 @@ final class VocoCanonicalizationService {
             normalizedText: textLoRA.outputText,
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
-            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
+            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions,
+            textCleanupLoRA: textLoRA
         )
     }
 
