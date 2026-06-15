@@ -11,6 +11,10 @@ enum VocoCanonicalizationCorrectionPolicy: Equatable {
     var usesRuntimeCorrectionModel: Bool {
         self == .full
     }
+
+    var usesTextCleanupLoRA: Bool {
+        self == .full
+    }
 }
 
 final class VocoCanonicalizationService {
@@ -22,15 +26,18 @@ final class VocoCanonicalizationService {
     let contextPacks: [VocoContextPack]
     private let autoApplyModelService: VocoAutoApplyModelService
     private let runtimeCorrectionModelService: VocoRuntimeCorrectionModelService
+    private let textCleanupLoRAService: VocoTextCleanupLoRAService
 
     init(
         contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
         autoApplyModelService: VocoAutoApplyModelService = .shared,
-        runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared
+        runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared,
+        textCleanupLoRAService: VocoTextCleanupLoRAService = .shared
     ) {
         self.contextPacks = contextPacks
         self.autoApplyModelService = autoApplyModelService
         self.runtimeCorrectionModelService = runtimeCorrectionModelService
+        self.textCleanupLoRAService = textCleanupLoRAService
     }
 
     func normalize(
@@ -142,10 +149,26 @@ final class VocoCanonicalizationService {
                 decision: nil
             )
         }
+        let textLoRA: VocoTextCleanupLoRAEvaluation
+        if correctionPolicy.usesTextCleanupLoRA {
+            textLoRA = textCleanupLoRAService.evaluate(
+                runtimeCorrection.outputText,
+                contextHints: contextHints
+            )
+        } else {
+            textLoRA = VocoTextCleanupLoRAEvaluation(
+                inputText: runtimeCorrection.outputText,
+                outputText: runtimeCorrection.outputText,
+                candidateText: nil,
+                mode: .off,
+                applied: false,
+                status: "policy-disabled"
+            )
+        }
 
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: runtimeCorrection.outputText,
+            normalizedText: textLoRA.outputText,
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
             suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions

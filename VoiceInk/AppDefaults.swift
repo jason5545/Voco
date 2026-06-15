@@ -81,6 +81,10 @@ enum AppDefaults {
         PhoneticShadowLogger.shadowLoggingEnabledKey: false,
         PhoneticShadowLogger.candidateApplicationEnabledKey: false,
         VocoAutoApplyModelService.enabledKey: true,
+        VocoTextCleanupLoRAService.modeKey: VocoTextCleanupLoRAService.Mode.off.rawValue,
+        VocoTextCleanupLoRAService.baseModelPathKey: VocoTextCleanupLoRAService.defaultBaseModelPath,
+        VocoTextCleanupLoRAService.adapterPathKey: VocoTextCleanupLoRAService.defaultAdapterPath,
+        VocoTextCleanupLoRAService.maxTokensKey: VocoTextCleanupLoRAService.defaultMaxTokens,
     ]
 
     static func registerDefaults(defaults: UserDefaults = .standard) {
