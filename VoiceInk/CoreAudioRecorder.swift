@@ -83,30 +83,39 @@ final class CoreAudioRecorder: @unchecked Sendable {
     /// Prepares AUHAL for the selected device without starting capture.
     func prepare(deviceID: AudioDeviceID) throws {
         if isRecording {
+            StartupTracer.checkpoint("CoreAudio.prepare_skipped_recording")
             return
         }
 
         try validateDevice(deviceID)
+        StartupTracer.checkpoint("CoreAudio.validate_device_done")
 
         if isPrepared(for: deviceID) {
+            StartupTracer.checkpoint("CoreAudio.prepare_reused")
             return
         }
 
         teardownPreparedAudioUnit()
+        StartupTracer.checkpoint("CoreAudio.teardown_prepared_done")
         currentDeviceID = deviceID
 
         logDeviceDetails(deviceID: deviceID)
 
         do {
             try createAudioUnit()
+            StartupTracer.checkpoint("CoreAudio.create_unit_done")
 
             try setInputDevice(deviceID)
+            StartupTracer.checkpoint("CoreAudio.set_input_device_done")
 
             try configureFormats()
+            StartupTracer.checkpoint("CoreAudio.configure_formats_done")
 
             try setupInputCallback()
+            StartupTracer.checkpoint("CoreAudio.setup_input_callback_done")
 
             try initializeAudioUnit()
+            StartupTracer.checkpoint("CoreAudio.initialize_unit_done")
         } catch {
             teardownPreparedAudioUnit()
             throw error
@@ -117,16 +126,20 @@ final class CoreAudioRecorder: @unchecked Sendable {
     func startRecording(toOutputFile url: URL, deviceID: AudioDeviceID) throws {
         // Stop any existing recording
         stopRecording()
+        StartupTracer.checkpoint("CoreAudio.stop_existing_done")
 
         try prepare(deviceID: deviceID)
+        StartupTracer.checkpoint("CoreAudio.prepare_done")
 
         do {
             recordingURL = url
 
             // The output file is per recording; the AUHAL setup above is reused.
             try createOutputFile(at: url)
+            StartupTracer.checkpoint("CoreAudio.output_file_created")
 
             try startAudioUnit()
+            StartupTracer.checkpoint("CoreAudio.start_unit_done")
         } catch {
             isRecording = false
             closeOutputFile()

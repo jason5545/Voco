@@ -202,17 +202,24 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
                 await dismissRecorderPanel()
             }
         } else {
-            StartupTracer.begin("hotkey_press")
-            lastRecordingStopTime = nil
-            engine.cancelScheduledModelCleanup()
-            StartupTracer.checkpoint("cancelModelCleanup_done")
-            SoundManager.shared.playStartSound()
-            StartupTracer.checkpoint("playStartSound_done")
-            await detectEditMode(engine: engine)
-            StartupTracer.checkpoint("detectEditMode_done")
-            isRecorderPanelVisible = true
-            StartupTracer.checkpoint("isRecorderPanelVisible_set")
-            await engine.toggleRecord(modeId: modeId)
+            await RecorderPanelStartFlow.run(
+                resetStopStateAndCancelModelCleanup: {
+                    lastRecordingStopTime = nil
+                    engine.cancelScheduledModelCleanup()
+                },
+                playStartSound: {
+                    SoundManager.shared.playStartSound()
+                },
+                detectEditMode: {
+                    await detectEditMode(engine: engine)
+                },
+                setRecorderPanelVisible: {
+                    isRecorderPanelVisible = true
+                },
+                toggleRecord: {
+                    await engine.toggleRecord(modeId: modeId)
+                }
+            )
         }
     }
 
@@ -283,29 +290,28 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         }
 
         let snapshot = EditModeCacheService.shared.snapshotEditModeState()
-        let cacheMatchesFrontmostApp = EditModeDetectionPolicy.cacheMatchesFrontmostApp(
-            cachedPID: snapshot.pid,
-            currentPID: currentPID
-        )
-
-        if cacheMatchesFrontmostApp,
-           !snapshot.isEditable,
-           !EditModeDetectionPolicy.canUseElectronSelectionFallback(
-               bundleID: bundleID,
-               cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
-               focusedElementUnavailable: snapshot.focusedElementUnavailable
-           ) {
-            engine.forkState.clearEditMode()
-            return
-        }
-
-        await applyLiveEditModeDetection(
-            engine: engine,
-            pid: currentPID,
+        let decision = EditModeDetectionPolicy.initialDecision(
             bundleID: bundleID,
-            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+            currentPID: currentPID,
+            cachedPID: snapshot.pid,
+            cachedIsEditable: snapshot.isEditable,
             focusedElementUnavailable: snapshot.focusedElementUnavailable
         )
+
+        switch decision {
+        case .clear:
+            engine.forkState.clearEditMode()
+            return
+
+        case .applyLive(let cacheMatchesFrontmostApp, let focusedElementUnavailable):
+            await applyLiveEditModeDetection(
+                engine: engine,
+                pid: currentPID,
+                bundleID: bundleID,
+                cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+                focusedElementUnavailable: focusedElementUnavailable
+            )
+        }
     }
 
     private func applyLiveEditModeDetection(
@@ -397,7 +403,36 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
     }
 }
 
+@MainActor
+enum RecorderPanelStartFlow {
+    static func run(
+        resetStopStateAndCancelModelCleanup: @MainActor () -> Void,
+        playStartSound: @MainActor () -> Void,
+        detectEditMode: @MainActor () async -> Void,
+        setRecorderPanelVisible: @MainActor () -> Void,
+        toggleRecord: @MainActor () async -> Void,
+        beginTrace: @MainActor (String) -> Void = { StartupTracer.begin($0) },
+        checkpoint: @MainActor (String) -> Void = { StartupTracer.checkpoint($0) }
+    ) async {
+        beginTrace("hotkey_press")
+        resetStopStateAndCancelModelCleanup()
+        checkpoint("cancelModelCleanup_done")
+        playStartSound()
+        checkpoint("playStartSound_done")
+        await detectEditMode()
+        checkpoint("detectEditMode_done")
+        setRecorderPanelVisible()
+        checkpoint("isRecorderPanelVisible_set")
+        await toggleRecord()
+    }
+}
+
 enum EditModeDetectionPolicy {
+    enum InitialDecision: Equatable {
+        case clear
+        case applyLive(cacheMatchesFrontmostApp: Bool, focusedElementUnavailable: Bool)
+    }
+
     private static let electronSelectionFallbackBundleIDs: Set<String> = [
         "com.anthropic.claudefordesktop",
         "com.exafunction.windsurf",
@@ -407,6 +442,43 @@ enum EditModeDetectionPolicy {
         "com.todesktop.230313mzl4w4u92",
         "dev.kiro.desktop",
     ]
+
+    static func initialDecision(
+        bundleID: String?,
+        currentPID: pid_t?,
+        cachedPID: pid_t?,
+        cachedIsEditable: Bool,
+        focusedElementUnavailable: Bool,
+        terminalBundleIDs: Set<String> = EditModeCacheService.terminalBundleIDs
+    ) -> InitialDecision {
+        if let bundleID, terminalBundleIDs.contains(bundleID) {
+            return .clear
+        }
+
+        guard let currentPID else {
+            return .clear
+        }
+
+        let cacheMatchesFrontmostApp = cacheMatchesFrontmostApp(
+            cachedPID: cachedPID,
+            currentPID: currentPID
+        )
+
+        if cacheMatchesFrontmostApp,
+           !cachedIsEditable,
+           !canUseElectronSelectionFallback(
+               bundleID: bundleID,
+               cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+               focusedElementUnavailable: focusedElementUnavailable
+           ) {
+            return .clear
+        }
+
+        return .applyLive(
+            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
+            focusedElementUnavailable: focusedElementUnavailable
+        )
+    }
 
     static func cacheMatchesFrontmostApp(cachedPID: pid_t?, currentPID: pid_t?) -> Bool {
         guard let cachedPID, let currentPID else { return false }

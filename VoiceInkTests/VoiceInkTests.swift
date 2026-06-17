@@ -3228,6 +3228,55 @@ struct VoiceInkTests {
         ))
     }
 
+    @Test func editModeInitialDecisionAvoidsLiveAXWhenCacheAlreadyRulesOutEditMode() {
+        let terminalBundleIDs: Set<String> = ["com.apple.Terminal"]
+
+        #expect(EditModeDetectionPolicy.initialDecision(
+            bundleID: "com.apple.Terminal",
+            currentPID: 42,
+            cachedPID: 42,
+            cachedIsEditable: true,
+            focusedElementUnavailable: false,
+            terminalBundleIDs: terminalBundleIDs
+        ) == .clear)
+
+        #expect(EditModeDetectionPolicy.initialDecision(
+            bundleID: "com.apple.TextEdit",
+            currentPID: nil,
+            cachedPID: 42,
+            cachedIsEditable: true,
+            focusedElementUnavailable: false,
+            terminalBundleIDs: terminalBundleIDs
+        ) == .clear)
+
+        #expect(EditModeDetectionPolicy.initialDecision(
+            bundleID: "com.apple.TextEdit",
+            currentPID: 42,
+            cachedPID: 42,
+            cachedIsEditable: false,
+            focusedElementUnavailable: false,
+            terminalBundleIDs: terminalBundleIDs
+        ) == .clear)
+
+        #expect(EditModeDetectionPolicy.initialDecision(
+            bundleID: "com.openai.chat",
+            currentPID: 42,
+            cachedPID: 42,
+            cachedIsEditable: false,
+            focusedElementUnavailable: true,
+            terminalBundleIDs: terminalBundleIDs
+        ) == .applyLive(cacheMatchesFrontmostApp: true, focusedElementUnavailable: true))
+
+        #expect(EditModeDetectionPolicy.initialDecision(
+            bundleID: "com.apple.TextEdit",
+            currentPID: 42,
+            cachedPID: 42,
+            cachedIsEditable: true,
+            focusedElementUnavailable: false,
+            terminalBundleIDs: terminalBundleIDs
+        ) == .applyLive(cacheMatchesFrontmostApp: true, focusedElementUnavailable: false))
+    }
+
     @Test func editModeDictionaryConfirmationTakesPriorityInRecorder() {
         #expect(
             RecorderSupplementaryPresentation.resolve(
@@ -3249,6 +3298,28 @@ struct VoiceInkTests {
         #expect(SelectedTextService.normalized("  hello\n") == "  hello\n")
         #expect(SelectedTextService.normalized("\n\t ") == nil)
         #expect(SelectedTextService.normalized(nil) == nil)
+    }
+
+    @Test func recordingStartupDoesNotDeferStartBranchAfterPermission() throws {
+        let testsURL = URL(fileURLWithPath: #filePath)
+        let sourceURL = testsURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("VoiceInk/Transcription/Engine/VoiceInkEngine.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        let permissionGuard = try #require(source.range(of: "guard requestRecordPermission() else"))
+        let startID = try #require(
+            source.range(of: "let startID = UUID()", range: permissionGuard.upperBound..<source.endIndex)
+        )
+        let stateSet = try #require(
+            source.range(of: "self.recordingState = .starting", range: startID.upperBound..<source.endIndex)
+        )
+        let preStartBootstrap = permissionGuard.upperBound..<stateSet.lowerBound
+
+        #expect(!source.contains("requestRecordPermission {"))
+        #expect(source.range(of: "Task { @MainActor [self] in", range: preStartBootstrap) == nil)
+        #expect(source.contains("private func requestRecordPermission() -> Bool"))
     }
 
     @Test @MainActor func toggleShortcutAllowsSecondStopTapInsideCancelWindow() async throws {
@@ -3305,6 +3376,476 @@ struct VoiceInkTests {
         )
 
         #expect(toggleCount == 3)
+    }
+
+    @Test @MainActor func recordingShortcutSyntheticTriggerFlowHandlesHundredStartsQuickly() async {
+        let triggerCount = 100
+        var toggleCount = 0
+        var cancelCount = 0
+        var elapsedMilliseconds: [Double] = []
+        elapsedMilliseconds.reserveCapacity(triggerCount)
+
+        for iteration in 0..<triggerCount {
+            var isRecorderVisible = false
+            var recordingState: RecordingState = .idle
+
+            let handler = RecordingShortcutModeHandler(
+                canHandleShortcutAction: { true },
+                isRecorderVisible: { isRecorderVisible },
+                recordingState: { recordingState },
+                toggleRecorderPanel: { _ in
+                    toggleCount += 1
+                    isRecorderVisible = true
+                    recordingState = .recording
+                },
+                cancelRecording: {
+                    cancelCount += 1
+                }
+            )
+
+            let scheduledAt = DispatchTime.now().uptimeNanoseconds
+            let elapsedMs: Double = await withCheckedContinuation { continuation in
+                Task { @MainActor in
+                    await handler.handleKeyDown(
+                        action: .primaryRecording,
+                        eventTime: TimeInterval(iteration),
+                        mode: .toggle
+                    )
+                    await handler.handleKeyUp(
+                        action: .primaryRecording,
+                        eventTime: TimeInterval(iteration) + 0.02,
+                        mode: .toggle
+                    )
+
+                    let finishedAt = DispatchTime.now().uptimeNanoseconds
+                    continuation.resume(returning: Double(finishedAt - scheduledAt) / 1_000_000)
+                }
+            }
+
+            elapsedMilliseconds.append(elapsedMs)
+        }
+
+        let totalMs = elapsedMilliseconds.reduce(0, +)
+        let averageMs = totalMs / Double(triggerCount)
+        let maxMs = elapsedMilliseconds.max() ?? 0
+
+        print(
+            String(
+                format: "recordingShortcutSyntheticTrigger100 count=%d avgMs=%.3f maxMs=%.3f",
+                triggerCount,
+                averageMs,
+                maxMs
+            )
+        )
+
+        #expect(toggleCount == triggerCount)
+        #expect(cancelCount == 0)
+        #expect(averageMs < 20)
+        #expect(maxMs < 200)
+    }
+
+    @Test @MainActor func recordingShortcutSyntheticTriggerStartsAfterLongIdleQuickly() async {
+        var isRecorderVisible = false
+        var recordingState: RecordingState = .idle
+        var currentDate = Date(timeIntervalSinceReferenceDate: 1_000)
+        var toggleCount = 0
+        var cancelCount = 0
+
+        let handler = RecordingShortcutModeHandler(
+            canHandleShortcutAction: { true },
+            isRecorderVisible: { isRecorderVisible },
+            recordingState: { recordingState },
+            toggleRecorderPanel: { _ in
+                toggleCount += 1
+                isRecorderVisible = true
+                recordingState = .recording
+            },
+            cancelRecording: {
+                cancelCount += 1
+            },
+            currentDate: {
+                currentDate
+            }
+        )
+
+        let firstScheduledAt = DispatchTime.now().uptimeNanoseconds
+        let firstElapsedMs: Double = await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                await handler.handleKeyDown(
+                    action: .primaryRecording,
+                    eventTime: 0,
+                    mode: .toggle
+                )
+                await handler.handleKeyUp(
+                    action: .primaryRecording,
+                    eventTime: 0.02,
+                    mode: .toggle
+                )
+
+                let finishedAt = DispatchTime.now().uptimeNanoseconds
+                continuation.resume(returning: Double(finishedAt - firstScheduledAt) / 1_000_000)
+            }
+        }
+
+        #expect(toggleCount == 1)
+
+        isRecorderVisible = false
+        recordingState = .idle
+        currentDate = currentDate.addingTimeInterval(3 * 60 * 60)
+
+        let idleScheduledAt = DispatchTime.now().uptimeNanoseconds
+        let idleElapsedMs: Double = await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                await handler.handleKeyDown(
+                    action: .primaryRecording,
+                    eventTime: 3 * 60 * 60,
+                    mode: .toggle
+                )
+                await handler.handleKeyUp(
+                    action: .primaryRecording,
+                    eventTime: 3 * 60 * 60 + 0.02,
+                    mode: .toggle
+                )
+
+                let finishedAt = DispatchTime.now().uptimeNanoseconds
+                continuation.resume(returning: Double(finishedAt - idleScheduledAt) / 1_000_000)
+            }
+        }
+
+        print(
+            String(
+                format: "recordingShortcutLongIdleTrigger idleHours=3 firstMs=%.3f idleMs=%.3f",
+                firstElapsedMs,
+                idleElapsedMs
+            )
+        )
+
+        #expect(toggleCount == 2)
+        #expect(cancelCount == 0)
+        #expect(firstElapsedMs < 200)
+        #expect(idleElapsedMs < 200)
+    }
+
+    @Test @MainActor func recorderPanelStartFlowOrdersPanelVisibilityBeforeToggleRecord() async {
+        var events: [String] = []
+        var isPanelVisible = false
+
+        await RecorderPanelStartFlow.run(
+            resetStopStateAndCancelModelCleanup: {
+                events.append("resetStopStateAndCancelModelCleanup")
+            },
+            playStartSound: {
+                events.append("playStartSound")
+            },
+            detectEditMode: {
+                events.append("detectEditMode")
+            },
+            setRecorderPanelVisible: {
+                events.append("setRecorderPanelVisible")
+                isPanelVisible = true
+            },
+            toggleRecord: {
+                events.append("toggleRecord")
+                #expect(isPanelVisible)
+            },
+            beginTrace: {
+                events.append("begin:\($0)")
+            },
+            checkpoint: {
+                events.append("checkpoint:\($0)")
+            }
+        )
+
+        #expect(events == [
+            "begin:hotkey_press",
+            "resetStopStateAndCancelModelCleanup",
+            "checkpoint:cancelModelCleanup_done",
+            "playStartSound",
+            "checkpoint:playStartSound_done",
+            "detectEditMode",
+            "checkpoint:detectEditMode_done",
+            "setRecorderPanelVisible",
+            "checkpoint:isRecorderPanelVisible_set",
+            "toggleRecord",
+        ])
+    }
+
+    @Test @MainActor func recorderPanelStartFlowSyntheticTriggerHandlesHundredStartsQuickly() async {
+        let triggerCount = 100
+        var cleanupCount = 0
+        var soundCount = 0
+        var detectCount = 0
+        var visibleCount = 0
+        var toggleCount = 0
+        var elapsedMilliseconds: [Double] = []
+        elapsedMilliseconds.reserveCapacity(triggerCount)
+
+        for _ in 0..<triggerCount {
+            var isPanelVisible = false
+            let scheduledAt = DispatchTime.now().uptimeNanoseconds
+            let elapsedMs: Double = await withCheckedContinuation { continuation in
+                Task { @MainActor in
+                    await RecorderPanelStartFlow.run(
+                        resetStopStateAndCancelModelCleanup: {
+                            cleanupCount += 1
+                        },
+                        playStartSound: {
+                            soundCount += 1
+                        },
+                        detectEditMode: {
+                            detectCount += 1
+                        },
+                        setRecorderPanelVisible: {
+                            visibleCount += 1
+                            isPanelVisible = true
+                        },
+                        toggleRecord: {
+                            #expect(isPanelVisible)
+                            toggleCount += 1
+                        },
+                        beginTrace: { _ in },
+                        checkpoint: { _ in }
+                    )
+
+                    let finishedAt = DispatchTime.now().uptimeNanoseconds
+                    continuation.resume(returning: Double(finishedAt - scheduledAt) / 1_000_000)
+                }
+            }
+
+            elapsedMilliseconds.append(elapsedMs)
+        }
+
+        let totalMs = elapsedMilliseconds.reduce(0, +)
+        let averageMs = totalMs / Double(triggerCount)
+        let maxMs = elapsedMilliseconds.max() ?? 0
+
+        print(
+            String(
+                format: "recorderPanelStartFlowSynthetic100 count=%d avgMs=%.3f maxMs=%.3f",
+                triggerCount,
+                averageMs,
+                maxMs
+            )
+        )
+
+        #expect(cleanupCount == triggerCount)
+        #expect(soundCount == triggerCount)
+        #expect(detectCount == triggerCount)
+        #expect(visibleCount == triggerCount)
+        #expect(toggleCount == triggerCount)
+        #expect(averageMs < 20)
+        #expect(maxMs < 200)
+    }
+
+    @Test @MainActor func recorderPanelStartFlowSyntheticTriggerStartsAfterLongIdleQuickly() async {
+        var cleanupCount = 0
+        var soundCount = 0
+        var detectCount = 0
+        var visibleCount = 0
+        var toggleCount = 0
+
+        func runSyntheticStart() async -> Double {
+            var isPanelVisible = false
+            let scheduledAt = DispatchTime.now().uptimeNanoseconds
+
+            return await withCheckedContinuation { continuation in
+                Task { @MainActor in
+                    await RecorderPanelStartFlow.run(
+                        resetStopStateAndCancelModelCleanup: {
+                            cleanupCount += 1
+                        },
+                        playStartSound: {
+                            soundCount += 1
+                        },
+                        detectEditMode: {
+                            detectCount += 1
+                        },
+                        setRecorderPanelVisible: {
+                            visibleCount += 1
+                            isPanelVisible = true
+                        },
+                        toggleRecord: {
+                            #expect(isPanelVisible)
+                            toggleCount += 1
+                        },
+                        beginTrace: { _ in },
+                        checkpoint: { _ in }
+                    )
+
+                    let finishedAt = DispatchTime.now().uptimeNanoseconds
+                    continuation.resume(returning: Double(finishedAt - scheduledAt) / 1_000_000)
+                }
+            }
+        }
+
+        let firstElapsedMs = await runSyntheticStart()
+        let simulatedIdleHours = 3
+        let idleElapsedMs = await runSyntheticStart()
+
+        print(
+            String(
+                format: "recorderPanelStartFlowLongIdleTrigger idleHours=%d firstMs=%.3f idleMs=%.3f",
+                simulatedIdleHours,
+                firstElapsedMs,
+                idleElapsedMs
+            )
+        )
+
+        #expect(cleanupCount == 2)
+        #expect(soundCount == 2)
+        #expect(detectCount == 2)
+        #expect(visibleCount == 2)
+        #expect(toggleCount == 2)
+        #expect(firstElapsedMs < 200)
+        #expect(idleElapsedMs < 200)
+    }
+
+    @Test @MainActor func engineRecordingStartFlowOrdersStartingStateBeforeRecorderStart() async throws {
+        var events: [String] = []
+        var recordedFile: URL?
+        var installedAudioCallback: ((Data) -> Void)?
+        var recordingState: RecordingState = .idle
+        var scheduledMute = false
+        let expectedURL = URL(fileURLWithPath: "/tmp/voco-engine-start-flow-order.wav")
+
+        let output = try await EngineRecordingStartFlow.run(
+            makeRecordingURL: {
+                events.append("makeRecordingURL")
+                return expectedURL
+            },
+            setRecordedFile: {
+                events.append("setRecordedFile")
+                recordedFile = $0
+            },
+            setAudioChunkCallback: {
+                events.append("setAudioChunkCallback")
+                installedAudioCallback = $0
+            },
+            setRecordingStateStarting: {
+                events.append("setRecordingStateStarting")
+                recordingState = .starting
+            },
+            scheduleSystemMute: {
+                events.append("scheduleSystemMute")
+                scheduledMute = true
+            },
+            startRecording: {
+                events.append("startRecording")
+                #expect($0 == expectedURL)
+                #expect(recordingState == .starting)
+                #expect(scheduledMute)
+                installedAudioCallback?(Data([1, 2, 3]))
+            },
+            checkpoint: {
+                events.append("checkpoint:\($0)")
+            },
+            endTrace: {
+                events.append("end:\($0)")
+            }
+        )
+
+        let bufferedChunks = output.pendingChunks.withLock { $0 }
+
+        #expect(recordedFile == expectedURL)
+        #expect(output.recordingURL == expectedURL)
+        #expect(bufferedChunks == [Data([1, 2, 3])])
+        #expect(events == [
+            "makeRecordingURL",
+            "setRecordedFile",
+            "checkpoint:toggleRecord_recording_file_prepared",
+            "setAudioChunkCallback",
+            "checkpoint:toggleRecord_audio_callback_set",
+            "setRecordingStateStarting",
+            "checkpoint:toggleRecord_state_set_starting",
+            "scheduleSystemMute",
+            "checkpoint:toggleRecord_before_startRecording",
+            "startRecording",
+            "end:recorder_startRecording_done",
+        ])
+    }
+
+    @Test @MainActor func engineRecordingStartFlowSyntheticTriggerHandlesHundredStartsQuickly() async throws {
+        let triggerCount = 100
+        var recordedFileCount = 0
+        var callbackCount = 0
+        var startingStateCount = 0
+        var muteCount = 0
+        var startRecordingCount = 0
+        var elapsedMilliseconds: [Double] = []
+        elapsedMilliseconds.reserveCapacity(triggerCount)
+
+        for iteration in 0..<triggerCount {
+            var installedAudioCallback: ((Data) -> Void)?
+            var recordingState: RecordingState = .idle
+            let expectedURL = URL(fileURLWithPath: "/tmp/voco-engine-start-flow-\(iteration).wav")
+
+            let scheduledAt = DispatchTime.now().uptimeNanoseconds
+            let elapsedMs: Double = try await withCheckedThrowingContinuation { continuation in
+                Task { @MainActor in
+                    do {
+                        let output = try await EngineRecordingStartFlow.run(
+                            makeRecordingURL: {
+                                expectedURL
+                            },
+                            setRecordedFile: {
+                                #expect($0 == expectedURL)
+                                recordedFileCount += 1
+                            },
+                            setAudioChunkCallback: {
+                                callbackCount += 1
+                                installedAudioCallback = $0
+                            },
+                            setRecordingStateStarting: {
+                                startingStateCount += 1
+                                recordingState = .starting
+                            },
+                            scheduleSystemMute: {
+                                muteCount += 1
+                            },
+                            startRecording: {
+                                #expect($0 == expectedURL)
+                                #expect(recordingState == .starting)
+                                startRecordingCount += 1
+                                installedAudioCallback?(Data([UInt8(iteration % 255)]))
+                            },
+                            checkpoint: { _ in },
+                            endTrace: { _ in }
+                        )
+
+                        let chunkCount = output.pendingChunks.withLock { $0.count }
+                        #expect(chunkCount == 1)
+
+                        let finishedAt = DispatchTime.now().uptimeNanoseconds
+                        continuation.resume(returning: Double(finishedAt - scheduledAt) / 1_000_000)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+
+            elapsedMilliseconds.append(elapsedMs)
+        }
+
+        let totalMs = elapsedMilliseconds.reduce(0, +)
+        let averageMs = totalMs / Double(triggerCount)
+        let maxMs = elapsedMilliseconds.max() ?? 0
+
+        print(
+            String(
+                format: "engineRecordingStartFlowSynthetic100 count=%d avgMs=%.3f maxMs=%.3f",
+                triggerCount,
+                averageMs,
+                maxMs
+            )
+        )
+
+        #expect(recordedFileCount == triggerCount)
+        #expect(callbackCount == triggerCount)
+        #expect(startingStateCount == triggerCount)
+        #expect(muteCount == triggerCount)
+        #expect(startRecordingCount == triggerCount)
+        #expect(averageMs < 20)
+        #expect(maxMs < 200)
     }
 
 }
