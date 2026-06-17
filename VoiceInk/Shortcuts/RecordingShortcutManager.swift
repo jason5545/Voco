@@ -345,6 +345,7 @@ final class RecordingShortcutModeHandler {
     private let recordingState: @MainActor () -> RecordingState
     private let toggleRecorderPanel: @MainActor (UUID?) async -> Void
     private let cancelRecording: @MainActor () async -> Void
+    private let currentDate: @MainActor () -> Date
 
     private var shortcutPressStartTime: TimeInterval?
     private var isHandsFreeRecording = false
@@ -364,13 +365,15 @@ final class RecordingShortcutModeHandler {
         isRecorderVisible: @escaping @MainActor () -> Bool,
         recordingState: @escaping @MainActor () -> RecordingState,
         toggleRecorderPanel: @escaping @MainActor (UUID?) async -> Void,
-        cancelRecording: @escaping @MainActor () async -> Void
+        cancelRecording: @escaping @MainActor () async -> Void,
+        currentDate: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.canHandleShortcutAction = canHandleShortcutAction
         self.isRecorderVisible = isRecorderVisible
         self.recordingState = recordingState
         self.toggleRecorderPanel = toggleRecorderPanel
         self.cancelRecording = cancelRecording
+        self.currentDate = currentDate
     }
 
     func reset() {
@@ -392,8 +395,9 @@ final class RecordingShortcutModeHandler {
             return
         }
 
+        let now = currentDate()
         if let lastTrigger = lastShortcutPressTime,
-           Date().timeIntervalSince(lastTrigger) < shortcutPressCooldown {
+           now.timeIntervalSince(lastTrigger) < shortcutPressCooldown {
             return
         }
 
@@ -403,7 +407,7 @@ final class RecordingShortcutModeHandler {
         isShortcutPressed = true
         activeRecordingShortcutAction = action
         activeShortcutCanCancelAccidentalStart = canCurrentShortcutPressCancelAccidentalStart
-        lastShortcutPressTime = Date()
+        lastShortcutPressTime = now
         shortcutPressStartTime = eventTime
 
         switch mode {
