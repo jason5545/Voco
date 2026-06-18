@@ -12,7 +12,7 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
         try #require(PinyinDatabase.shared.isLoaded)
     }
 
-    @Test func vocabularyPhoneticRepairNormalizesExistingNameTerm() async throws {
+    @Test func vocabularyDoesNotPhoneticallyRewriteNameTerm() async throws {
         try await requireLoadedPinyinDatabase()
 
         let terms = VocoCanonicalizationService.vocabularyTerms(from: ["王小明"])
@@ -25,14 +25,12 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
             additionalTerms: terms
         )
 
-        #expect(result.normalizedText == "王小明")
-        #expect(result.replacements.count == 1)
-        #expect(result.replacements.first?.originalText == "汪曉鳴")
-        #expect(result.replacements.first?.replacementText == "王小明")
-        #expect(result.replacements.first?.reason == "vocabulary-phonetic-match")
+        #expect(result.normalizedText == "汪曉鳴")
+        #expect(result.replacements.isEmpty)
+        #expect(result.suggestions.isEmpty)
     }
 
-    @Test func standaloneVocabularyNameDoesNotKeepAutoAddedTerminalPeriod() async throws {
+    @Test func canonicalVocabularyNameDoesNotKeepAutoAddedTerminalPeriod() async throws {
         try await requireLoadedPinyinDatabase()
 
         let terms = VocoCanonicalizationService.vocabularyTerms(from: ["王小明"])
@@ -46,8 +44,8 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
             activeContextIDs: [],
             additionalTerms: terms
         )
-        #expect(phonetic.normalizedText == "王小明")
-        #expect(phonetic.replacements.first?.reason == "vocabulary-phonetic-match")
+        #expect(phonetic.normalizedText == "汪曉鳴。")
+        #expect(phonetic.replacements.isEmpty)
 
         let canonical = service.normalize(
             "王小明。",
@@ -76,6 +74,46 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
         #expect(result.replacements.isEmpty)
     }
 
+    @Test func phoneticCorrectionTermsApplyExplicitPairsAgainstImportedVocabulary() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let terms = VocoCanonicalizationService.vocabularyTerms(from: [
+            "簡瑞成",
+            "李聖苓",
+            "簡瑞彥",
+            "李聖葒",
+            "簡岳雄",
+            "世紀風電",
+        ])
+        let service = stablePhoneticCorrectionCanonicalizationService()
+        let result = service.normalize(
+            "簡瑞成李勝林。李聖林。簡瑞燕。李信宏。李勝宏。簡越雄。四季風電。",
+            activeContextIDs: [],
+            additionalTerms: terms
+        )
+
+        #expect(result.normalizedText == "簡瑞成李聖苓。李聖苓。簡瑞彥。李信宏。李聖葒。簡岳雄。世紀風電。")
+        #expect(result.replacements.map(\.originalText) == ["李勝林", "李聖林", "簡瑞燕", "李勝宏", "簡越雄", "四季風電"])
+        #expect(result.replacements.map(\.replacementText) == ["李聖苓", "李聖苓", "簡瑞彥", "李聖葒", "簡岳雄", "世紀風電"])
+        #expect(result.replacements.allSatisfy { $0.reason == VocoPhoneticCorrectionService.reason })
+        #expect(result.replacements.contains { $0.originalText == "李信宏" } == false)
+    }
+
+    @Test func phoneticCorrectionTermsRequireTargetVocabularyByDefault() async throws {
+        try await requireLoadedPinyinDatabase()
+
+        let terms = VocoCanonicalizationService.vocabularyTerms(from: ["簡瑞成"])
+        let service = stablePhoneticCorrectionCanonicalizationService()
+        let result = service.normalize(
+            "李勝林。簡瑞燕。四季風電。",
+            activeContextIDs: [],
+            additionalTerms: terms
+        )
+
+        #expect(result.normalizedText == "李勝林。簡瑞燕。四季風電。")
+        #expect(result.replacements.isEmpty)
+    }
+
     @Test func vocabularyTerminalPeriodCleanupDoesNotAffectLongerSentences() async throws {
         try await requireLoadedPinyinDatabase()
 
@@ -89,13 +127,44 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
             additionalTerms: terms
         )
 
-        #expect(result.normalizedText == "我叫王小明。")
+        #expect(result.normalizedText == "我叫汪曉鳴。")
+        #expect(result.replacements.isEmpty)
     }
 
     private func disabledAutoApplyModelService() -> VocoAutoApplyModelService {
         VocoAutoApplyModelService(
             modelURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("disabled-auto-apply-\(UUID().uuidString).json")
+        )
+    }
+
+    private func stablePhoneticCorrectionCanonicalizationService() -> VocoCanonicalizationService {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VocoPhoneticCorrectionTests-\(UUID().uuidString)", isDirectory: true)
+        let defaults = UserDefaults(suiteName: "VocoPhoneticCorrectionTests-\(UUID().uuidString)") ?? .standard
+        defaults.set(VocoTextCleanupLoRAService.Mode.off.rawValue, forKey: VocoTextCleanupLoRAService.modeKey)
+
+        return VocoCanonicalizationService(
+            contextPacks: [],
+            autoApplyModelService: VocoAutoApplyModelService(
+                modelURL: root.appendingPathComponent("missing-auto-apply-model.json"),
+                defaults: defaults
+            ),
+            runtimeCorrectionModelService: VocoRuntimeCorrectionModelService(
+                artifactURL: root.appendingPathComponent("missing-runtime-correction-artifact.json"),
+                eventLogURL: nil,
+                defaults: defaults
+            ),
+            textCleanupLoRAService: VocoTextCleanupLoRAService(
+                defaults: defaults,
+                eventLogURL: nil,
+                expectedIdentity: nil
+            ),
+            phoneticCorrectionService: VocoPhoneticCorrectionService(
+                rulesURL: root
+                    .appendingPathComponent("PhoneticCorrections", isDirectory: true)
+                    .appendingPathComponent("phonetic-correction-rules.json")
+            )
         )
     }
 }

@@ -320,7 +320,7 @@ struct VocoAutoApplyModelServiceTests {
         #expect(assessment.labelForCandidate(at: assessment.candidates.firstIndex(of: guardedText) ?? -1) == "Guarded output")
     }
 
-    @Test func canonicalizationDoesNotCommitProtectedVocabularyPhoneticCandidate() async throws {
+    @Test func canonicalizationDoesNotCreateProtectedVocabularyPhoneticCandidate() async throws {
         try await requireLoadedPinyinDatabase()
 
         let service = VocoAutoApplyModelService(
@@ -342,10 +342,7 @@ struct VocoAutoApplyModelServiceTests {
 
         #expect(result.normalizedText == original)
         #expect(result.replacements.isEmpty)
-        #expect(result.suggestions.contains {
-            $0.reason == VocoAutoApplyModelService.protectedTermGuardReason &&
-                $0.replacementText == "明德"
-        })
+        #expect(result.suggestions.isEmpty)
     }
 
     @Test func canonicalizationDoesNotCommitAllowedProtectedPhraseWhenRawLacksProtectedTerm() async throws {

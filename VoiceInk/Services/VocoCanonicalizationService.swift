@@ -11,6 +11,14 @@ enum VocoCanonicalizationCorrectionPolicy: Equatable {
     var usesRuntimeCorrectionModel: Bool {
         self == .full
     }
+
+    var usesTextCleanupLoRA: Bool {
+        self == .full
+    }
+
+    var usesPhoneticCorrectionTerms: Bool {
+        self == .full
+    }
 }
 
 final class VocoCanonicalizationService {
@@ -22,15 +30,21 @@ final class VocoCanonicalizationService {
     let contextPacks: [VocoContextPack]
     private let autoApplyModelService: VocoAutoApplyModelService
     private let runtimeCorrectionModelService: VocoRuntimeCorrectionModelService
+    private let textCleanupLoRAService: VocoTextCleanupLoRAService
+    private let phoneticCorrectionService: VocoPhoneticCorrectionService
 
     init(
         contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
         autoApplyModelService: VocoAutoApplyModelService = .shared,
-        runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared
+        runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared,
+        textCleanupLoRAService: VocoTextCleanupLoRAService = .shared,
+        phoneticCorrectionService: VocoPhoneticCorrectionService = .shared
     ) {
         self.contextPacks = contextPacks
         self.autoApplyModelService = autoApplyModelService
         self.runtimeCorrectionModelService = runtimeCorrectionModelService
+        self.textCleanupLoRAService = textCleanupLoRAService
+        self.phoneticCorrectionService = phoneticCorrectionService
     }
 
     func normalize(
@@ -57,7 +71,6 @@ final class VocoCanonicalizationService {
             activeContextIDs: activeContextIDs,
             contextHints: contextHints
         )
-        candidates.append(contentsOf: phoneticVocabularyCandidates(in: text, termSources: termSources))
         candidates = sortedReplacementCandidates(candidates)
         let accepted = nonOverlapping(candidates.filter(\.isAutomatic), keepingBlockers: true)
         let suggestions = nonOverlapping(candidates.filter { !$0.isAutomatic && !$0.isNoop }, keepingBlockers: false)
@@ -113,14 +126,34 @@ final class VocoCanonicalizationService {
                 guardBlocks: initialAutoApply.guardBlocks + safeAutoApply.guardBlocks
             )
         }
+        let vocabularyWords = personalVocabularyWords(in: termSources)
         let autoApplyReplacements = replacementRecords(from: autoApply.applied, in: autoApply.inputText)
         let autoApplySuggestions = replacementRecords(from: autoApply.suggestions, in: autoApply.outputText)
         let autoApplyGuardSuggestions = replacementRecords(from: autoApply.guardBlocks, in: autoApply.outputText)
 
-        let postRuleText = Self.removeStandaloneVocabularyTerminalPeriod(
-            autoApply.outputText,
-            vocabularyWords: personalVocabularyWords(in: termSources)
+        let phoneticCorrection: VocoPhoneticCorrectionEvaluation
+        if correctionPolicy.usesPhoneticCorrectionTerms {
+            phoneticCorrection = phoneticCorrectionService.evaluate(
+                autoApply.outputText,
+                vocabularyWords: vocabularyWords
+            )
+        } else {
+            phoneticCorrection = VocoPhoneticCorrectionEvaluation(
+                inputText: autoApply.outputText,
+                outputText: autoApply.outputText,
+                applied: []
+            )
+        }
+        let phoneticCorrectionReplacements = replacementRecords(
+            from: phoneticCorrection.applied,
+            in: phoneticCorrection.inputText
         )
+
+        let postRuleText = Self.removeStandaloneVocabularyTerminalPeriod(
+            phoneticCorrection.outputText,
+            vocabularyWords: vocabularyWords
+        )
+        let deterministicRuleFires = autoApply.applied + phoneticCorrection.applied.map(\.autoApplyPolicyFire)
         let runtimeCorrection: VocoRuntimeCorrectionEvaluation
         if correctionPolicy.usesRuntimeCorrectionModel {
             runtimeCorrection = runtimeCorrectionModelService.evaluate(
@@ -129,7 +162,7 @@ final class VocoCanonicalizationService {
                     canonicalizedText: canonicalizedText,
                     postRuleText: postRuleText,
                     contextHints: contextHints,
-                    deterministicRuleFires: autoApply.applied,
+                    deterministicRuleFires: deterministicRuleFires,
                     actionCommand: VoiceCommandService.shared.detectCommand(in: text) != nil,
                     protectedTermHits: autoApply.guardBlocks.map(\.term),
                     candidateSpans: []
@@ -142,13 +175,37 @@ final class VocoCanonicalizationService {
                 decision: nil
             )
         }
+        let textLoRA: VocoTextCleanupLoRAEvaluation
+        if correctionPolicy.usesTextCleanupLoRA {
+            textLoRA = textCleanupLoRAService.evaluate(
+                runtimeCorrection.outputText,
+                rawTranscript: text,
+                postRuleText: postRuleText,
+                contextHints: contextHints
+            )
+        } else {
+            textLoRA = VocoTextCleanupLoRAEvaluation(
+                inputText: runtimeCorrection.outputText,
+                rawTranscript: text,
+                postRuleText: postRuleText,
+                outputText: runtimeCorrection.outputText,
+                mode: .off,
+                chosenAction: "noop",
+                applied: false,
+                status: "policy-disabled",
+                reasonCodes: ["policy-disabled"]
+            )
+        }
 
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: runtimeCorrection.outputText,
+            normalizedText: textLoRA.outputText,
             activeContextIDs: activeContextIDs,
-            replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } + autoApplyReplacements,
-            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
+            replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } +
+                autoApplyReplacements +
+                phoneticCorrectionReplacements,
+            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions,
+            textCleanupLoRA: textLoRA
         )
     }
 
@@ -399,67 +456,6 @@ final class VocoCanonicalizationService {
         }
     }
 
-    private func phoneticVocabularyCandidates(
-        in text: String,
-        termSources: [TermCandidateSource]
-    ) -> [ReplacementCandidate] {
-        let db = PinyinDatabase.shared
-        guard db.isLoaded else { return [] }
-
-        let vocabularyTerms = termSources
-            .filter(\.allowsAutomaticReplacement)
-            .map(\.term)
-            .filter { $0.type == "personal-vocabulary" }
-            .filter { isShortCJKVocabularyTerm($0.canonical) }
-
-        guard !vocabularyTerms.isEmpty else { return [] }
-
-        let chars = Array(text)
-        guard !chars.isEmpty else { return [] }
-
-        var candidates: [ReplacementCandidate] = []
-
-        for term in vocabularyTerms {
-            let canonical = term.canonical.trimmingCharacters(in: .whitespacesAndNewlines)
-            let length = canonical.count
-            guard length > 0, chars.count >= length else { continue }
-
-            for start in 0...(chars.count - length) {
-                let end = start + length
-                let original = String(chars[start..<end])
-
-                guard original != canonical else { continue }
-                guard original.allSatisfy(\.isCJK) else { continue }
-                guard PinyinDatabase.shared.frequency(of: original) == 0 else { continue }
-                guard !isInsideKnownCJKWord(chars: chars, start: start, end: end, db: db) else { continue }
-                guard !CorrectionProtectionList.shared.containsProtectedTerm(in: original) else { continue }
-                guard let confidence = phoneticVocabularyConfidence(original: original, canonical: canonical) else {
-                    continue
-                }
-
-                let startIndex = text.index(text.startIndex, offsetBy: start)
-                let endIndex = text.index(startIndex, offsetBy: length)
-                let range = NSRange(startIndex..<endIndex, in: text)
-                let isAutomatic = confidence >= term.autoReplaceThreshold
-
-                candidates.append(
-                    ReplacementCandidate(
-                        range: range,
-                        originalText: original,
-                        replacementText: canonical,
-                        termID: term.id,
-                        confidence: confidence,
-                        reason: isAutomatic ? "vocabulary-phonetic-match" : "vocabulary-phonetic-suggestion",
-                        isAutomatic: isAutomatic,
-                        isBlocker: false
-                    )
-                )
-            }
-        }
-
-        return candidates
-    }
-
     private func personalVocabularyWords(in termSources: [TermCandidateSource]) -> [String] {
         termSources
             .map(\.term)
@@ -505,6 +501,24 @@ final class VocoCanonicalizationService {
         }
     }
 
+    private func replacementRecords(
+        from fires: [VocoPhoneticCorrectionFire],
+        in text: String
+    ) -> [VocoReplacement] {
+        fires.map { fire in
+            let characterRange = characterRange(for: fire.range, in: text)
+            return VocoReplacement(
+                originalText: fire.sourceText,
+                replacementText: fire.targetText,
+                termID: "\(VocoPhoneticCorrectionService.reason).\(fire.ruleID)",
+                confidence: fire.confidence,
+                reason: VocoPhoneticCorrectionService.reason,
+                rangeStart: characterRange?.start,
+                rangeLength: characterRange?.length
+            )
+        }
+    }
+
     private func rangeForAutoApplyFire(_ fire: VocoAutoApplyPolicyFire, in text: String) -> NSRange? {
         if fire.policyType == "exactTrainablePair" {
             return NSRange(location: 0, length: (text as NSString).length)
@@ -514,105 +528,6 @@ final class VocoCanonicalizationService {
         let range = nsText.range(of: fire.sourcePattern)
         guard range.location != NSNotFound else { return nil }
         return range
-    }
-
-    private func isShortCJKVocabularyTerm(_ term: String) -> Bool {
-        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (2...4).contains(trimmed.count) && trimmed.allSatisfy(\.isCJK)
-    }
-
-    private func isInsideKnownCJKWord(
-        chars: [Character],
-        start: Int,
-        end: Int,
-        db: PinyinDatabase
-    ) -> Bool {
-        if start > 0 {
-            let leftPair = String(chars[start - 1]) + String(chars[start])
-            if db.frequency(of: leftPair) > 0 {
-                return true
-            }
-        }
-
-        if end < chars.count {
-            let rightPair = String(chars[end - 1]) + String(chars[end])
-            if db.frequency(of: rightPair) > 0 {
-                return true
-            }
-        }
-
-        return false
-    }
-
-    private func phoneticVocabularyConfidence(original: String, canonical: String) -> Double? {
-        guard let originalPinyin = pinyinSignature(for: original),
-              let canonicalPinyin = pinyinSignature(for: canonical)
-        else {
-            return nil
-        }
-
-        guard originalPinyin.count == canonicalPinyin.count,
-              !originalPinyin.isEmpty
-        else {
-            return nil
-        }
-
-        let distances = zip(originalPinyin, canonicalPinyin).map { levenshteinDistance($0, $1) }
-        let exactMatches = distances.filter { $0 == 0 }.count
-        let totalDistance = distances.reduce(0, +)
-        let maxSingleDistance = distances.max() ?? 0
-
-        if exactMatches >= max(1, distances.count - 1), totalDistance <= 2 {
-            return 0.985
-        }
-
-        if maxSingleDistance <= 1, totalDistance <= 2 {
-            return 0.982
-        }
-
-        return nil
-    }
-
-    private func pinyinSignature(for text: String) -> [String]? {
-        var signature: [String] = []
-        signature.reserveCapacity(text.count)
-
-        for character in text {
-            guard let reading = PinyinDatabase.shared.charToPinyin[character]?.first else {
-                return nil
-            }
-            signature.append(PinyinDatabase.stripTone(reading))
-        }
-
-        return signature
-    }
-
-    private func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
-        let lhs = Array(lhs)
-        let rhs = Array(rhs)
-
-        if lhs.isEmpty { return rhs.count }
-        if rhs.isEmpty { return lhs.count }
-
-        var previous = Array(0...rhs.count)
-        var current = Array(repeating: 0, count: rhs.count + 1)
-
-        for i in 1...lhs.count {
-            current[0] = i
-
-            for j in 1...rhs.count {
-                let substitutionCost = lhs[i - 1] == rhs[j - 1] ? 0 : 1
-                current[j] = min(
-                    previous[j] + 1,
-                    current[j - 1] + 1,
-                    previous[j - 1] + substitutionCost
-                )
-            }
-
-            swap(&previous, &current)
-        }
-
-        return previous[rhs.count]
     }
 
     private func sortedReplacementCandidates(_ candidates: [ReplacementCandidate]) -> [ReplacementCandidate] {

@@ -67,13 +67,17 @@ class Qwen3QuantizedTextAttention: Module {
     func callAsFunction(
         _ hiddenStates: MLXArray,
         attentionMask: MLXArray? = nil,
-        cache: (MLXArray, MLXArray)? = nil
+        cache: (MLXArray, MLXArray)? = nil,
+        lora: Qwen3TextDecoderLoRALayer? = nil
     ) -> (MLXArray, (MLXArray, MLXArray)) {
         let (batch, seqLen, _) = (hiddenStates.dim(0), hiddenStates.dim(1), hiddenStates.dim(2))
 
-        var queries = qProj(hiddenStates)
-        var keys = kProj(hiddenStates)
-        var values = vProj(hiddenStates)
+        let baseQueries = qProj(hiddenStates)
+        let baseKeys = kProj(hiddenStates)
+        let baseValues = vProj(hiddenStates)
+        var queries = lora?.qProj?.apply(to: hiddenStates, baseOutput: baseQueries) ?? baseQueries
+        var keys = lora?.kProj?.apply(to: hiddenStates, baseOutput: baseKeys) ?? baseKeys
+        var values = lora?.vProj?.apply(to: hiddenStates, baseOutput: baseValues) ?? baseValues
 
         queries = queries.reshaped(batch, seqLen, numHeads, headDim)
         keys = keys.reshaped(batch, seqLen, numKVHeads, headDim)
@@ -102,7 +106,9 @@ class Qwen3QuantizedTextAttention: Module {
             queries: queries, keys: cachedKeys, values: cachedValues,
             scale: scale, mask: attentionMask)
 
-        let output = oProj(attnOutput.transposed(0, 2, 1, 3).reshaped(batch, seqLen, numHeads * headDim))
+        let outputInput = attnOutput.transposed(0, 2, 1, 3).reshaped(batch, seqLen, numHeads * headDim)
+        let baseOutput = oProj(outputInput)
+        let output = lora?.oProj?.apply(to: outputInput, baseOutput: baseOutput) ?? baseOutput
         return (output, (cachedKeys, cachedValues))
     }
 }
@@ -130,10 +136,15 @@ class Qwen3QuantizedTextMLP: Module {
         super.init()
     }
 
-    func callAsFunction(_ x: MLXArray) -> MLXArray {
-        let gate = silu(gateProj(x))
-        let up = upProj(x)
-        return downProj(gate * up)
+    func callAsFunction(_ x: MLXArray, lora: Qwen3TextDecoderLoRALayer? = nil) -> MLXArray {
+        let baseGateOutput = gateProj(x)
+        let gateOutput = lora?.gateProj?.apply(to: x, baseOutput: baseGateOutput) ?? baseGateOutput
+        let gate = silu(gateOutput)
+        let baseUp = upProj(x)
+        let up = lora?.upProj?.apply(to: x, baseOutput: baseUp) ?? baseUp
+        let downInput = gate * up
+        let baseDown = downProj(downInput)
+        return lora?.downProj?.apply(to: downInput, baseOutput: baseDown) ?? baseDown
     }
 }
 
@@ -156,16 +167,17 @@ class Qwen3QuantizedTextDecoderLayer: Module {
     func callAsFunction(
         _ hiddenStates: MLXArray,
         attentionMask: MLXArray? = nil,
-        cache: (MLXArray, MLXArray)? = nil
+        cache: (MLXArray, MLXArray)? = nil,
+        lora: Qwen3TextDecoderLoRALayer? = nil
     ) -> (MLXArray, (MLXArray, MLXArray)) {
         let residual = hiddenStates
         var hidden = inputLayerNorm(hiddenStates)
-        let (attnOutput, newCache) = selfAttn(hidden, attentionMask: attentionMask, cache: cache)
+        let (attnOutput, newCache) = selfAttn(hidden, attentionMask: attentionMask, cache: cache, lora: lora)
         hidden = residual + attnOutput
 
         let residual2 = hidden
         hidden = postAttentionLayerNorm(hidden)
-        hidden = mlp(hidden)
+        hidden = mlp(hidden, lora: lora)
         hidden = residual2 + hidden
 
         return (hidden, newCache)
@@ -175,6 +187,7 @@ class Qwen3QuantizedTextDecoderLayer: Module {
 /// Full Qwen3 text decoder model (quantized)
 class Qwen3QuantizedTextModel: Module {
     let config: Qwen3TextDecoderConfig
+    var loraStore: Qwen3TextDecoderLoRAStore?
 
     @ModuleInfo var embedTokens: Qwen3PreQuantizedEmbedding
     @ModuleInfo var layers: [Qwen3QuantizedTextDecoderLayer]
@@ -229,7 +242,12 @@ class Qwen3QuantizedTextModel: Module {
         var newCache: [(MLXArray, MLXArray)] = []
         for (i, layer) in layers.enumerated() {
             let layerCache = cache?[i]
-            let (output, updatedCache) = layer(hiddenStates, attentionMask: mask, cache: layerCache)
+            let (output, updatedCache) = layer(
+                hiddenStates,
+                attentionMask: mask,
+                cache: layerCache,
+                lora: loraStore?.layer(at: i)
+            )
             hiddenStates = output
             newCache.append(updatedCache)
         }

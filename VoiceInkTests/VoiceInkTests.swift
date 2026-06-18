@@ -437,7 +437,7 @@ struct VoiceInkTests {
         #expect(ambiguous.suggestions.contains(where: { $0.replacementText == "炎" }))
     }
 
-    @Test func canonicalizationDoesNotUseVocabularyPhoneticsInsideKnownCJKWords() async throws {
+    @Test func canonicalizationDoesNotUseVocabularyPhoneticsForPersonalVocabulary() async throws {
         try await requireLoadedPinyinDatabase()
 
         let service = VocoCanonicalizationService(contextPacks: [])
@@ -451,8 +451,9 @@ struct VoiceInkTests {
         #expect(regression.replacements.isEmpty)
 
         let fullName = service.normalize("汪曉鳴", additionalTerms: vocabulary)
-        #expect(fullName.normalizedText == "王小明")
-        #expect(fullName.replacements.first?.reason == "vocabulary-phonetic-match")
+        #expect(fullName.normalizedText == "汪曉鳴")
+        #expect(fullName.replacements.isEmpty)
+        #expect(fullName.suggestions.isEmpty)
     }
 
     @Test func canonicalizationSuppressesKnownAmbiguousWordReplacementPair() async throws {
@@ -1999,6 +2000,7 @@ struct VoiceInkTests {
             "candidate-dismissed-fallback",
             "candidate-auto-fallback",
             "protected-term-replacement",
+            "phonetic-correction-term",
             "raw-cleanup-significant",
             "retranscription-meaningfulChange",
             "user-substitution",
@@ -2017,6 +2019,7 @@ struct VoiceInkTests {
             "Dismissed fallback",
             "Automatic fallback",
             "Protected term changed",
+            "Phonetic correction",
             "Cleanup changed text",
             "Retranscription meaningful",
             "User substitution",

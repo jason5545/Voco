@@ -68,6 +68,44 @@ struct VocoNormalizationResult: Codable, Equatable {
     let activeContextIDs: [String]
     let replacements: [VocoReplacement]
     let suggestions: [VocoReplacement]
+    let textCleanupLoRA: VocoTextCleanupLoRAEvaluation?
+
+    init(
+        originalText: String,
+        normalizedText: String,
+        activeContextIDs: [String],
+        replacements: [VocoReplacement],
+        suggestions: [VocoReplacement],
+        textCleanupLoRA: VocoTextCleanupLoRAEvaluation? = nil
+    ) {
+        self.originalText = originalText
+        self.normalizedText = normalizedText
+        self.activeContextIDs = activeContextIDs
+        self.replacements = replacements
+        self.suggestions = suggestions
+        self.textCleanupLoRA = textCleanupLoRA
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case originalText
+        case normalizedText
+        case activeContextIDs
+        case replacements
+        case suggestions
+        case textCleanupLoRA
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            originalText: try container.decode(String.self, forKey: .originalText),
+            normalizedText: try container.decode(String.self, forKey: .normalizedText),
+            activeContextIDs: try container.decode([String].self, forKey: .activeContextIDs),
+            replacements: try container.decode([VocoReplacement].self, forKey: .replacements),
+            suggestions: try container.decode([VocoReplacement].self, forKey: .suggestions),
+            textCleanupLoRA: try container.decodeIfPresent(VocoTextCleanupLoRAEvaluation.self, forKey: .textCleanupLoRA)
+        )
+    }
 }
 
 enum VocoConfidenceRoute: String, Codable, Equatable {
@@ -395,6 +433,8 @@ enum VocoSignalDisplayFormatter {
             return String(localized: "Auto-apply suggestion")
         case "auto-apply-model-protected-term-guard":
             return String(localized: "Protected term guard")
+        case "phonetic-correction-term":
+            return String(localized: "Phonetic correction")
         case "protected-term-replacement":
             return "Protected term changed"
         case "raw-cleanup-drift":
