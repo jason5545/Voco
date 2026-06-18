@@ -142,7 +142,6 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("VocoPhoneticCorrectionTests-\(UUID().uuidString)", isDirectory: true)
         let defaults = UserDefaults(suiteName: "VocoPhoneticCorrectionTests-\(UUID().uuidString)") ?? .standard
-        defaults.set(VocoTextCleanupLoRAService.Mode.off.rawValue, forKey: VocoTextCleanupLoRAService.modeKey)
 
         return VocoCanonicalizationService(
             contextPacks: [],
@@ -154,11 +153,6 @@ struct VocoVocabularyPhoneticCanonicalizationTests {
                 artifactURL: root.appendingPathComponent("missing-runtime-correction-artifact.json"),
                 eventLogURL: nil,
                 defaults: defaults
-            ),
-            textCleanupLoRAService: VocoTextCleanupLoRAService(
-                defaults: defaults,
-                eventLogURL: nil,
-                expectedIdentity: nil
             ),
             phoneticCorrectionService: VocoPhoneticCorrectionService(
                 rulesURL: root

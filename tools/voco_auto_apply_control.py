@@ -386,7 +386,7 @@ def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("addReplacementRule requires non-empty --source-pattern")
     if not target_text.strip():
         raise SystemExit("addReplacementRule requires non-empty --target-text")
-    if strict_text_key(source_pattern) == strict_text_key(target_text) and not is_ascii_case_lock(source_pattern, target_text):
+    if strict_text_key(source_pattern) == strict_text_key(target_text):
         raise SystemExit("addReplacementRule source and target normalize to the same text")
 
     source_text = args.source_text or source_pattern
@@ -1713,7 +1713,7 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             failures.append({"kind": "manualReplacementHasContextLockFields", "policyId": policy_id, "passed": False})
         if not source.strip() or not target.strip():
             failures.append({"kind": "manualReplacementMissingSourceOrTarget", "policyId": policy_id, "passed": False})
-        if strict_text_key(source) == strict_text_key(target) and not is_ascii_case_lock(source, target):
+        if strict_text_key(source) == strict_text_key(target):
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
         if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
@@ -2453,7 +2453,7 @@ def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, A
         "inputText": text,
         "context": context,
         "outputText": after,
-        "changed": text != after,
+        "changed": strict_text_key(text) != strict_text_key(after),
         "applied": replay["applied"],
         "suggestions": suggestions,
         "blocked": replay["blocked"],
@@ -2489,17 +2489,6 @@ def list_recent_transcriptions(store: Path, limit: int, min_pk: int | None) -> d
 def strict_text_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value or "").strip().casefold()
     return STRICT_SPACE_RE.sub(" ", normalized)
-
-
-def is_ascii_case_lock(source: str, target: str) -> bool:
-    return (
-        bool(source)
-        and bool(target)
-        and source != target
-        and strict_text_key(source) == strict_text_key(target)
-        and contains_ascii_token(source)
-        and contains_ascii_token(target)
-    )
 
 
 def replay_apply_policies(

@@ -12,10 +12,6 @@ enum VocoCanonicalizationCorrectionPolicy: Equatable {
         self == .full
     }
 
-    var usesTextCleanupLoRA: Bool {
-        self == .full
-    }
-
     var usesPhoneticCorrectionTerms: Bool {
         self == .full
     }
@@ -30,20 +26,17 @@ final class VocoCanonicalizationService {
     let contextPacks: [VocoContextPack]
     private let autoApplyModelService: VocoAutoApplyModelService
     private let runtimeCorrectionModelService: VocoRuntimeCorrectionModelService
-    private let textCleanupLoRAService: VocoTextCleanupLoRAService
     private let phoneticCorrectionService: VocoPhoneticCorrectionService
 
     init(
         contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
         autoApplyModelService: VocoAutoApplyModelService = .shared,
         runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared,
-        textCleanupLoRAService: VocoTextCleanupLoRAService = .shared,
         phoneticCorrectionService: VocoPhoneticCorrectionService = .shared
     ) {
         self.contextPacks = contextPacks
         self.autoApplyModelService = autoApplyModelService
         self.runtimeCorrectionModelService = runtimeCorrectionModelService
-        self.textCleanupLoRAService = textCleanupLoRAService
         self.phoneticCorrectionService = phoneticCorrectionService
     }
 
@@ -175,37 +168,15 @@ final class VocoCanonicalizationService {
                 decision: nil
             )
         }
-        let textLoRA: VocoTextCleanupLoRAEvaluation
-        if correctionPolicy.usesTextCleanupLoRA {
-            textLoRA = textCleanupLoRAService.evaluate(
-                runtimeCorrection.outputText,
-                rawTranscript: text,
-                postRuleText: postRuleText,
-                contextHints: contextHints
-            )
-        } else {
-            textLoRA = VocoTextCleanupLoRAEvaluation(
-                inputText: runtimeCorrection.outputText,
-                rawTranscript: text,
-                postRuleText: postRuleText,
-                outputText: runtimeCorrection.outputText,
-                mode: .off,
-                chosenAction: "noop",
-                applied: false,
-                status: "policy-disabled",
-                reasonCodes: ["policy-disabled"]
-            )
-        }
 
         return VocoNormalizationResult(
             originalText: text,
-            normalizedText: textLoRA.outputText,
+            normalizedText: runtimeCorrection.outputText,
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } +
                 autoApplyReplacements +
                 phoneticCorrectionReplacements,
-            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions,
-            textCleanupLoRA: textLoRA
+            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
         )
     }
 
