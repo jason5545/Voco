@@ -1713,7 +1713,7 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             failures.append({"kind": "manualReplacementHasContextLockFields", "policyId": policy_id, "passed": False})
         if not source.strip() or not target.strip():
             failures.append({"kind": "manualReplacementMissingSourceOrTarget", "policyId": policy_id, "passed": False})
-        if strict_text_key(source) == strict_text_key(target):
+        if manual_replacement_noop_key(source) == manual_replacement_noop_key(target):
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
         if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
@@ -2488,6 +2488,11 @@ def list_recent_transcriptions(store: Path, limit: int, min_pk: int | None) -> d
 
 def strict_text_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value or "").strip().casefold()
+    return STRICT_SPACE_RE.sub(" ", normalized)
+
+
+def manual_replacement_noop_key(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value or "").strip()
     return STRICT_SPACE_RE.sub(" ", normalized)
 
 
