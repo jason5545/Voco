@@ -41,6 +41,7 @@ DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cle
 CONTROL_SCHEMA_VERSION = 1
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
+FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,96}$")
 MANUAL_CORPUS_ACCEPTANCE_MAX = 25
 DEFAULT_BACKUP_RETENTION = 3
 PROTECTED_TERM_GUARD_REASON = "auto-apply-model-protected-term-guard"
@@ -131,7 +132,38 @@ def parse_args() -> argparse.Namespace:
     replacement_rule.add_argument("--expected-text")
     replacement_rule.add_argument("--negative-text")
     replacement_rule.add_argument("--negative-context", default="")
+    replacement_rule.add_argument("--family-id")
+    replacement_rule.add_argument("--family-role", default="alias")
+    replacement_rule.add_argument("--family-reason")
     replacement_rule.add_argument("--note")
+
+    replacement_family = subparsers.add_parser("addReplacementFamily")
+    replacement_family.add_argument("--family-id", required=True)
+    replacement_family.add_argument("--target-text", required=True)
+    replacement_family.add_argument("--alias", action="append", required=True, default=[])
+    replacement_family.add_argument("--rule-name-prefix")
+    replacement_family.add_argument("--allow-strict-equivalent-alias", action="store_true")
+    replacement_family.add_argument("--row-pk", type=int)
+    replacement_family.add_argument("--positive", action="append", default=[], help="TEXT||CONTEXT||EXPECTED")
+    replacement_family.add_argument("--negative", action="append", default=[], help="TEXT or TEXT||CONTEXT")
+    replacement_family.add_argument("--note")
+
+    family_tag = subparsers.add_parser("tagPolicyFamily")
+    family_tag.add_argument("--policy-id", action="append", default=[])
+    family_tag.add_argument("--source-pattern")
+    family_tag.add_argument("--target-text")
+    family_tag.add_argument("--family-id", required=True)
+    family_tag.add_argument("--family-role", default="alias")
+    family_tag.add_argument("--reason", required=True)
+    family_tag.add_argument("--note")
+
+    list_families = subparsers.add_parser("listPolicyFamilies")
+    list_families.add_argument("--model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    list_families.add_argument("--limit", type=int, default=50)
+
+    inspect_family = subparsers.add_parser("inspectPolicyFamily")
+    inspect_family.add_argument("--model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    inspect_family.add_argument("--family-id", required=True)
 
     disable = subparsers.add_parser("disableRule")
     disable.add_argument("--policy-id")
@@ -232,6 +264,18 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         event = replacement_rule_event(args)
         append_event(args.evidence_store.expanduser(), event)
         return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+    if args.command == "addReplacementFamily":
+        event = replacement_family_event(args)
+        append_event(args.evidence_store.expanduser(), event)
+        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+    if args.command == "tagPolicyFamily":
+        event = tag_policy_family_event(args)
+        append_event(args.evidence_store.expanduser(), event)
+        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+    if args.command == "listPolicyFamilies":
+        return list_policy_families(args.model.expanduser(), args.limit)
+    if args.command == "inspectPolicyFamily":
+        return inspect_policy_family(args.model.expanduser(), args.family_id)
     if args.command == "disableRule":
         event = disable_rule_event(args)
         append_event(args.evidence_store.expanduser(), event)
@@ -418,6 +462,7 @@ def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
 
+    family_id = str(getattr(args, "family_id", "") or "").strip()
     payload = {
         "ruleType": "unlockedReplacement",
         "rowPk": args.row_pk,
@@ -435,7 +480,83 @@ def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
             "note": args.note,
         },
     }
+    if family_id:
+        validate_family_id(family_id)
+        payload["familyId"] = family_id
+        payload["familyRole"] = str(getattr(args, "family_role", "") or "alias").strip() or "alias"
+        payload["familyReason"] = str(getattr(args, "family_reason", "") or getattr(args, "note", "") or "").strip()
     return make_event(args.actor, "addReplacementRule", payload)
+
+
+def replacement_family_event(args: argparse.Namespace) -> dict[str, Any]:
+    family_id = str(args.family_id).strip()
+    target_text = str(args.target_text)
+    aliases = compact_alias_strings(args.alias)
+    validate_family_id(family_id)
+    if not target_text.strip():
+        raise SystemExit("addReplacementFamily requires non-empty --target-text")
+    if not aliases:
+        raise SystemExit("addReplacementFamily requires at least one --alias")
+    if target_text in aliases:
+        raise SystemExit("addReplacementFamily alias must not exactly equal --target-text")
+
+    strict_equivalent_aliases = [
+        alias for alias in aliases if strict_text_key(alias) == strict_text_key(target_text)
+    ]
+    if strict_equivalent_aliases and not args.allow_strict_equivalent_alias:
+        raise SystemExit(
+            "addReplacementFamily strict-equivalent aliases require --allow-strict-equivalent-alias"
+        )
+    for alias in aliases:
+        if len(strict_text_key(alias)) < 2 and not contains_ascii_token(alias):
+            raise SystemExit("addReplacementFamily aliases must not be single non-ASCII characters")
+
+    positive_examples = parse_positive_examples(args.positive)
+    if not positive_examples:
+        positive_examples = [
+            {"text": alias, "context": "", "expectedText": target_text}
+            for alias in aliases
+        ]
+
+    payload = {
+        "ruleType": "replacementFamily",
+        "familyId": family_id,
+        "targetText": target_text,
+        "aliases": aliases,
+        "rowPk": args.row_pk,
+        "ruleNamePrefix": args.rule_name_prefix or f"family:{family_id}",
+        "allowStrictEquivalentAlias": bool(args.allow_strict_equivalent_alias),
+        "examples": {
+            "positive": positive_examples,
+            "negative": parse_negative_examples(args.negative),
+        },
+        "provenance": {
+            "manualLabel": "confirmed-replacement-family",
+            "evidenceTier": "T4_GOLD",
+            "note": args.note,
+        },
+    }
+    return make_event(args.actor, "addReplacementFamily", payload)
+
+
+def tag_policy_family_event(args: argparse.Namespace) -> dict[str, Any]:
+    family_id = str(args.family_id).strip()
+    validate_family_id(family_id)
+    policy_ids = compact_strings(args.policy_id)
+    source_pattern = str(args.source_pattern or "").strip()
+    target_text = str(args.target_text or "").strip()
+    if not policy_ids and not (source_pattern and target_text):
+        raise SystemExit("tagPolicyFamily requires --policy-id or both --source-pattern and --target-text")
+    payload = {
+        "policyIds": policy_ids,
+        "sourcePattern": source_pattern or None,
+        "targetText": target_text or None,
+        "familyId": family_id,
+        "familyRole": str(args.family_role or "alias").strip() or "alias",
+        "reason": str(args.reason or "").strip(),
+        "note": args.note,
+    }
+    return make_event(args.actor, "tagPolicyFamily", payload)
 
 
 def disable_rule_event(args: argparse.Namespace) -> dict[str, Any]:
@@ -1134,6 +1255,8 @@ def compile_model(
     policies = [copy.deepcopy(policy) for policy in model.get("policies") or []]
     overlay_policy_count = 0
     tombstone_count = 0
+    family_tag_count = 0
+    family_tag_misses: list[dict[str, Any]] = []
 
     for event in events:
         action = str(event.get("action") or "")
@@ -1147,6 +1270,14 @@ def compile_model(
         elif action == "addReplacementRule":
             policy = replacement_policy_from_event(event)
             overlay_policy_count += upsert_policy(policies, policy, event)
+        elif action == "addReplacementFamily":
+            for policy in replacement_family_policies_from_event(event):
+                overlay_policy_count += upsert_policy(policies, policy, event)
+        elif action == "tagPolicyFamily":
+            tag_result = tag_policy_family(policies, payload, event)
+            family_tag_count += int(tag_result["matchedPolicyCount"])
+            if not tag_result["matchedPolicyCount"]:
+                family_tag_misses.append(tag_result)
         elif action in {"disableRule", "addHallucination"}:
             tombstone = payload.get("tombstone") if isinstance(payload.get("tombstone"), dict) else {}
             tombstone_count += tombstone_matching_policies(policies, tombstone, event)
@@ -1161,6 +1292,9 @@ def compile_model(
             if isinstance(policy.get("tombstone"), dict)
         )
     )
+    family_summary = policy_family_summary(policies)
+    if family_summary:
+        model["controlPlaneFamilies"] = family_summary
     append_safety_contract(model)
     model["controlPlane"] = {
         "schemaVersion": CONTROL_SCHEMA_VERSION,
@@ -1173,6 +1307,9 @@ def compile_model(
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
         "tombstoneDispositionCounts": tombstone_disposition_counts,
+        "familyTagCount": family_tag_count,
+        "familyTagMissCount": len(family_tag_misses),
+        "familyTagMisses": family_tag_misses,
     }
     report = {
         "basePolicyCounts": base_model.get("policyCounts") or {},
@@ -1183,6 +1320,9 @@ def compile_model(
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
         "tombstoneDispositionCounts": tombstone_disposition_counts,
+        "familyTagCount": family_tag_count,
+        "familyTagMissCount": len(family_tag_misses),
+        "familyTagMisses": family_tag_misses,
     }
     return model, report
 
@@ -1328,7 +1468,7 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         ensure_ascii=False,
         sort_keys=True,
     )
-    return {
+    policy = {
         "policyId": f"manual-replacement-{short_digest(policy_id_key, length=16)}",
         "policyType": "scopedReplacement",
         "autoApplyMode": "apply",
@@ -1367,6 +1507,94 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    apply_policy_family_metadata(policy, payload, event)
+    return policy
+
+
+def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
+    payload = event["payload"]
+    aliases = compact_alias_strings(payload.get("aliases") or [])
+    target_text = str(payload["targetText"])
+    row_pk = payload.get("rowPk")
+    evidence_rows = [int(row_pk)] if row_pk else []
+    family_id = str(payload["familyId"])
+    policies: list[dict[str, Any]] = []
+    for alias in aliases:
+        policy_id_key = json.dumps(
+            {
+                "familyId": family_id,
+                "sourcePattern": alias,
+                "targetText": target_text,
+                "ruleNamePrefix": payload.get("ruleNamePrefix"),
+                "ruleType": "replacementFamilyAlias",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        policies.append(
+            {
+                "policyId": f"manual-replacement-family-{short_digest(policy_id_key, length=16)}",
+                "policyType": "scopedReplacement",
+                "autoApplyMode": "apply",
+                "decisionReason": "manual replacement family alias from control-plane evidence",
+                "source": alias,
+                "target": target_text,
+                "sourcePattern": alias,
+                "targetText": target_text,
+                "lockName": f"{payload.get('ruleNamePrefix') or f'family:{family_id}'}:{short_digest(alias, length=8)}",
+                "contextRequired": False,
+                "contextTokensAny": [],
+                "contextAliasesAny": [],
+                "contextFromContextOnly": False,
+                "requireAlias": False,
+                "scopedSourcePhrase": alias,
+                "scopeWindow": "manual replacement family alias; ASCII sources use runtime token-boundary matching",
+                "evidenceRows": evidence_rows,
+                "trainableRows": evidence_rows,
+                "reviewRows": [],
+                "evidenceCount": len(evidence_rows) or 1,
+                "trainableEvidenceCount": len(evidence_rows) or 1,
+                "reviewEvidenceCount": 0,
+                "riskFlagCounts": {"manualReplacementFamily": 1},
+                "labelTierCounts": {"T4_GOLD": 1},
+                "cleanedSourceCounts": {"manualControlPlane": 1},
+                "pairContextRequiredRows": [],
+                "storedOutputDisagreesRows": [],
+                "reviewGateConflictRows": [],
+                "manualOverrideRows": [],
+                "exactInputRequired": False,
+                "inputText": None,
+                "inputStrictKey": None,
+                "targetStrictKey": strict_text_key(target_text),
+                "exactInputResolution": None,
+                "sourceSlices": ["manualControlPlane"],
+                "sourcePolicies": [],
+                "controlEvidenceEventIds": [event["eventId"]],
+                "familyId": family_id,
+                "familyRole": "alias",
+                "familyReason": str((payload.get("provenance") or {}).get("note") or ""),
+                "familyTagEventIds": [event["eventId"]],
+                "familyTaggedAt": event.get("createdAt"),
+                "familyAliasCount": len(aliases),
+            }
+        )
+    return policies
+
+
+def apply_policy_family_metadata(policy: dict[str, Any], payload: dict[str, Any], event: dict[str, Any]) -> None:
+    family_id = str(payload.get("familyId") or "").strip()
+    if not family_id:
+        return
+    policy["familyId"] = family_id
+    policy["familyRole"] = str(payload.get("familyRole") or "alias").strip() or "alias"
+    reason = str(payload.get("familyReason") or payload.get("reason") or "").strip()
+    if reason:
+        policy["familyReason"] = reason
+    event_ids = list(policy.get("familyTagEventIds") or [])
+    if event.get("eventId") not in event_ids:
+        event_ids.append(event["eventId"])
+    policy["familyTagEventIds"] = sorted(set(event_ids))
+    policy["familyTaggedAt"] = event.get("createdAt")
 
 
 def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], event: dict[str, Any]) -> int:
@@ -1386,10 +1614,27 @@ def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], ev
             if event["eventId"] not in ids:
                 ids.append(event["eventId"])
             policy["controlEvidenceEventIds"] = ids
+            merge_policy_family_metadata(policy, new_policy)
             policy["decisionReason"] = str(policy.get("decisionReason") or "") + "; reinforced by manual control-plane evidence"
             return 0
     policies.append(new_policy)
     return 1
+
+
+def merge_policy_family_metadata(policy: dict[str, Any], source_policy: dict[str, Any]) -> None:
+    family_id = str(source_policy.get("familyId") or "").strip()
+    if not family_id:
+        return
+    policy["familyId"] = family_id
+    policy["familyRole"] = str(source_policy.get("familyRole") or "alias").strip() or "alias"
+    for key in ("familyReason", "familyAliasCount"):
+        if source_policy.get(key) is not None:
+            policy[key] = source_policy[key]
+    if source_policy.get("familyTaggedAt"):
+        policy["familyTaggedAt"] = source_policy["familyTaggedAt"]
+    event_ids = list(policy.get("familyTagEventIds") or [])
+    event_ids.extend(source_policy.get("familyTagEventIds") or [])
+    policy["familyTagEventIds"] = sorted(set(str(event_id) for event_id in event_ids if str(event_id).strip()))
 
 
 def policy_identity(policy: dict[str, Any]) -> tuple[Any, ...]:
@@ -1406,6 +1651,77 @@ def policy_identity(policy: dict[str, Any]) -> tuple[Any, ...]:
         tuple(policy.get("contextTokensAny") or []),
         tuple(policy.get("contextAliasesAny") or []),
     )
+
+
+def tag_policy_family(
+    policies: list[dict[str, Any]],
+    payload: dict[str, Any],
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    matched_policy_ids: list[str] = []
+    for policy in policies:
+        if not family_selector_matches_policy(payload, policy):
+            continue
+        apply_policy_family_metadata(policy, payload, event)
+        matched_policy_ids.append(str(policy.get("policyId") or ""))
+    return {
+        "eventId": event.get("eventId"),
+        "familyId": payload.get("familyId"),
+        "policyIds": compact_strings(payload.get("policyIds") or []),
+        "sourcePattern": payload.get("sourcePattern"),
+        "targetText": payload.get("targetText"),
+        "matchedPolicyCount": len(matched_policy_ids),
+        "matchedPolicyIds": sorted(matched_policy_ids),
+    }
+
+
+def family_selector_matches_policy(payload: dict[str, Any], policy: dict[str, Any]) -> bool:
+    policy_ids = set(compact_strings(payload.get("policyIds") or []))
+    policy_id = str(policy.get("policyId") or "")
+    if policy_ids and policy_id in policy_ids:
+        return True
+    source_pattern = str(payload.get("sourcePattern") or "")
+    target_text = str(payload.get("targetText") or "")
+    if source_pattern and target_text:
+        return (
+            strict_text_key(str(policy.get("sourcePattern") or policy.get("source") or "")) == strict_text_key(source_pattern)
+            and strict_text_key(str(policy.get("targetText") or policy.get("target") or "")) == strict_text_key(target_text)
+        )
+    return False
+
+
+def policy_family_summary(policies: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for policy in policies:
+        family_id = str(policy.get("familyId") or "").strip()
+        if family_id:
+            grouped[family_id].append(policy)
+    return {
+        family_id: summarize_policy_family(family_id, family_policies)
+        for family_id, family_policies in sorted(grouped.items())
+    }
+
+
+def summarize_policy_family(family_id: str, policies: list[dict[str, Any]]) -> dict[str, Any]:
+    source_patterns = sorted(
+        set(str(policy.get("sourcePattern") or policy.get("source") or "") for policy in policies if str(policy.get("sourcePattern") or policy.get("source") or "").strip())
+    )
+    target_texts = sorted(
+        set(str(policy.get("targetText") or policy.get("target") or "") for policy in policies if str(policy.get("targetText") or policy.get("target") or "").strip())
+    )
+    policy_ids = sorted(str(policy.get("policyId") or "") for policy in policies if str(policy.get("policyId") or "").strip())
+    return {
+        "familyId": family_id,
+        "policyCount": len(policies),
+        "autoApplyModeCounts": dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in policies)),
+        "policyTypeCounts": dict(Counter(str(policy.get("policyType") or "unknown") for policy in policies)),
+        "familyRoleCounts": dict(Counter(str(policy.get("familyRole") or "unknown") for policy in policies)),
+        "targetTextCount": len(target_texts),
+        "targetTextSamples": target_texts[:20],
+        "sourcePatternCount": len(source_patterns),
+        "sourcePatternSamples": source_patterns[:20],
+        "policyIdSamples": policy_ids[:20],
+    }
 
 
 def tombstone_matching_policies(policies: list[dict[str, Any]], tombstone: dict[str, Any], event: dict[str, Any]) -> int:
@@ -1466,6 +1782,7 @@ def append_safety_contract(model: dict[str, Any]) -> None:
         "manual context-locked scoped replacements require explicit context tokens or aliases",
         "manual unlocked replacements are reserved for closed-form strings with explicit examples and no context requirement",
         "manual tombstones preserve provenance by marking policies blocked or replaced instead of deleting evidence",
+        "policy family tags are metadata-only and must not change runtime matching behavior",
         "activation requires positive examples, negative examples, sentinel replay, and corpus replay when available",
         "protected term allowlist guards must be declared in the model artifact, not hard-coded in runtime services",
     ]
@@ -1533,6 +1850,8 @@ def validate_model(
     failures.extend(manual_context_failures)
     manual_replacement_failures = manual_replacement_rule_failures(apply_policies)
     failures.extend(manual_replacement_failures)
+    family_metadata_failures = family_metadata_failures_for_model(model)
+    failures.extend(family_metadata_failures)
     count_report = policy_count_report(model, base_model)
     failures.extend(count_report["failures"])
     corpus_reports = []
@@ -1560,6 +1879,7 @@ def validate_model(
         "exactApplyConflicts": exact_conflicts,
         "manualContextLockFailures": manual_context_failures,
         "manualReplacementFailures": manual_replacement_failures,
+        "familyMetadataFailures": family_metadata_failures,
         "policyCounts": model.get("policyCounts") or {},
         "policyTypeCounts": model.get("policyTypeCounts") or {},
         "policyCountReport": count_report,
@@ -1579,7 +1899,7 @@ def control_event_ids_for_policies(policies: list[dict[str, Any]]) -> set[str]:
 
 def should_validate_examples_for_event(event: dict[str, Any], active_control_event_ids: set[str]) -> bool:
     action = str(event.get("action") or "")
-    if action in {"addCorrection", "addContextLockedRule", "addReplacementRule"}:
+    if action in {"addCorrection", "addContextLockedRule", "addReplacementRule", "addReplacementFamily"}:
         event_id = str(event.get("eventId") or "")
         return bool(event_id and event_id in active_control_event_ids)
     return True
@@ -1717,6 +2037,35 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
         if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
+    return failures
+
+
+def family_metadata_failures_for_model(model: dict[str, Any]) -> list[dict[str, Any]]:
+    failures: list[dict[str, Any]] = []
+    control_plane = model.get("controlPlane") if isinstance(model.get("controlPlane"), dict) else {}
+    for miss in control_plane.get("familyTagMisses") or []:
+        failures.append(
+            {
+                "kind": "familyTagMatchedNoPolicies",
+                "eventId": miss.get("eventId"),
+                "familyId": miss.get("familyId"),
+                "policyIds": miss.get("policyIds") or [],
+                "sourcePattern": miss.get("sourcePattern"),
+                "targetText": miss.get("targetText"),
+                "passed": False,
+            }
+        )
+    for policy in model.get("policies") or []:
+        family_id = str(policy.get("familyId") or "").strip()
+        if family_id and not FAMILY_ID_RE.match(family_id):
+            failures.append(
+                {
+                    "kind": "invalidPolicyFamilyId",
+                    "policyId": policy.get("policyId"),
+                    "familyId": family_id,
+                    "passed": False,
+                }
+            )
     return failures
 
 
@@ -2486,6 +2835,50 @@ def list_recent_transcriptions(store: Path, limit: int, min_pk: int | None) -> d
     return {"store": str(store), "limit": limit, "minPk": min_pk, "rows": rows}
 
 
+def list_policy_families(model_path: Path, limit: int) -> dict[str, Any]:
+    model = load_model(model_path)
+    summary = policy_family_summary(model.get("policies") or [])
+    families = sorted(
+        summary.values(),
+        key=lambda item: (-int(item.get("policyCount") or 0), str(item.get("familyId") or "")),
+    )
+    return {
+        "model": str(model_path),
+        "familyCount": len(families),
+        "families": families[: max(0, limit)],
+    }
+
+
+def inspect_policy_family(model_path: Path, family_id: str) -> dict[str, Any]:
+    validate_family_id(family_id)
+    model = load_model(model_path)
+    policies = [
+        policy
+        for policy in model.get("policies") or []
+        if str(policy.get("familyId") or "") == family_id
+    ]
+    return {
+        "model": str(model_path),
+        "family": summarize_policy_family(family_id, policies) if policies else None,
+        "policies": [
+            {
+                "policyId": policy.get("policyId"),
+                "autoApplyMode": policy.get("autoApplyMode"),
+                "policyType": policy.get("policyType"),
+                "familyRole": policy.get("familyRole"),
+                "sourcePattern": policy.get("sourcePattern") or policy.get("source"),
+                "targetText": policy.get("targetText") or policy.get("target"),
+                "lockName": policy.get("lockName"),
+                "contextRequired": policy.get("contextRequired"),
+                "contextTokensAny": policy.get("contextTokensAny") or [],
+                "contextAliasesAny": policy.get("contextAliasesAny") or [],
+                "familyTagEventIds": policy.get("familyTagEventIds") or [],
+            }
+            for policy in sorted(policies, key=lambda item: str(item.get("policyId") or ""))
+        ],
+    }
+
+
 def strict_text_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value or "").strip().casefold()
     return STRICT_SPACE_RE.sub(" ", normalized)
@@ -2913,6 +3306,28 @@ def compact_strings(values: Iterable[Any]) -> list[str]:
     return result
 
 
+def compact_alias_strings(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        item = str(value).strip()
+        if not item:
+            continue
+        key = unicodedata.normalize("NFKC", item)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
+def validate_family_id(value: str) -> None:
+    if not FAMILY_ID_RE.match(value):
+        raise SystemExit(
+            "family id must be an ASCII slug: letters/numbers plus dot, underscore, colon, or hyphen"
+        )
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -2991,6 +3406,7 @@ def validation_summary(report: dict[str, Any]) -> dict[str, Any]:
         "negativeFailures": sum(1 for item in report.get("negativeExamples") or [] if not item.get("passed")),
         "exactApplyConflicts": len(report.get("exactApplyConflicts") or []),
         "manualContextLockFailures": len(report.get("manualContextLockFailures") or []),
+        "familyMetadataFailures": len(report.get("familyMetadataFailures") or []),
         "corpusFailures": sum(len(item.get("failures") or []) for item in report.get("corpusReplay") or []),
         "failureCount": len(report.get("failures") or []),
     }

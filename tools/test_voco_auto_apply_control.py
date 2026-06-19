@@ -250,6 +250,196 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(policy["controlEvidenceEventIds"], [events[-1]["eventId"]])
             self.assertEqual(policy["supersededControlEvidenceEventIds"], [events[0]["eventId"], events[1]["eventId"]])
 
+    def test_tag_policy_family_preserves_policy_id_and_behavior(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            replacement_args = Namespace(
+                actor="test",
+                source_pattern="麗紗",
+                target_text="LiSA",
+                source_text="麗紗",
+                row_pk=14759,
+                rule_name="lisa-kanji-alias",
+                positive=[],
+                negative=[],
+                positive_text="麗紗",
+                positive_context="",
+                expected_text="LiSA",
+                negative_text=None,
+                negative_context="",
+                family_id=None,
+                family_role="alias",
+                family_reason=None,
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(replacement_args))
+            first_model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            original_policy_id = first_model["policies"][0]["policyId"]
+
+            control.append_event(
+                evidence,
+                control.tag_policy_family_event(
+                    Namespace(
+                        actor="test",
+                        policy_id=[original_policy_id],
+                        source_pattern=None,
+                        target_text=None,
+                        family_id="lisa-orthography",
+                        family_role="alias",
+                        reason="Group LiSA orthography aliases without changing runtime matching.",
+                        note=None,
+                    )
+                ),
+            )
+            events = control.load_events(evidence)
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(report["overlayPolicyCount"], 1)
+            self.assertEqual(report["familyTagCount"], 1)
+            self.assertEqual(model["policies"][0]["policyId"], original_policy_id)
+            self.assertEqual(model["policies"][0]["familyId"], "lisa-orthography")
+            self.assertEqual(model["controlPlaneFamilies"]["lisa-orthography"]["policyCount"], 1)
+            after, fires = control.replay_apply_policies("麗紗", "", model["policies"])
+            self.assertEqual(after, "LiSA")
+            self.assertEqual(fires[0]["policyId"], original_policy_id)
+
+    def test_tag_policy_family_miss_fails_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            control.append_event(
+                evidence,
+                control.tag_policy_family_event(
+                    Namespace(
+                        actor="test",
+                        policy_id=["missing-policy"],
+                        source_pattern=None,
+                        target_text=None,
+                        family_id="lisa-orthography",
+                        family_role="alias",
+                        reason="Should fail because selector is stale.",
+                        note=None,
+                    )
+                ),
+            )
+            events = control.load_events(evidence)
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertEqual(report["familyTagMissCount"], 1)
+            self.assertFalse(validation["ready"])
+            self.assertEqual(validation["familyMetadataFailures"][0]["kind"], "familyTagMatchedNoPolicies")
+
+    def test_replacement_family_allows_casing_aliases_with_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            family_args = Namespace(
+                actor="test",
+                family_id="lisa-orthography",
+                target_text="LiSA",
+                alias=["lisa", "LISA", "麗紗"],
+                rule_name_prefix=None,
+                allow_strict_equivalent_alias=True,
+                row_pk=14759,
+                positive=[],
+                negative=[],
+                note="LiSA casing and kanji aliases.",
+            )
+            control.append_event(evidence, control.replacement_family_event(family_args))
+            events = control.load_events(evidence)
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(report["overlayPolicyCount"], 3)
+            self.assertEqual(model["controlPlaneFamilies"]["lisa-orthography"]["policyCount"], 3)
+            self.assertEqual([item["actualText"] for item in validation["positiveExamples"]], ["LiSA", "LiSA", "LiSA"])
+            self.assertEqual(control.replay_apply_policies("lisa", "", model["policies"])[0], "LiSA")
+            self.assertEqual(control.replay_apply_policies("LISA", "", model["policies"])[0], "LiSA")
+            self.assertEqual(control.replay_apply_policies("麗紗", "", model["policies"])[0], "LiSA")
+
+    def test_replacement_family_rejects_casing_alias_without_opt_in(self):
+        with self.assertRaisesRegex(SystemExit, "strict-equivalent aliases"):
+            control.replacement_family_event(
+                Namespace(
+                    actor="test",
+                    family_id="lisa-orthography",
+                    target_text="LiSA",
+                    alias=["lisa"],
+                    rule_name_prefix=None,
+                    allow_strict_equivalent_alias=False,
+                    row_pk=None,
+                    positive=[],
+                    negative=[],
+                    note=None,
+                )
+            )
+
     def test_unlocked_ascii_replacement_corpus_drift_is_accepted_with_replay_cap(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
