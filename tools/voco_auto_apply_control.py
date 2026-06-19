@@ -39,6 +39,11 @@ DEFAULT_REPLAYLAB_ROOT = Path.home() / "VocoReplayLab"
 DEFAULT_CURRENT_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-raw-cleaned-20260611-093103-context10"
 DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cleaned-20260611-pre12022-context10"
 CONTROL_SCHEMA_VERSION = 1
+EVALUATION_CONTRACT_SCHEMA_VERSION = 1
+DEFAULT_ACTION_COMMAND_GUARDS = [
+    {"surface": "全部刪除"},
+    {"surface": "全部删除"},
+]
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
 FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,96}$")
@@ -1296,6 +1301,10 @@ def compile_model(
     if family_summary:
         model["controlPlaneFamilies"] = family_summary
     append_safety_contract(model)
+    model["schemaVersion"] = EVALUATION_CONTRACT_SCHEMA_VERSION
+    model["actionCommandGuards"] = copy.deepcopy(DEFAULT_ACTION_COMMAND_GUARDS)
+    model["autoApplyModelVersion"] = f"control-compiled-{now_iso()}"
+    model["generatedAt"] = model.get("generatedAt") or now_iso()
     model["controlPlane"] = {
         "schemaVersion": CONTROL_SCHEMA_VERSION,
         "compiledAt": now_iso(),

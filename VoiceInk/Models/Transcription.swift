@@ -66,6 +66,9 @@ final class Transcription {
     var retranscriptionSourceText: String?
     var retranscriptionAnalysisJSON: String?
     var correctionFeedbackJSON: String?
+    var autoApplyModelVersion: String?
+    var autoApplyModelGeneratedAt: String?
+    var autoApplyPolicyHitIDsJSON: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -110,6 +113,11 @@ final class Transcription {
     var correctionRiskTermIDs: [String] {
         get { Self.decodeStringArray(correctionRiskTermIDsJSON) }
         set { correctionRiskTermIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var autoApplyPolicyHitIDs: [String] {
+        get { Self.decodeStringArray(autoApplyPolicyHitIDsJSON) }
+        set { autoApplyPolicyHitIDsJSON = Self.encodeJSON(newValue) }
     }
 
     var styleGuardReasons: [String] {
@@ -368,6 +376,9 @@ final class Transcription {
         recordCorrectionRisk(confidenceAssessment.correctionRiskProfile)
         self.selectedCandidate = confidenceAssessment.selectedCandidate
         self.candidateSelectionSource = nil
+        self.autoApplyModelVersion = normalizationResult.autoApplyModelVersion
+        self.autoApplyModelGeneratedAt = normalizationResult.autoApplyModelGeneratedAt
+        self.autoApplyPolicyHitIDs = normalizationResult.autoApplyPolicyHitIDs
     }
 
     func recordCandidateSelectionSource(_ source: VocoCandidateSelectionSource) {

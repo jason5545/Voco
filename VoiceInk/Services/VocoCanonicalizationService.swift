@@ -116,7 +116,9 @@ final class VocoCanonicalizationService {
                 outputText: safeAutoApply.outputText,
                 applied: safeAutoApply.applied,
                 suggestions: safeAutoApply.suggestions,
-                guardBlocks: initialAutoApply.guardBlocks + safeAutoApply.guardBlocks
+                guardBlocks: initialAutoApply.guardBlocks + safeAutoApply.guardBlocks,
+                modelVersion: safeAutoApply.modelVersion,
+                modelGeneratedAt: safeAutoApply.modelGeneratedAt
             )
         }
         let vocabularyWords = personalVocabularyWords(in: termSources)
@@ -176,7 +178,10 @@ final class VocoCanonicalizationService {
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } +
                 autoApplyReplacements +
                 phoneticCorrectionReplacements,
-            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions
+            suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions,
+            autoApplyModelVersion: autoApply.modelVersion,
+            autoApplyModelGeneratedAt: autoApply.modelGeneratedAt,
+            autoApplyPolicyHitIDs: autoApply.policyHitIds
         )
     }
 

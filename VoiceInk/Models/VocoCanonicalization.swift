@@ -68,6 +68,66 @@ struct VocoNormalizationResult: Codable, Equatable {
     let activeContextIDs: [String]
     let replacements: [VocoReplacement]
     let suggestions: [VocoReplacement]
+    let autoApplyModelVersion: String?
+    let autoApplyModelGeneratedAt: String?
+    let autoApplyPolicyHitIDs: [String]
+
+    init(
+        originalText: String,
+        normalizedText: String,
+        activeContextIDs: [String],
+        replacements: [VocoReplacement],
+        suggestions: [VocoReplacement],
+        autoApplyModelVersion: String? = nil,
+        autoApplyModelGeneratedAt: String? = nil,
+        autoApplyPolicyHitIDs: [String] = []
+    ) {
+        self.originalText = originalText
+        self.normalizedText = normalizedText
+        self.activeContextIDs = activeContextIDs
+        self.replacements = replacements
+        self.suggestions = suggestions
+        self.autoApplyModelVersion = autoApplyModelVersion
+        self.autoApplyModelGeneratedAt = autoApplyModelGeneratedAt
+        self.autoApplyPolicyHitIDs = autoApplyPolicyHitIDs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case originalText
+        case normalizedText
+        case activeContextIDs
+        case replacements
+        case suggestions
+        case autoApplyModelVersion
+        case autoApplyModelGeneratedAt
+        case autoApplyPolicyHitIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        originalText = try container.decode(String.self, forKey: .originalText)
+        normalizedText = try container.decode(String.self, forKey: .normalizedText)
+        activeContextIDs = try container.decode([String].self, forKey: .activeContextIDs)
+        replacements = try container.decode([VocoReplacement].self, forKey: .replacements)
+        suggestions = try container.decode([VocoReplacement].self, forKey: .suggestions)
+        autoApplyModelVersion = try container.decodeIfPresent(String.self, forKey: .autoApplyModelVersion)
+        autoApplyModelGeneratedAt = try container.decodeIfPresent(String.self, forKey: .autoApplyModelGeneratedAt)
+        autoApplyPolicyHitIDs = try container.decodeIfPresent([String].self, forKey: .autoApplyPolicyHitIDs) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(originalText, forKey: .originalText)
+        try container.encode(normalizedText, forKey: .normalizedText)
+        try container.encode(activeContextIDs, forKey: .activeContextIDs)
+        try container.encode(replacements, forKey: .replacements)
+        try container.encode(suggestions, forKey: .suggestions)
+        try container.encodeIfPresent(autoApplyModelVersion, forKey: .autoApplyModelVersion)
+        try container.encodeIfPresent(autoApplyModelGeneratedAt, forKey: .autoApplyModelGeneratedAt)
+        if !autoApplyPolicyHitIDs.isEmpty {
+            try container.encode(autoApplyPolicyHitIDs, forKey: .autoApplyPolicyHitIDs)
+        }
+    }
 }
 
 enum VocoConfidenceRoute: String, Codable, Equatable {

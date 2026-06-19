@@ -26,22 +26,31 @@ struct VocoAutoApplyEvaluation: Equatable {
     let applied: [VocoAutoApplyPolicyFire]
     let suggestions: [VocoAutoApplyPolicyFire]
     let guardBlocks: [VocoAutoApplyGuardBlock]
+    let modelVersion: String?
+    let modelGeneratedAt: String?
 
     var changed: Bool { inputText != outputText }
     var requiresReview: Bool { !guardBlocks.isEmpty }
+    var policyHitIds: [String] {
+        (applied + suggestions).map(\.policyId)
+    }
 
     init(
         inputText: String,
         outputText: String,
         applied: [VocoAutoApplyPolicyFire],
         suggestions: [VocoAutoApplyPolicyFire],
-        guardBlocks: [VocoAutoApplyGuardBlock] = []
+        guardBlocks: [VocoAutoApplyGuardBlock] = [],
+        modelVersion: String? = nil,
+        modelGeneratedAt: String? = nil
     ) {
         self.inputText = inputText
         self.outputText = outputText
         self.applied = applied
         self.suggestions = suggestions
         self.guardBlocks = guardBlocks
+        self.modelVersion = modelVersion
+        self.modelGeneratedAt = modelGeneratedAt
     }
 }
 
@@ -49,6 +58,28 @@ struct VocoAutoApplyModelStatus: Equatable {
     let isAvailable: Bool
     let message: String
     let modelURL: URL
+    let modelVersion: String?
+    let modelGeneratedAt: String?
+    let schemaVersion: Int?
+    let isDegraded: Bool
+
+    init(
+        isAvailable: Bool,
+        message: String,
+        modelURL: URL,
+        modelVersion: String? = nil,
+        modelGeneratedAt: String? = nil,
+        schemaVersion: Int? = nil,
+        isDegraded: Bool = false
+    ) {
+        self.isAvailable = isAvailable
+        self.message = message
+        self.modelURL = modelURL
+        self.modelVersion = modelVersion
+        self.modelGeneratedAt = modelGeneratedAt
+        self.schemaVersion = schemaVersion
+        self.isDegraded = isDegraded
+    }
 }
 
 final class VocoAutoApplyModelService: ObservableObject {
@@ -56,6 +87,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let enabledKey = "VocoAutoApplyModelEnabled"
     static let modelFileName = "full-db.auto-apply-model.json"
     static let protectedTermGuardReason = "auto-apply-model-protected-term-guard"
+    static let supportedSchemaVersion = 1
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -76,6 +108,20 @@ final class VocoAutoApplyModelService: ObservableObject {
     private var modelFileWatcher: DispatchSourceFileSystemObject?
     private var modelDirectoryWatcher: DispatchSourceFileSystemObject?
     private var pendingModelReload: DispatchWorkItem?
+
+    static let hardCodedActionCommandSurfaces: [String] = ["全部刪除", "全部删除"]
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §2
+    static let asciiTokenPattern = "[A-Za-z][A-Za-z0-9_+.#/-]*"
+    private static let asciiTokenRegex: NSRegularExpression = {
+        try! NSRegularExpression(pattern: asciiTokenPattern, options: [])
+    }()
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §5
+    /// Matches PUNCT_OR_SPACE_RE from tools/voco_full_db_raw_cleaned_corpus.py:51
+    private static let looseKeyPunctuationOrWhitespace = CharacterSet(
+        charactersIn: "，,。.!！？?、：:；;「」『』\"'`（）()【】…—-"
+    ).union(.whitespacesAndNewlines).union(CharacterSet(charactersIn: "[]"))
 
     var isUserEnabled: Bool {
         get { defaults.object(forKey: Self.enabledKey) as? Bool ?? true }
@@ -128,48 +174,93 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     func reload() {
-        do {
-            guard FileManager.default.fileExists(atPath: modelURL.path) else {
-                loadedModel = nil
-                status = VocoAutoApplyModelStatus(
-                    isAvailable: false,
-                    message: String(localized: "Model not installed"),
-                    modelURL: modelURL
-                )
-                return
-            }
-
-            let data = try Data(contentsOf: modelURL)
-            let model = try JSONDecoder().decode(VocoAutoApplyModel.self, from: data)
-            guard model.mergedReplayReadiness.mergedAutoApplyModelReady == true else {
-                loadedModel = nil
-                status = VocoAutoApplyModelStatus(
-                    isAvailable: false,
-                    message: String(localized: "Model not ready"),
-                    modelURL: modelURL
-                )
-                return
-            }
-
-            loadedModel = VocoAutoApplyRuntimeModel(model: model)
-            let applyCount = model.policyCounts["apply"] ?? model.applyPolicies.count
-            let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
-            let replacedCount = model.policyCounts["replaced"] ?? 0
-            let blockedCount = model.policyCounts["blocked"] ?? 0
-            status = VocoAutoApplyModelStatus(
-                isAvailable: true,
-                message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest, \(replacedCount) replaced, \(blockedCount) blocked"),
-                modelURL: modelURL
-            )
-        } catch {
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
             loadedModel = nil
             status = VocoAutoApplyModelStatus(
                 isAvailable: false,
-                message: String(localized: "Model unreadable"),
+                message: String(localized: "Model not installed"),
                 modelURL: modelURL
             )
-            logger.error("Failed to load auto-apply model: \(error.localizedDescription, privacy: .public)")
+            return
         }
+
+        let data: Data
+        let model: VocoAutoApplyModel
+        do {
+            data = try Data(contentsOf: modelURL)
+            model = try JSONDecoder().decode(VocoAutoApplyModel.self, from: data)
+        } catch {
+            logger.error("Failed to load auto-apply model: \(error.localizedDescription, privacy: .public)")
+            if let existing = loadedModel {
+                loadedModel = existing
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: true,
+                    message: String(localized: "Model reload failed, using previous version"),
+                    modelURL: modelURL,
+                    modelVersion: existing.modelVersion,
+                    modelGeneratedAt: existing.modelGeneratedAt,
+                    schemaVersion: existing.schemaVersion,
+                    isDegraded: true
+                )
+            } else {
+                loadedModel = nil
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: false,
+                    message: String(localized: "Model unreadable"),
+                    modelURL: modelURL
+                )
+            }
+            return
+        }
+
+        if let schemaVersion = model.schemaVersion,
+           schemaVersion != Self.supportedSchemaVersion {
+            logger.error("Auto-apply model schema version \(schemaVersion) is not supported (expected \(Self.supportedSchemaVersion))")
+            if let existing = loadedModel {
+                loadedModel = existing
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: true,
+                    message: String(localized: "Model schema unsupported, using previous version"),
+                    modelURL: modelURL,
+                    modelVersion: existing.modelVersion,
+                    modelGeneratedAt: existing.modelGeneratedAt,
+                    schemaVersion: existing.schemaVersion,
+                    isDegraded: true
+                )
+            } else {
+                loadedModel = nil
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: false,
+                    message: String(localized: "Model schema unsupported"),
+                    modelURL: modelURL
+                )
+            }
+            return
+        }
+
+        guard model.mergedReplayReadiness.mergedAutoApplyModelReady == true else {
+            loadedModel = nil
+            status = VocoAutoApplyModelStatus(
+                isAvailable: false,
+                message: String(localized: "Model not ready"),
+                modelURL: modelURL
+            )
+            return
+        }
+
+        loadedModel = VocoAutoApplyRuntimeModel(model: model)
+        let applyCount = model.policyCounts["apply"] ?? model.applyPolicies.count
+        let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
+        let replacedCount = model.policyCounts["replaced"] ?? 0
+        let blockedCount = model.policyCounts["blocked"] ?? 0
+        status = VocoAutoApplyModelStatus(
+            isAvailable: true,
+            message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest, \(replacedCount) replaced, \(blockedCount) blocked"),
+            modelURL: modelURL,
+            modelVersion: model.autoApplyModelVersion,
+            modelGeneratedAt: model.generatedAt,
+            schemaVersion: model.schemaVersion ?? Self.supportedSchemaVersion
+        )
     }
 
     private func startWatchingModelChanges() {
@@ -245,7 +336,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     func evaluate(_ text: String, context: String = "") -> VocoAutoApplyEvaluation {
         guard isRuntimeEnabled,
               let model = loadedModel,
-              VoiceCommandService.shared.detectCommand(in: text) == nil
+              !textIsActionCommand(text: text, actionCommandSurfaces: model.actionCommandSurfaces)
         else {
             return VocoAutoApplyEvaluation(inputText: text, outputText: text, applied: [], suggestions: [])
         }
@@ -258,7 +349,9 @@ final class VocoAutoApplyModelService: ObservableObject {
                 proposedOutputText: target,
                 applied: [exact.fire],
                 suggestions: suggestFires(in: model.suggestPolicies, text: text, context: context),
-                protectedTermAllowlistGuards: model.protectedTermAllowlistGuards
+                protectedTermAllowlistGuards: model.protectedTermAllowlistGuards,
+                modelVersion: model.modelVersion,
+                modelGeneratedAt: model.modelGeneratedAt
             )
         }
 
@@ -281,7 +374,9 @@ final class VocoAutoApplyModelService: ObservableObject {
             proposedOutputText: output,
             applied: applied,
             suggestions: suggestFires(in: model.suggestPolicies, text: output, context: context),
-            protectedTermAllowlistGuards: model.protectedTermAllowlistGuards
+            protectedTermAllowlistGuards: model.protectedTermAllowlistGuards,
+            modelVersion: model.modelVersion,
+            modelGeneratedAt: model.modelGeneratedAt
         )
     }
 
@@ -290,7 +385,9 @@ final class VocoAutoApplyModelService: ObservableObject {
         proposedOutputText: String,
         applied: [VocoAutoApplyPolicyFire],
         suggestions: [VocoAutoApplyPolicyFire],
-        protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
+        protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard],
+        modelVersion: String?,
+        modelGeneratedAt: String?
     ) -> VocoAutoApplyEvaluation {
         let blocks = protectedTermGuardBlocks(
             in: proposedOutputText,
@@ -303,7 +400,9 @@ final class VocoAutoApplyModelService: ObservableObject {
                 outputText: inputText,
                 applied: [],
                 suggestions: suggestions,
-                guardBlocks: blocks
+                guardBlocks: blocks,
+                modelVersion: modelVersion,
+                modelGeneratedAt: modelGeneratedAt
             )
         }
 
@@ -311,7 +410,9 @@ final class VocoAutoApplyModelService: ObservableObject {
             inputText: inputText,
             outputText: proposedOutputText,
             applied: applied,
-            suggestions: suggestions
+            suggestions: suggestions,
+            modelVersion: modelVersion,
+            modelGeneratedAt: modelGeneratedAt
         )
     }
 
@@ -384,7 +485,8 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     private func containsASCIIToken(_ text: String) -> Bool {
-        text.range(of: #"[A-Za-z][A-Za-z0-9_+.#/-]*"#, options: .regularExpression) != nil
+        let range = NSRange(location: 0, length: text.utf16.count)
+        return Self.asciiTokenRegex.firstMatch(in: text, options: [], range: range) != nil
     }
 
     private func isASCIIWordCharacter(_ character: Character) -> Bool {
@@ -398,7 +500,88 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     private func tokenHits(in text: String, tokens: [String]) -> [String] {
-        tokens.filter { !$0.isEmpty && text.localizedCaseInsensitiveContains($0) }
+        tokens.filter { !$0.isEmpty && contextContainsToken(text: text, token: $0) }
+    }
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §4
+    func contextContainsToken(text: String, token: String) -> Bool {
+        guard !text.isEmpty, !token.isEmpty else { return false }
+        let normalizedText = text.precomposedStringWithCompatibilityMapping.lowercased()
+        let normalizedToken = token
+            .precomposedStringWithCompatibilityMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalizedToken.isEmpty else { return false }
+
+        let compactToken = normalizedToken.replacingOccurrences(of: " ", with: "")
+        if Self.asciiTokenRegex.firstMatch(in: compactToken, options: [], range: NSRange(location: 0, length: compactToken.utf16.count)) != nil {
+            if wordBoundedContains(normalizedText, normalizedToken) {
+                return true
+            }
+            if !compactToken.isEmpty && wordBoundedSpacedContains(normalizedText, compactToken) {
+                return true
+            }
+            return false
+        }
+
+        let textKey = looseKey(normalizedText)
+        let tokenKey = looseKey(normalizedToken)
+        return !tokenKey.isEmpty && textKey.contains(tokenKey)
+    }
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §5
+    func looseKey(_ value: String) -> String {
+        let converted = OpenCCConverter.shared.convert(value)
+        let lowercased = converted.lowercased()
+        let scalars = lowercased.unicodeScalars.filter { scalar in
+            !Self.looseKeyPunctuationOrWhitespace.contains(scalar)
+        }
+        return String(String.UnicodeScalarView(scalars))
+    }
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §6
+    func textIsActionCommand(text: String, actionCommandSurfaces: [String]) -> Bool {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        let surfaces = actionCommandSurfaces.isEmpty ? Self.hardCodedActionCommandSurfaces : actionCommandSurfaces
+        let textKey = looseKey(text)
+        return surfaces.contains { surface in
+            let surfaceKey = looseKey(surface)
+            return !surfaceKey.isEmpty && textKey == surfaceKey
+        }
+    }
+
+    private func wordBoundedContains(_ text: String, _ token: String) -> Bool {
+        var searchStart = text.startIndex
+        while searchStart <= text.endIndex,
+              let range = text.range(of: token, options: [], range: searchStart..<text.endIndex) {
+            let beforeOK = range.lowerBound == text.startIndex || !isASCIIWordCharacter(text[text.index(before: range.lowerBound)])
+            let afterOK = range.upperBound == text.endIndex || !isASCIIWordCharacter(text[range.upperBound])
+            if beforeOK && afterOK { return true }
+            searchStart = range.upperBound
+        }
+        return false
+    }
+
+    /// Match `cpp` against text containing `c p p` or `c_p_p` by allowing
+    /// `[\s._-]*` between each character of the token.
+    private func wordBoundedSpacedContains(_ text: String, _ compactToken: String) -> Bool {
+        let chars = Array(compactToken)
+        guard !chars.isEmpty else { return false }
+        let separatorPattern = "[\\s._-]*"
+        let escapedChars = chars.map { NSRegularExpression.escapedPattern(for: String($0)) }
+        let pattern = "(?<![a-z0-9_])" + escapedChars.joined(separator: separatorPattern) + "(?![a-z0-9_])"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+        let range = NSRange(location: 0, length: text.utf16.count)
+        return regex.firstMatch(in: text, options: [], range: range) != nil
+    }
+
+    /// Contract: docs/auto-apply-evaluation-contract.md §3
+    func replacementMatchesPublic(text: String, source: String) -> Bool {
+        replacementMatches(text: text, source: source)
+    }
+
+    func containsAsciiTokenPublic(_ text: String) -> Bool {
+        containsASCIIToken(text)
     }
 
     private func protectedTermGuardBlocks(
@@ -481,6 +664,10 @@ private struct VocoAutoApplyModel: Decodable {
     let protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
     let policies: [VocoAutoApplyPolicy]
     let mergedReplayReadiness: VocoMergedReplayReadiness
+    let schemaVersion: Int?
+    let actionCommandGuards: [VocoActionCommandGuard]?
+    let autoApplyModelVersion: String?
+    let generatedAt: String?
 
     var applyPolicies: [VocoAutoApplyPolicy] {
         policies.filter { $0.autoApplyMode == .apply }
@@ -498,6 +685,10 @@ private struct VocoAutoApplyModel: Decodable {
         case protectedTermAllowlist
         case policies
         case mergedReplayReadiness
+        case schemaVersion
+        case actionCommandGuards
+        case autoApplyModelVersion
+        case generatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -511,7 +702,15 @@ private struct VocoAutoApplyModel: Decodable {
             []
         policies = try container.decode([VocoAutoApplyPolicy].self, forKey: .policies)
         mergedReplayReadiness = try container.decode(VocoMergedReplayReadiness.self, forKey: .mergedReplayReadiness)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+        actionCommandGuards = try container.decodeIfPresent([VocoActionCommandGuard].self, forKey: .actionCommandGuards)
+        autoApplyModelVersion = try container.decodeIfPresent(String.self, forKey: .autoApplyModelVersion)
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt)
     }
+}
+
+private struct VocoActionCommandGuard: Decodable {
+    let surface: String
 }
 
 private struct VocoAutoApplyRuntimeModel {
@@ -519,6 +718,10 @@ private struct VocoAutoApplyRuntimeModel {
     let exactApplyPolicyByStrictKey: [String: VocoAutoApplyPolicy]
     let scopedApplyPolicies: [VocoAutoApplyPolicy]
     let suggestPolicies: [VocoAutoApplyPolicy]
+    let actionCommandSurfaces: [String]
+    let modelVersion: String?
+    let modelGeneratedAt: String?
+    let schemaVersion: Int?
 
     init(model: VocoAutoApplyModel) {
         protectedTermAllowlistGuards = model.protectedTermAllowlistGuards
@@ -553,6 +756,10 @@ private struct VocoAutoApplyRuntimeModel {
         self.exactApplyPolicyByStrictKey = exactApplyPolicyByStrictKey
         self.scopedApplyPolicies = scopedApplyPolicies
         self.suggestPolicies = suggestPolicies
+        self.actionCommandSurfaces = (model.actionCommandGuards ?? []).map(\.surface).filter { !$0.isEmpty }
+        self.modelVersion = model.autoApplyModelVersion
+        self.modelGeneratedAt = model.generatedAt
+        self.schemaVersion = model.schemaVersion
     }
 }
 
