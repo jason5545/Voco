@@ -104,6 +104,73 @@ struct VocoAutoApplyModelServiceTests {
         #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
     }
 
+    @Test func indexedRuntimeV2ExactWholeUtteranceMatchesV1AndKeepsRuntimeGuards() throws {
+        let v1 = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+        let v2 = VocoAutoApplyModelService(
+            modelURL: try writeIndexedRuntimeV2Fixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let v1Exact = v1.evaluate("W 零三的 VT 時間是什麼呢？")
+        let v2Exact = v2.evaluate("W 零三的 VT 時間是什麼呢？")
+        #expect(v2.status.isAvailable == true)
+        #expect(v2Exact.outputText == v1Exact.outputText)
+        #expect(v2Exact.applied.map(\.policyId) == v1Exact.applied.map(\.policyId))
+
+        let manualOverrideInput = "不要動到原來的城市碼。"
+        let v1ManualOverrideExact = v1.evaluate(manualOverrideInput)
+        let v2ManualOverrideExact = v2.evaluate(manualOverrideInput)
+        #expect(v1ManualOverrideExact.outputText == "不要動到原來的程式碼。")
+        #expect(v1ManualOverrideExact.applied.map(\.policyId) == ["exact-fixture-manual-override-code"])
+        #expect(v2ManualOverrideExact.outputText == v1ManualOverrideExact.outputText)
+        #expect(v2ManualOverrideExact.applied.map(\.policyId) == v1ManualOverrideExact.applied.map(\.policyId))
+
+        let scoped = v2.evaluate("我在測 Cloud 的 OPUS 模型")
+        #expect(scoped.outputText == "我在測 Claude 的 OPUS 模型")
+        #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
+
+        let suggestion = v2.evaluate("答案給我匯入")
+        #expect(suggestion.outputText == "答案給我匯入")
+        #expect(suggestion.suggestions.map(\.policyId) == ["suggest-fixture-file-import"])
+
+        let command = v2.evaluate("全部刪除")
+        #expect(command.outputText == "全部刪除")
+        #expect(command.applied.isEmpty)
+        #expect(command.suggestions.isEmpty)
+
+        let guarded = v2.evaluate("這個明德變更怪怪的。")
+        #expect(guarded.outputText == "這個明德變更怪怪的。")
+        #expect(guarded.guardBlocks.map(\.guardId) == ["protected-term-allowlist.mingde"])
+    }
+
+    @Test func malformedIndexedRuntimeV2FallsBackToReadableV1Payload() throws {
+        let url = try temporaryDirectory().appendingPathComponent("v2-marker-with-v1-fallback.json")
+        try Data(indexedRuntimeV2DecodeFailureWithV1FallbackJSON().utf8).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let exact = service.evaluate("W 零三的 VT 時間是什麼呢？")
+        #expect(service.status.isAvailable == true)
+        #expect(exact.outputText == "W零三的VT時間是什麼呢？")
+        #expect(exact.applied.map(\.policyId) == ["exact-fixture-question"])
+    }
+
+    @Test func brokenIndexedRuntimeV2ReloadKeepsPreviousModel() throws {
+        let url = try writeIndexedRuntimeV2Fixture(ready: true)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+        #expect(service.evaluate("W 零三的 VT 時間是什麼呢？").outputText == "W零三的VT時間是什麼呢？")
+
+        try Data(brokenIndexedRuntimeV2FixtureJSON().utf8).write(to: url)
+        service.reload()
+
+        #expect(service.status.isAvailable == true)
+        #expect(service.status.isDegraded == true)
+        #expect(service.status.message == String(localized: "Model reload failed, using previous version"))
+        #expect(service.evaluate("W 零三的 VT 時間是什麼呢？").outputText == "W零三的VT時間是什麼呢？")
+    }
+
     @Test func largeSyntheticModelKeepsIndexedExactScopedSuggestAndGuardBehavior() throws {
         let url = try temporaryDirectory().appendingPathComponent("large-synthetic-auto-apply-fixture.json")
         try Data(largeSyntheticFixtureJSON(fillerExactCount: 6_000).utf8).write(to: url)
@@ -518,6 +585,122 @@ struct VocoAutoApplyModelServiceTests {
         try data.write(to: url)
     }
 
+    private func writeIndexedRuntimeV2Fixture(ready: Bool) throws -> URL {
+        let url = try temporaryDirectory().appendingPathComponent("small-auto-apply-runtime-v2-fixture.json")
+        try Data(indexedRuntimeV2FixtureJSON(ready: ready).utf8).write(to: url)
+        return url
+    }
+
+    private func indexedRuntimeV2FixtureJSON(ready: Bool) -> String {
+        """
+        {
+          "schemaVersion": 1,
+          "runtimeSchemaVersion": 2,
+          "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+          "autoApplyModelVersion": "indexed-v2-fixture",
+          "generatedAt": "2026-06-20T00:00:00Z",
+          "policyCounts": { "apply": 5, "suggest": 1, "replaced": 1, "blocked": 0 },
+          "policyTypeCounts": { "exactTrainablePair": 3, "scopedReplacement": 3 },
+          "safetyContract": [
+            "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
+            "Voco action commands such as 全部刪除 are blocked from text auto-apply training"
+          ],
+          "mergedReplayReadiness": {
+            "mergedAutoApplyModelReady": \(ready ? "true" : "false"),
+            "failures": []
+          },
+          "actionCommandGuards": [
+            { "surface": "全部刪除" },
+            { "surface": "全部删除" }
+          ],
+          "protectedTermAllowlistGuards": [
+            {
+              "guardId": "protected-term-allowlist.mingde",
+              "reason": "\(VocoAutoApplyModelService.protectedTermGuardReason)",
+              "term": "明德",
+              "allowedPhrases": ["明德捷運站", "明德水庫", "明德路", "施明德"]
+            }
+          ],
+          "exactApplyPolicyByStrictKey": {
+            "w 零三的 vt 時間是什麼呢?": {
+              "policyId": "exact-fixture-question",
+              "sourcePattern": "W 零三的 VT 時間是什麼呢？",
+              "targetText": "W零三的VT時間是什麼呢？",
+              "sourceSlices": ["rerawPre12022"]
+            },
+            "不要動到原來的城市碼。": {
+              "policyId": "exact-fixture-manual-override-code",
+              "sourcePattern": "不要動到原來的城市碼。",
+              "targetText": "不要動到原來的程式碼。",
+              "sourceSlices": ["currentRaw"]
+            },
+            "全部刪除": {
+              "policyId": "exact-action-command-delete-all",
+              "sourcePattern": "全部刪除",
+              "targetText": "全部刪掉",
+              "sourceSlices": ["synthetic"]
+            }
+          },
+          "scopedApplyPolicies": [
+            {
+              "policyId": "scoped-fixture-claude",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "Cloud 的 OPUS 模型",
+              "targetText": "Claude 的 OPUS 模型",
+              "scopedSourcePhrase": "Cloud 的 OPUS 模型",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["currentRaw"]
+            }
+          ],
+          "suggestPolicies": [
+            {
+              "policyId": "suggest-fixture-file-import",
+              "autoApplyMode": "suggest",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "答案給我匯入",
+              "targetText": "檔案給我匯入",
+              "scopedSourcePhrase": "答案給我匯入",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["currentRaw"]
+            }
+          ]
+        }
+        """
+    }
+
+    private func indexedRuntimeV2DecodeFailureWithV1FallbackJSON() -> String {
+        var json = fixtureJSON(ready: true)
+        json = json.replacingOccurrences(
+            of: "{",
+            with: """
+            {
+              "runtimeSchemaVersion": 2,
+              "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+              "exactApplyPolicyByStrictKey": "not-a-map",
+            """,
+            options: [],
+            range: json.startIndex..<json.index(after: json.startIndex)
+        )
+        return json
+    }
+
+    private func brokenIndexedRuntimeV2FixtureJSON() -> String {
+        """
+        {
+          "schemaVersion": 1,
+          "runtimeSchemaVersion": 2,
+          "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+          "mergedReplayReadiness": {
+            "mergedAutoApplyModelReady": true
+          },
+          "exactApplyPolicyByStrictKey": "not-a-map"
+        }
+        """
+    }
+
     private func fixtureJSON(
         ready: Bool,
         scopedClaudeTarget: String = "Claude 的 OPUS 模型",
@@ -536,8 +719,8 @@ struct VocoAutoApplyModelServiceTests {
 
         return """
         {
-          "policyCounts": { "apply": 15, "suggest": 1, "replaced": 1 },
-          "policyTypeCounts": { "exactTrainablePair": 2, "scopedReplacement": 15 },
+          "policyCounts": { "apply": 16, "suggest": 1, "replaced": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 3, "scopedReplacement": 15 },
           "safetyContract": [
             "exact trainable-pair policies may auto-apply only on normalized whole-utterance match",
             "Voco action commands such as 全部刪除 are blocked from text auto-apply training",
@@ -567,6 +750,18 @@ struct VocoAutoApplyModelServiceTests {
               "inputStrictKey": "你要喝嗎?",
               "sourcePattern": "你要喝嗎？",
               "targetText": "你要喝嗎？",
+              "sourceSlices": ["currentRaw"]
+            },
+            {
+              "policyId": "exact-fixture-manual-override-code",
+              "autoApplyMode": "apply",
+              "policyType": "exactTrainablePair",
+              "exactInputRequired": true,
+              "inputStrictKey": "不要動到原來的城市碼。",
+              "sourcePattern": "不要動到原來的城市碼。",
+              "targetText": "不要動到原來的程式碼。",
+              "reviewGateConflictRows": [12606],
+              "manualOverrideRows": [12606],
               "sourceSlices": ["currentRaw"]
             },
             {

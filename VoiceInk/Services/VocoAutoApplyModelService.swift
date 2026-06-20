@@ -88,6 +88,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let modelFileName = "full-db.auto-apply-model.json"
     static let protectedTermGuardReason = "auto-apply-model-protected-term-guard"
     static let supportedSchemaVersion = 1
+    static let supportedRuntimeSchemaVersion = 2
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -185,10 +186,54 @@ final class VocoAutoApplyModelService: ObservableObject {
         }
 
         let data: Data
-        let model: VocoAutoApplyModel
+        let decodedModel: VocoDecodedAutoApplyModel
         do {
             data = try Data(contentsOf: modelURL)
-            model = try JSONDecoder().decode(VocoAutoApplyModel.self, from: data)
+            decodedModel = try Self.decodeModel(from: data)
+        } catch VocoAutoApplyModelDecodeError.unsupportedSchemaVersion(let schemaVersion) {
+            logger.error("Auto-apply model schema version \(schemaVersion) is not supported (expected \(Self.supportedSchemaVersion))")
+            if let existing = loadedModel {
+                loadedModel = existing
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: true,
+                    message: String(localized: "Model schema unsupported, using previous version"),
+                    modelURL: modelURL,
+                    modelVersion: existing.modelVersion,
+                    modelGeneratedAt: existing.modelGeneratedAt,
+                    schemaVersion: existing.schemaVersion,
+                    isDegraded: true
+                )
+            } else {
+                loadedModel = nil
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: false,
+                    message: String(localized: "Model schema unsupported"),
+                    modelURL: modelURL
+                )
+            }
+            return
+        } catch VocoAutoApplyModelDecodeError.unsupportedRuntimeSchemaVersion(let runtimeSchemaVersion) {
+            logger.error("Auto-apply runtime schema version \(runtimeSchemaVersion) is not supported (expected \(Self.supportedRuntimeSchemaVersion))")
+            if let existing = loadedModel {
+                loadedModel = existing
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: true,
+                    message: String(localized: "Model schema unsupported, using previous version"),
+                    modelURL: modelURL,
+                    modelVersion: existing.modelVersion,
+                    modelGeneratedAt: existing.modelGeneratedAt,
+                    schemaVersion: existing.schemaVersion,
+                    isDegraded: true
+                )
+            } else {
+                loadedModel = nil
+                status = VocoAutoApplyModelStatus(
+                    isAvailable: false,
+                    message: String(localized: "Model schema unsupported"),
+                    modelURL: modelURL
+                )
+            }
+            return
         } catch {
             logger.error("Failed to load auto-apply model: \(error.localizedDescription, privacy: .public)")
             if let existing = loadedModel {
@@ -213,32 +258,7 @@ final class VocoAutoApplyModelService: ObservableObject {
             return
         }
 
-        if let schemaVersion = model.schemaVersion,
-           schemaVersion != Self.supportedSchemaVersion {
-            logger.error("Auto-apply model schema version \(schemaVersion) is not supported (expected \(Self.supportedSchemaVersion))")
-            if let existing = loadedModel {
-                loadedModel = existing
-                status = VocoAutoApplyModelStatus(
-                    isAvailable: true,
-                    message: String(localized: "Model schema unsupported, using previous version"),
-                    modelURL: modelURL,
-                    modelVersion: existing.modelVersion,
-                    modelGeneratedAt: existing.modelGeneratedAt,
-                    schemaVersion: existing.schemaVersion,
-                    isDegraded: true
-                )
-            } else {
-                loadedModel = nil
-                status = VocoAutoApplyModelStatus(
-                    isAvailable: false,
-                    message: String(localized: "Model schema unsupported"),
-                    modelURL: modelURL
-                )
-            }
-            return
-        }
-
-        guard model.mergedReplayReadiness.mergedAutoApplyModelReady == true else {
+        guard decodedModel.isReady else {
             loadedModel = nil
             status = VocoAutoApplyModelStatus(
                 isAvailable: false,
@@ -248,19 +268,64 @@ final class VocoAutoApplyModelService: ObservableObject {
             return
         }
 
-        loadedModel = VocoAutoApplyRuntimeModel(model: model)
-        let applyCount = model.policyCounts["apply"] ?? model.applyPolicies.count
-        let suggestCount = model.policyCounts["suggest"] ?? model.suggestPolicies.count
-        let replacedCount = model.policyCounts["replaced"] ?? 0
-        let blockedCount = model.policyCounts["blocked"] ?? 0
+        loadedModel = decodedModel.runtimeModel
+        let applyCount = decodedModel.policyCounts["apply"] ?? decodedModel.applyPolicyCount
+        let suggestCount = decodedModel.policyCounts["suggest"] ?? decodedModel.suggestPolicyCount
+        let replacedCount = decodedModel.policyCounts["replaced"] ?? 0
+        let blockedCount = decodedModel.policyCounts["blocked"] ?? 0
         status = VocoAutoApplyModelStatus(
             isAvailable: true,
             message: String(localized: "Model loaded: \(applyCount) apply, \(suggestCount) suggest, \(replacedCount) replaced, \(blockedCount) blocked"),
             modelURL: modelURL,
-            modelVersion: model.autoApplyModelVersion,
-            modelGeneratedAt: model.generatedAt,
-            schemaVersion: model.schemaVersion ?? Self.supportedSchemaVersion
+            modelVersion: decodedModel.runtimeModel.modelVersion,
+            modelGeneratedAt: decodedModel.runtimeModel.modelGeneratedAt,
+            schemaVersion: decodedModel.runtimeModel.schemaVersion ?? Self.supportedSchemaVersion
         )
+    }
+
+    private static func decodeModel(from data: Data) throws -> VocoDecodedAutoApplyModel {
+        let decoder = JSONDecoder()
+        let indexedDecodeError: Error
+        do {
+            let indexedModel = try decoder.decode(VocoIndexedRuntimeAutoApplyModel.self, from: data)
+            return VocoDecodedAutoApplyModel(indexedModel: indexedModel)
+        } catch {
+            indexedDecodeError = error
+        }
+
+        do {
+            let model = try decoder.decode(VocoAutoApplyModel.self, from: data)
+            if let schemaVersion = model.schemaVersion,
+               schemaVersion != Self.supportedSchemaVersion {
+                throw VocoAutoApplyModelDecodeError.unsupportedSchemaVersion(schemaVersion)
+            }
+            return VocoDecodedAutoApplyModel(model: model)
+        } catch let decodeError as VocoAutoApplyModelDecodeError {
+            switch decodeError {
+            case .unsupportedSchemaVersion:
+                throw decodeError
+            case .missingIndexedRuntimeMarker, .unsupportedRuntimeSchemaVersion:
+                if let indexedError = indexedDecodeError as? VocoAutoApplyModelDecodeError {
+                    switch indexedError {
+                    case .unsupportedRuntimeSchemaVersion:
+                        throw indexedError
+                    case .missingIndexedRuntimeMarker, .unsupportedSchemaVersion:
+                        break
+                    }
+                }
+                throw indexedDecodeError
+            }
+        } catch {
+            if let decodeError = indexedDecodeError as? VocoAutoApplyModelDecodeError {
+                switch decodeError {
+                case .unsupportedRuntimeSchemaVersion:
+                    throw decodeError
+                case .missingIndexedRuntimeMarker, .unsupportedSchemaVersion:
+                    break
+                }
+            }
+            throw indexedDecodeError
+        }
     }
 
     private func startWatchingModelChanges() {
@@ -342,7 +407,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         }
 
         if let exact = firstExactPolicy(in: model, matching: text),
-           exact.isSafeApplyPolicy {
+           exact.isSafeExactApplyPolicy {
             let target = exact.targetText ?? text
             return guardedEvaluation(
                 inputText: text,
@@ -709,6 +774,157 @@ private struct VocoAutoApplyModel: Decodable {
     }
 }
 
+private enum VocoAutoApplyModelDecodeError: LocalizedError {
+    case missingIndexedRuntimeMarker
+    case unsupportedSchemaVersion(Int)
+    case unsupportedRuntimeSchemaVersion(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingIndexedRuntimeMarker:
+            return "Missing indexed runtime model marker"
+        case .unsupportedSchemaVersion(let schemaVersion):
+            return "Unsupported auto-apply schema version \(schemaVersion)"
+        case .unsupportedRuntimeSchemaVersion(let runtimeSchemaVersion):
+            return "Unsupported auto-apply runtime schema version \(runtimeSchemaVersion)"
+        }
+    }
+}
+
+private struct VocoDecodedAutoApplyModel {
+    let runtimeModel: VocoAutoApplyRuntimeModel
+    let policyCounts: [String: Int]
+    let applyPolicyCount: Int
+    let suggestPolicyCount: Int
+    let isReady: Bool
+
+    init(model: VocoAutoApplyModel) {
+        runtimeModel = VocoAutoApplyRuntimeModel(model: model)
+        policyCounts = model.policyCounts
+        applyPolicyCount = model.applyPolicies.count
+        suggestPolicyCount = model.suggestPolicies.count
+        isReady = model.mergedReplayReadiness.mergedAutoApplyModelReady == true
+    }
+
+    init(indexedModel: VocoIndexedRuntimeAutoApplyModel) {
+        runtimeModel = VocoAutoApplyRuntimeModel(indexedModel: indexedModel)
+        policyCounts = indexedModel.policyCounts
+        applyPolicyCount = runtimeModel.exactApplyPolicyByStrictKey.count + runtimeModel.scopedApplyPolicies.count
+        suggestPolicyCount = runtimeModel.suggestPolicies.count
+        isReady = indexedModel.mergedReplayReadiness.mergedAutoApplyModelReady == true
+    }
+}
+
+private struct VocoIndexedRuntimeAutoApplyModel: Decodable {
+    static let modelFormat = "voco-auto-apply-runtime-indexed-v2"
+
+    let policyCounts: [String: Int]
+    let policyTypeCounts: [String: Int]
+    let safetyContract: [String]
+    let protectedTermAllowlistGuards: [VocoProtectedTermAllowlistGuard]
+    let exactApplyPolicyByStrictKey: [String: VocoIndexedExactApplyPolicy]
+    let scopedApplyPolicies: [VocoAutoApplyPolicy]
+    let suggestPolicies: [VocoAutoApplyPolicy]
+    let mergedReplayReadiness: VocoMergedReplayReadiness
+    let schemaVersion: Int?
+    let runtimeSchemaVersion: Int
+    let modelFormat: String
+    let actionCommandGuards: [VocoActionCommandGuard]?
+    let autoApplyModelVersion: String?
+    let generatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case policyCounts
+        case policyTypeCounts
+        case safetyContract
+        case protectedTermAllowlistGuards
+        case protectedTermAllowlist
+        case exactApplyPolicyByStrictKey
+        case exactApplyPoliciesByStrictKey
+        case scopedApplyPolicies
+        case scopedReplacementPolicies
+        case suggestPolicies
+        case mergedReplayReadiness
+        case schemaVersion
+        case runtimeSchemaVersion
+        case modelFormat
+        case actionCommandGuards
+        case autoApplyModelVersion
+        case generatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedRuntimeSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .runtimeSchemaVersion)
+        let decodedModelFormat = try container.decodeIfPresent(String.self, forKey: .modelFormat)
+        guard decodedRuntimeSchemaVersion != nil || decodedModelFormat == Self.modelFormat else {
+            throw VocoAutoApplyModelDecodeError.missingIndexedRuntimeMarker
+        }
+        if let decodedRuntimeSchemaVersion,
+           decodedRuntimeSchemaVersion != VocoAutoApplyModelService.supportedRuntimeSchemaVersion {
+            throw VocoAutoApplyModelDecodeError.unsupportedRuntimeSchemaVersion(decodedRuntimeSchemaVersion)
+        }
+
+        policyCounts = try container.decodeIfPresent([String: Int].self, forKey: .policyCounts) ?? [:]
+        policyTypeCounts = try container.decodeIfPresent([String: Int].self, forKey: .policyTypeCounts) ?? [:]
+        safetyContract = try container.decodeIfPresent([String].self, forKey: .safetyContract) ?? []
+        protectedTermAllowlistGuards =
+            try container.decodeIfPresent([VocoProtectedTermAllowlistGuard].self, forKey: .protectedTermAllowlistGuards) ??
+            container.decodeIfPresent([VocoProtectedTermAllowlistGuard].self, forKey: .protectedTermAllowlist) ??
+            []
+        exactApplyPolicyByStrictKey =
+            try container.decodeIfPresent([String: VocoIndexedExactApplyPolicy].self, forKey: .exactApplyPolicyByStrictKey) ??
+            container.decode([String: VocoIndexedExactApplyPolicy].self, forKey: .exactApplyPoliciesByStrictKey)
+        scopedApplyPolicies =
+            try container.decodeIfPresent([VocoAutoApplyPolicy].self, forKey: .scopedApplyPolicies) ??
+            container.decodeIfPresent([VocoAutoApplyPolicy].self, forKey: .scopedReplacementPolicies) ??
+            []
+        suggestPolicies = try container.decodeIfPresent([VocoAutoApplyPolicy].self, forKey: .suggestPolicies) ?? []
+        mergedReplayReadiness = try container.decode(VocoMergedReplayReadiness.self, forKey: .mergedReplayReadiness)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+        runtimeSchemaVersion = decodedRuntimeSchemaVersion ?? VocoAutoApplyModelService.supportedRuntimeSchemaVersion
+        modelFormat = decodedModelFormat ?? Self.modelFormat
+        actionCommandGuards = try container.decodeIfPresent([VocoActionCommandGuard].self, forKey: .actionCommandGuards)
+        autoApplyModelVersion = try container.decodeIfPresent(String.self, forKey: .autoApplyModelVersion)
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt)
+    }
+}
+
+private struct VocoIndexedExactApplyPolicy: Decodable {
+    let policyId: String
+    let sourcePattern: String?
+    let targetText: String
+    let sourceSlices: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case policyId
+        case sourcePattern
+        case targetText
+        case sourceSlices
+    }
+
+    func runtimePolicy(inputStrictKey: String) -> VocoAutoApplyPolicy {
+        VocoAutoApplyPolicy(
+            policyId: policyId,
+            autoApplyMode: .apply,
+            policyType: .exactTrainablePair,
+            sourcePattern: sourcePattern,
+            targetText: targetText,
+            inputStrictKey: inputStrictKey,
+            exactInputRequired: true,
+            exactInputResolution: nil,
+            contextAliasesAny: [],
+            contextTokensAny: [],
+            contextFromContextOnly: nil,
+            contextRequired: nil,
+            requireAlias: nil,
+            scopedSourcePhrase: nil,
+            sourceSlices: sourceSlices,
+            reviewGateConflictRows: []
+        )
+    }
+}
+
 private struct VocoActionCommandGuard: Decodable {
     let surface: String
 }
@@ -735,14 +951,14 @@ private struct VocoAutoApplyRuntimeModel {
             case .apply:
                 switch policy.policyType {
                 case .exactTrainablePair:
-                    guard policy.exactInputRequired == true,
+                    guard policy.isSafeExactApplyPolicy,
                           let inputStrictKey = policy.inputStrictKey
                     else { break }
                     if exactApplyPolicyByStrictKey[inputStrictKey] == nil {
                         exactApplyPolicyByStrictKey[inputStrictKey] = policy
                     }
                 case .scopedReplacement:
-                    if policy.isSafeApplyPolicy {
+                    if policy.isSafeScopedApplyPolicy {
                         scopedApplyPolicies.append(policy)
                     }
                 }
@@ -760,6 +976,31 @@ private struct VocoAutoApplyRuntimeModel {
         self.modelVersion = model.autoApplyModelVersion
         self.modelGeneratedAt = model.generatedAt
         self.schemaVersion = model.schemaVersion
+    }
+
+    init(indexedModel: VocoIndexedRuntimeAutoApplyModel) {
+        protectedTermAllowlistGuards = indexedModel.protectedTermAllowlistGuards
+
+        var exactApplyPolicyByStrictKey: [String: VocoAutoApplyPolicy] = [:]
+        for (inputStrictKey, compactPolicy) in indexedModel.exactApplyPolicyByStrictKey {
+            let policy = compactPolicy.runtimePolicy(inputStrictKey: inputStrictKey)
+            guard policy.isSafeExactApplyPolicy else { continue }
+            if exactApplyPolicyByStrictKey[inputStrictKey] == nil {
+                exactApplyPolicyByStrictKey[inputStrictKey] = policy
+            }
+        }
+
+        scopedApplyPolicies = indexedModel.scopedApplyPolicies.filter {
+            $0.autoApplyMode == .apply &&
+                $0.policyType == .scopedReplacement &&
+                $0.isSafeScopedApplyPolicy
+        }
+        suggestPolicies = indexedModel.suggestPolicies.filter { $0.autoApplyMode == .suggest }
+        self.exactApplyPolicyByStrictKey = exactApplyPolicyByStrictKey
+        self.actionCommandSurfaces = (indexedModel.actionCommandGuards ?? []).map(\.surface).filter { !$0.isEmpty }
+        self.modelVersion = indexedModel.autoApplyModelVersion
+        self.modelGeneratedAt = indexedModel.generatedAt
+        self.schemaVersion = indexedModel.schemaVersion
     }
 }
 
@@ -830,10 +1071,25 @@ private struct VocoAutoApplyPolicy: Decodable {
     let scopedSourcePhrase: String?
     let sourceSlices: [String]
     let reviewGateConflictRows: [Int]
+    let manualOverrideRows: [Int]
 
-    var isSafeApplyPolicy: Bool {
+    var hasNonEmptyTarget: Bool {
+        targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var isSafeExactApplyPolicy: Bool {
         autoApplyMode == .apply &&
-            targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false &&
+            policyType == .exactTrainablePair &&
+            exactInputRequired == true &&
+            inputStrictKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false &&
+            hasNonEmptyTarget &&
+            (reviewGateConflictRows.isEmpty || !manualOverrideRows.isEmpty)
+    }
+
+    var isSafeScopedApplyPolicy: Bool {
+        autoApplyMode == .apply &&
+            policyType == .scopedReplacement &&
+            hasNonEmptyTarget &&
             reviewGateConflictRows.isEmpty
     }
 
@@ -865,6 +1121,45 @@ private struct VocoAutoApplyPolicy: Decodable {
         case scopedSourcePhrase
         case sourceSlices
         case reviewGateConflictRows
+        case manualOverrideRows
+    }
+
+    init(
+        policyId: String,
+        autoApplyMode: VocoAutoApplyMode,
+        policyType: VocoAutoApplyPolicyType,
+        sourcePattern: String?,
+        targetText: String?,
+        inputStrictKey: String?,
+        exactInputRequired: Bool?,
+        exactInputResolution: VocoExactInputResolution?,
+        contextAliasesAny: [String],
+        contextTokensAny: [String],
+        contextFromContextOnly: Bool?,
+        contextRequired: Bool?,
+        requireAlias: Bool?,
+        scopedSourcePhrase: String?,
+        sourceSlices: [String],
+        reviewGateConflictRows: [Int],
+        manualOverrideRows: [Int] = []
+    ) {
+        self.policyId = policyId
+        self.autoApplyMode = autoApplyMode
+        self.policyType = policyType
+        self.sourcePattern = sourcePattern
+        self.targetText = targetText
+        self.inputStrictKey = inputStrictKey
+        self.exactInputRequired = exactInputRequired
+        self.exactInputResolution = exactInputResolution
+        self.contextAliasesAny = contextAliasesAny
+        self.contextTokensAny = contextTokensAny
+        self.contextFromContextOnly = contextFromContextOnly
+        self.contextRequired = contextRequired
+        self.requireAlias = requireAlias
+        self.scopedSourcePhrase = scopedSourcePhrase
+        self.sourceSlices = sourceSlices
+        self.reviewGateConflictRows = reviewGateConflictRows
+        self.manualOverrideRows = manualOverrideRows
     }
 
     init(from decoder: Decoder) throws {
@@ -885,6 +1180,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         scopedSourcePhrase = try container.decodeIfPresent(String.self, forKey: .scopedSourcePhrase)
         sourceSlices = try container.decodeIfPresent([String].self, forKey: .sourceSlices) ?? []
         reviewGateConflictRows = try container.decodeIfPresent([Int].self, forKey: .reviewGateConflictRows) ?? []
+        manualOverrideRows = try container.decodeIfPresent([Int].self, forKey: .manualOverrideRows) ?? []
     }
 }
 

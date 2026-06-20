@@ -44,6 +44,9 @@ DEFAULT_ACTION_COMMAND_GUARDS = [
     {"surface": "全部刪除"},
     {"surface": "全部删除"},
 ]
+RUNTIME_INDEXED_V2_SCHEMA_VERSION = 2
+RUNTIME_INDEXED_V2_MODEL_FORMAT = "voco-auto-apply-runtime-indexed-v2"
+RUNTIME_INDEXED_V2_FILENAME = "full-db.auto-apply-runtime-v2.json"
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
 FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,96}$")
@@ -184,6 +187,12 @@ def parse_args() -> argparse.Namespace:
     add_model_io_args(compile_model)
     add_validation_args(compile_model)
 
+    compile_runtime = subparsers.add_parser("compileRuntimeModel")
+    compile_runtime.add_argument("--model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    compile_runtime.add_argument("--format", choices=["indexed-v2"], default="indexed-v2")
+    compile_runtime.add_argument("--output-dir", type=Path)
+    compile_runtime.add_argument("--output-model", type=Path)
+
     validate = subparsers.add_parser("validateModel")
     validate.add_argument("--model", type=Path, required=True)
     validate.add_argument("--base-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
@@ -294,6 +303,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         }
     if args.command == "compileModel":
         return compile_model_command(args)
+    if args.command == "compileRuntimeModel":
+        return compile_runtime_model_command(args)
     if args.command == "validateModel":
         return validate_model_command(args)
     if args.command == "activateModel":
@@ -1237,6 +1248,163 @@ def compile_model_command(args: argparse.Namespace) -> dict[str, Any]:
         "validation": validation_summary(validation),
         "failed": not validation["ready"],
     }
+
+
+def compile_runtime_model_command(args: argparse.Namespace) -> dict[str, Any]:
+    model_path = args.model.expanduser()
+    output_model = runtime_output_model_path(args, model_path)
+    source_model = load_model(model_path)
+    if args.format != "indexed-v2":
+        raise SystemExit(f"Unsupported runtime model format: {args.format}")
+
+    runtime_model = compile_indexed_runtime_v2_model(source_model, source_model_path=model_path)
+    write_runtime_model(output_model, runtime_model)
+    exact_count = len(runtime_model["exactApplyPolicyByStrictKey"])
+    scoped_count = len(runtime_model["scopedApplyPolicies"])
+    suggest_count = len(runtime_model["suggestPolicies"])
+    return {
+        "sourceModel": str(model_path),
+        "runtimeModel": str(output_model),
+        "format": args.format,
+        "runtimeSchemaVersion": runtime_model["runtimeSchemaVersion"],
+        "exactApplyPolicyCount": exact_count,
+        "scopedApplyPolicyCount": scoped_count,
+        "suggestPolicyCount": suggest_count,
+        "sourceSliceCount": len(runtime_model.get("sourceSlices") or []),
+        "failed": False,
+    }
+
+
+def runtime_output_model_path(args: argparse.Namespace, source_model_path: Path) -> Path:
+    if args.output_model:
+        return args.output_model.expanduser()
+    if args.output_dir:
+        return args.output_dir.expanduser() / RUNTIME_INDEXED_V2_FILENAME
+    return source_model_path.with_name(RUNTIME_INDEXED_V2_FILENAME)
+
+
+def compile_indexed_runtime_v2_model(model: dict[str, Any], *, source_model_path: Path | None = None) -> dict[str, Any]:
+    exact_apply: dict[str, dict[str, Any]] = {}
+    scoped_apply: list[dict[str, Any]] = []
+    suggest: list[dict[str, Any]] = []
+    source_slices: set[str] = set()
+
+    for policy in model.get("policies") or []:
+        if not isinstance(policy, dict):
+            continue
+        for source_slice in compact_strings(policy.get("sourceSlices") or []):
+            source_slices.add(source_slice)
+        mode = str(policy.get("autoApplyMode") or "")
+        policy_type = str(policy.get("policyType") or "")
+        if mode == "apply" and policy_type == "exactTrainablePair":
+            if not policy_is_safe_exact_runtime_apply(policy):
+                continue
+            input_key = str(policy.get("inputStrictKey") or "").strip()
+            if not input_key or input_key in exact_apply:
+                continue
+            exact_apply[input_key] = compact_exact_runtime_policy(policy)
+        elif mode == "apply" and policy_type == "scopedReplacement":
+            if policy_is_safe_scoped_runtime_apply(policy):
+                scoped_apply.append(compact_runtime_policy(policy))
+        elif mode == "suggest":
+            suggest.append(compact_runtime_policy(policy))
+
+    runtime_model = {
+        "schemaVersion": model.get("schemaVersion", EVALUATION_CONTRACT_SCHEMA_VERSION),
+        "runtimeSchemaVersion": RUNTIME_INDEXED_V2_SCHEMA_VERSION,
+        "modelFormat": RUNTIME_INDEXED_V2_MODEL_FORMAT,
+        "modelType": "indexed_auto_apply_runtime_model",
+        "generatedAt": model.get("generatedAt"),
+        "runtimeCompiledAt": now_iso(),
+        "autoApplyModelVersion": model.get("autoApplyModelVersion"),
+        "sourceRuntimeModel": str(source_model_path) if source_model_path else None,
+        "policyCounts": model.get("policyCounts") or {},
+        "policyTypeCounts": model.get("policyTypeCounts") or {},
+        "safetyContract": string_list(model.get("safetyContract")),
+        "mergedReplayReadiness": model.get("mergedReplayReadiness") or {},
+        "actionCommandGuards": model.get("actionCommandGuards") or copy.deepcopy(DEFAULT_ACTION_COMMAND_GUARDS),
+        "protectedTermAllowlistGuards": protected_term_allowlist_guards(model),
+        "sourceSlices": sorted(source_slices),
+        "exactApplyPolicyByStrictKey": dict(sorted(exact_apply.items())),
+        "scopedApplyPolicies": scoped_apply,
+        "suggestPolicies": suggest,
+    }
+    return {key: value for key, value in runtime_model.items() if value is not None}
+
+
+def policy_has_runtime_target(policy: dict[str, Any]) -> bool:
+    target = str(policy.get("targetText") or "").strip()
+    return bool(target)
+
+
+def policy_is_safe_exact_runtime_apply(policy: dict[str, Any]) -> bool:
+    input_key = str(policy.get("inputStrictKey") or "").strip()
+    has_manual_override = bool(policy.get("manualOverrideRows"))
+    has_conflicts = bool(policy.get("reviewGateConflictRows"))
+    return (
+        str(policy.get("autoApplyMode") or "") == "apply"
+        and str(policy.get("policyType") or "") == "exactTrainablePair"
+        and policy.get("exactInputRequired") is True
+        and bool(input_key)
+        and policy_has_runtime_target(policy)
+        and (not has_conflicts or has_manual_override)
+    )
+
+
+def policy_is_safe_scoped_runtime_apply(policy: dict[str, Any]) -> bool:
+    return (
+        str(policy.get("autoApplyMode") or "") == "apply"
+        and str(policy.get("policyType") or "") == "scopedReplacement"
+        and policy_has_runtime_target(policy)
+        and not policy.get("reviewGateConflictRows")
+    )
+
+
+def compact_exact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
+    return compact_nonempty(
+        {
+            "policyId": str(policy.get("policyId") or ""),
+            "sourcePattern": policy.get("sourcePattern"),
+            "targetText": policy.get("targetText"),
+            "sourceSlices": compact_strings(policy.get("sourceSlices") or []),
+        }
+    )
+
+
+def compact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
+    return compact_nonempty(
+        {
+            "policyId": str(policy.get("policyId") or ""),
+            "autoApplyMode": policy.get("autoApplyMode"),
+            "policyType": policy.get("policyType"),
+            "sourcePattern": policy.get("sourcePattern"),
+            "targetText": policy.get("targetText"),
+            "inputStrictKey": policy.get("inputStrictKey"),
+            "exactInputRequired": policy.get("exactInputRequired"),
+            "scopedSourcePhrase": policy.get("scopedSourcePhrase"),
+            "contextAliasesAny": compact_strings(policy.get("contextAliasesAny") or []),
+            "contextTokensAny": compact_strings(policy.get("contextTokensAny") or []),
+            "contextFromContextOnly": policy.get("contextFromContextOnly"),
+            "contextRequired": policy.get("contextRequired"),
+            "requireAlias": policy.get("requireAlias"),
+            "sourceSlices": compact_strings(policy.get("sourceSlices") or []),
+        }
+    )
+
+
+def compact_nonempty(value: dict[str, Any]) -> dict[str, Any]:
+    compacted: dict[str, Any] = {}
+    for key, item in value.items():
+        if item is None:
+            continue
+        if item == "":
+            continue
+        if item == []:
+            continue
+        if item == {}:
+            continue
+        compacted[key] = item
+    return compacted
 
 
 def output_model_path(args: argparse.Namespace) -> Path:
@@ -3273,6 +3441,11 @@ def write_model(path: Path, model: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     model["policyCounts"] = dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in model.get("policies") or []))
     model["policyTypeCounts"] = dict(Counter(str(policy.get("policyType") or "unknown") for policy in model.get("policies") or []))
+    path.write_text(json.dumps(model, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_runtime_model(path: Path, model: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(model, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 

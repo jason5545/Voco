@@ -12,10 +12,12 @@ import Testing
 /// on the ReplayLab repo being present at test time.
 struct VocoAutoApplyEvaluationContractTests {
 
-    private let service = VocoAutoApplyModelService(
-        modelURL: URL(fileURLWithPath: "/dev/null/contract-test.json"),
-        defaults: try! temporaryDefaults()
-    )
+    private var service: VocoAutoApplyModelService {
+        VocoAutoApplyModelService(
+            modelURL: URL(fileURLWithPath: "/dev/null/contract-test.json"),
+            defaults: try! temporaryDefaults()
+        )
+    }
 
     @Test func strictTextKey() throws {
         for case_ in try fixture().strictTextKey {

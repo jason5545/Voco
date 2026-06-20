@@ -66,6 +66,114 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "lab repo")
             self.assertEqual(model["policyCounts"]["apply"], 1)
 
+    def test_compile_runtime_model_writes_indexed_v2_without_evidence_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "full-db.auto-apply-model.json"
+            output = root / "full-db.auto-apply-runtime-v2.json"
+            model = tiny_base_model()
+            model.update(
+                {
+                    "schemaVersion": 1,
+                    "autoApplyModelVersion": "test-version",
+                    "actionCommandGuards": [{"surface": "全部刪除"}],
+                    "protectedTermAllowlistGuards": [
+                        {
+                            "guardId": "protected-term-allowlist.mingde",
+                            "reason": control.PROTECTED_TERM_GUARD_REASON,
+                            "term": "明德",
+                            "allowedPhrases": ["明德水庫"],
+                        }
+                    ],
+                    "policies": [
+                        {
+                            "policyId": "exact-cloud",
+                            "autoApplyMode": "apply",
+                            "policyType": "exactTrainablePair",
+                            "exactInputRequired": True,
+                            "inputStrictKey": control.strict_text_key("Cloud 的 OPUS 模型"),
+                            "sourcePattern": "Cloud 的 OPUS 模型",
+                            "targetText": "Claude 的 OPUS 模型",
+                            "sourceSlices": ["currentRaw"],
+                            "evidenceRows": [12813],
+                            "controlEvidenceEventIds": ["evt-test"],
+                        },
+                        {
+                            "policyId": "exact-manual-override-code",
+                            "autoApplyMode": "apply",
+                            "policyType": "exactTrainablePair",
+                            "exactInputRequired": True,
+                            "inputStrictKey": control.strict_text_key("不要動到原來的城市碼。"),
+                            "sourcePattern": "不要動到原來的城市碼。",
+                            "targetText": "不要動到原來的程式碼。",
+                            "reviewGateConflictRows": [12606],
+                            "manualOverrideRows": [12606],
+                            "sourceSlices": ["currentRaw"],
+                        },
+                        {
+                            "policyId": "exact-conflict-without-manual-override",
+                            "autoApplyMode": "apply",
+                            "policyType": "exactTrainablePair",
+                            "exactInputRequired": True,
+                            "inputStrictKey": control.strict_text_key("這筆還在 review gate。"),
+                            "sourcePattern": "這筆還在 review gate。",
+                            "targetText": "這筆不應該進 runtime。",
+                            "reviewGateConflictRows": [99999],
+                            "manualOverrideRows": [],
+                            "sourceSlices": ["currentRaw"],
+                        },
+                        {
+                            "policyId": "scoped-boco-voco",
+                            "autoApplyMode": "apply",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "Boco",
+                            "targetText": "Voco",
+                            "contextTokensAny": ["Voco"],
+                            "sourceSlices": ["controlEvidence"],
+                            "trainableRows": [12814],
+                        },
+                        {
+                            "policyId": "suggest-import",
+                            "autoApplyMode": "suggest",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "答案給我匯入",
+                            "targetText": "檔案給我匯入",
+                            "sourceSlices": ["currentRaw"],
+                        },
+                    ],
+                }
+            )
+            control.write_model(source, model)
+
+            result = control.compile_runtime_model_command(
+                Namespace(model=source, format="indexed-v2", output_model=output, output_dir=None)
+            )
+            runtime = json.loads(output.read_text(encoding="utf-8"))
+
+            self.assertFalse(result["failed"])
+            self.assertEqual(runtime["runtimeSchemaVersion"], 2)
+            self.assertEqual(runtime["modelFormat"], control.RUNTIME_INDEXED_V2_MODEL_FORMAT)
+            self.assertIn(control.strict_text_key("Cloud 的 OPUS 模型"), runtime["exactApplyPolicyByStrictKey"])
+            exact = runtime["exactApplyPolicyByStrictKey"][control.strict_text_key("Cloud 的 OPUS 模型")]
+            self.assertEqual(exact["policyId"], "exact-cloud")
+            self.assertNotIn("evidenceRows", exact)
+            self.assertNotIn("controlEvidenceEventIds", exact)
+            manual_override_key = control.strict_text_key("不要動到原來的城市碼。")
+            self.assertIn(manual_override_key, runtime["exactApplyPolicyByStrictKey"])
+            self.assertEqual(
+                runtime["exactApplyPolicyByStrictKey"][manual_override_key]["targetText"],
+                "不要動到原來的程式碼。",
+            )
+            self.assertNotIn(
+                control.strict_text_key("這筆還在 review gate。"),
+                runtime["exactApplyPolicyByStrictKey"],
+            )
+            self.assertEqual(runtime["scopedApplyPolicies"][0]["policyId"], "scoped-boco-voco")
+            self.assertNotIn("trainableRows", runtime["scopedApplyPolicies"][0])
+            self.assertEqual(runtime["suggestPolicies"][0]["policyId"], "suggest-import")
+            self.assertNotIn("policies", runtime)
+            self.assertEqual(runtime["protectedTermAllowlistGuards"][0]["term"], "明德")
+
     def test_context_locked_rule_passes_positive_and_negative_examples(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
