@@ -259,7 +259,7 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         data.withUnsafeBytes { rawPtr in
             let int16Ptr = rawPtr.bindMemory(to: Int16.self)
             for i in 0..<sampleCount {
-                samples[i] = Float(int16Ptr[i]) / 32767.0
+                samples[i] = max(-1.0, min(Float(Int16(littleEndian: int16Ptr[i])) / 32767.0, 1.0))
             }
         }
         return samples

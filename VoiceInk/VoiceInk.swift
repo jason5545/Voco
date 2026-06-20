@@ -10,7 +10,6 @@ import FluidAudio
 struct VoiceInkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     let container: ModelContainer
-    let containerInitializationFailed: Bool
 
     @StateObject private var engine: VoiceInkEngine
     @StateObject private var whisperModelManager: WhisperModelManager
@@ -54,43 +53,35 @@ struct VoiceInkApp: App {
             WordReplacement.self,
             SessionMetric.self
         ])
-        var initializationFailed = false
         let resolvedContainer: ModelContainer
 
         // Attempt 1: Try persistent storage
-        if let persistentContainer = Self.createPersistentContainer(schema: schema, logger: logger) {
-            resolvedContainer = persistentContainer
-        }
-        // Attempt 2: Try in-memory storage
-        else if let memoryContainer = Self.createInMemoryContainer(schema: schema, logger: logger) {
-            resolvedContainer = memoryContainer
+        do {
+            resolvedContainer = try Self.createPersistentContainer(schema: schema, logger: logger)
+        } catch let persistentError {
+            // Attempt 2: Try in-memory storage
+            do {
+                resolvedContainer = try Self.createInMemoryContainer(schema: schema, logger: logger)
 
-            logger.warning("Using in-memory storage as fallback. Data will not persist between sessions.")
+                logger.warning("Using in-memory storage as fallback. Data will not persist between sessions.")
 
-            // Show alert to user about storage issue
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Storage Warning"
-                alert.informativeText = "Voco couldn't access its storage location. Your transcriptions will not be saved between sessions."
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "Storage Warning"
+                    alert.informativeText = "Voco couldn't access its storage location. Your transcriptions will not be saved between sessions."
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            } catch let memoryError {
+                let persistentDetail = Self.fullErrorDescription(persistentError)
+                let memoryDetail = Self.fullErrorDescription(memoryError)
+                logger.critical("❌ All ModelContainer init attempts failed.\nPersistent:\n\(persistentDetail, privacy: .public)\nIn-memory:\n\(memoryDetail, privacy: .public)")
+                fatalError("Voco failed to initialize storage.\nPersistent:\n\(persistentDetail)\nIn-memory:\n\(memoryDetail)")
             }
-        }
-        // All attempts failed
-        else {
-            logger.critical("ModelContainer initialization failed")
-            initializationFailed = true
-
-            // Create minimal in-memory container to satisfy initialization
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            resolvedContainer = (try? ModelContainer(for: schema, configurations: [config])) ?? {
-                preconditionFailure("Unable to create ModelContainer. SwiftData is unavailable.")
-            }()
         }
 
         container = resolvedContainer
-        containerInitializationFailed = initializationFailed
         DictionaryService.removeExactDuplicateContent(context: resolvedContainer.mainContext, source: "launch")
 
         // Initialize services with proper sharing of instances
@@ -183,7 +174,33 @@ struct VoiceInkApp: App {
 
     // MARK: - Container Creation Helpers
 
-    private static func createPersistentContainer(schema: Schema, logger: Logger) -> ModelContainer? {
+    private static func fullErrorDescription(_ error: Error, depth: Int = 0) -> String {
+        let ns = error as NSError
+        let indent = String(repeating: "  ", count: depth)
+        var lines: [String] = []
+        lines.append("\(indent)[\(ns.domain) \(ns.code)] \(ns.localizedDescription)")
+        for (key, value) in ns.userInfo {
+            let keyString = key
+            if keyString == NSUnderlyingErrorKey || keyString == "NSDetailedErrors" {
+                continue
+            }
+            lines.append("\(indent)  \(keyString): \(value)")
+        }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error {
+            lines.append("\(indent)  Underlying:")
+            lines.append(fullErrorDescription(underlying, depth: depth + 2))
+        }
+        if let details = ns.userInfo["NSDetailedErrors"] as? [Error] {
+            lines.append("\(indent)  DetailedErrors (\(details.count)):")
+            for (index, detail) in details.enumerated() {
+                lines.append("\(indent)    [\(index)]:")
+                lines.append(fullErrorDescription(detail, depth: depth + 3))
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func createPersistentContainer(schema: Schema, logger: Logger) throws -> ModelContainer {
         do {
             // Create app-specific Application Support directory URL
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -234,7 +251,7 @@ struct VoiceInkApp: App {
                     configurations: transcriptConfig, dictionaryConfig, statsConfig
                 )
             } catch {
-                logger.warning("Persistent ModelContainer failed, recreating stats store: \(error.localizedDescription)")
+                logger.warning("Persistent ModelContainer failed, recreating stats store:\n\(Self.fullErrorDescription(error), privacy: .public)")
                 // Recreate stats store — SessionMetric is derived/cache data
                 for suffix in ["", "-shm", "-wal"] {
                     try? FileManager.default.removeItem(atPath: statsStoreURL.path + suffix)
@@ -248,12 +265,12 @@ struct VoiceInkApp: App {
                 )
             }
         } catch {
-            logger.error("❌ Failed to create persistent ModelContainer: \(error.localizedDescription, privacy: .public)")
-            return nil
+            logger.error("❌ Failed to create persistent ModelContainer:\n\(Self.fullErrorDescription(error), privacy: .public)")
+            throw error
         }
     }
 
-    private static func createInMemoryContainer(schema: Schema, logger: Logger) -> ModelContainer? {
+    private static func createInMemoryContainer(schema: Schema, logger: Logger) throws -> ModelContainer {
         do {
             // Transcript configuration
             let transcriptSchema = Schema([
@@ -285,8 +302,8 @@ struct VoiceInkApp: App {
 
             return try ModelContainer(for: schema, configurations: transcriptConfig, dictionaryConfig, statsConfig)
         } catch {
-            logger.error("❌ Failed to create in-memory ModelContainer: \(error.localizedDescription, privacy: .public)")
-            return nil
+            logger.error("❌ Failed to create in-memory ModelContainer:\n\(Self.fullErrorDescription(error), privacy: .public)")
+            throw error
         }
     }
 
@@ -307,19 +324,6 @@ struct VoiceInkApp: App {
                         .environmentObject(enhancementService)
                         .modelContainer(container)
                         .onAppear {
-                            // Check if container initialization failed
-                            if containerInitializationFailed {
-                                let alert = NSAlert()
-                                alert.messageText = "Critical Storage Error"
-                                alert.informativeText = "Voco cannot initialize its storage system. The app cannot continue.\n\nPlease try reinstalling the app or contact support if the issue persists."
-                                alert.alertStyle = .critical
-                                alert.addButton(withTitle: "Quit")
-                                alert.runModal()
-
-                                NSApplication.shared.terminate(nil)
-                                return
-                            }
-
                             if enableAnnouncements {
                                 AnnouncementsService.shared.start()
                             }

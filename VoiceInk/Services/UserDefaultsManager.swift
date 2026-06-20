@@ -4,6 +4,7 @@ extension UserDefaults {
     enum Keys {
         static let audioInputMode = "audioInputMode"
         static let selectedAudioDeviceUID = "selectedAudioDeviceUID"
+        static let selectedAudioDeviceModelUID = "selectedAudioDeviceModelUID"
         static let prioritizedDevices = "prioritizedDevices"
         static let affiliatePromotionDismissed = "VoiceInkAffiliatePromotionDismissed"
     }
@@ -18,6 +19,11 @@ extension UserDefaults {
     var selectedAudioDeviceUID: String? {
         get { string(forKey: Keys.selectedAudioDeviceUID) }
         set { setValue(newValue, forKey: Keys.selectedAudioDeviceUID) }
+    }
+
+    var selectedAudioDeviceModelUID: String? {
+        get { string(forKey: Keys.selectedAudioDeviceModelUID) }
+        set { setValue(newValue, forKey: Keys.selectedAudioDeviceModelUID) }
     }
 
     // MARK: - Prioritized Devices

@@ -60,7 +60,7 @@ class AudioTranscriptionService: ObservableObject {
                 usesQwen3AudioAdapter: false
             )
             let modeName = (mode?.isEnabled == true) ? mode?.name : nil
-            let modeEmoji = (mode?.isEnabled == true) ? mode?.icon.legacyEmojiValue : nil
+            let modeEmoji = (mode?.isEnabled == true) ? mode?.icon.value : nil
 
             let transcriptionStart = Date()
             var text = try await serviceRegistry.transcribe(
