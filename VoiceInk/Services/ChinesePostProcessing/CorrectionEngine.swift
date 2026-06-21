@@ -11,6 +11,11 @@ let correctionSkipChars: Set<Character> = [
     "會", "能", "可", "要", "得", "地", "著", "過", "到", "從",
     "與", "及", "或", "而", "但", "因", "為", "所", "以", "如",
     "跟", "更", "再", "很", "才",
+    // 唸 is the correct Traditional Chinese form of 念 (to read aloud).
+    // OpenCC s2twp converts 念→唸, but HomophoneCorrectionEngine sees 唸's
+    // low word frequency (5) and replaces it with 輦 (freq 1558, a chariot).
+    // Skip it to prevent semantic corruption of the reading verb.
+    "唸",
 ]
 
 extension Character {
