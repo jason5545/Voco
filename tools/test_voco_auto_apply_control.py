@@ -26,6 +26,45 @@ def tiny_base_model() -> dict:
     }
 
 
+def worker_model_with_policy() -> dict:
+    model = tiny_base_model()
+    model["schemaVersion"] = 1
+    model["policies"] = [
+        {
+            "policyId": "worker-exact",
+            "policyType": "exactTrainablePair",
+            "autoApplyMode": "apply",
+            "sourcePattern": "Load Fail worker",
+            "targetText": "Cloudflare Worker",
+            "inputStrictKey": control.strict_text_key("Load Fail worker"),
+            "targetStrictKey": control.strict_text_key("Cloudflare Worker"),
+            "exactInputRequired": True,
+            "contextTokensAny": [],
+            "contextAliasesAny": [],
+            "reviewGateConflictRows": [],
+        }
+    ]
+    model["policyCounts"] = {"apply": 1}
+    model["policyTypeCounts"] = {"exactTrainablePair": 1}
+    return model
+
+
+class FakeWorkerResponse:
+    def __init__(self, data: bytes, status: int = 200):
+        self._data = data
+        self.status = status
+        self.code = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        return False
+
+    def read(self) -> bytes:
+        return self._data
+
+
 class VocoAutoApplyControlTests(unittest.TestCase):
     def test_append_compile_and_validate_exact_correction(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1332,6 +1371,155 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                 )
             )
             self.assertEqual(len(listed["backups"]), 3)
+
+    def test_publish_worker_release_validates_and_puts_distribution_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            candidate = root / "full-db.auto-apply-model.json"
+            control.write_model(candidate, worker_model_with_policy())
+            calls = []
+
+            def fake_opener(request, timeout):
+                calls.append(
+                    {
+                        "url": request.full_url,
+                        "method": request.get_method(),
+                        "headers": dict(request.header_items()),
+                        "body": request.data,
+                        "timeout": timeout,
+                    }
+                )
+                return FakeWorkerResponse(b'{"ok": true}', status=200)
+
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_opener
+            try:
+                result = control.publish_worker_release_command(
+                    Namespace(
+                        actor="test",
+                        model=candidate,
+                        base_model=candidate,
+                        evidence_store=evidence,
+                        replaylab_root=root / "missing-replaylab",
+                        current_corpus_dir=root / "missing-current",
+                        reraw_corpus_dir=root / "missing-reraw",
+                        skip_corpus_replay=True,
+                        skip_raw_input_replay=True,
+                        worker_url="https://worker.example",
+                        version=None,
+                        output_dir=root / "release",
+                        dry_run=False,
+                        sync_key="secret",
+                        sync_key_file=root / "missing-key",
+                        timeout=5.0,
+                    )
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertFalse(result.get("failed"))
+            self.assertTrue(result["published"])
+            self.assertEqual(calls[0]["method"], "PUT")
+            self.assertEqual(calls[0]["url"], "https://worker.example/v1/auto-apply/releases")
+            body = json.loads(calls[0]["body"].decode("utf-8"))
+            self.assertEqual(set(body.keys()), {"manifest", "model"})
+            self.assertEqual(body["manifest"]["phase"], control.WORKER_SYNC_PHASE)
+            self.assertFalse(body["manifest"]["privacy"]["transcriptUploadAllowed"])
+            self.assertFalse(body["manifest"]["privacy"]["workerDecisionAllowed"])
+            self.assertNotIn("secret", calls[0]["body"].decode("utf-8"))
+
+    def test_fetch_worker_release_can_install_through_activate_model_with_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            active = root / "active/full-db.auto-apply-model.json"
+            active.parent.mkdir(parents=True)
+            control.write_model(active, tiny_base_model())
+            remote_model = worker_model_with_policy()
+            remote_bytes = control.canonical_json_bytes(remote_model)
+            remote_sha = control.hashlib.sha256(remote_bytes).hexdigest()
+            manifest = control.build_worker_release_manifest(
+                model=remote_model,
+                model_path=root / "remote/full-db.auto-apply-model.json",
+                model_sha=remote_sha,
+                version="worker-test",
+                worker_url="https://worker.example",
+            )
+            calls = []
+
+            def fake_opener(request, timeout):
+                calls.append(request.full_url)
+                if request.full_url.endswith("/v1/auto-apply/manifest"):
+                    return FakeWorkerResponse(control.canonical_json_bytes(manifest))
+                if request.full_url.endswith(f"/v1/auto-apply/models/{remote_sha}"):
+                    return FakeWorkerResponse(remote_bytes)
+                raise AssertionError(f"unexpected URL {request.full_url}")
+
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_opener
+            try:
+                result = control.fetch_worker_release_command(
+                    Namespace(
+                        actor="test",
+                        evidence_store=evidence,
+                        replaylab_root=root / "missing-replaylab",
+                        current_corpus_dir=root / "missing-current",
+                        reraw_corpus_dir=root / "missing-reraw",
+                        skip_corpus_replay=True,
+                        skip_raw_input_replay=True,
+                        worker_url="https://worker.example",
+                        output_dir=root / "fetch",
+                        install=True,
+                        active_model=active,
+                        base_model=active,
+                        backup_suffix="worker-sync",
+                        backup_dir=root / "backups",
+                        backup_retention=3,
+                        sync_key="secret",
+                        sync_key_file=root / "missing-key",
+                        timeout=5.0,
+                    )
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertFalse(result.get("failed"))
+            self.assertTrue(result["installed"])
+            self.assertEqual(control.sha256_file(active), remote_sha)
+            self.assertEqual(len(list((root / "backups").glob("full-db.auto-apply-model.json.bak-*"))), 1)
+            self.assertEqual([event["action"] for event in control.load_events(evidence)], ["activateModel"])
+            self.assertEqual(len(calls), 2)
+
+    def test_audit_worker_release_404_preserves_local_active_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active = root / "full-db.auto-apply-model.json"
+            control.write_model(active, tiny_base_model())
+            before_sha = control.sha256_file(active)
+
+            def fake_opener(_request, timeout):
+                return FakeWorkerResponse(b"not found", status=404)
+
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_opener
+            try:
+                result = control.audit_worker_release_command(
+                    Namespace(
+                        worker_url="https://worker.example",
+                        active_model=active,
+                        sync_key="secret",
+                        sync_key_file=root / "missing-key",
+                        timeout=5.0,
+                    )
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertTrue(result.get("failed"))
+            self.assertTrue(result["preservedLocalModel"])
+            self.assertEqual(result["httpStatus"], 404)
+            self.assertEqual(control.sha256_file(active), before_sha)
 
     def test_policy_proposal_ranker_artifact_is_shadow_contract_only(self):
         with tempfile.TemporaryDirectory() as tmp:

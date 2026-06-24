@@ -554,6 +554,86 @@ struct VocoAutoApplyModelServiceTests {
         #expect(gitignore.contains("full-db.auto-apply-model.json"))
     }
 
+    @Test func workerSyncInstallsValidatedRemoteModelAndUpdatesStatus() async throws {
+        let root = try temporaryDirectory()
+        let modelDirectory = root.appendingPathComponent("AutoApplyModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        let activeModel = modelDirectory.appendingPathComponent(VocoAutoApplyModelService.modelFileName)
+        try writeFixture(to: activeModel, ready: true)
+
+        let remoteData = try #require(fixtureJSON(ready: true, scopedClaudeTarget: "Remote Claude 的 OPUS 模型").data(using: .utf8))
+        let remoteSha = VocoAutoApplyModelService.sha256Hex(for: remoteData)
+        let manifestData = try #require(workerManifestJSON(modelSha: remoteSha).data(using: .utf8))
+        let recorder = WorkerSyncRequestRecorder()
+        let client = VocoAutoApplyWorkerSyncClient(
+            workerURL: URL(string: "https://worker.example")!,
+            transport: { request in
+                recorder.paths.append(request.url?.path ?? "")
+                let response = try Self.httpResponse(for: request, statusCode: 200)
+                switch request.url?.path {
+                case "/v1/auto-apply/manifest":
+                    return (manifestData, response)
+                case "/v1/auto-apply/models/\(remoteSha)":
+                    return (remoteData, response)
+                default:
+                    Issue.record("Unexpected Worker request: \(request.url?.absoluteString ?? "")")
+                    return (Data(), response)
+                }
+            }
+        )
+        let service = VocoAutoApplyModelService(
+            modelURL: activeModel,
+            defaults: try temporaryDefaults(),
+            workerSyncClient: client,
+            workerSyncKeyProvider: { "secret" },
+            modelBackupRetention: 2
+        )
+
+        let outcome = await service.syncFromWorker()
+        let result = service.evaluate("我在測 Cloud 的 OPUS 模型")
+        let backups = try FileManager.default.contentsOfDirectory(
+            at: modelDirectory.appendingPathComponent("Backups", isDirectory: true),
+            includingPropertiesForKeys: nil
+        )
+
+        #expect(outcome.state == .installed)
+        #expect(result.outputText == "我在測 Remote Claude 的 OPUS 模型")
+        #expect(service.status.remoteLatestSha256 == remoteSha)
+        #expect(service.status.remoteIsInSync == true)
+        #expect(backups.count == 1)
+        #expect(recorder.paths == ["/v1/auto-apply/manifest", "/v1/auto-apply/models/\(remoteSha)"])
+    }
+
+    @Test func workerSync404KeepsLocalLastKnownGoodModel() async throws {
+        let activeModel = try writeFixture(ready: true)
+        let localSha = VocoAutoApplyModelService.sha256HexForFileIfExists(activeModel)
+        let recorder = WorkerSyncRequestRecorder()
+        let client = VocoAutoApplyWorkerSyncClient(
+            workerURL: URL(string: "https://worker.example")!,
+            transport: { request in
+                recorder.paths.append(request.url?.path ?? "")
+                let response = try Self.httpResponse(for: request, statusCode: 404)
+                return (Data("not found".utf8), response)
+            }
+        )
+        let service = VocoAutoApplyModelService(
+            modelURL: activeModel,
+            defaults: try temporaryDefaults(),
+            workerSyncClient: client,
+            workerSyncKeyProvider: { "wrong-secret" }
+        )
+
+        let outcome = await service.syncFromWorker()
+        let result = service.evaluate("我在測 Cloud 的 OPUS 模型")
+
+        #expect(outcome.state == .keptLocal)
+        #expect(service.status.isAvailable == true)
+        #expect(service.status.localModelSha256 == localSha)
+        #expect(service.status.remoteLatestSha256 == nil)
+        #expect(result.outputText == "我在測 Claude 的 OPUS 模型")
+        #expect(recorder.paths == ["/v1/auto-apply/manifest"])
+    }
+
     private func writeFixture(
         ready: Bool,
         scopedClaudeTarget: String = "Claude 的 OPUS 模型",
@@ -685,6 +765,35 @@ struct VocoAutoApplyModelServiceTests {
             range: json.startIndex..<json.index(after: json.startIndex)
         )
         return json
+    }
+
+    private func workerManifestJSON(modelSha: String) -> String {
+        """
+        {
+          "schema": "voco.auto-apply-worker-sync-manifest.v1",
+          "phase": "\(VocoAutoApplyWorkerSyncClient.phase)",
+          "version": "worker-test",
+          "createdAt": "2026-06-24T00:00:00Z",
+          "source": "replaylab",
+          "modelFileName": "\(VocoAutoApplyModelService.modelFileName)",
+          "modelSha256": "\(modelSha)",
+          "schemaVersion": null,
+          "runtimeSchemaVersion": null,
+          "autoApplyModelVersion": "worker-test-model",
+          "generatedAt": "2026-06-24T00:00:00Z",
+          "policyCounts": { "apply": 16, "suggest": 1, "replaced": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 3, "scopedReplacement": 15 },
+          "readiness": {
+            "mergedAutoApplyModelReady": true,
+            "failures": []
+          },
+          "privacy": {
+            "transcriptUploadAllowed": false,
+            "evidenceUploadAllowed": false,
+            "workerDecisionAllowed": false
+          }
+        }
+        """
     }
 
     private func brokenIndexedRuntimeV2FixtureJSON() -> String {
@@ -1242,4 +1351,26 @@ struct VocoAutoApplyModelServiceTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }
+
+    private static func httpResponse(for request: URLRequest, statusCode: Int) throws -> HTTPURLResponse {
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: nil
+              )
+        else {
+            throw WorkerSyncTestError.invalidHTTPResponse
+        }
+        return response
+    }
+}
+
+private final class WorkerSyncRequestRecorder {
+    var paths: [String] = []
+}
+
+private enum WorkerSyncTestError: Error {
+    case invalidHTTPResponse
 }

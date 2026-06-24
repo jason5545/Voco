@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CryptoKit
 import Darwin
 import OSLog
 
@@ -62,6 +63,12 @@ struct VocoAutoApplyModelStatus: Equatable {
     let modelGeneratedAt: String?
     let schemaVersion: Int?
     let isDegraded: Bool
+    let localModelSha256: String?
+    let remoteLatestSha256: String?
+    let remoteLatestVersion: String?
+    let remoteCheckedAt: String?
+    let remoteIsInSync: Bool?
+    let remoteMessage: String?
 
     init(
         isAvailable: Bool,
@@ -70,7 +77,13 @@ struct VocoAutoApplyModelStatus: Equatable {
         modelVersion: String? = nil,
         modelGeneratedAt: String? = nil,
         schemaVersion: Int? = nil,
-        isDegraded: Bool = false
+        isDegraded: Bool = false,
+        localModelSha256: String? = nil,
+        remoteLatestSha256: String? = nil,
+        remoteLatestVersion: String? = nil,
+        remoteCheckedAt: String? = nil,
+        remoteIsInSync: Bool? = nil,
+        remoteMessage: String? = nil
     ) {
         self.isAvailable = isAvailable
         self.message = message
@@ -79,6 +92,259 @@ struct VocoAutoApplyModelStatus: Equatable {
         self.modelGeneratedAt = modelGeneratedAt
         self.schemaVersion = schemaVersion
         self.isDegraded = isDegraded
+        self.localModelSha256 = localModelSha256
+        self.remoteLatestSha256 = remoteLatestSha256
+        self.remoteLatestVersion = remoteLatestVersion
+        self.remoteCheckedAt = remoteCheckedAt
+        self.remoteIsInSync = remoteIsInSync
+        self.remoteMessage = remoteMessage
+    }
+}
+
+struct VocoAutoApplyWorkerSyncManifest: Decodable, Equatable {
+    struct Privacy: Decodable, Equatable {
+        let transcriptUploadAllowed: Bool?
+        let evidenceUploadAllowed: Bool?
+        let workerDecisionAllowed: Bool?
+    }
+
+    struct Readiness: Decodable, Equatable {
+        let mergedAutoApplyModelReady: Bool?
+        let autoApplyModelReady: Bool?
+
+        var isReady: Bool {
+            mergedAutoApplyModelReady == true || autoApplyModelReady == true
+        }
+    }
+
+    let phase: String
+    let version: String?
+    let modelSha256: String
+    let schemaVersion: Int?
+    let runtimeSchemaVersion: Int?
+    let autoApplyModelVersion: String?
+    let generatedAt: String?
+    let policyCounts: [String: Int]
+    let policyTypeCounts: [String: Int]
+    let source: String?
+    let readiness: Readiness?
+    let privacy: Privacy
+}
+
+enum VocoAutoApplyWorkerSyncError: LocalizedError, Equatable {
+    case missingSyncKey
+    case invalidHTTPResponse
+    case httpStatus(Int)
+    case invalidManifest(String)
+    case invalidModel(String)
+    case sha256Mismatch(expected: String, actual: String)
+    case transport(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingSyncKey:
+            return "Worker sync key not configured"
+        case .invalidHTTPResponse:
+            return "Worker did not return an HTTP response"
+        case .httpStatus(let status):
+            return "Worker returned HTTP \(status)"
+        case .invalidManifest(let reason):
+            return "Invalid Worker manifest: \(reason)"
+        case .invalidModel(let reason):
+            return "Invalid downloaded model: \(reason)"
+        case .sha256Mismatch(let expected, let actual):
+            return "Downloaded model sha mismatch: expected \(expected), got \(actual)"
+        case .transport(let message):
+            return message
+        }
+    }
+
+    var preservesLocalModel: Bool {
+        true
+    }
+}
+
+enum VocoAutoApplyWorkerSyncFetchResult: Equatable {
+    case upToDate(manifest: VocoAutoApplyWorkerSyncManifest)
+    case downloaded(manifest: VocoAutoApplyWorkerSyncManifest, modelData: Data)
+}
+
+struct VocoAutoApplyWorkerSyncOutcome: Equatable {
+    enum State: Equatable {
+        case installed
+        case upToDate
+        case keptLocal
+    }
+
+    let state: State
+    let manifest: VocoAutoApplyWorkerSyncManifest?
+    let message: String
+    let installedModelSha256: String?
+    let errorDescription: String?
+
+    static func installed(
+        manifest: VocoAutoApplyWorkerSyncManifest,
+        message: String
+    ) -> VocoAutoApplyWorkerSyncOutcome {
+        VocoAutoApplyWorkerSyncOutcome(
+            state: .installed,
+            manifest: manifest,
+            message: message,
+            installedModelSha256: manifest.modelSha256,
+            errorDescription: nil
+        )
+    }
+
+    static func upToDate(manifest: VocoAutoApplyWorkerSyncManifest) -> VocoAutoApplyWorkerSyncOutcome {
+        VocoAutoApplyWorkerSyncOutcome(
+            state: .upToDate,
+            manifest: manifest,
+            message: String(localized: "Remote model is up to date"),
+            installedModelSha256: manifest.modelSha256,
+            errorDescription: nil
+        )
+    }
+
+    static func keptLocal(_ message: String, errorDescription: String?) -> VocoAutoApplyWorkerSyncOutcome {
+        VocoAutoApplyWorkerSyncOutcome(
+            state: .keptLocal,
+            manifest: nil,
+            message: message,
+            installedModelSha256: nil,
+            errorDescription: errorDescription
+        )
+    }
+}
+
+struct VocoAutoApplyWorkerSyncClient {
+    typealias Transport = (URLRequest) async throws -> (Data, HTTPURLResponse)
+
+    static let defaultWorkerURL = URL(string: "https://voco-auto-apply-sync.black-hill-f944.workers.dev")!
+    static let phase = "phase1-distribution-only"
+
+    let workerURL: URL
+    let timeout: TimeInterval
+    let transport: Transport
+
+    init(
+        workerURL: URL = VocoAutoApplyWorkerSyncClient.defaultWorkerURL,
+        timeout: TimeInterval = 20,
+        transport: @escaping Transport = VocoAutoApplyWorkerSyncClient.urlSessionTransport
+    ) {
+        self.workerURL = workerURL
+        self.timeout = timeout
+        self.transport = transport
+    }
+
+    func fetchLatest(
+        syncKey: String,
+        localModelSha256: String?
+    ) async throws -> VocoAutoApplyWorkerSyncFetchResult {
+        let manifest = try await fetchManifest(syncKey: syncKey)
+        if localModelSha256 == manifest.modelSha256 {
+            return .upToDate(manifest: manifest)
+        }
+
+        let modelData = try await requestBytes(
+            path: "/v1/auto-apply/models/\(manifest.modelSha256)",
+            syncKey: syncKey
+        )
+        let downloadedSha = VocoAutoApplyModelService.sha256Hex(for: modelData)
+        guard downloadedSha == manifest.modelSha256 else {
+            throw VocoAutoApplyWorkerSyncError.sha256Mismatch(
+                expected: manifest.modelSha256,
+                actual: downloadedSha
+            )
+        }
+        try VocoAutoApplyModelService.validateDownloadedModelData(modelData, manifest: manifest)
+        return .downloaded(manifest: manifest, modelData: modelData)
+    }
+
+    func fetchManifest(syncKey: String) async throws -> VocoAutoApplyWorkerSyncManifest {
+        let data = try await requestBytes(path: "/v1/auto-apply/manifest", syncKey: syncKey)
+        let manifest: VocoAutoApplyWorkerSyncManifest
+        do {
+            manifest = try JSONDecoder().decode(VocoAutoApplyWorkerSyncManifest.self, from: data)
+        } catch {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest(error.localizedDescription)
+        }
+        try validate(manifest)
+        return manifest
+    }
+
+    private func requestBytes(path: String, syncKey: String) async throws -> Data {
+        let trimmedKey = syncKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            throw VocoAutoApplyWorkerSyncError.missingSyncKey
+        }
+
+        guard let url = URL(string: "\(workerURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/\(path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))") else {
+            throw VocoAutoApplyWorkerSyncError.transport("Invalid Worker URL")
+        }
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Voco-mac-auto-apply-sync/1.0", forHTTPHeaderField: "User-Agent")
+
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport(request)
+        } catch let error as VocoAutoApplyWorkerSyncError {
+            throw error
+        } catch {
+            throw VocoAutoApplyWorkerSyncError.transport(error.localizedDescription)
+        }
+
+        guard (200...299).contains(response.statusCode) else {
+            throw VocoAutoApplyWorkerSyncError.httpStatus(response.statusCode)
+        }
+        return data
+    }
+
+    private func validate(_ manifest: VocoAutoApplyWorkerSyncManifest) throws {
+        guard manifest.phase == Self.phase else {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("unexpected phase \(manifest.phase)")
+        }
+        guard Self.isSHA256(manifest.modelSha256) else {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("modelSha256 is missing or invalid")
+        }
+        if let schemaVersion = manifest.schemaVersion,
+           schemaVersion != VocoAutoApplyModelService.supportedSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported schemaVersion \(schemaVersion)")
+        }
+        if let runtimeSchemaVersion = manifest.runtimeSchemaVersion,
+           runtimeSchemaVersion != VocoAutoApplyModelService.supportedRuntimeSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
+        }
+        guard manifest.readiness?.isReady == true else {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("readiness is not true")
+        }
+        guard manifest.privacy.transcriptUploadAllowed == false else {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("privacy.transcriptUploadAllowed must be false")
+        }
+        if manifest.privacy.workerDecisionAllowed != nil,
+           manifest.privacy.workerDecisionAllowed != false {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("privacy.workerDecisionAllowed must be false")
+        }
+        if manifest.privacy.evidenceUploadAllowed != nil,
+           manifest.privacy.evidenceUploadAllowed != false {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("privacy.evidenceUploadAllowed must be false")
+        }
+    }
+
+    private static func isSHA256(_ value: String) -> Bool {
+        value.count == 64 && value.unicodeScalars.allSatisfy { scalar in
+            (48...57).contains(scalar.value) || (97...102).contains(scalar.value)
+        }
+    }
+
+    private static func urlSessionTransport(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VocoAutoApplyWorkerSyncError.invalidHTTPResponse
+        }
+        return (data, httpResponse)
     }
 }
 
@@ -103,12 +369,19 @@ final class VocoAutoApplyModelService: ObservableObject {
 
     private let modelURL: URL
     private let defaults: UserDefaults
+    private let workerSyncClient: VocoAutoApplyWorkerSyncClient
+    private let workerSyncKeyProvider: () -> String?
+    private let modelBackupRetention: Int
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AutoApplyModel")
     private let watchQueue = DispatchQueue(label: "com.jasonchien.Voco.autoApplyModelWatcher")
     private var loadedModel: VocoAutoApplyRuntimeModel?
     private var modelFileWatcher: DispatchSourceFileSystemObject?
     private var modelDirectoryWatcher: DispatchSourceFileSystemObject?
     private var pendingModelReload: DispatchWorkItem?
+    private var remoteLatestSha256: String?
+    private var remoteLatestVersion: String?
+    private var remoteCheckedAt: String?
+    private var remoteMessage: String?
 
     static let hardCodedActionCommandSurfaces: [String] = ["全部刪除", "全部删除"]
 
@@ -155,14 +428,21 @@ final class VocoAutoApplyModelService: ObservableObject {
 
     init(
         modelURL: URL = VocoAutoApplyModelService.defaultModelURL,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        workerSyncClient: VocoAutoApplyWorkerSyncClient = VocoAutoApplyWorkerSyncClient(),
+        workerSyncKeyProvider: @escaping () -> String? = VocoAutoApplyModelService.defaultWorkerSyncKey,
+        modelBackupRetention: Int = 3
     ) {
         self.modelURL = modelURL
         self.defaults = defaults
+        self.workerSyncClient = workerSyncClient
+        self.workerSyncKeyProvider = workerSyncKeyProvider
+        self.modelBackupRetention = modelBackupRetention
         self.status = VocoAutoApplyModelStatus(
             isAvailable: false,
             message: String(localized: "Model not detected"),
-            modelURL: modelURL
+            modelURL: modelURL,
+            localModelSha256: Self.sha256HexForFileIfExists(modelURL)
         )
         reload()
         startWatchingModelChanges()
@@ -175,12 +455,19 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     func reload() {
+        let localModelSha256 = Self.sha256HexForFileIfExists(modelURL)
         guard FileManager.default.fileExists(atPath: modelURL.path) else {
             loadedModel = nil
             status = VocoAutoApplyModelStatus(
                 isAvailable: false,
                 message: String(localized: "Model not installed"),
-                modelURL: modelURL
+                modelURL: modelURL,
+                localModelSha256: localModelSha256,
+                remoteLatestSha256: remoteLatestSha256,
+                remoteLatestVersion: remoteLatestVersion,
+                remoteCheckedAt: remoteCheckedAt,
+                remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                remoteMessage: remoteMessage
             )
             return
         }
@@ -201,14 +488,26 @@ final class VocoAutoApplyModelService: ObservableObject {
                     modelVersion: existing.modelVersion,
                     modelGeneratedAt: existing.modelGeneratedAt,
                     schemaVersion: existing.schemaVersion,
-                    isDegraded: true
+                    isDegraded: true,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             } else {
                 loadedModel = nil
                 status = VocoAutoApplyModelStatus(
                     isAvailable: false,
                     message: String(localized: "Model schema unsupported"),
-                    modelURL: modelURL
+                    modelURL: modelURL,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             }
             return
@@ -223,14 +522,26 @@ final class VocoAutoApplyModelService: ObservableObject {
                     modelVersion: existing.modelVersion,
                     modelGeneratedAt: existing.modelGeneratedAt,
                     schemaVersion: existing.schemaVersion,
-                    isDegraded: true
+                    isDegraded: true,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             } else {
                 loadedModel = nil
                 status = VocoAutoApplyModelStatus(
                     isAvailable: false,
                     message: String(localized: "Model schema unsupported"),
-                    modelURL: modelURL
+                    modelURL: modelURL,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             }
             return
@@ -245,14 +556,26 @@ final class VocoAutoApplyModelService: ObservableObject {
                     modelVersion: existing.modelVersion,
                     modelGeneratedAt: existing.modelGeneratedAt,
                     schemaVersion: existing.schemaVersion,
-                    isDegraded: true
+                    isDegraded: true,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             } else {
                 loadedModel = nil
                 status = VocoAutoApplyModelStatus(
                     isAvailable: false,
                     message: String(localized: "Model unreadable"),
-                    modelURL: modelURL
+                    modelURL: modelURL,
+                    localModelSha256: localModelSha256,
+                    remoteLatestSha256: remoteLatestSha256,
+                    remoteLatestVersion: remoteLatestVersion,
+                    remoteCheckedAt: remoteCheckedAt,
+                    remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                    remoteMessage: remoteMessage
                 )
             }
             return
@@ -263,7 +586,13 @@ final class VocoAutoApplyModelService: ObservableObject {
             status = VocoAutoApplyModelStatus(
                 isAvailable: false,
                 message: String(localized: "Model not ready"),
-                modelURL: modelURL
+                modelURL: modelURL,
+                localModelSha256: localModelSha256,
+                remoteLatestSha256: remoteLatestSha256,
+                remoteLatestVersion: remoteLatestVersion,
+                remoteCheckedAt: remoteCheckedAt,
+                remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+                remoteMessage: remoteMessage
             )
             return
         }
@@ -279,8 +608,219 @@ final class VocoAutoApplyModelService: ObservableObject {
             modelURL: modelURL,
             modelVersion: decodedModel.runtimeModel.modelVersion,
             modelGeneratedAt: decodedModel.runtimeModel.modelGeneratedAt,
-            schemaVersion: decodedModel.runtimeModel.schemaVersion ?? Self.supportedSchemaVersion
+            schemaVersion: decodedModel.runtimeModel.schemaVersion ?? Self.supportedSchemaVersion,
+            localModelSha256: localModelSha256,
+            remoteLatestSha256: remoteLatestSha256,
+            remoteLatestVersion: remoteLatestVersion,
+            remoteCheckedAt: remoteCheckedAt,
+            remoteIsInSync: remoteInSync(localModelSha256: localModelSha256),
+            remoteMessage: remoteMessage
         )
+    }
+
+    @discardableResult
+    func syncFromWorker() async -> VocoAutoApplyWorkerSyncOutcome {
+        let syncKey = workerSyncKeyProvider()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !syncKey.isEmpty else {
+            let message = String(localized: "Remote sync key missing, keeping local model")
+            await MainActor.run {
+                updateRemoteStatus(manifest: nil, message: message)
+            }
+            return .keptLocal(message, errorDescription: VocoAutoApplyWorkerSyncError.missingSyncKey.localizedDescription)
+        }
+
+        do {
+            let localSha = Self.sha256HexForFileIfExists(modelURL)
+            let result = try await workerSyncClient.fetchLatest(syncKey: syncKey, localModelSha256: localSha)
+            switch result {
+            case .upToDate(let manifest):
+                await MainActor.run {
+                    updateRemoteStatus(manifest: manifest, message: String(localized: "Remote model is up to date"))
+                }
+                return .upToDate(manifest: manifest)
+            case .downloaded(let manifest, let modelData):
+                try installDownloadedWorkerModel(modelData, expectedSha256: manifest.modelSha256)
+                await MainActor.run {
+                    updateRemoteStatus(manifest: manifest, message: String(localized: "Remote model installed"))
+                }
+                return .installed(manifest: manifest, message: String(localized: "Remote model installed"))
+            }
+        } catch let error as VocoAutoApplyWorkerSyncError {
+            logger.error("Auto-apply Worker sync kept local model: \(error.localizedDescription, privacy: .public)")
+            let message = String(localized: "Remote sync unavailable, keeping local model")
+            await MainActor.run {
+                updateRemoteStatus(manifest: nil, message: message)
+            }
+            return .keptLocal(message, errorDescription: error.localizedDescription)
+        } catch {
+            logger.error("Auto-apply Worker sync kept local model: \(error.localizedDescription, privacy: .public)")
+            let message = String(localized: "Remote sync unavailable, keeping local model")
+            await MainActor.run {
+                updateRemoteStatus(manifest: nil, message: message)
+            }
+            return .keptLocal(message, errorDescription: error.localizedDescription)
+        }
+    }
+
+    private func installDownloadedWorkerModel(_ data: Data, expectedSha256: String) throws {
+        try Self.validateDownloadedModelData(data, expectedSha256: expectedSha256)
+
+        let directoryURL = modelURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        _ = try createModelBackupIfNeeded()
+
+        let tempURL = directoryURL.appendingPathComponent(".\(Self.modelFileName).worker-sync-\(UUID().uuidString).tmp")
+        do {
+            try data.write(to: tempURL, options: .atomic)
+            if FileManager.default.fileExists(atPath: modelURL.path) {
+                _ = try FileManager.default.replaceItemAt(
+                    modelURL,
+                    withItemAt: tempURL,
+                    backupItemName: nil,
+                    options: []
+                )
+            } else {
+                try FileManager.default.moveItem(at: tempURL, to: modelURL)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
+    }
+
+    private func createModelBackupIfNeeded() throws -> URL? {
+        guard modelBackupRetention > 0,
+              FileManager.default.fileExists(atPath: modelURL.path)
+        else { return nil }
+
+        let backupDirectory = modelURL.deletingLastPathComponent().appendingPathComponent("Backups", isDirectory: true)
+        try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
+        let backupURL = backupDirectory.appendingPathComponent(
+            "\(Self.modelFileName).bak-\(formatter.string(from: Date()))-worker-sync"
+        )
+        try FileManager.default.copyItem(at: modelURL, to: backupURL)
+        pruneModelBackups(in: backupDirectory)
+        return backupURL
+    }
+
+    private func pruneModelBackups(in backupDirectory: URL) {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: backupDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let backups = urls
+            .filter { $0.lastPathComponent.hasPrefix("\(Self.modelFileName).bak-") }
+            .sorted { lhs, rhs in
+                let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return lhsDate > rhsDate
+            }
+        for stale in backups.dropFirst(modelBackupRetention) {
+            try? FileManager.default.removeItem(at: stale)
+        }
+    }
+
+    private func updateRemoteStatus(
+        manifest: VocoAutoApplyWorkerSyncManifest?,
+        message: String
+    ) {
+        remoteLatestSha256 = manifest?.modelSha256
+        remoteLatestVersion = manifest?.version ?? manifest?.autoApplyModelVersion
+        remoteCheckedAt = Self.isoString(Date())
+        remoteMessage = message
+        reload()
+    }
+
+    private func remoteInSync(localModelSha256: String?) -> Bool? {
+        guard let remoteLatestSha256 else { return nil }
+        return localModelSha256 == remoteLatestSha256
+    }
+
+    static func validateDownloadedModelData(
+        _ data: Data,
+        manifest: VocoAutoApplyWorkerSyncManifest
+    ) throws {
+        try validateDownloadedModelData(data, expectedSha256: manifest.modelSha256)
+        if let schemaVersion = manifest.schemaVersion,
+           schemaVersion != supportedSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported schemaVersion \(schemaVersion)")
+        }
+        if let runtimeSchemaVersion = manifest.runtimeSchemaVersion,
+           runtimeSchemaVersion != supportedRuntimeSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
+        }
+    }
+
+    static func validateDownloadedModelData(
+        _ data: Data,
+        expectedSha256: String
+    ) throws {
+        let actualSha = sha256Hex(for: data)
+        guard actualSha == expectedSha256 else {
+            throw VocoAutoApplyWorkerSyncError.sha256Mismatch(expected: expectedSha256, actual: actualSha)
+        }
+
+        let envelope: VocoAutoApplyModelEnvelope
+        do {
+            envelope = try JSONDecoder().decode(VocoAutoApplyModelEnvelope.self, from: data)
+        } catch {
+            throw VocoAutoApplyWorkerSyncError.invalidModel(error.localizedDescription)
+        }
+
+        if let schemaVersion = envelope.schemaVersion,
+           schemaVersion != supportedSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidModel("unsupported schemaVersion \(schemaVersion)")
+        }
+        if let runtimeSchemaVersion = envelope.runtimeSchemaVersion,
+           runtimeSchemaVersion != supportedRuntimeSchemaVersion {
+            throw VocoAutoApplyWorkerSyncError.invalidModel("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
+        }
+        guard envelope.mergedReplayReadiness?.mergedAutoApplyModelReady == true else {
+            throw VocoAutoApplyWorkerSyncError.invalidModel("mergedReplayReadiness.mergedAutoApplyModelReady is not true")
+        }
+
+        do {
+            let decodedModel = try decodeModel(from: data)
+            guard decodedModel.isReady else {
+                throw VocoAutoApplyWorkerSyncError.invalidModel("decoded model is not ready")
+            }
+        } catch let error as VocoAutoApplyWorkerSyncError {
+            throw error
+        } catch {
+            throw VocoAutoApplyWorkerSyncError.invalidModel(error.localizedDescription)
+        }
+    }
+
+    static func sha256Hex(for data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func sha256HexForFileIfExists(_ url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return sha256Hex(for: data)
+    }
+
+    static func defaultWorkerSyncKey() -> String? {
+        let environmentKey = ProcessInfo.processInfo.environment["VOCO_SYNC_KEY"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let environmentKey, !environmentKey.isEmpty {
+            return environmentKey
+        }
+
+        let secretURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("GitHub/VocoReplayLab/workers/auto-apply-sync/.secrets/voco_sync_key")
+        return try? String(contentsOf: secretURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isoString(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 
     private static func decodeModel(from data: Data) throws -> VocoDecodedAutoApplyModel {
@@ -720,6 +1260,12 @@ final class VocoAutoApplyModelService: ObservableObject {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
+}
+
+private struct VocoAutoApplyModelEnvelope: Decodable {
+    let schemaVersion: Int?
+    let runtimeSchemaVersion: Int?
+    let mergedReplayReadiness: VocoMergedReplayReadiness?
 }
 
 private struct VocoAutoApplyModel: Decodable {

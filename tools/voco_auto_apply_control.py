@@ -16,10 +16,13 @@ import copy
 import hashlib
 import importlib
 import json
+import os
 import re
 import shutil
 import sqlite3
 import unicodedata
+import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,7 +38,13 @@ DEFAULT_ACTIVE_MODEL = APP_SUPPORT / "AutoApplyModels/full-db.auto-apply-model.j
 DEFAULT_CONTROL_DIR = APP_SUPPORT / "AutoApplyControl"
 DEFAULT_EVIDENCE_STORE = DEFAULT_CONTROL_DIR / "evidence.jsonl"
 DEFAULT_OUTPUT_ROOT = DEFAULT_CONTROL_DIR / "artifacts"
-DEFAULT_REPLAYLAB_ROOT = Path.home() / "VocoReplayLab"
+DEFAULT_REPLAYLAB_ROOT = Path.home() / "GitHub/VocoReplayLab"
+DEFAULT_WORKER_URL = "https://voco-auto-apply-sync.black-hill-f944.workers.dev"
+DEFAULT_WORKER_SYNC_KEY_FILE = (
+    Path.home() / "GitHub/VocoReplayLab/workers/auto-apply-sync/.secrets/voco_sync_key"
+)
+WORKER_SYNC_PHASE = "phase1-distribution-only"
+WORKER_URL_OPENER = urllib.request.urlopen
 DEFAULT_CURRENT_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-raw-cleaned-20260611-093103-context10"
 DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cleaned-20260611-pre12022-context10"
 CONTROL_SCHEMA_VERSION = 1
@@ -243,6 +252,33 @@ def parse_args() -> argparse.Namespace:
     replacement.add_argument("--active-model", type=Path)
     replacement.add_argument("--skip-raw-input-replay", action="store_true")
 
+    publish_worker = subparsers.add_parser("publishWorkerRelease")
+    publish_worker.add_argument("--model", type=Path, required=True)
+    publish_worker.add_argument("--base-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    publish_worker.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    publish_worker.add_argument("--version")
+    publish_worker.add_argument("--output-dir", type=Path)
+    publish_worker.add_argument("--dry-run", action="store_true")
+    add_worker_sync_args(publish_worker)
+    add_validation_args(publish_worker)
+
+    fetch_worker = subparsers.add_parser("fetchWorkerRelease")
+    fetch_worker.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    fetch_worker.add_argument("--output-dir", type=Path)
+    fetch_worker.add_argument("--install", action="store_true")
+    fetch_worker.add_argument("--active-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    fetch_worker.add_argument("--base-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    fetch_worker.add_argument("--backup-suffix", default="worker-sync")
+    fetch_worker.add_argument("--backup-dir", type=Path, default=DEFAULT_CONTROL_DIR / "worker-sync-backups")
+    fetch_worker.add_argument("--backup-retention", type=int, default=DEFAULT_BACKUP_RETENTION)
+    add_worker_sync_args(fetch_worker)
+    add_validation_args(fetch_worker)
+
+    audit_worker = subparsers.add_parser("auditWorkerRelease")
+    audit_worker.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    audit_worker.add_argument("--active-model", type=Path, default=DEFAULT_ACTIVE_MODEL)
+    add_worker_sync_args(audit_worker)
+
     return parser.parse_args()
 
 
@@ -257,6 +293,12 @@ def add_validation_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--reraw-corpus-dir", type=Path, default=DEFAULT_RERAW_CORPUS_DIR)
     parser.add_argument("--skip-corpus-replay", action="store_true")
     parser.add_argument("--skip-raw-input-replay", action="store_true")
+
+
+def add_worker_sync_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--sync-key", help="Worker sync key. Defaults to VOCO_SYNC_KEY or --sync-key-file.")
+    parser.add_argument("--sync-key-file", type=Path, default=DEFAULT_WORKER_SYNC_KEY_FILE)
+    parser.add_argument("--timeout", type=float, default=20.0)
 
 
 def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
@@ -319,6 +361,12 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return inspect_policy_proposal_artifact(args.artifact_dir.expanduser())
     if args.command == "evalProposalReplacementGate":
         return eval_policy_proposal_replacement_gate(args)
+    if args.command == "publishWorkerRelease":
+        return publish_worker_release_command(args)
+    if args.command == "fetchWorkerRelease":
+        return fetch_worker_release_command(args)
+    if args.command == "auditWorkerRelease":
+        return audit_worker_release_command(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 
@@ -2951,6 +2999,502 @@ def upsert_protected_term_allowlist_guard_command(args: argparse.Namespace) -> d
         "guardCount": len(guards),
         "event": event,
     }
+
+
+class WorkerSyncError(RuntimeError):
+    def __init__(self, message: str, *, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
+    model_path = args.model.expanduser()
+    base_model_path = args.base_model.expanduser()
+    model = load_model(model_path)
+    base_model = load_model(base_model_path) if base_model_path.exists() else None
+    events = load_events(args.evidence_store.expanduser())
+    validation = validate_model(
+        model,
+        events,
+        model_path=model_path,
+        base_model=base_model,
+        replaylab_root=args.replaylab_root.expanduser(),
+        current_corpus_dir=args.current_corpus_dir.expanduser(),
+        reraw_corpus_dir=args.reraw_corpus_dir.expanduser(),
+        skip_corpus_replay=args.skip_corpus_replay,
+        skip_raw_input_replay=args.skip_raw_input_replay,
+    )
+    if not validation["ready"]:
+        return {
+            "model": str(model_path),
+            "workerUrl": args.worker_url,
+            "validation": validation_summary(validation),
+            "published": False,
+            "failed": True,
+            "reason": "candidate validation failed; Worker release was not published",
+        }
+
+    publish_model = copy.deepcopy(model)
+    apply_readiness(publish_model, validation)
+    validate_worker_model_artifact(publish_model)
+    model_bytes = canonical_json_bytes(publish_model)
+    model_sha = hashlib.sha256(model_bytes).hexdigest()
+    version = args.version or default_worker_release_version(publish_model, model_sha)
+    manifest = build_worker_release_manifest(
+        model=publish_model,
+        model_path=model_path,
+        model_sha=model_sha,
+        version=version,
+        worker_url=args.worker_url,
+    )
+    validate_worker_manifest(manifest)
+
+    output_dir = worker_release_output_dir(args.output_dir, version)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = output_dir / "manifest.json"
+    model_out = output_dir / "full-db.auto-apply-model.json"
+    report_path = output_dir / "publish.report.json"
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+    model_out.write_bytes(model_bytes)
+
+    publish_result: dict[str, Any] | None = None
+    if not args.dry_run:
+        sync_key, key_source = resolve_worker_sync_key(args)
+        if not sync_key:
+            return worker_failure_result(
+                "Worker sync key is missing; release bundle was written locally but not published",
+                active_model=model_path,
+                extra={
+                    "releaseBundle": str(output_dir),
+                    "keySource": key_source,
+                    "published": False,
+                },
+            )
+        try:
+            body = canonical_json_bytes({"manifest": manifest, "model": publish_model})
+            response = worker_request_json(
+                args.worker_url,
+                "/v1/auto-apply/releases",
+                sync_key,
+                method="PUT",
+                body=body,
+                timeout=args.timeout,
+            )
+            publish_result = {"status": response["status"], "body": response["json"]}
+        except WorkerSyncError as error:
+            return worker_failure_result(
+                str(error),
+                active_model=model_path,
+                extra={
+                    "releaseBundle": str(output_dir),
+                    "published": False,
+                    "httpStatus": error.status,
+                },
+            )
+
+    report = {
+        "schema": "voco.auto-apply-worker-sync-publish.v1",
+        "generatedAt": now_iso(),
+        "dryRun": bool(args.dry_run),
+        "published": bool(publish_result),
+        "workerUrl": args.worker_url,
+        "version": version,
+        "modelSha256": model_sha,
+        "sourceModel": str(model_path),
+        "sourceModelSha256": sha256_file(model_path),
+        "manifest": str(manifest_path),
+        "model": str(model_out),
+        "validation": validation_summary(validation),
+        "publishResult": publish_result,
+        "privacyBoundary": worker_privacy_boundary(),
+    }
+    report_path.write_bytes(canonical_json_bytes(report))
+    return {
+        "version": version,
+        "workerUrl": args.worker_url,
+        "releaseBundle": str(output_dir),
+        "manifest": str(manifest_path),
+        "model": str(model_out),
+        "report": str(report_path),
+        "modelSha256": model_sha,
+        "published": bool(publish_result),
+        "dryRun": bool(args.dry_run),
+        "validation": validation_summary(validation),
+        "failed": False,
+    }
+
+
+def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
+    active_model = args.active_model.expanduser()
+    try:
+        sync_key, key_source = resolve_worker_sync_key(args)
+        if not sync_key:
+            return worker_failure_result(
+                "Worker sync key is missing; keeping local active model",
+                active_model=active_model,
+                extra={"keySource": key_source},
+            )
+        manifest = fetch_worker_manifest(args.worker_url, sync_key, timeout=args.timeout)
+        model_sha = str(manifest["modelSha256"])
+        model_bytes = worker_request_bytes(
+            args.worker_url,
+            f"/v1/auto-apply/models/{model_sha}",
+            sync_key,
+            timeout=args.timeout,
+        )
+        downloaded_sha = hashlib.sha256(model_bytes).hexdigest()
+        if downloaded_sha != model_sha:
+            raise WorkerSyncError(f"downloaded model sha mismatch: expected {model_sha}, got {downloaded_sha}")
+        model = load_worker_model_bytes(model_bytes)
+        validate_worker_model_artifact(model, manifest=manifest)
+    except WorkerSyncError as error:
+        return worker_failure_result(
+            str(error),
+            active_model=active_model,
+            extra={"workerUrl": args.worker_url, "httpStatus": error.status},
+        )
+
+    output_dir = worker_fetch_output_dir(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = output_dir / "manifest.json"
+    model_path = output_dir / "full-db.auto-apply-model.json"
+    report_path = output_dir / "fetch.report.json"
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+    model_path.write_bytes(model_bytes)
+
+    active_sha = sha256_file(active_model) if active_model.exists() else None
+    installed = False
+    activation: dict[str, Any] | None = None
+    if args.install and active_sha != model_sha:
+        activation_args = argparse.Namespace(
+            actor=args.actor,
+            model=model_path,
+            active_model=active_model,
+            base_model=args.base_model.expanduser(),
+            evidence_store=args.evidence_store.expanduser(),
+            replaylab_root=args.replaylab_root.expanduser(),
+            backup_suffix=args.backup_suffix,
+            backup_dir=expanded_optional_path(args.backup_dir),
+            backup_retention=backup_retention_from_args(args),
+            activation_manifest=None,
+            current_corpus_dir=args.current_corpus_dir.expanduser(),
+            reraw_corpus_dir=args.reraw_corpus_dir.expanduser(),
+            skip_corpus_replay=args.skip_corpus_replay,
+            skip_raw_input_replay=args.skip_raw_input_replay,
+        )
+        activation = activate_model_command(activation_args)
+        if activation.get("failed"):
+            return {
+                "workerUrl": args.worker_url,
+                "manifest": str(manifest_path),
+                "model": str(model_path),
+                "activeModel": str(active_model),
+                "remoteModelSha256": model_sha,
+                "localActiveModelSha256": active_sha,
+                "activation": activation,
+                "installed": False,
+                "preservedLocalModel": True,
+                "failed": True,
+            }
+        installed = True
+    elif args.install:
+        activation = {"skipped": True, "reason": "local active model already matches remote latest"}
+
+    report = {
+        "schema": "voco.auto-apply-worker-sync-fetch.v1",
+        "fetchedAt": now_iso(),
+        "workerUrl": args.worker_url,
+        "version": manifest.get("version"),
+        "manifest": str(manifest_path),
+        "model": str(model_path),
+        "remoteModelSha256": model_sha,
+        "downloadedSha256": downloaded_sha,
+        "localActiveModelSha256BeforeInstall": active_sha,
+        "remoteMatchesLocalBeforeInstall": active_sha == model_sha,
+        "installRequested": bool(args.install),
+        "installed": installed,
+        "activation": activation,
+        "privacyBoundary": worker_privacy_boundary(),
+        "verified": True,
+    }
+    report_path.write_bytes(canonical_json_bytes(report))
+    return {
+        "workerUrl": args.worker_url,
+        "outputDir": str(output_dir),
+        "manifest": str(manifest_path),
+        "model": str(model_path),
+        "report": str(report_path),
+        "remoteModelSha256": model_sha,
+        "downloadedSha256": downloaded_sha,
+        "localActiveModelSha256BeforeInstall": active_sha,
+        "remoteMatchesLocalBeforeInstall": active_sha == model_sha,
+        "installRequested": bool(args.install),
+        "installed": installed,
+        "activation": activation,
+        "failed": False,
+    }
+
+
+def audit_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
+    active_model = args.active_model.expanduser()
+    try:
+        sync_key, key_source = resolve_worker_sync_key(args)
+        if not sync_key:
+            return worker_failure_result(
+                "Worker sync key is missing; keeping local active model",
+                active_model=active_model,
+                extra={"keySource": key_source},
+            )
+        manifest = fetch_worker_manifest(args.worker_url, sync_key, timeout=args.timeout)
+    except WorkerSyncError as error:
+        return worker_failure_result(
+            str(error),
+            active_model=active_model,
+            extra={"workerUrl": args.worker_url, "httpStatus": error.status},
+        )
+
+    local_sha = sha256_file(active_model) if active_model.exists() else None
+    remote_sha = str(manifest.get("modelSha256") or "")
+    return {
+        "schema": "voco.auto-apply-worker-sync-audit.v1",
+        "auditedAt": now_iso(),
+        "workerUrl": args.worker_url,
+        "activeModel": str(active_model),
+        "localActiveModelExists": active_model.exists(),
+        "localActiveModelSha256": local_sha,
+        "remoteVersion": manifest.get("version"),
+        "remoteModelSha256": remote_sha,
+        "remoteAutoApplyModelVersion": manifest.get("autoApplyModelVersion"),
+        "remoteGeneratedAt": manifest.get("generatedAt"),
+        "remotePolicyCounts": manifest.get("policyCounts") or {},
+        "remotePolicyTypeCounts": manifest.get("policyTypeCounts") or {},
+        "inSync": bool(local_sha and local_sha == remote_sha),
+        "privacyBoundary": worker_privacy_boundary(),
+        "preservedLocalModel": True,
+        "failed": False,
+    }
+
+
+def worker_failure_result(reason: str, *, active_model: Path, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    result = {
+        "failed": True,
+        "reason": reason,
+        "activeModel": str(active_model),
+        "localActiveModelExists": active_model.exists(),
+        "localActiveModelSha256": sha256_file(active_model) if active_model.exists() else None,
+        "preservedLocalModel": True,
+    }
+    if extra:
+        result.update(extra)
+    return result
+
+
+def resolve_worker_sync_key(args: argparse.Namespace) -> tuple[str, str]:
+    raw_arg = str(getattr(args, "sync_key", "") or "").strip()
+    if raw_arg:
+        return raw_arg, "argument"
+    raw_env = os.environ.get("VOCO_SYNC_KEY", "").strip()
+    if raw_env:
+        return raw_env, "env:VOCO_SYNC_KEY"
+    key_file = getattr(args, "sync_key_file", None)
+    if key_file:
+        path = key_file.expanduser()
+        if path.exists():
+            return path.read_text(encoding="utf-8").strip(), f"file:{path}"
+        return "", f"missing-file:{path}"
+    return "", "missing"
+
+
+def fetch_worker_manifest(worker_url: str, sync_key: str, *, timeout: float) -> dict[str, Any]:
+    manifest = worker_request_json(
+        worker_url,
+        "/v1/auto-apply/manifest",
+        sync_key,
+        method="GET",
+        timeout=timeout,
+    )["json"]
+    validate_worker_manifest(manifest)
+    return manifest
+
+
+def worker_request_json(
+    worker_url: str,
+    path: str,
+    sync_key: str,
+    *,
+    method: str,
+    body: bytes | None = None,
+    timeout: float,
+) -> dict[str, Any]:
+    data = worker_request_bytes(worker_url, path, sync_key, method=method, body=body, timeout=timeout)
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        raise WorkerSyncError(f"Worker returned invalid JSON: {error}") from error
+    if not isinstance(parsed, dict):
+        raise WorkerSyncError("Worker returned non-object JSON")
+    return {"status": 200, "json": parsed}
+
+
+def worker_request_bytes(
+    worker_url: str,
+    path: str,
+    sync_key: str,
+    *,
+    method: str = "GET",
+    body: bytes | None = None,
+    timeout: float,
+) -> bytes:
+    if not sync_key.strip():
+        raise WorkerSyncError("Worker sync key is missing")
+    url = f"{worker_url.rstrip('/')}/{path.lstrip('/')}"
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {sync_key.strip()}",
+            "Content-Type": "application/json",
+            "User-Agent": "Voco-auto-apply-control/1.0",
+        },
+    )
+    try:
+        with WORKER_URL_OPENER(request, timeout=timeout) as response:
+            status = int(getattr(response, "status", getattr(response, "code", 200)))
+            data = response.read()
+    except urllib.error.HTTPError as error:
+        try:
+            _ = error.read()
+        except Exception:
+            pass
+        raise WorkerSyncError(f"Worker request failed: HTTP {error.code}", status=error.code) from error
+    except urllib.error.URLError as error:
+        raise WorkerSyncError(f"Worker request failed: {error.reason}") from error
+    if not (200 <= status <= 299):
+        raise WorkerSyncError(f"Worker request failed: HTTP {status}", status=status)
+    return data
+
+
+def validate_worker_manifest(manifest: dict[str, Any]) -> None:
+    if manifest.get("phase") != WORKER_SYNC_PHASE:
+        raise WorkerSyncError(f"unexpected Worker manifest phase: {manifest.get('phase')}")
+    model_sha = str(manifest.get("modelSha256") or "")
+    if not is_sha256(model_sha):
+        raise WorkerSyncError("manifest.modelSha256 is missing or invalid")
+    schema_version = manifest.get("schemaVersion")
+    if schema_version not in (None, EVALUATION_CONTRACT_SCHEMA_VERSION):
+        raise WorkerSyncError(f"unsupported manifest schemaVersion: {schema_version}")
+    runtime_schema_version = manifest.get("runtimeSchemaVersion")
+    if runtime_schema_version not in (None, RUNTIME_INDEXED_V2_SCHEMA_VERSION):
+        raise WorkerSyncError(f"unsupported manifest runtimeSchemaVersion: {runtime_schema_version}")
+    readiness = manifest.get("readiness")
+    if not isinstance(readiness, dict) or not (
+        readiness.get("mergedAutoApplyModelReady") is True or readiness.get("autoApplyModelReady") is True
+    ):
+        raise WorkerSyncError("manifest readiness is not true")
+    privacy = manifest.get("privacy")
+    if not isinstance(privacy, dict) or privacy.get("transcriptUploadAllowed") is not False:
+        raise WorkerSyncError("manifest privacy must explicitly block transcript upload")
+    if privacy.get("workerDecisionAllowed") is not False:
+        raise WorkerSyncError("manifest privacy must explicitly block Worker decisions")
+    if privacy.get("evidenceUploadAllowed") is not False:
+        raise WorkerSyncError("manifest privacy must explicitly block evidence upload")
+
+
+def validate_worker_model_artifact(model: dict[str, Any], manifest: dict[str, Any] | None = None) -> None:
+    if model.get("schemaVersion") not in (None, EVALUATION_CONTRACT_SCHEMA_VERSION):
+        raise WorkerSyncError(f"unsupported model schemaVersion: {model.get('schemaVersion')}")
+    if model.get("runtimeSchemaVersion") not in (None, RUNTIME_INDEXED_V2_SCHEMA_VERSION):
+        raise WorkerSyncError(f"unsupported model runtimeSchemaVersion: {model.get('runtimeSchemaVersion')}")
+    readiness = model.get("mergedReplayReadiness")
+    if not isinstance(readiness, dict) or readiness.get("mergedAutoApplyModelReady") is not True:
+        raise WorkerSyncError("model is not marked mergedReplayReadiness.mergedAutoApplyModelReady=true")
+    if manifest:
+        if manifest.get("schemaVersion") not in (None, model.get("schemaVersion")):
+            raise WorkerSyncError("manifest schemaVersion does not match downloaded model")
+        if manifest.get("runtimeSchemaVersion") not in (None, model.get("runtimeSchemaVersion")):
+            raise WorkerSyncError("manifest runtimeSchemaVersion does not match downloaded model")
+
+
+def load_worker_model_bytes(data: bytes) -> dict[str, Any]:
+    try:
+        model = json.loads(data.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        raise WorkerSyncError(f"downloaded model is invalid JSON: {error}") from error
+    if not isinstance(model, dict):
+        raise WorkerSyncError("downloaded model must be a JSON object")
+    return model
+
+
+def build_worker_release_manifest(
+    *,
+    model: dict[str, Any],
+    model_path: Path,
+    model_sha: str,
+    version: str,
+    worker_url: str,
+) -> dict[str, Any]:
+    return {
+        "schema": "voco.auto-apply-worker-sync-manifest.v1",
+        "phase": WORKER_SYNC_PHASE,
+        "version": version,
+        "createdAt": now_iso(),
+        "source": "replaylab",
+        "sourceModelPath": str(model_path),
+        "modelFileName": "full-db.auto-apply-model.json",
+        "modelSha256": model_sha,
+        "modelUrl": f"{worker_url.rstrip('/')}/v1/auto-apply/models/{model_sha}",
+        "schemaVersion": model.get("schemaVersion"),
+        "runtimeSchemaVersion": model.get("runtimeSchemaVersion"),
+        "modelFormat": model.get("modelFormat"),
+        "autoApplyModelVersion": model.get("autoApplyModelVersion"),
+        "generatedAt": model.get("generatedAt"),
+        "policyCounts": model.get("policyCounts") or {},
+        "policyTypeCounts": model.get("policyTypeCounts") or {},
+        "readiness": model.get("mergedReplayReadiness") or {},
+        "clientBehavior": {
+            "offlineFallback": "keep-local-last-known-good",
+            "hashVerificationRequired": True,
+            "atomicReplaceRequired": True,
+            "rollbackRequired": True,
+        },
+        "privacy": worker_privacy_boundary(),
+    }
+
+
+def worker_privacy_boundary() -> dict[str, Any]:
+    return {
+        "transcriptUploadAllowed": False,
+        "evidenceUploadAllowed": False,
+        "workerDecisionAllowed": False,
+        "artifactSyncOnly": True,
+    }
+
+
+def default_worker_release_version(model: dict[str, Any], model_sha: str) -> str:
+    raw = str(model.get("autoApplyModelVersion") or model.get("generatedAt") or now_iso())
+    safe = "".join(ch if ch.isalnum() or ch in ".-_" else "-" for ch in raw).strip("-")
+    return f"{safe}-{model_sha[:12]}"
+
+
+def worker_release_output_dir(output_dir: Path | None, version: str) -> Path:
+    if output_dir:
+        return output_dir.expanduser()
+    return DEFAULT_OUTPUT_ROOT / "worker-sync-releases" / version
+
+
+def worker_fetch_output_dir(output_dir: Path | None) -> Path:
+    if output_dir:
+        return output_dir.expanduser()
+    return DEFAULT_OUTPUT_ROOT / "worker-sync-fetch" / timestamp_for_path()
+
+
+def canonical_json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(ch in "0123456789abcdef" for ch in value)
 
 
 def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, Any]:
