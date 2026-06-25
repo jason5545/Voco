@@ -8,12 +8,13 @@ enum RuleBasedPunctuationInserter {
     // Insert comma after these words when followed by more CJK text
     private static let breakAfterParticles: [String] = [
         "但是", "因為", "所以", "然後", "如果", "不過", "而且", "或者",
-        "可是", "雖然", "因此", "於是", "另外", "而是", "總之", "結果",
-        "但", "的", "了", "嘛",
+        "可是", "雖然", "因此", "於是", "另外", "總之", "結果",
+        "但", "了", "嘛",
     ]
 
     // MARK: - Break-before pronouns (only when preceded by 6+ CJK chars)
     private static let breakBeforePronouns: Set<Character> = ["我", "你", "他", "她", "它"]
+    private static let pronounBreakBlockers: Set<Character> = ["叫", "讓", "把", "給"]
 
     // MARK: - Question tail patterns
     private static let questionTails: [String] = [
@@ -44,7 +45,7 @@ enum RuleBasedPunctuationInserter {
     static func insert(into text: String) -> String {
         guard !text.isEmpty else { return text }
 
-        var chars = Array(text)
+        let chars = Array(text)
         var result: [Character] = []
         var cjkRun = 0  // consecutive CJK chars since last punctuation
 
@@ -71,20 +72,10 @@ enum RuleBasedPunctuationInserter {
                                 // Check the char at (result.count - pLen) is CJK (not punctuation)
                                 // to avoid inserting comma right after another punctuation
                                 let beforeParticle = result.count > pLen ? result[result.count - pLen - 1] : nil
-                                let afterIsCJK = isCJKChar(c)
-                                if afterIsCJK, beforeParticle == nil || (beforeParticle != nil && !allCJKPunctuation.contains(beforeParticle!)) {
-                                    // Don't insert if 「的」 is just part of normal flow < 6 chars
-                                    if particle == "的" || particle == "了" || particle == "嘛" {
-                                        if cjkRun >= 8 {
-                                            result.append("，")
-                                            cjkRun = 0
-                                            didBreakAfter = true
-                                        }
-                                    } else {
-                                        result.append("，")
-                                        cjkRun = 0
-                                        didBreakAfter = true
-                                    }
+                                if shouldBreakAfterParticle(particle, next: c, beforeParticle: beforeParticle, cjkRun: cjkRun) {
+                                    result.append("，")
+                                    cjkRun = 0
+                                    didBreakAfter = true
                                 }
                                 if didBreakAfter { break }
                             }
@@ -93,22 +84,9 @@ enum RuleBasedPunctuationInserter {
                 }
 
                 // Check break-before: pronoun preceded by 6+ CJK chars
-                if !didBreakAfter && cjkRun >= 6 && breakBeforePronouns.contains(c) {
-                    // Only break if previous char is CJK (not punctuation)
-                    if let last = result.last, isCJKChar(last) {
-                        result.append("，")
-                        cjkRun = 0
-                    }
-                }
-
-                // Force comma for very long runs (>15 CJK without punctuation)
-                if cjkRun >= 15 {
-                    // Try to find a reasonable break point in the last few chars
-                    // Simple heuristic: just insert here
-                    if let last = result.last, isCJKChar(last) {
-                        result.append("，")
-                        cjkRun = 0
-                    }
+                if !didBreakAfter && shouldBreakBeforePronoun(c, at: i, in: chars, result: result, cjkRun: cjkRun) {
+                    result.append("，")
+                    cjkRun = 0
                 }
 
                 result.append(c)
@@ -130,6 +108,62 @@ enum RuleBasedPunctuationInserter {
         output = addSentenceEndPunctuation(output)
 
         return output
+    }
+
+    // MARK: - Comma guards
+
+    private static func shouldBreakAfterParticle(
+        _ particle: String,
+        next c: Character,
+        beforeParticle: Character?,
+        cjkRun: Int
+    ) -> Bool {
+        guard isCJKChar(c) else { return false }
+        if let beforeParticle, allCJKPunctuation.contains(beforeParticle) {
+            return false
+        }
+
+        if particle == "或者", c == "是" {
+            return false
+        }
+
+        if particle == "了" || particle == "嘛" {
+            return cjkRun >= 8
+        }
+
+        return true
+    }
+
+    private static func shouldBreakBeforePronoun(
+        _ c: Character,
+        at index: Int,
+        in chars: [Character],
+        result: [Character],
+        cjkRun: Int
+    ) -> Bool {
+        guard cjkRun >= 6, breakBeforePronouns.contains(c), let last = result.last, isCJKChar(last) else {
+            return false
+        }
+
+        if pronounBreakBlockers.contains(last) {
+            return false
+        }
+
+        if resultHasSuffix("或者是", in: result) {
+            return false
+        }
+
+        if index + 1 < chars.count, chars[index + 1] == "的" {
+            return false
+        }
+
+        return true
+    }
+
+    private static func resultHasSuffix(_ suffix: String, in result: [Character]) -> Bool {
+        let suffixCount = suffix.count
+        guard result.count >= suffixCount else { return false }
+        return String(result.suffix(suffixCount)) == suffix
     }
 
     // MARK: - Sentence-end punctuation
