@@ -170,6 +170,10 @@ struct VoiceInkApp: App {
             await migrationTask?.value
             TranscriptionAutoCleanupService.shared.startMonitoring(modelContext: mainContext)
         }
+
+        if !Self.isRunningTests {
+            VocoAutoApplyModelService.shared.startAutomaticWorkerSync()
+        }
     }
 
     // MARK: - Container Creation Helpers
@@ -430,6 +434,10 @@ struct VoiceInkApp: App {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    private static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }
 

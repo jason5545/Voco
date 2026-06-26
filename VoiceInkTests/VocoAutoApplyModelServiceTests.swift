@@ -621,6 +621,51 @@ struct VocoAutoApplyModelServiceTests {
         #expect(recorder.paths == ["/v1/auto-apply/manifest", "/v1/auto-apply/models/\(remoteSha)"])
     }
 
+    @Test func automaticWorkerSyncInstallsValidatedRemoteModel() async throws {
+        let root = try temporaryDirectory()
+        let modelDirectory = root.appendingPathComponent("AutoApplyModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        let activeModel = modelDirectory.appendingPathComponent(VocoAutoApplyModelService.modelFileName)
+        try writeFixture(to: activeModel, ready: true)
+
+        let remoteData = try #require(fixtureJSON(ready: true, scopedClaudeTarget: "Auto Synced Claude 的 OPUS 模型").data(using: .utf8))
+        let remoteSha = VocoAutoApplyModelService.sha256Hex(for: remoteData)
+        let manifestData = try #require(workerManifestJSON(modelSha: remoteSha).data(using: .utf8))
+        let recorder = WorkerSyncRequestRecorder()
+        let client = VocoAutoApplyWorkerSyncClient(
+            workerURL: URL(string: "https://worker.example")!,
+            transport: { request in
+                recorder.paths.append(request.url?.path ?? "")
+                let response = try Self.httpResponse(for: request, statusCode: 200)
+                switch request.url?.path {
+                case "/v1/auto-apply/manifest":
+                    return (manifestData, response)
+                case "/v1/auto-apply/models/\(remoteSha)":
+                    return (remoteData, response)
+                default:
+                    Issue.record("Unexpected Worker request: \(request.url?.absoluteString ?? "")")
+                    return (Data(), response)
+                }
+            }
+        )
+        let service = VocoAutoApplyModelService(
+            modelURL: activeModel,
+            defaults: try temporaryDefaults(),
+            workerSyncClient: client,
+            workerSyncKeyProvider: { "secret" }
+        )
+        defer { service.stopAutomaticWorkerSync() }
+
+        service.startAutomaticWorkerSync(interval: 60, initialDelay: 0)
+
+        try await waitUntil {
+            service.evaluate("我在測 Cloud 的 OPUS 模型").outputText == "我在測 Auto Synced Claude 的 OPUS 模型"
+        }
+        #expect(service.status.remoteLatestSha256 == remoteSha)
+        #expect(service.status.remoteIsInSync == true)
+        #expect(recorder.paths == ["/v1/auto-apply/manifest", "/v1/auto-apply/models/\(remoteSha)"])
+    }
+
     @Test func workerSync404KeepsLocalLastKnownGoodModel() async throws {
         let activeModel = try writeFixture(ready: true)
         let localSha = VocoAutoApplyModelService.sha256HexForFileIfExists(activeModel)

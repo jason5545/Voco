@@ -382,6 +382,8 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let supportedSchemaVersions: Set<Int> = [1, 2]
     static let supportedRuntimeSchemaVersion = 3
     static let supportedRuntimeSchemaVersions: Set<Int> = [2, 3]
+    static let automaticWorkerSyncInterval: TimeInterval = 60
+    static let automaticWorkerSyncInitialDelay: TimeInterval = 5
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -405,6 +407,9 @@ final class VocoAutoApplyModelService: ObservableObject {
     private var modelFileWatcher: DispatchSourceFileSystemObject?
     private var modelDirectoryWatcher: DispatchSourceFileSystemObject?
     private var pendingModelReload: DispatchWorkItem?
+    private let workerSyncCoordinatorLock = NSLock()
+    private var activeWorkerSync: (id: UUID, task: Task<VocoAutoApplyWorkerSyncOutcome, Never>)?
+    private var automaticWorkerSyncTask: Task<Void, Never>?
     private var remoteLatestSha256: String?
     private var remoteLatestVersion: String?
     private var remoteCheckedAt: String?
@@ -485,6 +490,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         pendingModelReload?.cancel()
         modelFileWatcher?.cancel()
         modelDirectoryWatcher?.cancel()
+        automaticWorkerSyncTask?.cancel()
     }
 
     func reload() {
@@ -653,7 +659,59 @@ final class VocoAutoApplyModelService: ObservableObject {
 
     @discardableResult
     func syncFromWorker() async -> VocoAutoApplyWorkerSyncOutcome {
-        let syncKey = workerSyncKeyProvider()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let handle = workerSyncHandle {
+            Task { [weak self] in
+                guard let self else {
+                    return .keptLocal(String(localized: "Remote sync unavailable, keeping local model"), errorDescription: nil)
+                }
+                return await self.performSyncFromWorker()
+            }
+        }
+        let outcome = await handle.task.value
+        if handle.ownsTask {
+            clearWorkerSyncHandle(id: handle.id)
+        }
+        return outcome
+    }
+
+    func startAutomaticWorkerSync(
+        interval: TimeInterval = VocoAutoApplyModelService.automaticWorkerSyncInterval,
+        initialDelay: TimeInterval = VocoAutoApplyModelService.automaticWorkerSyncInitialDelay
+    ) {
+        guard automaticWorkerSyncTask == nil else { return }
+
+        let syncInterval = max(interval, 0.05)
+        let startupDelay = max(initialDelay, 0)
+        automaticWorkerSyncTask = Task(priority: .utility) { [weak self] in
+            if startupDelay > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: Self.nanoseconds(for: startupDelay))
+                } catch {
+                    return
+                }
+            }
+
+            while !Task.isCancelled {
+                guard let self else { return }
+                if self.hasConfiguredWorkerSyncKey {
+                    _ = await self.syncFromWorker()
+                }
+                do {
+                    try await Task.sleep(nanoseconds: Self.nanoseconds(for: syncInterval))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    func stopAutomaticWorkerSync() {
+        automaticWorkerSyncTask?.cancel()
+        automaticWorkerSyncTask = nil
+    }
+
+    private func performSyncFromWorker() async -> VocoAutoApplyWorkerSyncOutcome {
+        let syncKey = currentWorkerSyncKey()
         guard !syncKey.isEmpty else {
             let message = String(localized: "Remote sync key missing, keeping local model")
             await MainActor.run {
@@ -692,6 +750,39 @@ final class VocoAutoApplyModelService: ObservableObject {
                 updateRemoteStatus(manifest: nil, message: message)
             }
             return .keptLocal(message, errorDescription: error.localizedDescription)
+        }
+    }
+
+    private var hasConfiguredWorkerSyncKey: Bool {
+        !currentWorkerSyncKey().isEmpty
+    }
+
+    private func currentWorkerSyncKey() -> String {
+        workerSyncKeyProvider()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func workerSyncHandle(
+        starting taskFactory: () -> Task<VocoAutoApplyWorkerSyncOutcome, Never>
+    ) -> (id: UUID, task: Task<VocoAutoApplyWorkerSyncOutcome, Never>, ownsTask: Bool) {
+        workerSyncCoordinatorLock.lock()
+        defer { workerSyncCoordinatorLock.unlock() }
+
+        if let activeWorkerSync {
+            return (activeWorkerSync.id, activeWorkerSync.task, false)
+        }
+
+        let id = UUID()
+        let task = taskFactory()
+        activeWorkerSync = (id, task)
+        return (id, task, true)
+    }
+
+    private func clearWorkerSyncHandle(id: UUID) {
+        workerSyncCoordinatorLock.lock()
+        defer { workerSyncCoordinatorLock.unlock() }
+
+        if activeWorkerSync?.id == id {
+            activeWorkerSync = nil
         }
     }
 
@@ -854,6 +945,10 @@ final class VocoAutoApplyModelService: ObservableObject {
 
     private static func isoString(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func nanoseconds(for seconds: TimeInterval) -> UInt64 {
+        UInt64(max(seconds, 0) * 1_000_000_000)
     }
 
     private static func decodeModel(from data: Data) throws -> VocoDecodedAutoApplyModel {
