@@ -47,6 +47,24 @@ struct VocoAutoApplyEvaluationContractTests {
         }
     }
 
+    @Test func cjkUnsafeContinuationBoundaryMatches() throws {
+        #expect(service.replacementMatchesPublic(
+            text: "剛剛有提到尖銳成。",
+            source: "尖銳成",
+            sourceBoundaryMode: VocoAutoApplyModelService.cjkUnsafeContinuationBoundaryMode
+        ) == true)
+        #expect(service.replacementMatchesPublic(
+            text: "這個意見很尖銳成分很高",
+            source: "尖銳成",
+            sourceBoundaryMode: VocoAutoApplyModelService.cjkUnsafeContinuationBoundaryMode
+        ) == false)
+        #expect(service.replacementMatchesPublic(
+            text: "這個講法很尖銳眼光也很準",
+            source: "尖銳眼",
+            sourceBoundaryMode: VocoAutoApplyModelService.cjkUnsafeContinuationBoundaryMode
+        ) == false)
+    }
+
     @Test func textIsActionCommand() throws {
         for case_ in try fixture().textIsActionCommand {
             #expect(service.textIsActionCommand(text: case_.input, actionCommandSurfaces: []) == case_.expected,

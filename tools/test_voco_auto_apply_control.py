@@ -190,7 +190,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             runtime = json.loads(output.read_text(encoding="utf-8"))
 
             self.assertFalse(result["failed"])
-            self.assertEqual(runtime["runtimeSchemaVersion"], 2)
+            self.assertEqual(runtime["runtimeSchemaVersion"], control.RUNTIME_INDEXED_V2_SCHEMA_VERSION)
             self.assertEqual(runtime["modelFormat"], control.RUNTIME_INDEXED_V2_MODEL_FORMAT)
             self.assertIn(control.strict_text_key("Cloud 的 OPUS 模型"), runtime["exactApplyPolicyByStrictKey"])
             exact = runtime["exactApplyPolicyByStrictKey"][control.strict_text_key("Cloud 的 OPUS 模型")]
@@ -569,6 +569,84 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(control.replay_apply_policies("lisa", "", model["policies"])[0], "LiSA")
             self.assertEqual(control.replay_apply_policies("LISA", "", model["policies"])[0], "LiSA")
             self.assertEqual(control.replay_apply_policies("麗紗", "", model["policies"])[0], "LiSA")
+
+    def test_migrate_pct_seed_families_compile_as_boundary_guarded_replacement_families(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+
+            result = control.migrate_pct_seed_families_command(
+                Namespace(
+                    actor="test",
+                    evidence_store=evidence,
+                    family_id=[],
+                    source_boundary_mode=control.CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE,
+                    force=False,
+                    dry_run=False,
+                )
+            )
+            events = control.load_events(evidence)
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertFalse(result["dryRun"])
+            self.assertEqual(result["eventCount"], 10)
+            self.assertTrue(validation["ready"])
+            self.assertEqual(report["overlayPolicyCount"], 25)
+            self.assertEqual(model["controlPlaneFamilies"]["name.jian-rui-cheng"]["policyCount"], 8)
+            self.assertEqual(model["controlPlaneFamilies"]["name.jian-rui-yan"]["policyCount"], 2)
+            self.assertEqual(model["controlPlaneFamilies"]["name.li-sheng-hong"]["policyCount"], 1)
+            self.assertEqual(model["controlPlaneFamilies"]["name.li-sheng-ci"]["policyCount"], 1)
+            self.assertEqual(model["controlPlaneFamilies"]["name.zheng-zi-qing"]["policyCount"], 1)
+            self.assertEqual(model["controlPlaneFamilies"]["name.cai-you-lin"]["policyCount"], 1)
+            self.assertEqual(model["controlPlaneFamilies"]["company.shiji-wind-power"]["policyCount"], 1)
+            self.assertEqual(model["controlPlaneFamilies"]["term.handao-traceability"]["policyCount"], 2)
+            self.assertEqual(
+                {
+                    policy["sourceBoundaryMode"]
+                    for policy in model["policies"]
+                    if policy.get("familyId") == "name.jian-rui-cheng"
+                },
+                {control.CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE},
+            )
+            self.assertEqual(control.replay_apply_policies("尖銳成。", "", model["policies"])[0], "簡瑞成。")
+            self.assertEqual(control.replay_apply_policies("尖銳成分", "", model["policies"])[0], "尖銳成分")
+            self.assertEqual(control.replay_apply_policies("尖銳眼。", "", model["policies"])[0], "簡瑞彥。")
+            self.assertEqual(control.replay_apply_policies("尖銳眼光", "", model["policies"])[0], "尖銳眼光")
+            self.assertEqual(control.replay_apply_policies("金玉熊。", "", model["policies"])[0], "簡岳雄。")
+            self.assertEqual(control.replay_apply_policies("李勝林區不是人名", "", model["policies"])[0], "李勝林區不是人名")
+            self.assertEqual(control.replay_apply_policies("李勝宏。", "", model["policies"])[0], "李聖葒。")
+            self.assertEqual(control.replay_apply_policies("李勝慈。", "", model["policies"])[0], "李聖慈。")
+            self.assertEqual(control.replay_apply_policies("鄭子晴。", "", model["policies"])[0], "鄭紫晴。")
+            self.assertEqual(control.replay_apply_policies("蔡佑林。", "", model["policies"])[0], "蔡佑霖。")
+            self.assertEqual(control.replay_apply_policies("四季風電。", "", model["policies"])[0], "世紀風電。")
+            self.assertEqual(control.replay_apply_policies("焊刀追錯。", "", model["policies"])[0], "銲道追溯。")
+
+            runtime = control.compile_indexed_runtime_v2_model(model, source_model_path=model_path)
+            scoped = runtime["scopedApplyPolicies"]
+            jian_policy = next(policy for policy in scoped if policy["sourcePattern"] == "尖銳成")
+            self.assertEqual(jian_policy["familyId"], "name.jian-rui-cheng")
+            self.assertEqual(jian_policy["migrationSource"], "migrated-pct-seed")
+            self.assertEqual(jian_policy["sourceBoundaryMode"], control.CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE)
 
     def test_replacement_family_rejects_casing_alias_without_opt_in(self):
         with self.assertRaisesRegex(SystemExit, "strict-equivalent aliases"):

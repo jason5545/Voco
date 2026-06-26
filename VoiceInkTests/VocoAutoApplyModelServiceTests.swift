@@ -104,6 +104,23 @@ struct VocoAutoApplyModelServiceTests {
         #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
     }
 
+    @Test func cjkBoundaryGuardedScopedReplacementDoesNotOverreachIntoContinuationWords() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let name = service.evaluate("剛剛有提到尖銳成。")
+        #expect(name.outputText == "剛剛有提到簡瑞成。")
+        #expect(name.applied.map(\.policyId) == ["scoped-fixture-jian-rui-cheng"])
+        #expect(name.applied.first?.familyId == "name.jian-rui-cheng")
+        #expect(name.applied.first?.sourceBoundaryMode == VocoAutoApplyModelService.cjkUnsafeContinuationBoundaryMode)
+
+        let commonPhrase = service.evaluate("這個意見很尖銳成分很高")
+        #expect(commonPhrase.outputText == "這個意見很尖銳成分很高")
+        #expect(commonPhrase.applied.isEmpty)
+    }
+
     @Test func indexedRuntimeV2ExactWholeUtteranceMatchesV1AndKeepsRuntimeGuards() throws {
         let v1 = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),
@@ -675,7 +692,7 @@ struct VocoAutoApplyModelServiceTests {
         """
         {
           "schemaVersion": 1,
-          "runtimeSchemaVersion": 2,
+          "runtimeSchemaVersion": \(VocoAutoApplyModelService.supportedRuntimeSchemaVersion),
           "modelFormat": "voco-auto-apply-runtime-indexed-v2",
           "autoApplyModelVersion": "indexed-v2-fixture",
           "generatedAt": "2026-06-20T00:00:00Z",
@@ -781,8 +798,8 @@ struct VocoAutoApplyModelServiceTests {
           "runtimeSchemaVersion": null,
           "autoApplyModelVersion": "worker-test-model",
           "generatedAt": "2026-06-24T00:00:00Z",
-          "policyCounts": { "apply": 16, "suggest": 1, "replaced": 1 },
-          "policyTypeCounts": { "exactTrainablePair": 3, "scopedReplacement": 15 },
+          "policyCounts": { "apply": 17, "suggest": 1, "replaced": 1 },
+          "policyTypeCounts": { "exactTrainablePair": 3, "scopedReplacement": 16 },
           "readiness": {
             "mergedAutoApplyModelReady": true,
             "failures": []
@@ -883,6 +900,21 @@ struct VocoAutoApplyModelServiceTests {
               "contextAliasesAny": [],
               "contextTokensAny": [],
               "sourceSlices": ["currentRaw"]
+            },
+            {
+              "policyId": "scoped-fixture-jian-rui-cheng",
+              "autoApplyMode": "apply",
+              "policyType": "scopedReplacement",
+              "sourcePattern": "尖銳成",
+              "targetText": "簡瑞成",
+              "scopedSourcePhrase": "尖銳成",
+              "contextAliasesAny": [],
+              "contextTokensAny": [],
+              "sourceSlices": ["manualControlPlane", "migratedPCTSeed"],
+              "sourceBoundaryMode": "\(VocoAutoApplyModelService.cjkUnsafeContinuationBoundaryMode)",
+              "familyId": "name.jian-rui-cheng",
+              "familyRole": "alias",
+              "migrationSource": "migrated-pct-seed"
             },
             {
               "policyId": "scoped-fixture-mingde-recent-change",

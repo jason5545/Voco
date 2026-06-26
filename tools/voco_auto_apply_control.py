@@ -48,12 +48,14 @@ WORKER_URL_OPENER = urllib.request.urlopen
 DEFAULT_CURRENT_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-raw-cleaned-20260611-093103-context10"
 DEFAULT_RERAW_CORPUS_DIR = DEFAULT_REPLAYLAB_ROOT / "artifacts/full-db-reraw-cleaned-20260611-pre12022-context10"
 CONTROL_SCHEMA_VERSION = 1
-EVALUATION_CONTRACT_SCHEMA_VERSION = 1
+EVALUATION_CONTRACT_SCHEMA_VERSION = 2
+SUPPORTED_EVALUATION_CONTRACT_SCHEMA_VERSIONS = {1, EVALUATION_CONTRACT_SCHEMA_VERSION}
 DEFAULT_ACTION_COMMAND_GUARDS = [
     {"surface": "全部刪除"},
     {"surface": "全部删除"},
 ]
-RUNTIME_INDEXED_V2_SCHEMA_VERSION = 2
+RUNTIME_INDEXED_V2_SCHEMA_VERSION = 3
+SUPPORTED_RUNTIME_SCHEMA_VERSIONS = {2, RUNTIME_INDEXED_V2_SCHEMA_VERSION}
 RUNTIME_INDEXED_V2_MODEL_FORMAT = "voco-auto-apply-runtime-indexed-v2"
 RUNTIME_INDEXED_V2_FILENAME = "full-db.auto-apply-runtime-v2.json"
 STRICT_SPACE_RE = re.compile(r"\s+")
@@ -63,6 +65,89 @@ MANUAL_CORPUS_ACCEPTANCE_MAX = 25
 DEFAULT_BACKUP_RETENTION = 3
 PROTECTED_TERM_GUARD_REASON = "auto-apply-model-protected-term-guard"
 PROTECTED_TERM_GUARD_KEYS = ("protectedTermAllowlistGuards", "protectedTermAllowlist")
+DEFAULT_SOURCE_BOUNDARY_MODE = "default"
+CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE = "cjk-unsafe-continuation"
+SOURCE_BOUNDARY_MODES = {DEFAULT_SOURCE_BOUNDARY_MODE, CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE}
+UNSAFE_CJK_CONTINUATION_AFTER_PAIR_SOURCE = set("分性化度感型式區市縣里路街段號款項章篇版光睛")
+MIGRATED_PCT_SEED_FAMILIES = [
+    {
+        "familyId": "name.jian-rui-cheng",
+        "sourceRuleId": "seed.name.jian-rui-cheng",
+        "targetText": "簡瑞成",
+        "aliases": ["金瑞城", "金瑞辰", "簡瑞城", "簡瑞辰", "尖銳城", "尖銳成", "簡銳城", "點銳成"],
+        "negative": [
+            {"text": "這個意見很尖銳成分很高", "context": "", "expectedText": "這個意見很尖銳成分很高", "forbiddenText": "簡瑞成"},
+            {"text": "這個點銳成分先不要動", "context": "", "expectedText": "這個點銳成分先不要動", "forbiddenText": "簡瑞成"},
+        ],
+    },
+    {
+        "familyId": "name.jian-rui-yan",
+        "sourceRuleId": "seed.name.jian-rui-yan",
+        "targetText": "簡瑞彥",
+        "aliases": ["簡瑞燕", "尖銳眼"],
+        "negative": [
+            {"text": "這個講法很尖銳眼光也很準", "context": "", "expectedText": "這個講法很尖銳眼光也很準", "forbiddenText": "簡瑞彥"},
+        ],
+    },
+    {
+        "familyId": "name.jian-yue-xiong",
+        "sourceRuleId": "seed.name.jian-yue-xiong",
+        "targetText": "簡岳雄",
+        "aliases": ["簡越雄", "簡躍雄", "簡悅雄", "簡月雄", "簡約雄", "金玉熊"],
+        "negative": [],
+    },
+    {
+        "familyId": "name.li-sheng-ling",
+        "sourceRuleId": "seed.name.li-sheng-ling",
+        "targetText": "李聖苓",
+        "aliases": ["李勝林", "李聖林"],
+        "negative": [
+            {"text": "李勝林區不是人名", "context": "", "expectedText": "李勝林區不是人名", "forbiddenText": "李聖苓"},
+        ],
+    },
+    {
+        "familyId": "name.li-sheng-hong",
+        "sourceRuleId": "seed.name.li-sheng-hong",
+        "targetText": "李聖葒",
+        "aliases": ["李勝宏"],
+        "negative": [],
+    },
+    {
+        "familyId": "name.li-sheng-ci",
+        "sourceRuleId": "seed.name.li-sheng-ci",
+        "targetText": "李聖慈",
+        "aliases": ["李勝慈"],
+        "negative": [],
+    },
+    {
+        "familyId": "name.zheng-zi-qing",
+        "sourceRuleId": "seed.name.zheng-zi-qing",
+        "targetText": "鄭紫晴",
+        "aliases": ["鄭子晴"],
+        "negative": [],
+    },
+    {
+        "familyId": "name.cai-you-lin",
+        "sourceRuleId": "seed.name.cai-you-lin",
+        "targetText": "蔡佑霖",
+        "aliases": ["蔡佑林"],
+        "negative": [],
+    },
+    {
+        "familyId": "company.shiji-wind-power",
+        "sourceRuleId": "seed.company.shiji-wind-power",
+        "targetText": "世紀風電",
+        "aliases": ["四季風電"],
+        "negative": [],
+    },
+    {
+        "familyId": "term.handao-traceability",
+        "sourceRuleId": "seed.term.handao-traceability",
+        "targetText": "銲道追溯",
+        "aliases": ["焊道追溯", "焊刀追錯"],
+        "negative": [],
+    },
+]
 BASELINE_DRIFT_RISK_FLAGS = {
     "storedOutputDisagreesWithRawDerivedCleaned",
     "rerawStoredBaselineDrift",
@@ -160,10 +245,25 @@ def parse_args() -> argparse.Namespace:
     replacement_family.add_argument("--alias", action="append", required=True, default=[])
     replacement_family.add_argument("--rule-name-prefix")
     replacement_family.add_argument("--allow-strict-equivalent-alias", action="store_true")
+    replacement_family.add_argument(
+        "--source-boundary-mode",
+        choices=sorted(SOURCE_BOUNDARY_MODES),
+        default=DEFAULT_SOURCE_BOUNDARY_MODE,
+    )
     replacement_family.add_argument("--row-pk", type=int)
     replacement_family.add_argument("--positive", action="append", default=[], help="TEXT||CONTEXT||EXPECTED")
     replacement_family.add_argument("--negative", action="append", default=[], help="TEXT or TEXT||CONTEXT")
     replacement_family.add_argument("--note")
+
+    migrate_pct = subparsers.add_parser("migratePctSeedFamilies")
+    migrate_pct.add_argument("--family-id", action="append", default=[])
+    migrate_pct.add_argument(
+        "--source-boundary-mode",
+        choices=sorted(SOURCE_BOUNDARY_MODES),
+        default=CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE,
+    )
+    migrate_pct.add_argument("--force", action="store_true")
+    migrate_pct.add_argument("--dry-run", action="store_true")
 
     family_tag = subparsers.add_parser("tagPolicyFamily")
     family_tag.add_argument("--policy-id", action="append", default=[])
@@ -324,6 +424,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         event = replacement_family_event(args)
         append_event(args.evidence_store.expanduser(), event)
         return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+    if args.command == "migratePctSeedFamilies":
+        return migrate_pct_seed_families_command(args)
     if args.command == "tagPolicyFamily":
         event = tag_policy_family_event(args)
         append_event(args.evidence_store.expanduser(), event)
@@ -590,6 +692,9 @@ def replacement_family_event(args: argparse.Namespace) -> dict[str, Any]:
         "rowPk": args.row_pk,
         "ruleNamePrefix": args.rule_name_prefix or f"family:{family_id}",
         "allowStrictEquivalentAlias": bool(args.allow_strict_equivalent_alias),
+        "sourceBoundaryMode": normalized_source_boundary_mode(
+            getattr(args, "source_boundary_mode", DEFAULT_SOURCE_BOUNDARY_MODE)
+        ),
         "examples": {
             "positive": positive_examples,
             "negative": parse_negative_examples(args.negative),
@@ -601,6 +706,90 @@ def replacement_family_event(args: argparse.Namespace) -> dict[str, Any]:
         },
     }
     return make_event(args.actor, "addReplacementFamily", payload)
+
+
+def migrate_pct_seed_families_command(args: argparse.Namespace) -> dict[str, Any]:
+    selected_family_ids = compact_strings(getattr(args, "family_id", []) or [])
+    for family_id in selected_family_ids:
+        validate_family_id(family_id)
+
+    requested = set(selected_family_ids)
+    families = [
+        family for family in MIGRATED_PCT_SEED_FAMILIES
+        if not requested or str(family["familyId"]) in requested
+    ]
+    missing = sorted(requested - {str(family["familyId"]) for family in families})
+    if missing:
+        raise SystemExit(f"Unknown migrated PCT seed family id(s): {', '.join(missing)}")
+
+    evidence_store = args.evidence_store.expanduser()
+    existing_events = load_events(evidence_store)
+    existing_family_ids = {
+        str(((event.get("payload") or {}).get("familyId")) or "")
+        for event in existing_events
+        if event.get("action") == "addReplacementFamily"
+    }
+
+    events: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    boundary_mode = normalized_source_boundary_mode(args.source_boundary_mode)
+    for family in families:
+        family_id = str(family["familyId"])
+        if family_id in existing_family_ids and not args.force:
+            skipped.append(family_id)
+            continue
+        events.append(migrated_pct_seed_family_event(args.actor, family, boundary_mode))
+
+    if not args.dry_run:
+        for event in events:
+            append_event(evidence_store, event)
+
+    return {
+        "schema": "voco.auto-apply-control.migrated-pct-seed-families.v1",
+        "evidenceStore": str(evidence_store),
+        "dryRun": bool(args.dry_run),
+        "sourceBoundaryMode": boundary_mode,
+        "eventCount": len(events),
+        "skippedExistingFamilyIds": skipped,
+        "events": events,
+        "failed": False,
+    }
+
+
+def migrated_pct_seed_family_event(
+    actor: str,
+    family: dict[str, Any],
+    boundary_mode: str,
+) -> dict[str, Any]:
+    family_id = str(family["familyId"])
+    target_text = str(family["targetText"])
+    aliases = compact_alias_strings(family.get("aliases") or [])
+    payload = {
+        "ruleType": "replacementFamily",
+        "familyId": family_id,
+        "targetText": target_text,
+        "aliases": aliases,
+        "rowPk": None,
+        "ruleNamePrefix": f"migrated-pct-seed:{family_id}",
+        "allowStrictEquivalentAlias": False,
+        "sourceBoundaryMode": boundary_mode,
+        "sourceRuleId": family.get("sourceRuleId"),
+        "examples": {
+            "positive": [
+                {"text": alias, "context": "migrated-pct-seed", "expectedText": target_text}
+                for alias in aliases
+            ],
+            "negative": list(family.get("negative") or []),
+        },
+        "provenance": {
+            "manualLabel": "migrated-pct-seed",
+            "evidenceTier": "T3_LEGACY_SEED",
+            "migrationSource": "migrated-pct-seed",
+            "sourceRuleId": family.get("sourceRuleId"),
+            "note": "Legacy PCT seed migrated into append-only auto-apply replacement family.",
+        },
+    }
+    return make_event(actor, "addReplacementFamily", payload)
 
 
 def tag_policy_family_event(args: argparse.Namespace) -> dict[str, Any]:
@@ -1436,6 +1625,10 @@ def compact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
             "contextRequired": policy.get("contextRequired"),
             "requireAlias": policy.get("requireAlias"),
             "sourceSlices": compact_strings(policy.get("sourceSlices") or []),
+            "sourceBoundaryMode": policy.get("sourceBoundaryMode"),
+            "familyId": policy.get("familyId"),
+            "familyRole": policy.get("familyRole"),
+            "migrationSource": policy.get("migrationSource"),
         }
     )
 
@@ -1743,6 +1936,14 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
     family_id = str(payload["familyId"])
+    provenance = payload.get("provenance") if isinstance(payload.get("provenance"), dict) else {}
+    migration_source = str(provenance.get("migrationSource") or "")
+    source_slices = ["manualControlPlane"]
+    if migration_source == "migrated-pct-seed":
+        source_slices.append("migratedPCTSeed")
+    source_boundary_mode = normalized_source_boundary_mode(
+        payload.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE
+    )
     policies: list[dict[str, Any]] = []
     for alias in aliases:
         policy_id_key = json.dumps(
@@ -1792,7 +1993,7 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "inputStrictKey": None,
                 "targetStrictKey": strict_text_key(target_text),
                 "exactInputResolution": None,
-                "sourceSlices": ["manualControlPlane"],
+                "sourceSlices": source_slices,
                 "sourcePolicies": [],
                 "controlEvidenceEventIds": [event["eventId"]],
                 "familyId": family_id,
@@ -1801,6 +2002,9 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "familyTagEventIds": [event["eventId"]],
                 "familyTaggedAt": event.get("createdAt"),
                 "familyAliasCount": len(aliases),
+                "sourceBoundaryMode": source_boundary_mode,
+                "migrationSource": migration_source or None,
+                "sourceRuleId": payload.get("sourceRuleId"),
             }
         )
     return policies
@@ -2262,6 +2466,16 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
         if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
+        mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
+        if mode not in SOURCE_BOUNDARY_MODES:
+            failures.append(
+                {
+                    "kind": "manualReplacementUnsupportedSourceBoundaryMode",
+                    "policyId": policy_id,
+                    "sourceBoundaryMode": mode,
+                    "passed": False,
+                }
+            )
     return failures
 
 
@@ -2625,7 +2839,14 @@ def manual_replacement_policy_accepts_change(
         return False
     if strict_text_key(after) == strict_text_key(cleaned):
         return False
-    return strict_text_key(replace_policy_source(before, source, target)) == strict_text_key(after)
+    return strict_text_key(
+        replace_policy_source(
+            before,
+            source,
+            target,
+            str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE),
+        )
+    ) == strict_text_key(after)
 
 
 def policy_contains_row(policy: dict[str, Any], field: str, row_pk: int) -> bool:
@@ -3382,10 +3603,10 @@ def validate_worker_manifest(manifest: dict[str, Any]) -> None:
     if not is_sha256(model_sha):
         raise WorkerSyncError("manifest.modelSha256 is missing or invalid")
     schema_version = manifest.get("schemaVersion")
-    if schema_version not in (None, EVALUATION_CONTRACT_SCHEMA_VERSION):
+    if schema_version is not None and schema_version not in SUPPORTED_EVALUATION_CONTRACT_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported manifest schemaVersion: {schema_version}")
     runtime_schema_version = manifest.get("runtimeSchemaVersion")
-    if runtime_schema_version not in (None, RUNTIME_INDEXED_V2_SCHEMA_VERSION):
+    if runtime_schema_version is not None and runtime_schema_version not in SUPPORTED_RUNTIME_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported manifest runtimeSchemaVersion: {runtime_schema_version}")
     readiness = manifest.get("readiness")
     if not isinstance(readiness, dict) or not (
@@ -3402,9 +3623,9 @@ def validate_worker_manifest(manifest: dict[str, Any]) -> None:
 
 
 def validate_worker_model_artifact(model: dict[str, Any], manifest: dict[str, Any] | None = None) -> None:
-    if model.get("schemaVersion") not in (None, EVALUATION_CONTRACT_SCHEMA_VERSION):
+    if model.get("schemaVersion") is not None and model.get("schemaVersion") not in SUPPORTED_EVALUATION_CONTRACT_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported model schemaVersion: {model.get('schemaVersion')}")
-    if model.get("runtimeSchemaVersion") not in (None, RUNTIME_INDEXED_V2_SCHEMA_VERSION):
+    if model.get("runtimeSchemaVersion") is not None and model.get("runtimeSchemaVersion") not in SUPPORTED_RUNTIME_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported model runtimeSchemaVersion: {model.get('runtimeSchemaVersion')}")
     readiness = model.get("mergedReplayReadiness")
     if not isinstance(readiness, dict) or readiness.get("mergedAutoApplyModelReady") is not True:
@@ -3514,6 +3735,9 @@ def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, A
             "policyType": policy.get("policyType"),
             "sourcePattern": policy.get("sourcePattern"),
             "targetText": policy.get("targetText"),
+            "sourceBoundaryMode": policy.get("sourceBoundaryMode"),
+            "familyId": policy.get("familyId"),
+            "familyRole": policy.get("familyRole"),
         }
         for policy in suggest_policies
         if policy_fires(policy, after, context)
@@ -3664,6 +3888,9 @@ def replay_apply_policies_unchecked(
                 "policyType": exact_policy.get("policyType"),
                 "sourcePattern": exact_policy.get("sourcePattern"),
                 "targetText": exact_policy.get("targetText"),
+                "sourceBoundaryMode": exact_policy.get("sourceBoundaryMode"),
+                "familyId": exact_policy.get("familyId"),
+                "familyRole": exact_policy.get("familyRole"),
             }
         ]
 
@@ -3674,7 +3901,12 @@ def replay_apply_policies_unchecked(
             continue
         source = str(policy.get("sourcePattern") or "")
         target = str(policy.get("targetText") or "")
-        updated = replace_policy_source(after, source, target)
+        updated = replace_policy_source(
+            after,
+            source,
+            target,
+            str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE),
+        )
         if updated == after:
             continue
         after = updated
@@ -3684,6 +3916,9 @@ def replay_apply_policies_unchecked(
                 "policyType": policy.get("policyType"),
                 "sourcePattern": source,
                 "targetText": target,
+                "sourceBoundaryMode": policy.get("sourceBoundaryMode"),
+                "familyId": policy.get("familyId"),
+                "familyRole": policy.get("familyRole"),
             }
         )
     return after, fires
@@ -3787,7 +4022,8 @@ def first_exact_policy(exact_policies: list[dict[str, Any]], text: str) -> dict[
 
 def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     source = str(policy.get("sourcePattern") or "")
-    if not replacement_matches(text, source):
+    boundary_mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
+    if not replacement_matches(text, source, boundary_mode):
         return False
     trusted = context if policy.get("contextFromContextOnly") else "\n".join([text, context])
     alias_hits = token_hits(trusted, policy.get("contextAliasesAny") or [])
@@ -3799,19 +4035,38 @@ def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     return True
 
 
-def replacement_matches(text: str, source: str) -> bool:
+def replacement_matches(
+    text: str,
+    source: str,
+    source_boundary_mode: str = DEFAULT_SOURCE_BOUNDARY_MODE,
+) -> bool:
     if not source:
         return False
     if contains_ascii_token(source):
         return range_for_ascii_bounded_source(source, text) is not None
+    if source_boundary_mode == CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE:
+        return range_for_cjk_unsafe_continuation_bounded_source(source, text) is not None
     return source in text
 
 
-def replace_policy_source(text: str, source: str, target: str) -> str:
+def replace_policy_source(
+    text: str,
+    source: str,
+    target: str,
+    source_boundary_mode: str = DEFAULT_SOURCE_BOUNDARY_MODE,
+) -> str:
     if contains_ascii_token(source):
         result = text
         while True:
             match = range_for_ascii_bounded_source(source, result)
+            if not match:
+                return result
+            start, end = match
+            result = result[:start] + target + result[end:]
+    if source_boundary_mode == CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE:
+        result = text
+        while True:
+            match = range_for_cjk_unsafe_continuation_bounded_source(source, result)
             if not match:
                 return result
             start, end = match
@@ -3833,12 +4088,43 @@ def range_for_ascii_bounded_source(source: str, text: str) -> tuple[int, int] | 
         start = end
 
 
+def range_for_cjk_unsafe_continuation_bounded_source(source: str, text: str) -> tuple[int, int] | None:
+    start = 0
+    while True:
+        index = text.find(source, start)
+        if index < 0:
+            return None
+        end = index + len(source)
+        if not should_skip_cjk_unsafe_continuation_match(text, end, source):
+            return index, end
+        start = end
+
+
+def should_skip_cjk_unsafe_continuation_match(text: str, end: int, source: str) -> bool:
+    if not is_all_cjk(source) or end >= len(text):
+        return False
+    return text[end] in UNSAFE_CJK_CONTINUATION_AFTER_PAIR_SOURCE
+
+
 def contains_ascii_token(text: str) -> bool:
     return ASCII_TOKEN_RE.search(text) is not None
 
 
 def is_ascii_word_character(value: str) -> bool:
     return value == "_" or value.isascii() and value.isalnum()
+
+
+def is_all_cjk(value: str) -> bool:
+    return bool(value) and all(is_cjk_character(char) for char in value)
+
+
+def is_cjk_character(value: str) -> bool:
+    return any(
+        0x4E00 <= ord(char) <= 0x9FFF or
+        0x3400 <= ord(char) <= 0x4DBF or
+        0x20000 <= ord(char) <= 0x2A6DF
+        for char in value
+    )
 
 
 def token_hits(text: str, tokens: Iterable[str]) -> list[str]:
@@ -4045,6 +4331,13 @@ def compact_alias_strings(values: Iterable[Any]) -> list[str]:
         seen.add(key)
         result.append(item)
     return result
+
+
+def normalized_source_boundary_mode(value: Any) -> str:
+    mode = str(value or DEFAULT_SOURCE_BOUNDARY_MODE).strip() or DEFAULT_SOURCE_BOUNDARY_MODE
+    if mode not in SOURCE_BOUNDARY_MODES:
+        raise SystemExit(f"unsupported source boundary mode: {mode}")
+    return mode
 
 
 def validate_family_id(value: str) -> None:

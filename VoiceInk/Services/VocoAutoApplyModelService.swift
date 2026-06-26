@@ -11,6 +11,31 @@ struct VocoAutoApplyPolicyFire: Codable, Equatable {
     let sourcePattern: String
     let targetText: String
     let sourceSlices: [String]
+    let sourceBoundaryMode: String?
+    let familyId: String?
+    let familyRole: String?
+
+    init(
+        policyId: String,
+        policyType: String,
+        autoApplyMode: String,
+        sourcePattern: String,
+        targetText: String,
+        sourceSlices: [String],
+        sourceBoundaryMode: String? = nil,
+        familyId: String? = nil,
+        familyRole: String? = nil
+    ) {
+        self.policyId = policyId
+        self.policyType = policyType
+        self.autoApplyMode = autoApplyMode
+        self.sourcePattern = sourcePattern
+        self.targetText = targetText
+        self.sourceSlices = sourceSlices
+        self.sourceBoundaryMode = sourceBoundaryMode
+        self.familyId = familyId
+        self.familyRole = familyRole
+    }
 }
 
 struct VocoAutoApplyGuardBlock: Codable, Equatable {
@@ -310,11 +335,11 @@ struct VocoAutoApplyWorkerSyncClient {
             throw VocoAutoApplyWorkerSyncError.invalidManifest("modelSha256 is missing or invalid")
         }
         if let schemaVersion = manifest.schemaVersion,
-           schemaVersion != VocoAutoApplyModelService.supportedSchemaVersion {
+           !VocoAutoApplyModelService.supportedSchemaVersions.contains(schemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported schemaVersion \(schemaVersion)")
         }
         if let runtimeSchemaVersion = manifest.runtimeSchemaVersion,
-           runtimeSchemaVersion != VocoAutoApplyModelService.supportedRuntimeSchemaVersion {
+           !VocoAutoApplyModelService.supportedRuntimeSchemaVersions.contains(runtimeSchemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
         }
         guard manifest.readiness?.isReady == true else {
@@ -353,8 +378,10 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let enabledKey = "VocoAutoApplyModelEnabled"
     static let modelFileName = "full-db.auto-apply-model.json"
     static let protectedTermGuardReason = "auto-apply-model-protected-term-guard"
-    static let supportedSchemaVersion = 1
-    static let supportedRuntimeSchemaVersion = 2
+    static let supportedSchemaVersion = 2
+    static let supportedSchemaVersions: Set<Int> = [1, 2]
+    static let supportedRuntimeSchemaVersion = 3
+    static let supportedRuntimeSchemaVersions: Set<Int> = [2, 3]
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -384,6 +411,12 @@ final class VocoAutoApplyModelService: ObservableObject {
     private var remoteMessage: String?
 
     static let hardCodedActionCommandSurfaces: [String] = ["全部刪除", "全部删除"]
+    static let defaultSourceBoundaryMode = "default"
+    static let cjkUnsafeContinuationBoundaryMode = "cjk-unsafe-continuation"
+    private static let unsafeCJKContinuationAfterPairSource: Set<Character> = [
+        "分", "性", "化", "度", "感", "型", "式", "區", "市", "縣", "里", "路",
+        "街", "段", "號", "款", "項", "章", "篇", "版", "光", "睛"
+    ]
 
     /// Contract: docs/auto-apply-evaluation-contract.md §2
     static let asciiTokenPattern = "[A-Za-z][A-Za-z0-9_+.#/-]*"
@@ -748,11 +781,11 @@ final class VocoAutoApplyModelService: ObservableObject {
     ) throws {
         try validateDownloadedModelData(data, expectedSha256: manifest.modelSha256)
         if let schemaVersion = manifest.schemaVersion,
-           schemaVersion != supportedSchemaVersion {
+           !supportedSchemaVersions.contains(schemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported schemaVersion \(schemaVersion)")
         }
         if let runtimeSchemaVersion = manifest.runtimeSchemaVersion,
-           runtimeSchemaVersion != supportedRuntimeSchemaVersion {
+           !supportedRuntimeSchemaVersions.contains(runtimeSchemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidManifest("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
         }
     }
@@ -774,11 +807,11 @@ final class VocoAutoApplyModelService: ObservableObject {
         }
 
         if let schemaVersion = envelope.schemaVersion,
-           schemaVersion != supportedSchemaVersion {
+           !supportedSchemaVersions.contains(schemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidModel("unsupported schemaVersion \(schemaVersion)")
         }
         if let runtimeSchemaVersion = envelope.runtimeSchemaVersion,
-           runtimeSchemaVersion != supportedRuntimeSchemaVersion {
+           !supportedRuntimeSchemaVersions.contains(runtimeSchemaVersion) {
             throw VocoAutoApplyWorkerSyncError.invalidModel("unsupported runtimeSchemaVersion \(runtimeSchemaVersion)")
         }
         guard envelope.mergedReplayReadiness?.mergedAutoApplyModelReady == true else {
@@ -836,7 +869,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         do {
             let model = try decoder.decode(VocoAutoApplyModel.self, from: data)
             if let schemaVersion = model.schemaVersion,
-               schemaVersion != Self.supportedSchemaVersion {
+               !Self.supportedSchemaVersions.contains(schemaVersion) {
                 throw VocoAutoApplyModelDecodeError.unsupportedSchemaVersion(schemaVersion)
             }
             return VocoDecodedAutoApplyModel(model: model)
@@ -968,7 +1001,12 @@ final class VocoAutoApplyModelService: ObservableObject {
                   let targetText = policy.targetText
             else { continue }
 
-            let updated = replace(sourcePattern, with: targetText, in: output)
+            let updated = replace(
+                sourcePattern,
+                with: targetText,
+                in: output,
+                sourceBoundaryMode: policy.sourceBoundaryMode
+            )
             guard updated != output else { continue }
             output = updated
             applied.append(policy.fire)
@@ -1047,7 +1085,11 @@ final class VocoAutoApplyModelService: ObservableObject {
         }
 
         guard let sourcePattern = policy.sourcePattern,
-              replacementMatches(text: text, source: sourcePattern)
+              replacementMatches(
+                text: text,
+                source: sourcePattern,
+                sourceBoundaryMode: policy.sourceBoundaryMode
+              )
         else { return false }
 
         let trusted = policy.contextFromContextOnly == true ? context : [text, context].joined(separator: "\n")
@@ -1058,18 +1100,37 @@ final class VocoAutoApplyModelService: ObservableObject {
         return true
     }
 
-    private func replacementMatches(text: String, source: String) -> Bool {
+    private func replacementMatches(
+        text: String,
+        source: String,
+        sourceBoundaryMode: String? = nil
+    ) -> Bool {
         guard !source.isEmpty else { return false }
         if containsASCIIToken(source) {
             return rangeForASCIIBoundedSource(source, in: text) != nil
         }
+        if sourceBoundaryMode == Self.cjkUnsafeContinuationBoundaryMode {
+            return rangeForCJKUnsafeContinuationBoundedSource(source, in: text) != nil
+        }
         return text.contains(source)
     }
 
-    private func replace(_ source: String, with target: String, in text: String) -> String {
+    private func replace(
+        _ source: String,
+        with target: String,
+        in text: String,
+        sourceBoundaryMode: String? = nil
+    ) -> String {
         if containsASCIIToken(source) {
             var result = text
             while let range = rangeForASCIIBoundedSource(source, in: result) {
+                result.replaceSubrange(range, with: target)
+            }
+            return result
+        }
+        if sourceBoundaryMode == Self.cjkUnsafeContinuationBoundaryMode {
+            var result = text
+            while let range = rangeForCJKUnsafeContinuationBoundedSource(source, in: result) {
                 result.replaceSubrange(range, with: target)
             }
             return result
@@ -1089,6 +1150,30 @@ final class VocoAutoApplyModelService: ObservableObject {
         return nil
     }
 
+    private func rangeForCJKUnsafeContinuationBoundedSource(_ source: String, in text: String) -> Range<String.Index>? {
+        var searchStart = text.startIndex
+        while searchStart <= text.endIndex,
+              let range = text.range(of: source, options: [], range: searchStart..<text.endIndex) {
+            if !shouldSkipCJKUnsafeContinuationMatch(source: source, upperBound: range.upperBound, in: text) {
+                return range
+            }
+            searchStart = range.upperBound
+        }
+        return nil
+    }
+
+    private func shouldSkipCJKUnsafeContinuationMatch(
+        source: String,
+        upperBound: String.Index,
+        in text: String
+    ) -> Bool {
+        guard source.allSatisfy(Self.isCJKCharacter),
+              upperBound < text.endIndex
+        else { return false }
+
+        return Self.unsafeCJKContinuationAfterPairSource.contains(text[upperBound])
+    }
+
     private func containsASCIIToken(_ text: String) -> Bool {
         let range = NSRange(location: 0, length: text.utf16.count)
         return Self.asciiTokenRegex.firstMatch(in: text, options: [], range: range) != nil
@@ -1102,6 +1187,17 @@ final class VocoAutoApplyModelService: ObservableObject {
             (48...57).contains(scalar.value) ||
             (65...90).contains(scalar.value) ||
             (97...122).contains(scalar.value)
+    }
+
+    private static func isCJKCharacter(_ character: Character) -> Bool {
+        character.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0x20000...0x2A6DF:
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     private func tokenHits(in text: String, tokens: [String]) -> [String] {
@@ -1181,8 +1277,12 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     /// Contract: docs/auto-apply-evaluation-contract.md §3
-    func replacementMatchesPublic(text: String, source: String) -> Bool {
-        replacementMatches(text: text, source: source)
+    func replacementMatchesPublic(
+        text: String,
+        source: String,
+        sourceBoundaryMode: String? = nil
+    ) -> Bool {
+        replacementMatches(text: text, source: source, sourceBoundaryMode: sourceBoundaryMode)
     }
 
     func containsAsciiTokenPublic(_ text: String) -> Bool {
@@ -1407,7 +1507,7 @@ private struct VocoIndexedRuntimeAutoApplyModel: Decodable {
             throw VocoAutoApplyModelDecodeError.missingIndexedRuntimeMarker
         }
         if let decodedRuntimeSchemaVersion,
-           decodedRuntimeSchemaVersion != VocoAutoApplyModelService.supportedRuntimeSchemaVersion {
+           !VocoAutoApplyModelService.supportedRuntimeSchemaVersions.contains(decodedRuntimeSchemaVersion) {
             throw VocoAutoApplyModelDecodeError.unsupportedRuntimeSchemaVersion(decodedRuntimeSchemaVersion)
         }
 
@@ -1618,6 +1718,10 @@ private struct VocoAutoApplyPolicy: Decodable {
     let sourceSlices: [String]
     let reviewGateConflictRows: [Int]
     let manualOverrideRows: [Int]
+    let sourceBoundaryMode: String?
+    let familyId: String?
+    let familyRole: String?
+    let migrationSource: String?
 
     var hasNonEmptyTarget: Bool {
         targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -1646,7 +1750,10 @@ private struct VocoAutoApplyPolicy: Decodable {
             autoApplyMode: autoApplyMode.rawValue,
             sourcePattern: sourcePattern ?? "",
             targetText: targetText ?? "",
-            sourceSlices: sourceSlices
+            sourceSlices: sourceSlices,
+            sourceBoundaryMode: sourceBoundaryMode,
+            familyId: familyId,
+            familyRole: familyRole
         )
     }
 
@@ -1668,6 +1775,10 @@ private struct VocoAutoApplyPolicy: Decodable {
         case sourceSlices
         case reviewGateConflictRows
         case manualOverrideRows
+        case sourceBoundaryMode
+        case familyId
+        case familyRole
+        case migrationSource
     }
 
     init(
@@ -1687,7 +1798,11 @@ private struct VocoAutoApplyPolicy: Decodable {
         scopedSourcePhrase: String?,
         sourceSlices: [String],
         reviewGateConflictRows: [Int],
-        manualOverrideRows: [Int] = []
+        manualOverrideRows: [Int] = [],
+        sourceBoundaryMode: String? = nil,
+        familyId: String? = nil,
+        familyRole: String? = nil,
+        migrationSource: String? = nil
     ) {
         self.policyId = policyId
         self.autoApplyMode = autoApplyMode
@@ -1706,6 +1821,10 @@ private struct VocoAutoApplyPolicy: Decodable {
         self.sourceSlices = sourceSlices
         self.reviewGateConflictRows = reviewGateConflictRows
         self.manualOverrideRows = manualOverrideRows
+        self.sourceBoundaryMode = sourceBoundaryMode
+        self.familyId = familyId
+        self.familyRole = familyRole
+        self.migrationSource = migrationSource
     }
 
     init(from decoder: Decoder) throws {
@@ -1727,6 +1846,10 @@ private struct VocoAutoApplyPolicy: Decodable {
         sourceSlices = try container.decodeIfPresent([String].self, forKey: .sourceSlices) ?? []
         reviewGateConflictRows = try container.decodeIfPresent([Int].self, forKey: .reviewGateConflictRows) ?? []
         manualOverrideRows = try container.decodeIfPresent([Int].self, forKey: .manualOverrideRows) ?? []
+        sourceBoundaryMode = try container.decodeIfPresent(String.self, forKey: .sourceBoundaryMode)
+        familyId = try container.decodeIfPresent(String.self, forKey: .familyId)
+        familyRole = try container.decodeIfPresent(String.self, forKey: .familyRole)
+        migrationSource = try container.decodeIfPresent(String.self, forKey: .migrationSource)
     }
 }
 
