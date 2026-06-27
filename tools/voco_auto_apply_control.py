@@ -69,6 +69,114 @@ DEFAULT_SOURCE_BOUNDARY_MODE = "default"
 CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE = "cjk-unsafe-continuation"
 SOURCE_BOUNDARY_MODES = {DEFAULT_SOURCE_BOUNDARY_MODE, CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE}
 UNSAFE_CJK_CONTINUATION_AFTER_PAIR_SOURCE = set("分性化度感型式區市縣里路街段號款項章篇版光睛")
+CURRENCY_NUMBER_NORMALIZATION_POLICY_ID = "runtime.currency-number-normalization"
+CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE = "currencyNumberNormalization"
+CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES = ["runtimeSpecialPolicy"]
+CHINESE_CURRENCY_AMOUNT_CHARS = "零〇一二兩两三四五六七八九壹貳參叁肆伍陸柒捌玖十拾百佰千仟萬万億亿點点"
+CURRENCY_APPROXIMATION_CHARS = set("幾几多來余餘約近半")
+CHINESE_CURRENCY_DIGITS = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "壹": 1,
+    "二": 2,
+    "貳": 2,
+    "兩": 2,
+    "两": 2,
+    "三": 3,
+    "參": 3,
+    "叁": 3,
+    "四": 4,
+    "肆": 4,
+    "五": 5,
+    "伍": 5,
+    "六": 6,
+    "陸": 6,
+    "七": 7,
+    "柒": 7,
+    "八": 8,
+    "捌": 8,
+    "九": 9,
+    "玖": 9,
+}
+CHINESE_CURRENCY_SECTION_UNITS = {
+    "十": 10,
+    "拾": 10,
+    "百": 100,
+    "佰": 100,
+    "千": 1_000,
+    "仟": 1_000,
+}
+CHINESE_CURRENCY_HIGH_UNITS = {
+    "萬": 10_000,
+    "万": 10_000,
+    "億": 100_000_000,
+    "亿": 100_000_000,
+}
+CURRENCY_PREFIX_TERMS = (
+    "新台幣",
+    "新臺幣",
+    "人民幣",
+    "台幣",
+    "臺幣",
+    "美金",
+    "美元",
+    "港幣",
+    "日幣",
+    "日圓",
+    "日元",
+    "韓幣",
+    "歐元",
+    "英鎊",
+    "TWD",
+    "NTD",
+    "USD",
+    "HKD",
+    "JPY",
+    "RMB",
+    "CNY",
+    "EUR",
+    "GBP",
+    "NT$",
+    "US$",
+)
+CURRENCY_SUFFIX_TERMS = (
+    "塊錢",
+    "新台幣",
+    "新臺幣",
+    "人民幣",
+    "台幣",
+    "臺幣",
+    "美金",
+    "美元",
+    "港幣",
+    "日幣",
+    "日圓",
+    "日元",
+    "韓幣",
+    "歐元",
+    "英鎊",
+    "塊",
+    "元",
+    "圓",
+)
+
+
+def regex_alternation(values: Iterable[str]) -> str:
+    return "|".join(re.escape(value) for value in sorted(values, key=len, reverse=True))
+
+
+CURRENCY_BOUNDARY_LOOKAHEAD = r"(?=$|[\s　,，。.!！？?、；;：:）)】\]\"'」』]|的|了|嗎|呢|吧|啊|喔|呀|耶|整|錢|以上|以下|以內|左右|上下)"
+CURRENCY_AMOUNT_WITH_SUFFIX_RE = re.compile(
+    rf"(?:{regex_alternation(CURRENCY_PREFIX_TERMS)}\s*)?([{CHINESE_CURRENCY_AMOUNT_CHARS}]+)"
+    rf"(?:{regex_alternation(CURRENCY_SUFFIX_TERMS)}){CURRENCY_BOUNDARY_LOOKAHEAD}",
+    re.IGNORECASE,
+)
+CURRENCY_PREFIX_AMOUNT_RE = re.compile(
+    rf"(?:{regex_alternation(CURRENCY_PREFIX_TERMS)}\s*)"
+    rf"([{CHINESE_CURRENCY_AMOUNT_CHARS}]+){CURRENCY_BOUNDARY_LOOKAHEAD}",
+    re.IGNORECASE,
+)
 MIGRATED_PCT_SEED_FAMILIES = [
     {
         "familyId": "name.jian-rui-cheng",
@@ -2351,7 +2459,7 @@ def validate_positive_examples(
             context = str(example.get("context") or "")
             expected = str(example.get("expectedText") or "")
             after, fires = replay_apply_policies(text, context, apply_policies, protected_guards)
-            passed = strict_text_key(after) == strict_text_key(expected)
+            passed = output_matches_expected_with_currency_format(after, expected)
             results.append(
                 {
                     "eventId": event.get("eventId"),
@@ -2385,7 +2493,7 @@ def validate_negative_examples(
             expected = str(example.get("expectedText") or text)
             forbidden = str(example.get("forbiddenText") or "")
             after, fires = replay_apply_policies(text, context, apply_policies, protected_guards)
-            expected_ok = strict_text_key(after) == strict_text_key(expected)
+            expected_ok = output_matches_expected_with_currency_format(after, expected)
             forbidden_ok = not forbidden or forbidden not in after
             results.append(
                 {
@@ -3921,7 +4029,185 @@ def replay_apply_policies_unchecked(
                 "familyRole": policy.get("familyRole"),
             }
         )
+    after, currency_fires = normalize_currency_numbers(after)
+    fires.extend(currency_fires)
     return after, fires
+
+
+def output_matches_expected_with_currency_format(after: str, expected: str) -> bool:
+    if strict_text_key(after) == strict_text_key(expected):
+        return True
+    normalized_expected, _ = normalize_currency_numbers(expected)
+    return strict_text_key(after) == strict_text_key(normalized_expected)
+
+
+def normalize_currency_numbers(text: str) -> tuple[str, list[dict[str, Any]]]:
+    replacements: list[tuple[int, int, str, str]] = []
+
+    def collect(pattern: re.Pattern[str]) -> None:
+        for match in pattern.finditer(text):
+            start, end = match.span(1)
+            if start < 0 or end < 0:
+                continue
+            if any(max(start, existing_start) < min(end, existing_end) for existing_start, existing_end, _, _ in replacements):
+                continue
+            source = match.group(1)
+            target = normalized_chinese_currency_amount(source)
+            if target and target != source:
+                replacements.append((start, end, source, target))
+
+    collect(CURRENCY_AMOUNT_WITH_SUFFIX_RE)
+    collect(CURRENCY_PREFIX_AMOUNT_RE)
+    if not replacements:
+        return text, []
+
+    result = text
+    for start, end, _source, target in sorted(replacements, key=lambda item: item[0], reverse=True):
+        result = result[:start] + target + result[end:]
+    fires = [
+        {
+            "policyId": CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+            "policyType": CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE,
+            "autoApplyMode": "apply",
+            "sourcePattern": source,
+            "targetText": target,
+            "sourceSlices": CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES,
+        }
+        for start, _end, source, target in sorted(replacements, key=lambda item: item[0])
+    ]
+    return result, fires
+
+
+def normalized_chinese_currency_amount(amount: str) -> str | None:
+    value = amount.strip()
+    if not value or any(ch in CURRENCY_APPROXIMATION_CHARS for ch in value):
+        return None
+    if has_approximate_adjacent_currency_digits(value):
+        return None
+
+    if "點" in value:
+        pieces = value.split("點")
+    else:
+        pieces = value.split("点")
+    if len(pieces) == 1:
+        parsed = parse_chinese_currency_integer(value)
+        return str(parsed) if parsed is not None else None
+    if len(pieces) != 2:
+        return None
+    integer = parse_chinese_currency_integer(pieces[0])
+    fraction = parse_chinese_currency_fraction(pieces[1])
+    if integer is None or fraction is None:
+        return None
+    return f"{integer}.{fraction}"
+
+
+def parse_chinese_currency_fraction(value: str) -> str | None:
+    if not value:
+        return None
+    digits: list[str] = []
+    for ch in value:
+        digit = CHINESE_CURRENCY_DIGITS.get(ch)
+        if digit is None:
+            return None
+        digits.append(str(digit))
+    return "".join(digits)
+
+
+def parse_chinese_currency_integer(value: str) -> int | None:
+    if not value:
+        return None
+    if all(ch in CHINESE_CURRENCY_DIGITS for ch in value):
+        return int("".join(str(CHINESE_CURRENCY_DIGITS[ch]) for ch in value))
+
+    total = 0
+    section = ""
+    saw_high_unit = False
+    last_high_unit = 10**18
+    for ch in value:
+        high_unit = CHINESE_CURRENCY_HIGH_UNITS.get(ch)
+        if high_unit is None:
+            section += ch
+            continue
+        if high_unit >= last_high_unit:
+            return None
+        section_value = parse_chinese_currency_section(section, allow_bare_single_digit=True)
+        if section_value is None:
+            return None
+        total += section_value * high_unit
+        section = ""
+        saw_high_unit = True
+        last_high_unit = high_unit
+
+    allow_bare = not saw_high_unit or section.startswith(("零", "〇"))
+    trailing = parse_chinese_currency_section(section, allow_bare_single_digit=allow_bare)
+    if trailing is None:
+        return None
+    return total + trailing
+
+
+def parse_chinese_currency_section(section: str, *, allow_bare_single_digit: bool) -> int | None:
+    if not section:
+        return 0
+    if all(ch in CHINESE_CURRENCY_DIGITS for ch in section):
+        if len(section) == 1 and not allow_bare_single_digit:
+            return None
+        return int("".join(str(CHINESE_CURRENCY_DIGITS[ch]) for ch in section))
+
+    total = 0
+    current_digit: int | None = None
+    current_digit_follows_zero = False
+    pending_zero = False
+    saw_unit = False
+    last_unit = 10**18
+    for ch in section:
+        digit = CHINESE_CURRENCY_DIGITS.get(ch)
+        if digit is not None:
+            if digit == 0:
+                pending_zero = True
+                current_digit = None
+                current_digit_follows_zero = True
+                continue
+            if current_digit is not None:
+                return None
+            current_digit = digit
+            current_digit_follows_zero = pending_zero
+            pending_zero = False
+            continue
+
+        unit = CHINESE_CURRENCY_SECTION_UNITS.get(ch)
+        if unit is None or unit >= last_unit:
+            return None
+        digit_for_unit = current_digit if current_digit is not None else (1 if unit == 10 else None)
+        if digit_for_unit is None:
+            return None
+        total += digit_for_unit * unit
+        current_digit = None
+        current_digit_follows_zero = False
+        pending_zero = False
+        saw_unit = True
+        last_unit = unit
+
+    if current_digit is not None:
+        if saw_unit and last_unit > 10 and not current_digit_follows_zero:
+            return None
+        total += current_digit
+    return total
+
+
+def has_approximate_adjacent_currency_digits(value: str) -> bool:
+    if not any(ch in CHINESE_CURRENCY_SECTION_UNITS or ch in CHINESE_CURRENCY_HIGH_UNITS for ch in value):
+        return False
+    previous: str | None = None
+    for ch in value:
+        if (
+            previous is not None
+            and previous in CHINESE_CURRENCY_DIGITS
+            and ch in CHINESE_CURRENCY_DIGITS
+            and CHINESE_CURRENCY_DIGITS[previous] != 0
+        ):
+            return True
+        previous = ch
+    return False
 
 
 def protected_term_allowlist_guards(model: dict[str, Any]) -> list[dict[str, Any]]:
@@ -4159,7 +4445,7 @@ def local_corpus_replay(records: list[dict[str, Any]], model: dict[str, Any]) ->
         if changed:
             changed_rows += 1
         cleaned = str(record.get("cleanedText") or "")
-        matches = bool(cleaned) and strict_text_key(after) == strict_text_key(cleaned)
+        matches = bool(cleaned) and output_matches_expected_with_currency_format(after, cleaned)
         if matches:
             matches_cleaned += 1
         elif changed:

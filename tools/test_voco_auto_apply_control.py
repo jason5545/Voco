@@ -66,6 +66,39 @@ class FakeWorkerResponse:
 
 
 class VocoAutoApplyControlTests(unittest.TestCase):
+    def test_currency_chinese_numbers_normalize_only_inside_money_amounts(self):
+        after, fires = control.replay_apply_policies_unchecked(
+            "台幣一千二百元，美金五點二元，還有三百二十塊錢。",
+            "",
+            [],
+        )
+
+        self.assertEqual(after, "台幣1200元，美金5.2元，還有320塊錢。")
+        self.assertEqual(
+            [fire["policyId"] for fire in fires],
+            [
+                control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+                control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+                control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+            ],
+        )
+        self.assertTrue(
+            all(fire["policyType"] == control.CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE for fire in fires)
+        )
+
+        unchanged = [
+            "我有一千二百個想法。",
+            "兩三千塊先不要自動轉。",
+            "一萬多塊也先不要轉。",
+            "一百五元太容易歧義，先不要轉。",
+            "多元分析不是金額。",
+        ]
+        for text in unchanged:
+            with self.subTest(text=text):
+                after, fires = control.replay_apply_policies_unchecked(text, "", [])
+                self.assertEqual(after, text)
+                self.assertEqual(fires, [])
+
     def test_append_compile_and_validate_exact_correction(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

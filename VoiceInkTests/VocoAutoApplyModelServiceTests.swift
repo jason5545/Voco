@@ -104,6 +104,36 @@ struct VocoAutoApplyModelServiceTests {
         #expect(scoped.applied.map(\.policyId) == ["scoped-fixture-claude"])
     }
 
+    @Test func currencyChineseNumbersNormalizeOnlyInsideMoneyAmounts() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults()
+        )
+
+        let converted = service.evaluate("台幣一千二百元，美金五點二元，還有三百二十塊錢。")
+        #expect(converted.outputText == "台幣1200元，美金5.2元，還有320塊錢。")
+        #expect(converted.applied.map(\.policyId) == [
+            VocoAutoApplyModelService.currencyNumberNormalizationPolicyId,
+            VocoAutoApplyModelService.currencyNumberNormalizationPolicyId,
+            VocoAutoApplyModelService.currencyNumberNormalizationPolicyId
+        ])
+        #expect(converted.applied.allSatisfy {
+            $0.policyType == VocoAutoApplyModelService.currencyNumberNormalizationPolicyType
+        })
+
+        for text in [
+            "我有一千二百個想法。",
+            "兩三千塊先不要自動轉。",
+            "一萬多塊也先不要轉。",
+            "一百五元太容易歧義，先不要轉。",
+            "多元分析不是金額。"
+        ] {
+            let result = service.evaluate(text)
+            #expect(result.outputText == text)
+            #expect(result.applied.isEmpty)
+        }
+    }
+
     @Test func cjkBoundaryGuardedScopedReplacementDoesNotOverreachIntoContinuationWords() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),

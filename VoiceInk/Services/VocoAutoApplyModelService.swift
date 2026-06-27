@@ -418,10 +418,59 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let hardCodedActionCommandSurfaces: [String] = ["全部刪除", "全部删除"]
     static let defaultSourceBoundaryMode = "default"
     static let cjkUnsafeContinuationBoundaryMode = "cjk-unsafe-continuation"
+    static let currencyNumberNormalizationPolicyId = "runtime.currency-number-normalization"
+    static let currencyNumberNormalizationPolicyType = "currencyNumberNormalization"
     private static let unsafeCJKContinuationAfterPairSource: Set<Character> = [
         "分", "性", "化", "度", "感", "型", "式", "區", "市", "縣", "里", "路",
         "街", "段", "號", "款", "項", "章", "篇", "版", "光", "睛"
     ]
+    private static let currencyNumberNormalizationSourceSlices = ["runtimeSpecialPolicy"]
+    private static let chineseCurrencyAmountCharacters = "零〇一二兩两三四五六七八九壹貳參叁肆伍陸柒捌玖十拾百佰千仟萬万億亿點点"
+    private static let currencyApproximationCharacters: Set<Character> = [
+        "幾", "几", "多", "來", "余", "餘", "約", "近", "半"
+    ]
+    private static let chineseCurrencyDigitValues: [Character: Int] = [
+        "零": 0, "〇": 0,
+        "一": 1, "壹": 1,
+        "二": 2, "貳": 2, "兩": 2, "两": 2,
+        "三": 3, "參": 3, "叁": 3,
+        "四": 4, "肆": 4,
+        "五": 5, "伍": 5,
+        "六": 6, "陸": 6,
+        "七": 7, "柒": 7,
+        "八": 8, "捌": 8,
+        "九": 9, "玖": 9
+    ]
+    private static let chineseCurrencySectionUnitValues: [Character: Int] = [
+        "十": 10, "拾": 10,
+        "百": 100, "佰": 100,
+        "千": 1_000, "仟": 1_000
+    ]
+    private static let chineseCurrencyHighUnitValues: [Character: Int] = [
+        "萬": 10_000, "万": 10_000,
+        "億": 100_000_000, "亿": 100_000_000
+    ]
+    private static let currencyPrefixTerms = [
+        "新台幣", "新臺幣", "人民幣", "台幣", "臺幣", "美金", "美元", "港幣",
+        "日幣", "日圓", "日元", "韓幣", "歐元", "英鎊", "TWD", "NTD", "USD",
+        "HKD", "JPY", "RMB", "CNY", "EUR", "GBP", "NT$", "US$"
+    ]
+    private static let currencySuffixTerms = [
+        "塊錢", "新台幣", "新臺幣", "人民幣", "台幣", "臺幣", "美金", "美元",
+        "港幣", "日幣", "日圓", "日元", "韓幣", "歐元", "英鎊", "塊", "元", "圓"
+    ]
+    private static let currencyBoundaryLookahead = "(?=$|[\\s　,，。.!！？?、；;：:）)】\\]\"'」』]|的|了|嗎|呢|吧|啊|喔|呀|耶|整|錢|以上|以下|以內|左右|上下)"
+    private static let currencyAmountWithSuffixRegex: NSRegularExpression = {
+        let prefix = regexAlternation(currencyPrefixTerms)
+        let suffix = regexAlternation(currencySuffixTerms)
+        let pattern = "(?:\(prefix)\\s*)?([\(chineseCurrencyAmountCharacters)]+)(?:\(suffix))\(currencyBoundaryLookahead)"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+    private static let currencyPrefixAmountRegex: NSRegularExpression = {
+        let prefix = regexAlternation(currencyPrefixTerms)
+        let pattern = "(?:\(prefix)\\s*)([\(chineseCurrencyAmountCharacters)]+)\(currencyBoundaryLookahead)"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
 
     /// Contract: docs/auto-apply-evaluation-contract.md §2
     static let asciiTokenPattern = "[A-Za-z][A-Za-z0-9_+.#/-]*"
@@ -1107,6 +1156,10 @@ final class VocoAutoApplyModelService: ObservableObject {
             applied.append(policy.fire)
         }
 
+        let currencyNormalization = normalizeCurrencyNumbers(in: output)
+        output = currencyNormalization.outputText
+        applied.append(contentsOf: currencyNormalization.applied)
+
         return guardedEvaluation(
             inputText: text,
             proposedOutputText: output,
@@ -1384,6 +1437,199 @@ final class VocoAutoApplyModelService: ObservableObject {
         containsASCIIToken(text)
     }
 
+    private func normalizeCurrencyNumbers(in text: String) -> (outputText: String, applied: [VocoAutoApplyPolicyFire]) {
+        struct Replacement {
+            let nsRange: NSRange
+            let source: String
+            let target: String
+        }
+
+        var replacements: [Replacement] = []
+
+        func collectMatches(from regex: NSRegularExpression) {
+            let searchRange = NSRange(location: 0, length: text.utf16.count)
+            for match in regex.matches(in: text, options: [], range: searchRange) {
+                let amountNSRange = match.range(at: 1)
+                guard amountNSRange.location != NSNotFound,
+                      !replacements.contains(where: { NSIntersectionRange($0.nsRange, amountNSRange).length > 0 }),
+                      let amountRange = Range(amountNSRange, in: text)
+                else { continue }
+
+                let source = String(text[amountRange])
+                guard let target = normalizedChineseCurrencyAmount(source),
+                      target != source
+                else { continue }
+
+                replacements.append(Replacement(nsRange: amountNSRange, source: source, target: target))
+            }
+        }
+
+        collectMatches(from: Self.currencyAmountWithSuffixRegex)
+        collectMatches(from: Self.currencyPrefixAmountRegex)
+
+        guard !replacements.isEmpty else {
+            return (text, [])
+        }
+
+        var output = text
+        for replacement in replacements.sorted(by: { $0.nsRange.location > $1.nsRange.location }) {
+            guard let outputRange = Range(replacement.nsRange, in: output) else { continue }
+            output.replaceSubrange(outputRange, with: replacement.target)
+        }
+
+        let fires = replacements
+            .sorted(by: { $0.nsRange.location < $1.nsRange.location })
+            .map { replacement in
+                VocoAutoApplyPolicyFire(
+                    policyId: Self.currencyNumberNormalizationPolicyId,
+                    policyType: Self.currencyNumberNormalizationPolicyType,
+                    autoApplyMode: VocoAutoApplyMode.apply.rawValue,
+                    sourcePattern: replacement.source,
+                    targetText: replacement.target,
+                    sourceSlices: Self.currencyNumberNormalizationSourceSlices
+                )
+            }
+        return (output, fires)
+    }
+
+    private func normalizedChineseCurrencyAmount(_ amount: String) -> String? {
+        let trimmed = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.contains(where: { Self.currencyApproximationCharacters.contains($0) }),
+              !hasApproximateAdjacentCurrencyDigits(trimmed)
+        else { return nil }
+
+        let pieces = trimmed.split(separator: "點", omittingEmptySubsequences: false)
+        if pieces.count == 1 {
+            let pointPieces = trimmed.split(separator: "点", omittingEmptySubsequences: false)
+            if pointPieces.count == 2 {
+                return normalizedDecimalCurrencyAmount(integerPart: String(pointPieces[0]), fractionPart: String(pointPieces[1]))
+            }
+            guard pointPieces.count == 1 else { return nil }
+            return parseChineseCurrencyInteger(trimmed).map(String.init)
+        }
+        guard pieces.count == 2 else { return nil }
+        return normalizedDecimalCurrencyAmount(integerPart: String(pieces[0]), fractionPart: String(pieces[1]))
+    }
+
+    private func normalizedDecimalCurrencyAmount(integerPart: String, fractionPart: String) -> String? {
+        guard let integer = parseChineseCurrencyInteger(integerPart),
+              !fractionPart.isEmpty
+        else { return nil }
+        var fractionDigits = ""
+        for character in fractionPart {
+            guard let digit = Self.chineseCurrencyDigitValues[character] else { return nil }
+            fractionDigits.append(String(digit))
+        }
+        return "\(integer).\(fractionDigits)"
+    }
+
+    private func parseChineseCurrencyInteger(_ value: String) -> Int? {
+        guard !value.isEmpty else { return nil }
+        if value.allSatisfy({ Self.chineseCurrencyDigitValues[$0] != nil }) {
+            let digits = value.compactMap { Self.chineseCurrencyDigitValues[$0].map(String.init) }.joined()
+            guard !digits.isEmpty else { return nil }
+            return Int(digits)
+        }
+
+        var total = 0
+        var section = ""
+        var sawHighUnit = false
+        var lastHighUnit = Int.max
+
+        for character in value {
+            if let highUnit = Self.chineseCurrencyHighUnitValues[character] {
+                guard highUnit < lastHighUnit,
+                      let sectionValue = parseChineseCurrencySection(section, allowBareSingleDigit: true)
+                else { return nil }
+                total += sectionValue * highUnit
+                section = ""
+                sawHighUnit = true
+                lastHighUnit = highUnit
+            } else {
+                section.append(character)
+            }
+        }
+
+        guard let trailing = parseChineseCurrencySection(
+            section,
+            allowBareSingleDigit: !sawHighUnit || section.first == "零" || section.first == "〇"
+        ) else { return nil }
+        return total + trailing
+    }
+
+    private func parseChineseCurrencySection(_ section: String, allowBareSingleDigit: Bool) -> Int? {
+        if section.isEmpty { return 0 }
+        if section.allSatisfy({ Self.chineseCurrencyDigitValues[$0] != nil }) {
+            if section.count == 1 && !allowBareSingleDigit {
+                return nil
+            }
+            let digits = section.compactMap { Self.chineseCurrencyDigitValues[$0].map(String.init) }.joined()
+            return Int(digits)
+        }
+
+        var total = 0
+        var currentDigit: Int?
+        var currentDigitFollowsZero = false
+        var pendingZero = false
+        var sawUnit = false
+        var lastUnit = Int.max
+
+        for character in section {
+            if let digit = Self.chineseCurrencyDigitValues[character] {
+                if digit == 0 {
+                    pendingZero = true
+                    currentDigit = nil
+                    currentDigitFollowsZero = true
+                    continue
+                }
+                guard currentDigit == nil else { return nil }
+                currentDigit = digit
+                currentDigitFollowsZero = pendingZero
+                pendingZero = false
+                continue
+            }
+
+            guard let unit = Self.chineseCurrencySectionUnitValues[character],
+                  unit < lastUnit
+            else { return nil }
+            let digit = currentDigit ?? (unit == 10 ? 1 : nil)
+            guard let digit else { return nil }
+            total += digit * unit
+            currentDigit = nil
+            currentDigitFollowsZero = false
+            pendingZero = false
+            sawUnit = true
+            lastUnit = unit
+        }
+
+        if let currentDigit {
+            if sawUnit && lastUnit > 10 && !currentDigitFollowsZero {
+                return nil
+            }
+            total += currentDigit
+        }
+        return total
+    }
+
+    private func hasApproximateAdjacentCurrencyDigits(_ value: String) -> Bool {
+        guard value.contains(where: {
+            Self.chineseCurrencySectionUnitValues[$0] != nil || Self.chineseCurrencyHighUnitValues[$0] != nil
+        }) else { return false }
+
+        var previous: Character?
+        for character in value {
+            defer { previous = character }
+            guard let previous,
+                  Self.chineseCurrencyDigitValues[previous] != nil,
+                  Self.chineseCurrencyDigitValues[character] != nil,
+                  Self.chineseCurrencyDigitValues[previous] != 0
+            else { continue }
+            return true
+        }
+        return false
+    }
+
     private func protectedTermGuardBlocks(
         in text: String,
         applied: [VocoAutoApplyPolicyFire],
@@ -1454,6 +1700,13 @@ final class VocoAutoApplyModelService: ObservableObject {
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    private static func regexAlternation(_ terms: [String]) -> String {
+        terms
+            .sorted { $0.count > $1.count }
+            .map { NSRegularExpression.escapedPattern(for: $0) }
+            .joined(separator: "|")
     }
 }
 
