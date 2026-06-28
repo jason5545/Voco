@@ -27,6 +27,8 @@ struct ChinesePostProcessingTrace {
 @MainActor
 class ChinesePostProcessingService: ObservableObject {
     static let shared = ChinesePostProcessingService()
+    private static let autoPunctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
+    private static let asciiPunctuationMarks: Set<Character> = [",", ".", "?", "!", ";", ":"]
 
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ChinesePostProcessing")
 
@@ -707,14 +709,15 @@ class ChinesePostProcessingService: ObservableObject {
     }
 
     /// Check if text needs punctuation added by LLM (density-based)
-    private func needsPunctuation(_ text: String, minLength: Int = 10) -> Bool {
-        guard text.count >= minLength else { return false }
-        let punctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "『", "』", "（", "）"]
+    private func needsPunctuation(_ text: String, minContentLength: Int = 5) -> Bool {
+        let contentLength = autoPunctuationContentLength(text)
+        guard contentLength >= minContentLength else { return false }
+        let punctuationMarks = Self.autoPunctuationMarks
         let punctCount = text.filter { punctuationMarks.contains($0) }.count
         if punctCount == 0 { return true }
 
         // Overall density check: expect at least 1 punctuation per 20 characters
-        let expectedPunct = text.count / 20
+        let expectedPunct = contentLength / 20
         if punctCount < max(expectedPunct, 1) { return true }
 
         // Long span check: any segment between punctuation with >20 CJK chars → needs LLM
@@ -730,5 +733,14 @@ class ChinesePostProcessingService: ObservableObject {
         }
 
         return false
+    }
+
+    private func autoPunctuationContentLength(_ text: String) -> Int {
+        text.filter {
+            !$0.isWhitespace &&
+                !$0.isNewline &&
+                !Self.autoPunctuationMarks.contains($0) &&
+                !Self.asciiPunctuationMarks.contains($0)
+        }.count
     }
 }

@@ -2,6 +2,15 @@ import Testing
 @testable import Voco
 
 struct RuleBasedPunctuationInserterTests {
+    @Test func fallbackLeavesFourContentCharactersUnpunctuated() {
+        #expect(RuleBasedPunctuationInserter.insert(into: "紅會廣場") == "紅會廣場")
+        #expect(RuleBasedPunctuationInserter.insert(into: "宏匯廣場") == "宏匯廣場")
+    }
+
+    @Test func fallbackAddsSentenceEndPunctuationAfterFourContentCharacters() {
+        #expect(RuleBasedPunctuationInserter.insert(into: "我要去廣場") == "我要去廣場。")
+    }
+
     @Test func fallbackDoesNotSplitHuoZheShi() {
         let output = RuleBasedPunctuationInserter.insert(into: "叫我們看一下或者是你可以先跑一次")
 

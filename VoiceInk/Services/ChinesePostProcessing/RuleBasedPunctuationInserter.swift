@@ -4,6 +4,8 @@ import Foundation
 /// Used as the final fallback when all LLM-based punctuation attempts fail.
 enum RuleBasedPunctuationInserter {
 
+    private static let minContentCharactersForAutoPunctuation = 5
+
     // MARK: - Break-after particles
     // Insert comma after these words when followed by more CJK text
     private static let breakAfterParticles: [String] = [
@@ -37,6 +39,7 @@ enum RuleBasedPunctuationInserter {
 
     private static let sentenceEndPunctuation: Set<Character> = ["。", "？", "！", "…"]
     private static let allCJKPunctuation: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "…"]
+    private static let asciiPunctuation: Set<Character> = [",", ".", "?", "!", ";", ":"]
 
     // MARK: - Public API
 
@@ -44,6 +47,7 @@ enum RuleBasedPunctuationInserter {
     /// Returns the text with commas, periods, and question marks inserted at natural break points.
     static func insert(into text: String) -> String {
         guard !text.isEmpty else { return text }
+        guard contentCharacterCount(in: text) >= minContentCharactersForAutoPunctuation else { return text }
 
         let chars = Array(text)
         var result: [Character] = []
@@ -210,5 +214,14 @@ enum RuleBasedPunctuationInserter {
             if text.contains(phrase) { return true }
         }
         return false
+    }
+
+    private static func contentCharacterCount(in text: String) -> Int {
+        text.filter {
+            !$0.isWhitespace &&
+                !$0.isNewline &&
+                !allCJKPunctuation.contains($0) &&
+                !asciiPunctuation.contains($0)
+        }.count
     }
 }

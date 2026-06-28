@@ -27,6 +27,9 @@ class TranscriptionPipeline {
     let enhancementService: AIEnhancementService?
     private let delivery = TranscriptionDelivery()
     let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionPipeline")
+    private static let minContentCharactersForAutoPunctuation = 5
+    private static let autoPunctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
+    private static let asciiPunctuationMarks: Set<Character> = [",", ".", "?", "!", ";", ":"]
 
     init(
         modelContext: ModelContext,
@@ -511,10 +514,11 @@ class TranscriptionPipeline {
         }
 
         acceptedText = PostLLMCommaCleanup.clean(acceptedText, originalText: originalText)
-        if acceptedText.count >= 10 {
-            let punctuation: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
+        let contentLength = Self.autoPunctuationContentLength(acceptedText)
+        if contentLength >= Self.minContentCharactersForAutoPunctuation {
+            let punctuation = Self.autoPunctuationMarks
             let punctuationCount = acceptedText.filter { punctuation.contains($0) }.count
-            if punctuationCount < max(acceptedText.count / 20, 1) {
+            if punctuationCount < max(contentLength / 20, 1) {
                 let ruleResult = RuleBasedPunctuationInserter.insert(into: acceptedText)
                 if ruleResult.filter({ punctuation.contains($0) }).count > punctuationCount {
                     acceptedText = ruleResult
@@ -527,5 +531,14 @@ class TranscriptionPipeline {
         )
 
         return acceptedText
+    }
+
+    private static func autoPunctuationContentLength(_ text: String) -> Int {
+        text.filter {
+            !$0.isWhitespace &&
+                !$0.isNewline &&
+                !autoPunctuationMarks.contains($0) &&
+                !asciiPunctuationMarks.contains($0)
+        }.count
     }
 }
