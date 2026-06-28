@@ -179,6 +179,7 @@ class ChinesePostProcessingService: ObservableObject {
                 result = converted
             }
         }
+        result = removeShortTerminalPunctuation(result, steps: &steps)
 
         // Step 3: Pinyin correction (rule-based + data-driven)
         if isPinyinCorrectionEnabled {
@@ -253,6 +254,7 @@ class ChinesePostProcessingService: ObservableObject {
                 steps.append("SpokenPunctuation")
                 result = converted
             }
+            result = removeShortTerminalPunctuation(result, steps: &steps)
         }
 
         // Step 5: Repetition detection
@@ -742,5 +744,13 @@ class ChinesePostProcessingService: ObservableObject {
                 !Self.autoPunctuationMarks.contains($0) &&
                 !Self.asciiPunctuationMarks.contains($0)
         }.count
+    }
+
+    private func removeShortTerminalPunctuation(_ text: String, steps: inout [String]) -> String {
+        let cleaned = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: text)
+        if cleaned != text && !steps.contains("ShortTerminalPunctuationCleanup") {
+            steps.append("ShortTerminalPunctuationCleanup")
+        }
+        return cleaned
     }
 }

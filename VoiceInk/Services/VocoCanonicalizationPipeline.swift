@@ -36,8 +36,9 @@ enum VocoCanonicalizationPipeline {
         correctionPolicy: VocoCanonicalizationCorrectionPolicy = .full
     ) -> (normalizationResult: VocoNormalizationResult, confidenceAssessment: VocoConfidenceAssessment) {
         let activeMode = ModeManager.shared.currentActiveConfiguration
-        let result = VocoCanonicalizationService.shared.normalize(
-            text,
+        let cleanedText = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: text)
+        let rawResult = VocoCanonicalizationService.shared.normalize(
+            cleanedText,
             activeContextIDs: activeContextIDs(mode: activeMode),
             additionalTerms: dictionaryTerms(in: modelContext),
             contextHints: VocoCanonicalizationService.contextHints(
@@ -47,6 +48,7 @@ enum VocoCanonicalizationPipeline {
             ),
             correctionPolicy: correctionPolicy
         )
+        let result = removingShortTerminalPunctuation(from: rawResult)
         let assessment = confidenceAssessment(
             for: result,
             rawTranscript: rawTranscript,
@@ -63,6 +65,21 @@ enum VocoCanonicalizationPipeline {
         )
 
         return (result, assessment)
+    }
+
+    private static func removingShortTerminalPunctuation(from result: VocoNormalizationResult) -> VocoNormalizationResult {
+        let cleanedText = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: result.normalizedText)
+        guard cleanedText != result.normalizedText else { return result }
+        return VocoNormalizationResult(
+            originalText: result.originalText,
+            normalizedText: cleanedText,
+            activeContextIDs: result.activeContextIDs,
+            replacements: result.replacements,
+            suggestions: result.suggestions,
+            autoApplyModelVersion: result.autoApplyModelVersion,
+            autoApplyModelGeneratedAt: result.autoApplyModelGeneratedAt,
+            autoApplyPolicyHitIDs: result.autoApplyPolicyHitIDs
+        )
     }
 
     static func confidenceAssessment(

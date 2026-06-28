@@ -352,6 +352,7 @@ class TranscriptionPipeline {
                 enhancementService: enhancementService,
                 capturedAppPID: capturedAppPID
             )
+            preparedText = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: preparedText)
             finalText = preparedText
             transcription.finalPastedText = preparedText
 
@@ -529,6 +530,7 @@ class TranscriptionPipeline {
             acceptedText,
             vocabularyWords: customVocabulary
         )
+        acceptedText = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: acceptedText)
 
         return acceptedText
     }
