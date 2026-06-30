@@ -420,6 +420,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let cjkUnsafeContinuationBoundaryMode = "cjk-unsafe-continuation"
     static let currencyNumberNormalizationPolicyId = "runtime.currency-number-normalization"
     static let currencyNumberNormalizationPolicyType = "currencyNumberNormalization"
+    private static let terminalPunctuationCharacters: Set<Character> = ["。", "！", "？", "!", "?", "．", "."]
     private static let unsafeCJKContinuationAfterPairSource: Set<Character> = [
         "分", "性", "化", "度", "感", "型", "式", "區", "市", "縣", "里", "路",
         "街", "段", "號", "款", "項", "章", "篇", "版", "光", "睛"
@@ -1125,7 +1126,7 @@ final class VocoAutoApplyModelService: ObservableObject {
 
         if let exact = firstExactPolicy(in: model, matching: text),
            exact.isSafeExactApplyPolicy {
-            let target = exact.targetText ?? text
+            let target = applyResultTransform(exact.targetText ?? text, policy: exact, inputText: text)
             return guardedEvaluation(
                 inputText: text,
                 proposedOutputText: target,
@@ -1141,18 +1142,11 @@ final class VocoAutoApplyModelService: ObservableObject {
         var applied: [VocoAutoApplyPolicyFire] = []
         for policy in model.scopedApplyPolicies {
             guard policyFires(policy, text: output, context: context),
-                  let sourcePattern = policy.sourcePattern,
-                  let targetText = policy.targetText
+                  let updated = replace(policy: policy, in: output)
             else { continue }
-
-            let updated = replace(
-                sourcePattern,
-                with: targetText,
-                in: output,
-                sourceBoundaryMode: policy.sourceBoundaryMode
-            )
-            guard updated != output else { continue }
-            output = updated
+            let transformed = applyResultTransform(updated, policy: policy, inputText: output)
+            guard transformed != output else { continue }
+            output = transformed
             applied.append(policy.fire)
         }
 
@@ -1233,11 +1227,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         }
 
         guard let sourcePattern = policy.sourcePattern,
-              replacementMatches(
-                text: text,
-                source: sourcePattern,
-                sourceBoundaryMode: policy.sourceBoundaryMode
-              )
+              sourceMatches(policy: policy, text: text, sourcePattern: sourcePattern)
         else { return false }
 
         let trusted = policy.contextFromContextOnly == true ? context : [text, context].joined(separator: "\n")
@@ -1246,6 +1236,19 @@ final class VocoAutoApplyModelService: ObservableObject {
         if policy.requireAlias == true { return !aliasHits.isEmpty }
         if policy.contextRequired == true { return !aliasHits.isEmpty || !tokenHits.isEmpty }
         return true
+    }
+
+    private func sourceMatches(policy: VocoAutoApplyPolicy, text: String, sourcePattern: String) -> Bool {
+        if policy.sourcePatternType == "regex" {
+            guard let regex = regularExpression(for: policy) else { return false }
+            let range = NSRange(location: 0, length: text.utf16.count)
+            return regex.firstMatch(in: text, options: [], range: range) != nil
+        }
+        return replacementMatches(
+            text: text,
+            source: sourcePattern,
+            sourceBoundaryMode: policy.sourceBoundaryMode
+        )
     }
 
     private func replacementMatches(
@@ -1284,6 +1287,75 @@ final class VocoAutoApplyModelService: ObservableObject {
             return result
         }
         return text.replacingOccurrences(of: source, with: target)
+    }
+
+    private func replace(policy: VocoAutoApplyPolicy, in text: String) -> String? {
+        guard let sourcePattern = policy.sourcePattern,
+              let targetText = policy.targetText
+        else { return nil }
+        if policy.sourcePatternType == "regex" {
+            guard let regex = regularExpression(for: policy) else { return nil }
+            let range = NSRange(location: 0, length: text.utf16.count)
+            return regex.stringByReplacingMatches(
+                in: text,
+                options: [],
+                range: range,
+                withTemplate: policy.targetTemplate ?? targetText
+            )
+        }
+        return replace(
+            sourcePattern,
+            with: targetText,
+            in: text,
+            sourceBoundaryMode: policy.sourceBoundaryMode
+        )
+    }
+
+    private func regularExpression(for policy: VocoAutoApplyPolicy) -> NSRegularExpression? {
+        guard policy.sourcePatternType == "regex",
+              let sourcePattern = policy.sourcePattern,
+              !sourcePattern.isEmpty
+        else { return nil }
+        var options: NSRegularExpression.Options = []
+        if policy.regexOptions.contains("caseInsensitive") {
+            options.insert(.caseInsensitive)
+        }
+        return try? NSRegularExpression(pattern: sourcePattern, options: options)
+    }
+
+    private func applyResultTransform(_ outputText: String, policy: VocoAutoApplyPolicy, inputText: String) -> String {
+        guard let transform = policy.resultTransform else { return outputText }
+        switch transform.terminalPunctuation {
+        case "strip":
+            return stripTerminalPunctuation(from: outputText)
+        case "preserve-input":
+            let stripped = stripTerminalPunctuation(from: outputText)
+            if let punctuation = terminalPunctuation(in: inputText) {
+                return stripped + punctuation
+            }
+            return stripped
+        case "ensure":
+            guard terminalPunctuation(in: outputText) == nil else { return outputText }
+            return outputText + (transform.terminalPunctuationText ?? "。")
+        default:
+            return outputText
+        }
+    }
+
+    private func stripTerminalPunctuation(from text: String) -> String {
+        var output = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while let last = output.last, Self.terminalPunctuationCharacters.contains(last) {
+            output.removeLast()
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return output
+    }
+
+    private func terminalPunctuation(in text: String) -> String? {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).last,
+              Self.terminalPunctuationCharacters.contains(last)
+        else { return nil }
+        return String(last)
     }
 
     private func rangeForASCIIBoundedSource(_ source: String, in text: String) -> Range<String.Index>? {
@@ -1889,12 +1961,14 @@ private struct VocoIndexedExactApplyPolicy: Decodable {
     let sourcePattern: String?
     let targetText: String
     let sourceSlices: [String]
+    let resultTransform: VocoPolicyResultTransform?
 
     enum CodingKeys: String, CodingKey {
         case policyId
         case sourcePattern
         case targetText
         case sourceSlices
+        case resultTransform
     }
 
     func runtimePolicy(inputStrictKey: String) -> VocoAutoApplyPolicy {
@@ -1904,6 +1978,9 @@ private struct VocoIndexedExactApplyPolicy: Decodable {
             policyType: .exactTrainablePair,
             sourcePattern: sourcePattern,
             targetText: targetText,
+            sourcePatternType: nil,
+            targetTemplate: nil,
+            regexOptions: [],
             inputStrictKey: inputStrictKey,
             exactInputRequired: true,
             exactInputResolution: nil,
@@ -1914,7 +1991,8 @@ private struct VocoIndexedExactApplyPolicy: Decodable {
             requireAlias: nil,
             scopedSourcePhrase: nil,
             sourceSlices: sourceSlices,
-            reviewGateConflictRows: []
+            reviewGateConflictRows: [],
+            resultTransform: resultTransform
         )
     }
 }
@@ -2048,12 +2126,21 @@ private enum VocoAutoApplyPolicyType: String, Decodable {
     case scopedReplacement
 }
 
+private struct VocoPolicyResultTransform: Decodable, Equatable {
+    let schema: String?
+    let terminalPunctuation: String?
+    let terminalPunctuationText: String?
+}
+
 private struct VocoAutoApplyPolicy: Decodable {
     let policyId: String
     let autoApplyMode: VocoAutoApplyMode
     let policyType: VocoAutoApplyPolicyType
     let sourcePattern: String?
     let targetText: String?
+    let sourcePatternType: String?
+    let targetTemplate: String?
+    let regexOptions: [String]
     let inputStrictKey: String?
     let exactInputRequired: Bool?
     let exactInputResolution: VocoExactInputResolution?
@@ -2070,6 +2157,7 @@ private struct VocoAutoApplyPolicy: Decodable {
     let familyId: String?
     let familyRole: String?
     let migrationSource: String?
+    let resultTransform: VocoPolicyResultTransform?
 
     var hasNonEmptyTarget: Bool {
         targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -2111,6 +2199,9 @@ private struct VocoAutoApplyPolicy: Decodable {
         case policyType
         case sourcePattern
         case targetText
+        case sourcePatternType
+        case targetTemplate
+        case regexOptions
         case inputStrictKey
         case exactInputRequired
         case exactInputResolution
@@ -2127,6 +2218,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         case familyId
         case familyRole
         case migrationSource
+        case resultTransform
     }
 
     init(
@@ -2135,6 +2227,9 @@ private struct VocoAutoApplyPolicy: Decodable {
         policyType: VocoAutoApplyPolicyType,
         sourcePattern: String?,
         targetText: String?,
+        sourcePatternType: String? = nil,
+        targetTemplate: String? = nil,
+        regexOptions: [String] = [],
         inputStrictKey: String?,
         exactInputRequired: Bool?,
         exactInputResolution: VocoExactInputResolution?,
@@ -2150,13 +2245,17 @@ private struct VocoAutoApplyPolicy: Decodable {
         sourceBoundaryMode: String? = nil,
         familyId: String? = nil,
         familyRole: String? = nil,
-        migrationSource: String? = nil
+        migrationSource: String? = nil,
+        resultTransform: VocoPolicyResultTransform? = nil
     ) {
         self.policyId = policyId
         self.autoApplyMode = autoApplyMode
         self.policyType = policyType
         self.sourcePattern = sourcePattern
         self.targetText = targetText
+        self.sourcePatternType = sourcePatternType
+        self.targetTemplate = targetTemplate
+        self.regexOptions = regexOptions
         self.inputStrictKey = inputStrictKey
         self.exactInputRequired = exactInputRequired
         self.exactInputResolution = exactInputResolution
@@ -2173,6 +2272,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         self.familyId = familyId
         self.familyRole = familyRole
         self.migrationSource = migrationSource
+        self.resultTransform = resultTransform
     }
 
     init(from decoder: Decoder) throws {
@@ -2182,6 +2282,9 @@ private struct VocoAutoApplyPolicy: Decodable {
         policyType = try container.decode(VocoAutoApplyPolicyType.self, forKey: .policyType)
         sourcePattern = try container.decodeIfPresent(String.self, forKey: .sourcePattern)
         targetText = try container.decodeIfPresent(String.self, forKey: .targetText)
+        sourcePatternType = try container.decodeIfPresent(String.self, forKey: .sourcePatternType)
+        targetTemplate = try container.decodeIfPresent(String.self, forKey: .targetTemplate)
+        regexOptions = try container.decodeIfPresent([String].self, forKey: .regexOptions) ?? []
         inputStrictKey = try container.decodeIfPresent(String.self, forKey: .inputStrictKey)
         exactInputRequired = try container.decodeIfPresent(Bool.self, forKey: .exactInputRequired)
         exactInputResolution = try container.decodeIfPresent(VocoExactInputResolution.self, forKey: .exactInputResolution)
@@ -2198,6 +2301,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         familyId = try container.decodeIfPresent(String.self, forKey: .familyId)
         familyRole = try container.decodeIfPresent(String.self, forKey: .familyRole)
         migrationSource = try container.decodeIfPresent(String.self, forKey: .migrationSource)
+        resultTransform = try container.decodeIfPresent(VocoPolicyResultTransform.self, forKey: .resultTransform)
     }
 }
 

@@ -58,6 +58,21 @@ RUNTIME_INDEXED_V2_SCHEMA_VERSION = 3
 SUPPORTED_RUNTIME_SCHEMA_VERSIONS = {2, RUNTIME_INDEXED_V2_SCHEMA_VERSION}
 RUNTIME_INDEXED_V2_MODEL_FORMAT = "voco-auto-apply-runtime-indexed-v2"
 RUNTIME_INDEXED_V2_FILENAME = "full-db.auto-apply-runtime-v2.json"
+RUNTIME_INDEX_FIELD_KEYS = (
+    "modelFormat",
+    "runtimeSchemaVersion",
+    "runtimeCompiledAt",
+    "sourceRuntimeModel",
+    "sourceSlices",
+    "exactApplyPolicyByStrictKey",
+    "scopedApplyPolicies",
+    "suggestPolicies",
+)
+RESULT_TRANSFORM_SCHEMA = "voco.policy-result-transform.v1"
+TERMINAL_PUNCTUATION_MODES = {"target", "strip", "preserve-input", "ensure"}
+TERMINAL_PUNCTUATION_CHARS = "。！？!?．."
+SOURCE_PATTERN_TYPES = {"literal", "regex"}
+REGEX_OPTIONS = {"caseInsensitive"}
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
 FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,96}$")
@@ -283,6 +298,43 @@ def main() -> int:
     return 0 if not result.get("failed") else 1
 
 
+def add_result_transform_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--terminal-punctuation",
+        choices=sorted(TERMINAL_PUNCTUATION_MODES),
+        help="Declarative output contract for terminal punctuation: target keeps target text, strip removes it, preserve-input copies input terminal punctuation, ensure appends punctuation when missing.",
+    )
+    parser.add_argument(
+        "--terminal-punctuation-text",
+        help="Punctuation text used by --terminal-punctuation ensure; defaults to 。",
+    )
+    parser.add_argument(
+        "--result-transform-json",
+        help="Advanced declarative resultTransform JSON object; overrides --terminal-punctuation.",
+    )
+
+
+def add_source_pattern_contract_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--source-pattern-type",
+        choices=sorted(SOURCE_PATTERN_TYPES),
+        default="literal",
+        help="How source-pattern should be interpreted. Omitted/default means literal replacement; regex enables model-defined regular expression matching.",
+    )
+    parser.add_argument(
+        "--target-template",
+        help="Replacement template for regex source patterns. Supports $1/$2 style capture references across Worker, Mac, and Android runtimes.",
+    )
+    parser.add_argument(
+        "--regex-option",
+        dest="regex_options",
+        action="append",
+        choices=sorted(REGEX_OPTIONS),
+        default=[],
+        help="Regex option for --source-pattern-type regex. May be repeated; currently supports caseInsensitive.",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Control Voco auto-apply correction evidence and model artifacts.")
     parser.add_argument("--evidence-store", type=Path, default=DEFAULT_EVIDENCE_STORE)
@@ -302,6 +354,7 @@ def parse_args() -> argparse.Namespace:
     correction.add_argument("--row-pk", type=int)
     correction.add_argument("--context", default="")
     correction.add_argument("--note")
+    add_result_transform_args(correction)
 
     hallucination = subparsers.add_parser("addHallucination")
     hallucination.add_argument("--source-text", required=True)
@@ -328,6 +381,8 @@ def parse_args() -> argparse.Namespace:
     context_rule.add_argument("--negative-text")
     context_rule.add_argument("--negative-context", default="")
     context_rule.add_argument("--note")
+    add_source_pattern_contract_args(context_rule)
+    add_result_transform_args(context_rule)
 
     replacement_rule = subparsers.add_parser("addReplacementRule")
     replacement_rule.add_argument("--source-pattern", required=True)
@@ -346,6 +401,8 @@ def parse_args() -> argparse.Namespace:
     replacement_rule.add_argument("--family-role", default="alias")
     replacement_rule.add_argument("--family-reason")
     replacement_rule.add_argument("--note")
+    add_source_pattern_contract_args(replacement_rule)
+    add_result_transform_args(replacement_rule)
 
     replacement_family = subparsers.add_parser("addReplacementFamily")
     replacement_family.add_argument("--family-id", required=True)
@@ -362,6 +419,8 @@ def parse_args() -> argparse.Namespace:
     replacement_family.add_argument("--positive", action="append", default=[], help="TEXT||CONTEXT||EXPECTED")
     replacement_family.add_argument("--negative", action="append", default=[], help="TEXT or TEXT||CONTEXT")
     replacement_family.add_argument("--note")
+    add_source_pattern_contract_args(replacement_family)
+    add_result_transform_args(replacement_family)
 
     migrate_pct = subparsers.add_parser("migratePctSeedFamilies")
     migrate_pct.add_argument("--family-id", action="append", default=[])
@@ -581,6 +640,12 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
 
 
 def correction_event(args: argparse.Namespace) -> dict[str, Any]:
+    result_transform = result_transform_from_args(
+        args,
+        source_text=args.source_text,
+        target_text=args.target_text,
+    )
+    expected_text = apply_result_transform(args.target_text, result_transform, args.source_text)
     payload = {
         "ruleType": "exactTrainablePair",
         "rowPk": args.row_pk,
@@ -592,7 +657,7 @@ def correction_event(args: argparse.Namespace) -> dict[str, Any]:
                 {
                     "text": args.source_text,
                     "context": args.context or "",
-                    "expectedText": args.target_text,
+                    "expectedText": expected_text,
                 }
             ],
             "negative": [],
@@ -603,6 +668,8 @@ def correction_event(args: argparse.Namespace) -> dict[str, Any]:
             "note": args.note,
         },
     }
+    if result_transform:
+        payload["resultTransform"] = result_transform
     return make_event(args.actor, "addCorrection", payload)
 
 
@@ -645,22 +712,36 @@ def context_locked_rule_event(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("addContextLockedRule requires at least one --context-token or --context-alias")
 
     source_text = args.source_text or args.source_pattern
+    source_contract = source_pattern_contract_from_args(args, source_pattern=args.source_pattern)
+    result_transform = result_transform_from_args(
+        args,
+        source_text=source_text,
+        source_pattern=args.source_pattern,
+        target_text=args.target_text,
+    )
     positive_examples = parse_positive_examples(args.positive)
     negative_examples = parse_negative_examples(args.negative)
     if args.positive_text:
+        expected = args.expected_text or replace_text_for_source_contract(
+            args.positive_text,
+            args.source_pattern,
+            args.target_text,
+            source_contract,
+        )
         positive_examples.append(
             {
                 "text": args.positive_text,
                 "context": args.positive_context or "",
-                "expectedText": args.expected_text or replace_text(args.positive_text, args.source_pattern, args.target_text),
+                "expectedText": apply_result_transform(expected, result_transform, args.positive_text),
             }
         )
     if not positive_examples:
+        expected = replace_text_for_source_contract(source_text, args.source_pattern, args.target_text, source_contract)
         positive_examples.append(
             {
                 "text": source_text,
                 "context": " ".join(tokens + aliases),
-                "expectedText": replace_text(source_text, args.source_pattern, args.target_text),
+                "expectedText": apply_result_transform(expected, result_transform, source_text),
             }
         )
     if args.negative_text:
@@ -694,36 +775,53 @@ def context_locked_rule_event(args: argparse.Namespace) -> dict[str, Any]:
             "note": args.note,
         },
     }
+    if result_transform:
+        payload["resultTransform"] = result_transform
+    payload.update(source_contract)
     return make_event(args.actor, "addContextLockedRule", payload)
 
 
 def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
     source_pattern = str(args.source_pattern)
     target_text = str(args.target_text)
+    source_contract = source_pattern_contract_from_args(args, source_pattern=source_pattern)
     if not source_pattern.strip():
         raise SystemExit("addReplacementRule requires non-empty --source-pattern")
     if not target_text.strip():
         raise SystemExit("addReplacementRule requires non-empty --target-text")
-    if strict_text_key(source_pattern) == strict_text_key(target_text):
+    if source_contract.get("sourcePatternType") != "regex" and strict_text_key(source_pattern) == strict_text_key(target_text):
         raise SystemExit("addReplacementRule source and target normalize to the same text")
 
     source_text = args.source_text or source_pattern
+    result_transform = result_transform_from_args(
+        args,
+        source_text=source_text,
+        source_pattern=source_pattern,
+        target_text=target_text,
+    )
     positive_examples = parse_positive_examples(args.positive)
     negative_examples = parse_negative_examples(args.negative)
     if args.positive_text:
+        expected = args.expected_text or replace_text_for_source_contract(
+            args.positive_text,
+            source_pattern,
+            target_text,
+            source_contract,
+        )
         positive_examples.append(
             {
                 "text": args.positive_text,
                 "context": args.positive_context or "",
-                "expectedText": args.expected_text or replace_text(args.positive_text, source_pattern, target_text),
+                "expectedText": apply_result_transform(expected, result_transform, args.positive_text),
             }
         )
     if not positive_examples:
+        expected = replace_text_for_source_contract(source_text, source_pattern, target_text, source_contract)
         positive_examples.append(
             {
                 "text": source_text,
                 "context": "",
-                "expectedText": replace_text(source_text, source_pattern, target_text),
+                "expectedText": apply_result_transform(expected, result_transform, source_text),
             }
         )
     if args.negative_text:
@@ -759,6 +857,9 @@ def replacement_rule_event(args: argparse.Namespace) -> dict[str, Any]:
         payload["familyId"] = family_id
         payload["familyRole"] = str(getattr(args, "family_role", "") or "alias").strip() or "alias"
         payload["familyReason"] = str(getattr(args, "family_reason", "") or getattr(args, "note", "") or "").strip()
+    if result_transform:
+        payload["resultTransform"] = result_transform
+    payload.update(source_contract)
     return make_event(args.actor, "addReplacementRule", payload)
 
 
@@ -774,21 +875,39 @@ def replacement_family_event(args: argparse.Namespace) -> dict[str, Any]:
     if target_text in aliases:
         raise SystemExit("addReplacementFamily alias must not exactly equal --target-text")
 
+    requested_source_pattern_type = normalized_source_pattern_type(getattr(args, "source_pattern_type", "literal"))
     strict_equivalent_aliases = [
         alias for alias in aliases if strict_text_key(alias) == strict_text_key(target_text)
     ]
-    if strict_equivalent_aliases and not args.allow_strict_equivalent_alias:
+    if requested_source_pattern_type != "regex" and strict_equivalent_aliases and not args.allow_strict_equivalent_alias:
         raise SystemExit(
             "addReplacementFamily strict-equivalent aliases require --allow-strict-equivalent-alias"
         )
     for alias in aliases:
-        if len(strict_text_key(alias)) < 2 and not contains_ascii_token(alias):
+        if requested_source_pattern_type != "regex" and len(strict_text_key(alias)) < 2 and not contains_ascii_token(alias):
             raise SystemExit("addReplacementFamily aliases must not be single non-ASCII characters")
 
+    result_transform = result_transform_from_args(
+        args,
+        source_pattern=aliases[0] if aliases else "",
+        target_text=target_text,
+    )
+    source_contract = source_pattern_contract_from_args(args, source_pattern=aliases[0] if aliases else "")
+    if source_contract.get("sourcePatternType") == "regex":
+        for alias in aliases:
+            validate_source_regex(alias, source_contract.get("regexOptions") or [])
     positive_examples = parse_positive_examples(args.positive)
     if not positive_examples:
         positive_examples = [
-            {"text": alias, "context": "", "expectedText": target_text}
+            {
+                "text": alias,
+                "context": "",
+                "expectedText": apply_result_transform(
+                    replace_text_for_source_contract(alias, alias, target_text, source_contract),
+                    result_transform,
+                    alias,
+                ),
+            }
             for alias in aliases
         ]
 
@@ -813,6 +932,9 @@ def replacement_family_event(args: argparse.Namespace) -> dict[str, Any]:
             "note": args.note,
         },
     }
+    if result_transform:
+        payload["resultTransform"] = result_transform
+    payload.update(source_contract)
     return make_event(args.actor, "addReplacementFamily", payload)
 
 
@@ -1628,6 +1750,69 @@ def runtime_output_model_path(args: argparse.Namespace, source_model_path: Path)
     return source_model_path.with_name(RUNTIME_INDEXED_V2_FILENAME)
 
 
+def strip_runtime_index_fields(model: dict[str, Any]) -> None:
+    for key in RUNTIME_INDEX_FIELD_KEYS:
+        model.pop(key, None)
+
+
+def rebuild_runtime_index_fields(
+    model: dict[str, Any],
+    *,
+    source_model_path: Path | None = None,
+) -> dict[str, Any]:
+    previous_exact = model.get("exactApplyPolicyByStrictKey") if isinstance(model.get("exactApplyPolicyByStrictKey"), dict) else {}
+    previous_scoped = model.get("scopedApplyPolicies") if isinstance(model.get("scopedApplyPolicies"), list) else []
+    strip_runtime_index_fields(model)
+    runtime_model = compile_indexed_runtime_v2_model(model, source_model_path=source_model_path)
+    for key in (
+        "modelFormat",
+        "runtimeSchemaVersion",
+        "runtimeCompiledAt",
+        "sourceRuntimeModel",
+        "sourceSlices",
+        "exactApplyPolicyByStrictKey",
+        "scopedApplyPolicies",
+        "suggestPolicies",
+        "actionCommandGuards",
+        "protectedTermAllowlistGuards",
+    ):
+        if key in runtime_model:
+            model[key] = runtime_model[key]
+
+    previous_exact_keys = set(str(key) for key in previous_exact.keys())
+    new_exact_keys = set(str(key) for key in runtime_model["exactApplyPolicyByStrictKey"].keys())
+    previous_scoped_keys = {
+        runtime_scoped_policy_identity(policy)
+        for policy in previous_scoped
+        if isinstance(policy, dict)
+    }
+    new_scoped_keys = {
+        runtime_scoped_policy_identity(policy)
+        for policy in runtime_model["scopedApplyPolicies"]
+        if isinstance(policy, dict)
+    }
+    return {
+        "rebuilt": True,
+        "exactAdded": len(new_exact_keys - previous_exact_keys),
+        "scopedAdded": len(new_scoped_keys - previous_scoped_keys),
+        "exactApplyPolicyCount": len(runtime_model["exactApplyPolicyByStrictKey"]),
+        "scopedApplyPolicyCount": len(runtime_model["scopedApplyPolicies"]),
+        "suggestPolicyCount": len(runtime_model["suggestPolicies"]),
+        "conflicts": [],
+    }
+
+
+def runtime_scoped_policy_identity(policy: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        policy_source_pattern_type(policy),
+        strict_text_key(str(policy.get("sourcePattern") or policy.get("source") or "")),
+        strict_text_key(policy_replacement_target(policy)),
+        tuple(policy_regex_options(policy)),
+        tuple(compact_strings(policy.get("contextTokensAny") or [])),
+        tuple(compact_strings(policy.get("contextAliasesAny") or [])),
+    )
+
+
 def compile_indexed_runtime_v2_model(model: dict[str, Any], *, source_model_path: Path | None = None) -> dict[str, Any]:
     exact_apply: dict[str, dict[str, Any]] = {}
     scoped_apply: list[dict[str, Any]] = []
@@ -1697,6 +1882,8 @@ def policy_is_safe_exact_runtime_apply(policy: dict[str, Any]) -> bool:
 
 
 def policy_is_safe_scoped_runtime_apply(policy: dict[str, Any]) -> bool:
+    if policy_regex_validation_error(policy):
+        return False
     return (
         str(policy.get("autoApplyMode") or "") == "apply"
         and str(policy.get("policyType") or "") == "scopedReplacement"
@@ -1712,6 +1899,7 @@ def compact_exact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
             "sourcePattern": policy.get("sourcePattern"),
             "targetText": policy.get("targetText"),
             "sourceSlices": compact_strings(policy.get("sourceSlices") or []),
+            "resultTransform": policy_result_transform(policy),
         }
     )
 
@@ -1737,6 +1925,8 @@ def compact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
             "familyId": policy.get("familyId"),
             "familyRole": policy.get("familyRole"),
             "migrationSource": policy.get("migrationSource"),
+            "resultTransform": policy_result_transform(policy),
+            **compact_source_pattern_contract(policy),
         }
     )
 
@@ -1754,6 +1944,282 @@ def compact_nonempty(value: dict[str, Any]) -> dict[str, Any]:
             continue
         compacted[key] = item
     return compacted
+
+
+def compact_result_transform(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    mode = str(value.get("terminalPunctuation") or "").strip()
+    if not mode:
+        return None
+    if mode not in TERMINAL_PUNCTUATION_MODES:
+        return None
+    transform = {
+        "schema": str(value.get("schema") or RESULT_TRANSFORM_SCHEMA),
+        "terminalPunctuation": mode,
+    }
+    punctuation_text = str(value.get("terminalPunctuationText") or "").strip()
+    if punctuation_text:
+        transform["terminalPunctuationText"] = punctuation_text
+    return transform
+
+
+def normalized_source_pattern_type(value: Any) -> str:
+    pattern_type = str(value or "literal").strip()
+    return pattern_type if pattern_type in SOURCE_PATTERN_TYPES else "literal"
+
+
+def compact_regex_options(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list):
+        values = value
+    else:
+        return []
+    options: list[str] = []
+    for option in values:
+        text = str(option or "").strip()
+        if text in REGEX_OPTIONS and text not in options:
+            options.append(text)
+    return options
+
+
+def unsupported_regex_options(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list):
+        values = value
+    else:
+        return []
+    unsupported: list[str] = []
+    for option in values:
+        text = str(option or "").strip()
+        if text and text not in REGEX_OPTIONS and text not in unsupported:
+            unsupported.append(text)
+    return unsupported
+
+
+def regex_flags_from_options(options: Iterable[str]) -> int:
+    flags = 0
+    option_set = set(str(option) for option in options)
+    if "caseInsensitive" in option_set:
+        flags |= re.IGNORECASE
+    return flags
+
+
+def compiled_source_regex(source_pattern: str, options: Iterable[str]) -> re.Pattern[str] | None:
+    try:
+        return re.compile(source_pattern, regex_flags_from_options(options))
+    except re.error:
+        return None
+
+
+def validate_source_regex(source_pattern: str, options: Iterable[str]) -> None:
+    try:
+        re.compile(source_pattern, regex_flags_from_options(options))
+    except re.error as exc:
+        raise SystemExit(f"invalid regex source pattern: {exc}") from exc
+
+
+def source_pattern_contract_from_args(args: argparse.Namespace, *, source_pattern: str) -> dict[str, Any]:
+    pattern_type = normalized_source_pattern_type(getattr(args, "source_pattern_type", "literal"))
+    target_template = str(getattr(args, "target_template", "") or "").strip()
+    regex_options = compact_regex_options(getattr(args, "regex_options", []) or [])
+
+    if pattern_type != "regex":
+        if target_template:
+            raise SystemExit("--target-template requires --source-pattern-type regex")
+        if regex_options:
+            raise SystemExit("--regex-option requires --source-pattern-type regex")
+        return {}
+
+    validate_source_regex(source_pattern, regex_options)
+    contract: dict[str, Any] = {"sourcePatternType": "regex"}
+    if target_template:
+        contract["targetTemplate"] = target_template
+    if regex_options:
+        contract["regexOptions"] = regex_options
+    return contract
+
+
+def policy_source_pattern_type(policy: dict[str, Any]) -> str:
+    return normalized_source_pattern_type(policy.get("sourcePatternType"))
+
+
+def policy_regex_options(policy: dict[str, Any]) -> list[str]:
+    return compact_regex_options(policy.get("regexOptions"))
+
+
+def policy_target_template(policy: dict[str, Any]) -> str:
+    return str(policy.get("targetTemplate") or "").strip()
+
+
+def policy_replacement_target(policy: dict[str, Any]) -> str:
+    return policy_target_template(policy) or str(policy.get("targetText") or policy.get("target") or "")
+
+
+def compact_source_pattern_contract(policy: dict[str, Any]) -> dict[str, Any]:
+    if policy_source_pattern_type(policy) != "regex":
+        return {}
+    source_pattern = str(policy.get("sourcePattern") or "")
+    options = policy_regex_options(policy)
+    if unsupported_regex_options(policy.get("regexOptions")) or not source_pattern or compiled_source_regex(source_pattern, options) is None:
+        return {}
+    contract: dict[str, Any] = {"sourcePatternType": "regex"}
+    target_template = policy_target_template(policy)
+    if target_template:
+        contract["targetTemplate"] = target_template
+    if options:
+        contract["regexOptions"] = options
+    return contract
+
+
+def policy_regex_validation_error(policy: dict[str, Any]) -> str | None:
+    if policy_source_pattern_type(policy) != "regex":
+        return None
+    unsupported = unsupported_regex_options(policy.get("regexOptions"))
+    if unsupported:
+        return f"unsupported regexOptions: {', '.join(unsupported)}"
+    source_pattern = str(policy.get("sourcePattern") or "")
+    if not source_pattern:
+        return "regex sourcePattern is required"
+    if compiled_source_regex(source_pattern, policy_regex_options(policy)) is None:
+        return "invalid regex sourcePattern"
+    return None
+
+
+def result_transform_from_args(
+    args: argparse.Namespace,
+    *,
+    source_text: str | None = None,
+    source_pattern: str | None = None,
+    target_text: str | None = None,
+) -> dict[str, Any] | None:
+    raw_json = str(getattr(args, "result_transform_json", "") or "").strip()
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"--result-transform-json must be a JSON object: {exc}") from exc
+        transform = compact_result_transform(parsed)
+        if not transform:
+            raise SystemExit("--result-transform-json must include a supported terminalPunctuation value")
+        return transform
+
+    mode = str(getattr(args, "terminal_punctuation", "") or "").strip()
+    if mode:
+        transform = compact_result_transform(
+            {
+                "schema": RESULT_TRANSFORM_SCHEMA,
+                "terminalPunctuation": mode,
+                "terminalPunctuationText": getattr(args, "terminal_punctuation_text", None),
+            }
+        )
+        if not transform:
+            raise SystemExit(f"--terminal-punctuation must be one of: {', '.join(sorted(TERMINAL_PUNCTUATION_MODES))}")
+        return transform
+
+    return inferred_result_transform(source_text=source_text, source_pattern=source_pattern, target_text=target_text)
+
+
+def policy_result_transform(policy: dict[str, Any]) -> dict[str, Any] | None:
+    return compact_result_transform(policy.get("resultTransform")) or inferred_result_transform(
+        source_text=policy.get("inputText") or policy.get("source"),
+        source_pattern=policy.get("sourcePattern"),
+        target_text=policy.get("targetText") or policy.get("target"),
+    )
+
+
+def payload_result_transform(payload: dict[str, Any]) -> dict[str, Any] | None:
+    return compact_result_transform(payload.get("resultTransform")) or inferred_result_transform(
+        source_text=payload.get("sourceText"),
+        source_pattern=payload.get("sourcePattern"),
+        target_text=payload.get("targetText"),
+    )
+
+
+def inferred_result_transform(
+    *,
+    source_text: Any = None,
+    source_pattern: Any = None,
+    target_text: Any = None,
+) -> dict[str, Any] | None:
+    target = str(target_text or "")
+    if not target:
+        return None
+    stripped_target = strip_terminal_punctuation(target)
+    if stripped_target == target:
+        return None
+    if not is_taiwan_mobile_number_like(stripped_target):
+        return None
+
+    source = str(source_text or source_pattern or "")
+    if source and not looks_like_phone_rule_source(source):
+        return None
+    return {
+        "schema": RESULT_TRANSFORM_SCHEMA,
+        "terminalPunctuation": "strip",
+    }
+
+
+def is_taiwan_mobile_number_like(value: str) -> bool:
+    digits = re.sub(r"\D", "", value)
+    return digits == value and digits.startswith("09") and len(digits) >= 10
+
+
+def looks_like_phone_rule_source(value: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", value)
+    if re.search(r"09\d{8,}", normalized):
+        return True
+    phone_chars = set("零〇一二兩两三四五六七八九十拾0123456789 -()（）")
+    count = sum(1 for char in normalized if char in phone_chars)
+    return count >= 6
+
+
+def strip_terminal_punctuation(value: str) -> str:
+    output = str(value)
+    while output and output[-1] in TERMINAL_PUNCTUATION_CHARS:
+        output = output[:-1].rstrip()
+    return output
+
+
+def terminal_punctuation_of(value: str) -> str:
+    stripped = str(value).rstrip()
+    if stripped and stripped[-1] in TERMINAL_PUNCTUATION_CHARS:
+        return stripped[-1]
+    return ""
+
+
+def has_terminal_punctuation(value: str) -> bool:
+    return bool(terminal_punctuation_of(value))
+
+
+def apply_result_transform(output_text: str, transform: dict[str, Any] | None, input_text: str) -> str:
+    if not transform:
+        return output_text
+    mode = str(transform.get("terminalPunctuation") or "target")
+    if mode == "target":
+        return output_text
+    if mode == "strip":
+        return strip_terminal_punctuation(output_text)
+    if mode == "preserve-input":
+        stripped = strip_terminal_punctuation(output_text)
+        input_punctuation = terminal_punctuation_of(input_text)
+        return f"{stripped}{input_punctuation}" if input_punctuation else stripped
+    if mode == "ensure":
+        if has_terminal_punctuation(output_text):
+            return output_text
+        punctuation_text = str(transform.get("terminalPunctuationText") or "。")
+        return f"{output_text}{punctuation_text}"
+    return output_text
+
+
+def apply_policy_result_transform(output_text: str, policy: dict[str, Any], input_text: str) -> str:
+    return apply_result_transform(output_text, policy_result_transform(policy), input_text)
 
 
 def output_model_path(args: argparse.Namespace) -> Path:
@@ -1774,6 +2240,7 @@ def compile_model(
     model["generatedAt"] = now_iso()
     model["modelType"] = "control_plane_patched_auto_apply_model"
     strip_proposal_candidate_metadata(model)
+    strip_runtime_index_fields(model)
     policies = [copy.deepcopy(policy) for policy in model.get("policies") or []]
     overlay_policy_count = 0
     tombstone_count = 0
@@ -1837,6 +2304,8 @@ def compile_model(
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
     }
+    runtime_index_repair = rebuild_runtime_index_fields(model)
+    model["controlPlane"]["runtimeIndexRepair"] = runtime_index_repair
     report = {
         "basePolicyCounts": base_model.get("policyCounts") or {},
         "newPolicyCounts": model["policyCounts"],
@@ -1849,6 +2318,7 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "runtimeIndexRepair": runtime_index_repair,
     }
     return model, report
 
@@ -1871,11 +2341,12 @@ def exact_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     payload = event["payload"]
     source_text = str(payload["sourceText"])
     target_text = str(payload["targetText"])
+    result_transform = payload_result_transform(payload)
     input_key = strict_text_key(source_text)
     target_key = strict_text_key(target_text)
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
-    return {
+    policy = {
         "policyId": f"manual-exact-{short_digest(input_key + '->' + target_key, length=16)}",
         "policyType": "exactTrainablePair",
         "autoApplyMode": "apply",
@@ -1914,6 +2385,9 @@ def exact_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    if result_transform:
+        policy["resultTransform"] = result_transform
+    return policy
 
 
 def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -1921,6 +2395,11 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     source_pattern = str(payload["sourcePattern"])
     target_text = str(payload["targetText"])
     source_text = str(payload.get("sourceText") or source_pattern)
+    result_transform = payload_result_transform(payload)
+    regex_error = policy_regex_validation_error(payload)
+    if regex_error:
+        raise SystemExit(f"invalid contextLockedRule regex contract: {regex_error}")
+    source_contract = compact_source_pattern_contract(payload)
     tokens = compact_strings(payload.get("contextTokensAny") or [])
     aliases = compact_strings(payload.get("contextAliasesAny") or [])
     row_pk = payload.get("rowPk")
@@ -1929,6 +2408,9 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         {
             "sourcePattern": source_pattern,
             "targetText": target_text,
+            "sourcePatternType": source_contract.get("sourcePatternType"),
+            "targetTemplate": source_contract.get("targetTemplate"),
+            "regexOptions": source_contract.get("regexOptions"),
             "tokens": tokens,
             "aliases": aliases,
             "lockName": payload.get("lockName"),
@@ -1936,7 +2418,7 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         ensure_ascii=False,
         sort_keys=True,
     )
-    return {
+    policy = {
         "policyId": f"manual-context-{short_digest(policy_id_key, length=16)}",
         "policyType": "scopedReplacement",
         "autoApplyMode": "apply",
@@ -1945,6 +2427,7 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "target": target_text,
         "sourcePattern": source_pattern,
         "targetText": target_text,
+        **source_contract,
         "lockName": payload.get("lockName") or "manual-context-lock",
         "contextRequired": True,
         "contextTokensAny": tokens,
@@ -1975,6 +2458,9 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    if result_transform:
+        policy["resultTransform"] = result_transform
+    return policy
 
 
 def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -1982,12 +2468,20 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     source_pattern = str(payload["sourcePattern"])
     target_text = str(payload["targetText"])
     source_text = str(payload.get("sourceText") or source_pattern)
+    result_transform = payload_result_transform(payload)
+    regex_error = policy_regex_validation_error(payload)
+    if regex_error:
+        raise SystemExit(f"invalid replacementRule regex contract: {regex_error}")
+    source_contract = compact_source_pattern_contract(payload)
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
     policy_id_key = json.dumps(
         {
             "sourcePattern": source_pattern,
             "targetText": target_text,
+            "sourcePatternType": source_contract.get("sourcePatternType"),
+            "targetTemplate": source_contract.get("targetTemplate"),
+            "regexOptions": source_contract.get("regexOptions"),
             "ruleName": payload.get("ruleName"),
             "ruleType": "unlockedReplacement",
         },
@@ -2003,6 +2497,7 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "target": target_text,
         "sourcePattern": source_pattern,
         "targetText": target_text,
+        **source_contract,
         "lockName": payload.get("ruleName") or "manual-unlocked-replacement",
         "contextRequired": False,
         "contextTokensAny": [],
@@ -2033,6 +2528,8 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    if result_transform:
+        policy["resultTransform"] = result_transform
     apply_policy_family_metadata(policy, payload, event)
     return policy
 
@@ -2041,6 +2538,21 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
     payload = event["payload"]
     aliases = compact_alias_strings(payload.get("aliases") or [])
     target_text = str(payload["targetText"])
+    result_transform = payload_result_transform(payload)
+    regex_error = policy_regex_validation_error({**payload, "sourcePattern": aliases[0] if aliases else ""})
+    if regex_error:
+        raise SystemExit(f"invalid replacementFamily regex contract: {regex_error}")
+    source_contract = compact_source_pattern_contract(
+        {
+            **payload,
+            "sourcePattern": aliases[0] if aliases else "",
+        }
+    )
+    if source_contract.get("sourcePatternType") == "regex":
+        for alias in aliases:
+            alias_error = policy_regex_validation_error({**payload, "sourcePattern": alias})
+            if alias_error:
+                raise SystemExit(f"invalid replacementFamily regex alias {alias!r}: {alias_error}")
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
     family_id = str(payload["familyId"])
@@ -2059,14 +2571,16 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "familyId": family_id,
                 "sourcePattern": alias,
                 "targetText": target_text,
+                "sourcePatternType": source_contract.get("sourcePatternType"),
+                "targetTemplate": source_contract.get("targetTemplate"),
+                "regexOptions": source_contract.get("regexOptions"),
                 "ruleNamePrefix": payload.get("ruleNamePrefix"),
                 "ruleType": "replacementFamilyAlias",
             },
             ensure_ascii=False,
             sort_keys=True,
         )
-        policies.append(
-            {
+        policy = {
                 "policyId": f"manual-replacement-family-{short_digest(policy_id_key, length=16)}",
                 "policyType": "scopedReplacement",
                 "autoApplyMode": "apply",
@@ -2075,6 +2589,7 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "target": target_text,
                 "sourcePattern": alias,
                 "targetText": target_text,
+                **source_contract,
                 "lockName": f"{payload.get('ruleNamePrefix') or f'family:{family_id}'}:{short_digest(alias, length=8)}",
                 "contextRequired": False,
                 "contextTokensAny": [],
@@ -2113,8 +2628,10 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "sourceBoundaryMode": source_boundary_mode,
                 "migrationSource": migration_source or None,
                 "sourceRuleId": payload.get("sourceRuleId"),
-            }
-        )
+        }
+        if result_transform:
+            policy["resultTransform"] = result_transform
+        policies.append(policy)
     return policies
 
 
@@ -2152,10 +2669,23 @@ def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], ev
                 ids.append(event["eventId"])
             policy["controlEvidenceEventIds"] = ids
             merge_policy_family_metadata(policy, new_policy)
+            merge_policy_result_transform(policy, new_policy)
             policy["decisionReason"] = str(policy.get("decisionReason") or "") + "; reinforced by manual control-plane evidence"
             return 0
     policies.append(new_policy)
     return 1
+
+
+def merge_policy_result_transform(policy: dict[str, Any], source_policy: dict[str, Any]) -> None:
+    source_transform = compact_result_transform(source_policy.get("resultTransform"))
+    if not source_transform:
+        return
+    existing_transform = compact_result_transform(policy.get("resultTransform"))
+    if existing_transform == source_transform:
+        return
+    if existing_transform and existing_transform != source_transform:
+        policy["supersededResultTransform"] = existing_transform
+    policy["resultTransform"] = source_transform
 
 
 def merge_policy_family_metadata(policy: dict[str, Any], source_policy: dict[str, Any]) -> None:
@@ -2183,8 +2713,10 @@ def policy_identity(policy: dict[str, Any]) -> tuple[Any, ...]:
         )
     return (
         policy.get("policyType"),
+        policy_source_pattern_type(policy),
         policy.get("sourcePattern"),
-        policy.get("targetText"),
+        policy_replacement_target(policy),
+        tuple(policy_regex_options(policy)),
         tuple(policy.get("contextTokensAny") or []),
         tuple(policy.get("contextAliasesAny") or []),
     )
@@ -2570,9 +3102,21 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             failures.append({"kind": "manualReplacementHasContextLockFields", "policyId": policy_id, "passed": False})
         if not source.strip() or not target.strip():
             failures.append({"kind": "manualReplacementMissingSourceOrTarget", "policyId": policy_id, "passed": False})
-        if manual_replacement_noop_key(source) == manual_replacement_noop_key(target):
+        is_regex_policy = policy_source_pattern_type(policy) == "regex"
+        regex_error = policy_regex_validation_error(policy)
+        if is_regex_policy and regex_error:
+            failures.append(
+                {
+                    "kind": "manualReplacementInvalidRegex",
+                    "policyId": policy_id,
+                    "sourcePattern": source,
+                    "reason": regex_error,
+                    "passed": False,
+                }
+            )
+        if not is_regex_policy and manual_replacement_noop_key(source) == manual_replacement_noop_key(target):
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
-        if len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
+        if not is_regex_policy and len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
         mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
         if mode not in SOURCE_BOUNDARY_MODES:
@@ -2948,12 +3492,7 @@ def manual_replacement_policy_accepts_change(
     if strict_text_key(after) == strict_text_key(cleaned):
         return False
     return strict_text_key(
-        replace_policy_source(
-            before,
-            source,
-            target,
-            str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE),
-        )
+        replace_policy_source_for_policy(before, policy)
     ) == strict_text_key(after)
 
 
@@ -3365,6 +3904,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
 
     publish_model = copy.deepcopy(model)
     apply_readiness(publish_model, validation)
+    runtime_index_repair = rebuild_runtime_index_fields(publish_model, source_model_path=model_path)
     validate_worker_model_artifact(publish_model)
     model_bytes = canonical_json_bytes(publish_model)
     model_sha = hashlib.sha256(model_bytes).hexdigest()
@@ -3376,6 +3916,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         version=version,
         worker_url=args.worker_url,
     )
+    manifest["runtimeIndexRepair"] = runtime_index_repair
     validate_worker_manifest(manifest)
 
     output_dir = worker_release_output_dir(args.output_dir, version)
@@ -3436,6 +3977,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "validation": validation_summary(validation),
         "publishResult": publish_result,
         "privacyBoundary": worker_privacy_boundary(),
+        "runtimeIndexRepair": runtime_index_repair,
     }
     report_path.write_bytes(canonical_json_bytes(report))
     return {
@@ -3449,6 +3991,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "published": bool(publish_result),
         "dryRun": bool(args.dry_run),
         "validation": validation_summary(validation),
+        "runtimeIndexRepair": runtime_index_repair,
         "failed": False,
     }
 
@@ -3731,10 +4274,18 @@ def validate_worker_manifest(manifest: dict[str, Any]) -> None:
 
 
 def validate_worker_model_artifact(model: dict[str, Any], manifest: dict[str, Any] | None = None) -> None:
+    if model.get("modelFormat") != RUNTIME_INDEXED_V2_MODEL_FORMAT:
+        raise WorkerSyncError(f"model.modelFormat must be {RUNTIME_INDEXED_V2_MODEL_FORMAT}")
     if model.get("schemaVersion") is not None and model.get("schemaVersion") not in SUPPORTED_EVALUATION_CONTRACT_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported model schemaVersion: {model.get('schemaVersion')}")
     if model.get("runtimeSchemaVersion") is not None and model.get("runtimeSchemaVersion") not in SUPPORTED_RUNTIME_SCHEMA_VERSIONS:
         raise WorkerSyncError(f"unsupported model runtimeSchemaVersion: {model.get('runtimeSchemaVersion')}")
+    if not isinstance(model.get("exactApplyPolicyByStrictKey"), dict):
+        raise WorkerSyncError("indexed-v2 model requires exactApplyPolicyByStrictKey")
+    if not isinstance(model.get("scopedApplyPolicies"), list):
+        raise WorkerSyncError("indexed-v2 model requires scopedApplyPolicies")
+    if not isinstance(model.get("suggestPolicies"), list):
+        raise WorkerSyncError("indexed-v2 model requires suggestPolicies")
     readiness = model.get("mergedReplayReadiness")
     if not isinstance(readiness, dict) or readiness.get("mergedAutoApplyModelReady") is not True:
         raise WorkerSyncError("model is not marked mergedReplayReadiness.mergedAutoApplyModelReady=true")
@@ -3990,7 +4541,8 @@ def replay_apply_policies_unchecked(
     replacement_policies = [policy for policy in apply_policies if policy.get("policyType") != "exactTrainablePair"]
     exact_policy = first_exact_policy(exact_policies, text)
     if exact_policy:
-        return str(exact_policy.get("targetText") or text), [
+        target = apply_policy_result_transform(str(exact_policy.get("targetText") or text), exact_policy, text)
+        return target, [
             {
                 "policyId": exact_policy.get("policyId"),
                 "policyType": exact_policy.get("policyType"),
@@ -4009,15 +4561,10 @@ def replay_apply_policies_unchecked(
             continue
         source = str(policy.get("sourcePattern") or "")
         target = str(policy.get("targetText") or "")
-        updated = replace_policy_source(
-            after,
-            source,
-            target,
-            str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE),
-        )
+        updated = replace_policy_source_for_policy(after, policy)
         if updated == after:
             continue
-        after = updated
+        after = apply_policy_result_transform(updated, policy, after)
         fires.append(
             {
                 "policyId": policy.get("policyId"),
@@ -4309,7 +4856,7 @@ def first_exact_policy(exact_policies: list[dict[str, Any]], text: str) -> dict[
 def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     source = str(policy.get("sourcePattern") or "")
     boundary_mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
-    if not replacement_matches(text, source, boundary_mode):
+    if not policy_source_matches(policy, text, source, boundary_mode):
         return False
     trusted = context if policy.get("contextFromContextOnly") else "\n".join([text, context])
     alias_hits = token_hits(trusted, policy.get("contextAliasesAny") or [])
@@ -4319,6 +4866,21 @@ def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     if policy.get("contextRequired"):
         return bool(alias_hits or context_hits)
     return True
+
+
+def policy_source_matches(
+    policy: dict[str, Any],
+    text: str,
+    source: str | None = None,
+    source_boundary_mode: str = DEFAULT_SOURCE_BOUNDARY_MODE,
+) -> bool:
+    source_pattern = source if source is not None else str(policy.get("sourcePattern") or "")
+    if policy_source_pattern_type(policy) == "regex":
+        if not source_pattern:
+            return False
+        regex = compiled_source_regex(source_pattern, policy_regex_options(policy))
+        return bool(regex and regex.search(text))
+    return replacement_matches(text, source_pattern, source_boundary_mode)
 
 
 def replacement_matches(
@@ -4358,6 +4920,87 @@ def replace_policy_source(
             start, end = match
             result = result[:start] + target + result[end:]
     return text.replace(source, target)
+
+
+def replace_policy_source_for_policy(text: str, policy: dict[str, Any]) -> str:
+    source = str(policy.get("sourcePattern") or "")
+    target = str(policy.get("targetText") or "")
+    if policy_source_pattern_type(policy) == "regex":
+        if not source:
+            return text
+        regex = compiled_source_regex(source, policy_regex_options(policy))
+        if not regex:
+            return text
+        template = policy_target_template(policy) or target
+        return regex.sub(lambda match: expand_regex_replacement(match, template), text)
+    return replace_policy_source(
+        text,
+        source,
+        target,
+        str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE),
+    )
+
+
+def replace_text_for_source_contract(
+    text: str,
+    source: str,
+    target: str,
+    source_contract: dict[str, Any],
+) -> str:
+    policy = {
+        "sourcePattern": source,
+        "targetText": target,
+        **source_contract,
+    }
+    return replace_policy_source_for_policy(text, policy)
+
+
+def expand_regex_replacement(match: re.Match[str], template: str) -> str:
+    output: list[str] = []
+    index = 0
+    while index < len(template):
+        char = template[index]
+        if char != "$":
+            output.append(char)
+            index += 1
+            continue
+        if index + 1 >= len(template):
+            output.append("$")
+            index += 1
+            continue
+        next_char = template[index + 1]
+        if next_char == "$":
+            output.append("$")
+            index += 2
+            continue
+        if next_char == "{":
+            end = template.find("}", index + 2)
+            if end > index + 2:
+                group_name = template[index + 2:end]
+                output.append(regex_group_value(match, group_name))
+                index = end + 1
+                continue
+        if next_char.isdigit():
+            end = index + 1
+            while end < len(template) and template[end].isdigit():
+                end += 1
+            output.append(regex_group_value(match, template[index + 1:end]))
+            index = end
+            continue
+        output.append("$")
+        index += 1
+    return "".join(output)
+
+
+def regex_group_value(match: re.Match[str], group_name: str) -> str:
+    try:
+        if group_name.isdigit():
+            value = match.group(int(group_name))
+        else:
+            value = match.group(group_name)
+    except (IndexError, KeyError):
+        return ""
+    return "" if value is None else str(value)
 
 
 def range_for_ascii_bounded_source(source: str, text: str) -> tuple[int, int] | None:

@@ -193,6 +193,89 @@ struct VocoAutoApplyModelServiceTests {
         #expect(guarded.guardBlocks.map(\.guardId) == ["protected-term-allowlist.mingde"])
     }
 
+    @Test func indexedRuntimeV2ResultTransformStripsPhoneTerminalPunctuation() throws {
+        let url = try temporaryDirectory().appendingPathComponent("result-transform-phone-runtime-v2.json")
+        try Data(
+            """
+            {
+              "schemaVersion": 1,
+              "runtimeSchemaVersion": \(VocoAutoApplyModelService.supportedRuntimeSchemaVersion),
+              "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+              "autoApplyModelVersion": "result-transform-phone-test",
+              "generatedAt": "2026-06-30T00:00:00Z",
+              "mergedReplayReadiness": {
+                "mergedAutoApplyModelReady": true,
+                "failures": []
+              },
+              "actionCommandGuards": [],
+              "exactApplyPolicyByStrictKey": {
+                "零九七五九三六六六三。": {
+                  "policyId": "exact-phone-strip-terminal-punctuation",
+                  "sourcePattern": "零九七五九三六六六三。",
+                  "targetText": "0975936663。",
+                  "sourceSlices": ["worker-realtime-overlay"],
+                  "resultTransform": {
+                    "schema": "voco.policy-result-transform.v1",
+                    "terminalPunctuation": "strip"
+                  }
+                }
+              },
+              "scopedApplyPolicies": [],
+              "suggestPolicies": []
+            }
+            """.utf8
+        ).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let result = service.evaluate("零九七五九三六六六三。")
+        #expect(service.status.isAvailable == true)
+        #expect(result.outputText == "0975936663")
+        #expect(result.applied.map(\.policyId) == ["exact-phone-strip-terminal-punctuation"])
+    }
+
+    @Test func indexedRuntimeV2RegexScopedReplacementUsesCaptureTemplate() throws {
+        let url = try temporaryDirectory().appendingPathComponent("regex-scoped-runtime-v2.json")
+        try Data(
+            """
+            {
+              "schemaVersion": 1,
+              "runtimeSchemaVersion": \(VocoAutoApplyModelService.supportedRuntimeSchemaVersion),
+              "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+              "autoApplyModelVersion": "regex-scoped-test",
+              "generatedAt": "2026-07-01T00:00:00Z",
+              "mergedReplayReadiness": {
+                "mergedAutoApplyModelReady": true,
+                "failures": []
+              },
+              "actionCommandGuards": [],
+              "exactApplyPolicyByStrictKey": {},
+              "scopedApplyPolicies": [
+                {
+                  "policyId": "regex-version-number",
+                  "autoApplyMode": "apply",
+                  "policyType": "scopedReplacement",
+                  "sourcePattern": "版本\\\\s*(\\\\d+)",
+                  "sourcePatternType": "regex",
+                  "targetText": "v",
+                  "targetTemplate": "v$1",
+                  "contextRequired": false,
+                  "contextTokensAny": [],
+                  "contextAliasesAny": [],
+                  "sourceSlices": ["worker-realtime-overlay"]
+                }
+              ],
+              "suggestPolicies": []
+            }
+            """.utf8
+        ).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let result = service.evaluate("版本 12 已經好了。")
+        #expect(service.status.isAvailable == true)
+        #expect(result.outputText == "v12 已經好了。")
+        #expect(result.applied.map(\.policyId) == ["regex-version-number"])
+    }
+
     @Test func malformedIndexedRuntimeV2FallsBackToReadableV1Payload() throws {
         let url = try temporaryDirectory().appendingPathComponent("v2-marker-with-v1-fallback.json")
         try Data(indexedRuntimeV2DecodeFailureWithV1FallbackJSON().utf8).write(to: url)

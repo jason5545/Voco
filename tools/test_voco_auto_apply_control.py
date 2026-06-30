@@ -46,6 +46,7 @@ def worker_model_with_policy() -> dict:
     ]
     model["policyCounts"] = {"apply": 1}
     model["policyTypeCounts"] = {"exactTrainablePair": 1}
+    control.rebuild_runtime_index_fields(model)
     return model
 
 
@@ -246,6 +247,161 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertNotIn("policies", runtime)
             self.assertEqual(runtime["protectedTermAllowlistGuards"][0]["term"], "明德")
 
+    def test_compile_model_rebuilds_stale_hybrid_runtime_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base_path = root / "base.json"
+            evidence = root / "evidence.jsonl"
+            model = tiny_base_model()
+            model.update(
+                {
+                    "schemaVersion": 2,
+                    "runtimeSchemaVersion": control.RUNTIME_INDEXED_V2_SCHEMA_VERSION,
+                    "modelFormat": control.RUNTIME_INDEXED_V2_MODEL_FORMAT,
+                    "exactApplyPolicyByStrictKey": {},
+                    "scopedApplyPolicies": [],
+                    "suggestPolicies": [],
+                    "policyCounts": {"apply": 1},
+                    "policyTypeCounts": {"scopedReplacement": 1},
+                    "policies": [
+                        {
+                            "policyId": "manual-context-phone",
+                            "autoApplyMode": "apply",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "零九七五",
+                            "targetText": "0975",
+                            "contextRequired": True,
+                            "contextTokensAny": ["phone", "手機", "電話"],
+                            "contextAliasesAny": [],
+                            "reviewGateConflictRows": [],
+                            "sourceSlices": ["manualControlPlane"],
+                        }
+                    ],
+                }
+            )
+            control.write_model(base_path, model)
+
+            compiled, report = control.compile_model(
+                control.load_model(base_path),
+                [],
+                base_model_path=base_path,
+                evidence_store=evidence,
+            )
+
+            self.assertEqual(compiled["modelFormat"], control.RUNTIME_INDEXED_V2_MODEL_FORMAT)
+            self.assertEqual(len(compiled["scopedApplyPolicies"]), 1)
+            self.assertEqual(compiled["scopedApplyPolicies"][0]["policyId"], "manual-context-phone")
+            self.assertEqual(compiled["scopedApplyPolicies"][0]["targetText"], "0975")
+            self.assertEqual(report["runtimeIndexRepair"]["scopedAdded"], 1)
+
+    def test_result_transform_strip_phone_punctuation_survives_compile_and_replay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_text="零九七五九三六六六三。",
+                target_text="0975936663。",
+                row_pk=16143,
+                context="",
+                note=None,
+            )
+
+            event = control.correction_event(args)
+            self.assertEqual(event["payload"]["resultTransform"]["terminalPunctuation"], "strip")
+            self.assertEqual(event["payload"]["examples"]["positive"][0]["expectedText"], "0975936663")
+            control.append_event(evidence, event)
+
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            policy = model["policies"][0]
+            self.assertEqual(policy["resultTransform"]["terminalPunctuation"], "strip")
+            output, fires = control.replay_apply_policies_unchecked(
+                "零九七五九三六六六三。",
+                "",
+                model["policies"],
+            )
+            self.assertEqual(output, "0975936663")
+            self.assertEqual(fires[0]["policyId"], policy["policyId"])
+
+            runtime = control.compile_indexed_runtime_v2_model(model)
+            runtime_policy = runtime["exactApplyPolicyByStrictKey"][
+                control.strict_text_key("零九七五九三六六六三。")
+            ]
+            self.assertEqual(runtime_policy["targetText"], "0975936663。")
+            self.assertEqual(runtime_policy["resultTransform"]["terminalPunctuation"], "strip")
+
+    def test_publish_worker_release_rebuilds_runtime_index_before_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model_path = root / "candidate.json"
+            evidence = root / "evidence.jsonl"
+            output_dir = root / "release"
+            model = tiny_base_model()
+            model.update(
+                {
+                    "schemaVersion": 2,
+                    "runtimeSchemaVersion": control.RUNTIME_INDEXED_V2_SCHEMA_VERSION,
+                    "modelFormat": control.RUNTIME_INDEXED_V2_MODEL_FORMAT,
+                    "exactApplyPolicyByStrictKey": {},
+                    "scopedApplyPolicies": [],
+                    "suggestPolicies": [],
+                    "policyCounts": {"apply": 1},
+                    "policyTypeCounts": {"scopedReplacement": 1},
+                    "policies": [
+                        {
+                            "policyId": "manual-context-phone",
+                            "autoApplyMode": "apply",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "零九七五",
+                            "targetText": "0975",
+                            "contextRequired": True,
+                            "contextTokensAny": ["phone", "手機", "電話"],
+                            "contextAliasesAny": [],
+                            "reviewGateConflictRows": [],
+                            "sourceSlices": ["manualControlPlane"],
+                        }
+                    ],
+                }
+            )
+            control.write_model(model_path, model)
+
+            result = control.publish_worker_release_command(
+                Namespace(
+                    actor="test",
+                    model=model_path,
+                    base_model=root / "missing-base.json",
+                    evidence_store=evidence,
+                    replaylab_root=root / "missing-replaylab",
+                    current_corpus_dir=root / "missing-current",
+                    reraw_corpus_dir=root / "missing-reraw",
+                    skip_corpus_replay=True,
+                    skip_raw_input_replay=True,
+                    worker_url="https://example.invalid",
+                    version="test-runtime-rebuild",
+                    output_dir=output_dir,
+                    dry_run=True,
+                    sync_key=None,
+                    sync_key_file=None,
+                    timeout=1.0,
+                )
+            )
+            bundled_model = control.load_model(Path(result["model"]))
+            manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+            self.assertFalse(result["failed"])
+            self.assertEqual(bundled_model["modelFormat"], control.RUNTIME_INDEXED_V2_MODEL_FORMAT)
+            self.assertEqual(len(bundled_model["scopedApplyPolicies"]), 1)
+            self.assertEqual(bundled_model["scopedApplyPolicies"][0]["targetText"], "0975")
+            self.assertEqual(result["runtimeIndexRepair"]["scopedAdded"], 1)
+            self.assertEqual(manifest["runtimeIndexRepair"]["scopedAdded"], 1)
+
     def test_context_locked_rule_passes_positive_and_negative_examples(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -348,6 +504,74 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertFalse(policy["contextRequired"])
             self.assertEqual(policy["contextTokensAny"], [])
             self.assertEqual(policy["contextAliasesAny"], [])
+
+    def test_regex_replacement_rule_compiles_and_replays_capture_template(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern=r"版本\s*(\d+)",
+                target_text="v",
+                source_pattern_type="regex",
+                target_template=r"v$1",
+                regex_options=[],
+                source_text="版本 12 已經好了。",
+                row_pk=17101,
+                rule_name="version-number-normalization",
+                positive=[],
+                negative=[],
+                positive_text="版本 12 已經好了。",
+                positive_context="",
+                expected_text=None,
+                negative_text=None,
+                negative_context="",
+                family_id=None,
+                family_role="alias",
+                family_reason=None,
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            self.assertTrue(validation["ready"])
+            self.assertEqual(validation["positiveExamples"][0]["actualText"], "v12 已經好了。")
+
+            policy = model["policies"][0]
+            self.assertEqual(policy["sourcePatternType"], "regex")
+            self.assertEqual(policy["targetTemplate"], r"v$1")
+            output, fires = control.replay_apply_policies_unchecked(
+                "版本 34 已經好了。",
+                "",
+                model["policies"],
+            )
+            self.assertEqual(output, "v34 已經好了。")
+            self.assertEqual(fires[0]["policyId"], policy["policyId"])
+
+            runtime = control.compile_indexed_runtime_v2_model(model)
+            runtime_policy = runtime["scopedApplyPolicies"][0]
+            self.assertEqual(runtime_policy["sourcePatternType"], "regex")
+            self.assertEqual(runtime_policy["targetTemplate"], r"v$1")
 
     def test_readded_replacement_after_tombstone_validates_only_new_event_examples(self):
         with tempfile.TemporaryDirectory() as tmp:
