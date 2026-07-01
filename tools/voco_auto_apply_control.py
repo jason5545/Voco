@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-Local control plane for Voco auto-apply correction rules.
+Control plane for Voco auto-apply correction rules.
 
-This CLI is intentionally boring: every user-confirmed correction, context
-lock, tombstone, activation, and rollback is appended to an evidence JSONL
-store. The active model is never edited directly; a compiler patches a baseline
-model, a validator checks examples/sentinels/replay, then the installer copies
-the validated artifact into Voco's Application Support directory.
+Daily confirmed control events are cloud-first: by default add/disable
+commands preview Worker JSON control events instead of appending Mac local
+evidence. Local evidence remains the canonical compile input, but it is updated
+only by explicit local mode or a cloud-to-local reconcile command.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ import shutil
 import sqlite3
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -58,6 +58,20 @@ RUNTIME_INDEXED_V2_SCHEMA_VERSION = 4
 SUPPORTED_RUNTIME_SCHEMA_VERSIONS = {2, 3, RUNTIME_INDEXED_V2_SCHEMA_VERSION}
 RUNTIME_INDEXED_V2_MODEL_FORMAT = "voco-auto-apply-runtime-indexed-v2"
 RUNTIME_INDEXED_V2_FILENAME = "full-db.auto-apply-runtime-v2.json"
+WORKER_CONTROL_WRITE_TOOLS = {
+    "addCorrection": "add_auto_apply_correction",
+    "addContextLockedRule": "add_auto_apply_context_locked_rule",
+    "addReplacementRule": "add_auto_apply_replacement_rule",
+    "addReplacementFamily": "add_auto_apply_replacement_family",
+    "disableRule": "tombstone_auto_apply_rule",
+}
+WORKER_CONTROL_EVENT_TYPES = {
+    "addCorrection": "correction",
+    "addContextLockedRule": "contextLockedRule",
+    "addReplacementRule": "replacementRule",
+    "addReplacementFamily": "replacementFamily",
+    "disableRule": "tombstone",
+}
 RUNTIME_INDEX_FIELD_KEYS = (
     "modelFormat",
     "runtimeSchemaVersion",
@@ -418,6 +432,7 @@ def parse_args() -> argparse.Namespace:
     correction.add_argument("--context", default="")
     correction.add_argument("--note")
     add_result_transform_args(correction)
+    add_cloud_control_args(correction)
 
     hallucination = subparsers.add_parser("addHallucination")
     hallucination.add_argument("--source-text", required=True)
@@ -446,6 +461,7 @@ def parse_args() -> argparse.Namespace:
     context_rule.add_argument("--note")
     add_source_pattern_contract_args(context_rule)
     add_result_transform_args(context_rule)
+    add_cloud_control_args(context_rule)
 
     replacement_rule = subparsers.add_parser("addReplacementRule")
     replacement_rule.add_argument("--source-pattern", required=True)
@@ -466,6 +482,7 @@ def parse_args() -> argparse.Namespace:
     replacement_rule.add_argument("--note")
     add_source_pattern_contract_args(replacement_rule)
     add_result_transform_args(replacement_rule)
+    add_cloud_control_args(replacement_rule)
 
     replacement_family = subparsers.add_parser("addReplacementFamily")
     replacement_family.add_argument("--family-id", required=True)
@@ -484,6 +501,7 @@ def parse_args() -> argparse.Namespace:
     replacement_family.add_argument("--note")
     add_source_pattern_contract_args(replacement_family)
     add_result_transform_args(replacement_family)
+    add_cloud_control_args(replacement_family)
 
     migrate_pct = subparsers.add_parser("migratePctSeedFamilies")
     migrate_pct.add_argument("--family-id", action="append", default=[])
@@ -517,10 +535,27 @@ def parse_args() -> argparse.Namespace:
     disable.add_argument("--source-pattern")
     disable.add_argument("--target-text")
     disable.add_argument("--reason", required=True)
-    disable.add_argument("--disposition", choices=["blocked", "replaced"])
+    disable.add_argument("--disposition", choices=["blocked", "replaced"], default="replaced")
+    add_cloud_control_args(disable)
 
     list_evidence = subparsers.add_parser("listEvidence")
     list_evidence.add_argument("--limit", type=int, default=20)
+
+    list_worker_events = subparsers.add_parser("listWorkerControlEvents")
+    list_worker_events.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    list_worker_events.add_argument("--limit", type=int, default=20)
+    add_worker_sync_args(list_worker_events)
+
+    explain_worker_event = subparsers.add_parser("explainWorkerControlEvent")
+    explain_worker_event.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    explain_worker_event.add_argument("--event-id", required=True)
+    add_worker_sync_args(explain_worker_event)
+
+    reconcile_worker = subparsers.add_parser("reconcileWorkerControlEvents")
+    reconcile_worker.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    reconcile_worker.add_argument("--limit", type=int, default=100)
+    reconcile_worker.add_argument("--write-local", action="store_true")
+    add_worker_sync_args(reconcile_worker)
 
     compile_model = subparsers.add_parser("compileModel")
     add_model_io_args(compile_model)
@@ -631,50 +666,80 @@ def add_worker_sync_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--timeout", type=float, default=20.0)
 
 
+def add_cloud_control_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--control-plane",
+        choices=["worker", "local"],
+        default="worker",
+        help="worker previews/writes Worker cloud control events; local explicitly appends Mac canonical evidence.",
+    )
+    parser.add_argument(
+        "--write-cloud",
+        action="store_true",
+        help="Append the control event to Worker cloud control storage. Omitted/default is preview-only.",
+    )
+    parser.add_argument(
+        "--make-available-now",
+        action="store_true",
+        help="When writing to Worker, also publish a realtime overlay release for immediate client sync.",
+    )
+    parser.add_argument(
+        "--detect-duplicate",
+        action="store_true",
+        help="Check Worker model/events for an equivalent control event instead of previewing or writing.",
+    )
+    parser.add_argument(
+        "--allow-replace-existing-exact",
+        action="store_true",
+        help="Allow Worker realtime overlay to replace an existing exact policy when supported.",
+    )
+    parser.add_argument("--worker-url", default=DEFAULT_WORKER_URL)
+    add_worker_sync_args(parser)
+
+
 def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
     if args.command == "listRecentTranscriptions":
         return list_recent_transcriptions(args.store.expanduser(), args.limit, args.min_pk)
     if args.command == "addCorrection":
-        event = correction_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        return handle_control_event_command(args, correction_event(args))
     if args.command == "addHallucination":
         event = hallucination_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        evidence_store = evidence_store_path_from_args(args)
+        append_event(evidence_store, event)
+        return {"event": event, "evidenceStore": str(evidence_store)}
     if args.command == "addContextLockedRule":
-        event = context_locked_rule_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        return handle_control_event_command(args, context_locked_rule_event(args))
     if args.command == "addReplacementRule":
-        event = replacement_rule_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        return handle_control_event_command(args, replacement_rule_event(args))
     if args.command == "addReplacementFamily":
-        event = replacement_family_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        return handle_control_event_command(args, replacement_family_event(args))
     if args.command == "migratePctSeedFamilies":
         return migrate_pct_seed_families_command(args)
     if args.command == "tagPolicyFamily":
         event = tag_policy_family_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        evidence_store = evidence_store_path_from_args(args)
+        append_event(evidence_store, event)
+        return {"event": event, "evidenceStore": str(evidence_store)}
     if args.command == "listPolicyFamilies":
         return list_policy_families(args.model.expanduser(), args.limit)
     if args.command == "inspectPolicyFamily":
         return inspect_policy_family(args.model.expanduser(), args.family_id)
     if args.command == "disableRule":
-        event = disable_rule_event(args)
-        append_event(args.evidence_store.expanduser(), event)
-        return {"event": event, "evidenceStore": str(args.evidence_store.expanduser())}
+        return handle_control_event_command(args, disable_rule_event(args))
     if args.command == "listEvidence":
-        events = load_events(args.evidence_store.expanduser())
+        evidence_store = evidence_store_path_from_args(args)
+        events = load_events(evidence_store)
         return {
-            "evidenceStore": str(args.evidence_store.expanduser()),
+            "evidenceStore": str(evidence_store),
             "eventCount": len(events),
             "events": events[-args.limit :],
         }
+    if args.command == "listWorkerControlEvents":
+        return list_worker_control_events_command(args)
+    if args.command == "explainWorkerControlEvent":
+        return explain_worker_control_event_command(args)
+    if args.command == "reconcileWorkerControlEvents":
+        return reconcile_worker_control_events_command(args)
     if args.command == "compileModel":
         return compile_model_command(args)
     if args.command == "compileRuntimeModel":
@@ -700,6 +765,207 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
     if args.command == "auditWorkerRelease":
         return audit_worker_release_command(args)
     raise AssertionError(f"Unhandled command: {args.command}")
+
+
+def handle_control_event_command(args: argparse.Namespace, event: dict[str, Any]) -> dict[str, Any]:
+    control_plane = str(getattr(args, "control_plane", "worker") or "worker")
+    if getattr(args, "detect_duplicate", False) and (
+        getattr(args, "write_cloud", False) or getattr(args, "make_available_now", False)
+    ):
+        raise SystemExit("--detect-duplicate cannot be combined with --write-cloud or --make-available-now")
+
+    evidence_store = evidence_store_path_from_args(args)
+    if control_plane == "local":
+        if getattr(args, "detect_duplicate", False):
+            raise SystemExit("--detect-duplicate is Worker-only; omit --control-plane local")
+        if getattr(args, "write_cloud", False) or getattr(args, "make_available_now", False):
+            raise SystemExit("--write-cloud/--make-available-now require --control-plane worker")
+        append_event(evidence_store, event)
+        return {
+            "schema": "voco.auto-apply-control.local-append.v1",
+            "operation": "appendLocalEvidence",
+            "event": event,
+            "evidenceStore": str(evidence_store),
+            "surfaces": auto_apply_surface_report(
+                worker_control_events_touched=False,
+                worker_artifact_touched=False,
+                local_evidence_touched=True,
+                local_evidence_written=True,
+                local_active_model_touched=False,
+                evidence_store=evidence_store,
+            ),
+            "failed": False,
+        }
+    if control_plane != "worker":
+        raise SystemExit(f"unsupported control plane: {control_plane}")
+
+    return worker_control_event_command(args, event)
+
+
+def worker_control_event_command(args: argparse.Namespace, event: dict[str, Any]) -> dict[str, Any]:
+    action = str(event.get("action") or "")
+    if action not in WORKER_CONTROL_WRITE_TOOLS:
+        raise SystemExit(f"Worker control event is not supported for action: {action}")
+
+    if getattr(args, "detect_duplicate", False):
+        tool_name = "detect_duplicate_control_event"
+        tool_args = worker_control_tool_arguments(event, include_event_type=True)
+        operation = "detectDuplicateWorkerControlEvent"
+    elif getattr(args, "write_cloud", False) or getattr(args, "make_available_now", False):
+        tool_name = WORKER_CONTROL_WRITE_TOOLS[action]
+        tool_args = worker_control_tool_arguments(event, include_event_type=False)
+        if getattr(args, "make_available_now", False):
+            tool_args["makeAvailableNow"] = True
+        operation = "writeWorkerControlEvent"
+    else:
+        tool_name = "preview_auto_apply_control_event"
+        tool_args = worker_control_tool_arguments(event, include_event_type=True)
+        operation = "previewWorkerControlEvent"
+
+    if getattr(args, "allow_replace_existing_exact", False):
+        tool_args["allowReplaceExistingExact"] = True
+
+    return call_worker_control_tool_command(
+        args,
+        tool_name=tool_name,
+        tool_args=tool_args,
+        operation=operation,
+        local_preview_event=event,
+    )
+
+
+def list_worker_control_events_command(args: argparse.Namespace) -> dict[str, Any]:
+    return call_worker_control_tool_command(
+        args,
+        tool_name="list_auto_apply_control_events",
+        tool_args={"limit": max(1, int(args.limit))},
+        operation="listWorkerControlEvents",
+    )
+
+
+def explain_worker_control_event_command(args: argparse.Namespace) -> dict[str, Any]:
+    return call_worker_control_tool_command(
+        args,
+        tool_name="explain_auto_apply_control_event",
+        tool_args={"eventId": args.event_id},
+        operation="explainWorkerControlEvent",
+    )
+
+
+def reconcile_worker_control_events_command(args: argparse.Namespace) -> dict[str, Any]:
+    status_result = call_worker_control_tool_command(
+        args,
+        tool_name="get_auto_apply_reconcile_status",
+        tool_args={},
+        operation="getWorkerControlReconcileStatus",
+    )
+    events_result = call_worker_control_tool_command(
+        args,
+        tool_name="list_auto_apply_control_events",
+        tool_args={"limit": max(1, int(args.limit))},
+        operation="listWorkerControlEventsForReconcile",
+    )
+    evidence_store = evidence_store_path_from_args(args)
+    local_events = load_events(evidence_store)
+    local_event_ids = {
+        str(event.get("eventId") or "")
+        for event in local_events
+        if str(event.get("eventId") or "")
+    }
+    status_body = status_result.get("workerResult") if isinstance(status_result.get("workerResult"), dict) else {}
+    events_body = events_result.get("workerResult") if isinstance(events_result.get("workerResult"), dict) else {}
+    worker_events = [
+        event for event in events_body.get("events") or []
+        if isinstance(event, dict)
+    ]
+    requested_reconcile_ids = {
+        str(event_id)
+        for event_id in status_body.get("eventsNeedingLocalControlPlaneReconcile") or []
+        if str(event_id).strip()
+    }
+    if not requested_reconcile_ids and (status_body.get("workerOverlay") or {}).get("needsLocalControlPlaneReconcile") is True:
+        requested_reconcile_ids = {
+            str(event_id)
+            for event_id in (status_body.get("workerOverlay") or {}).get("appliedEventIds") or []
+            if str(event_id).strip()
+        }
+    worker_events_by_id = {
+        str(event.get("eventId") or ""): event
+        for event in worker_events
+        if str(event.get("eventId") or "")
+    }
+    candidate_ids = requested_reconcile_ids or set(worker_events_by_id.keys())
+    append_candidates = [
+        worker_events_by_id[event_id]
+        for event_id in sorted(candidate_ids)
+        if event_id in worker_events_by_id and event_id not in local_event_ids
+    ]
+    invalid_candidates = [
+        {"eventId": str(event.get("eventId") or ""), "reason": "unsupported or malformed Worker control event"}
+        for event in append_candidates
+        if not is_reconcilable_worker_control_event(event)
+    ]
+    valid_candidates = [
+        event for event in append_candidates
+        if is_reconcilable_worker_control_event(event)
+    ]
+    written_event_ids: list[str] = []
+    if args.write_local:
+        if invalid_candidates:
+            return {
+                "schema": "voco.auto-apply-control.reconcile-plan.v1",
+                "operation": "reconcileWorkerControlEvents",
+                "dryRun": False,
+                "failed": True,
+                "reason": "Worker event list contains unsupported events; local evidence was not modified",
+                "invalidCandidates": invalid_candidates,
+                "surfaces": auto_apply_surface_report(
+                    worker_control_events_touched=True,
+                    worker_artifact_touched=False,
+                    local_evidence_touched=True,
+                    local_evidence_written=False,
+                    local_active_model_touched=False,
+                    evidence_store=evidence_store,
+                ),
+            }
+        for event in valid_candidates:
+            append_event(evidence_store, event)
+            written_event_ids.append(str(event.get("eventId") or ""))
+
+    missing_requested_ids = sorted(candidate_ids - set(worker_events_by_id.keys()))
+    return {
+        "schema": "voco.auto-apply-control.reconcile-plan.v1",
+        "operation": "reconcileWorkerControlEvents",
+        "dryRun": not bool(args.write_local),
+        "workerReconcileStatus": status_body,
+        "workerEventCount": len(worker_events),
+        "localEvidenceStore": str(evidence_store),
+        "localEvidenceEventCount": len(local_events),
+        "requestedReconcileEventIds": sorted(candidate_ids),
+        "workerOnlyEventIds": sorted(set(worker_events_by_id.keys()) - local_event_ids),
+        "missingCanonicalEventIds": [str(event.get("eventId") or "") for event in valid_candidates],
+        "missingRequestedEventIds": missing_requested_ids,
+        "invalidCandidates": invalid_candidates,
+        "plannedActions": [
+            {
+                "action": "appendLocalEvidence",
+                "eventId": str(event.get("eventId") or ""),
+                "dryRun": not bool(args.write_local),
+                "source": "worker-cloud-control-event-log",
+            }
+            for event in valid_candidates
+        ],
+        "writtenEventIds": written_event_ids,
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=True,
+            worker_artifact_touched=False,
+            local_evidence_touched=True,
+            local_evidence_written=bool(written_event_ids),
+            local_active_model_touched=False,
+            evidence_store=evidence_store,
+        ),
+        "failed": bool(status_result.get("failed") or events_result.get("failed")),
+    }
 
 
 def correction_event(args: argparse.Namespace) -> dict[str, Any]:
@@ -1015,7 +1281,7 @@ def migrate_pct_seed_families_command(args: argparse.Namespace) -> dict[str, Any
     if missing:
         raise SystemExit(f"Unknown migrated PCT seed family id(s): {', '.join(missing)}")
 
-    evidence_store = args.evidence_store.expanduser()
+    evidence_store = evidence_store_path_from_args(args)
     existing_events = load_events(evidence_store)
     existing_family_ids = {
         str(((event.get("payload") or {}).get("familyId")) or "")
@@ -1155,6 +1421,451 @@ def load_events(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"Expected JSON object at {path}:{line_number}")
             events.append(event)
     return events
+
+
+def worker_control_tool_arguments(event: dict[str, Any], *, include_event_type: bool) -> dict[str, Any]:
+    action = str(event.get("action") or "")
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    args: dict[str, Any] = {"actor": str(event.get("actor") or "codex")}
+    if include_event_type:
+        args["eventType"] = WORKER_CONTROL_EVENT_TYPES[action]
+
+    if action == "addCorrection":
+        copy_present(payload, args, ["sourceText", "targetText", "rowPk", "context", "resultTransform"])
+        note = provenance_note(payload)
+        if note:
+            args["note"] = note
+        copy_source_contract(payload, args)
+        return args
+
+    if action == "addContextLockedRule":
+        copy_present(
+            payload,
+            args,
+            [
+                "sourcePattern",
+                "targetText",
+                "sourceText",
+                "rowPk",
+                "lockName",
+                "contextFromContextOnly",
+                "requireAlias",
+                "resultTransform",
+            ],
+        )
+        args["contextTokensAny"] = list(payload.get("contextTokensAny") or [])
+        args["contextAliasesAny"] = list(payload.get("contextAliasesAny") or [])
+        copy_examples(payload, args)
+        copy_source_contract(payload, args)
+        note = provenance_note(payload)
+        if note:
+            args["note"] = note
+        return args
+
+    if action == "addReplacementRule":
+        copy_present(
+            payload,
+            args,
+            [
+                "sourcePattern",
+                "targetText",
+                "sourceText",
+                "rowPk",
+                "ruleName",
+                "familyId",
+                "familyRole",
+                "familyReason",
+                "resultTransform",
+            ],
+        )
+        copy_examples(payload, args)
+        copy_source_contract(payload, args)
+        note = provenance_note(payload)
+        if note:
+            args["note"] = note
+        return args
+
+    if action == "addReplacementFamily":
+        copy_present(
+            payload,
+            args,
+            [
+                "familyId",
+                "targetText",
+                "rowPk",
+                "ruleNamePrefix",
+                "allowStrictEquivalentAlias",
+                "sourceBoundaryMode",
+                "resultTransform",
+            ],
+        )
+        args["aliases"] = list(payload.get("aliases") or [])
+        copy_examples(payload, args)
+        copy_source_contract(payload, args)
+        note = provenance_note(payload)
+        if note:
+            args["note"] = note
+        return args
+
+    if action == "disableRule":
+        tombstone = payload.get("tombstone") if isinstance(payload.get("tombstone"), dict) else {}
+        copy_present(tombstone, args, ["policyId", "sourcePattern", "targetText", "reason", "disposition"])
+        return args
+
+    raise SystemExit(f"Unsupported Worker control action: {action}")
+
+
+def copy_present(source: dict[str, Any], target: dict[str, Any], keys: Iterable[str]) -> None:
+    for key in keys:
+        value = source.get(key)
+        if value is None:
+            continue
+        if value == "" or value == [] or value == {}:
+            continue
+        target[key] = value
+
+
+def copy_examples(payload: dict[str, Any], args: dict[str, Any]) -> None:
+    examples = payload.get("examples") if isinstance(payload.get("examples"), dict) else {}
+    positive = examples.get("positive") if isinstance(examples.get("positive"), list) else []
+    negative = examples.get("negative") if isinstance(examples.get("negative"), list) else []
+    if positive:
+        args["positiveExamples"] = positive
+    if negative:
+        args["negativeExamples"] = negative
+
+
+def copy_source_contract(payload: dict[str, Any], args: dict[str, Any]) -> None:
+    copy_present(payload, args, ["sourcePatternType", "targetTemplate", "regexOptions"])
+
+
+def provenance_note(payload: dict[str, Any]) -> str:
+    provenance = payload.get("provenance") if isinstance(payload.get("provenance"), dict) else {}
+    return str(provenance.get("note") or "").strip()
+
+
+def is_reconcilable_worker_control_event(event: dict[str, Any]) -> bool:
+    return (
+        event.get("source") == "voco-auto-apply-control"
+        and str(event.get("action") or "") in {
+            "addCorrection",
+            "addContextLockedRule",
+            "addReplacementRule",
+            "addReplacementFamily",
+            "disableRule",
+        }
+        and isinstance(event.get("payload"), dict)
+        and bool(str(event.get("eventId") or "").strip())
+    )
+
+
+def call_worker_control_tool_command(
+    args: argparse.Namespace,
+    *,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    operation: str,
+    local_preview_event: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    sync_key, key_source = resolve_worker_sync_key(args)
+    evidence_store = evidence_store_path_from_args(args)
+    worker_control_written = operation == "writeWorkerControlEvent"
+    make_available_now = bool(tool_args.get("makeAvailableNow"))
+    if not sync_key:
+        return {
+            "schema": "voco.auto-apply-control.worker-command.v1",
+            "operation": operation,
+            "workerUrl": args.worker_url,
+            "workerTool": tool_name,
+            "keySource": key_source,
+            "workerResult": None,
+            "localPreviewEvent": local_preview_event,
+            "failed": True,
+            "reason": "Worker sync key is missing; local evidence was not modified",
+            "surfaces": auto_apply_surface_report(
+                worker_control_events_touched=True,
+                worker_control_events_written=False,
+                worker_artifact_touched=make_available_now,
+                worker_artifact_published=False,
+                local_evidence_touched=False,
+                local_evidence_written=False,
+                local_active_model_touched=False,
+                evidence_store=evidence_store,
+            ),
+        }
+    try:
+        mcp = worker_mcp_call_tool(
+            args.worker_url,
+            sync_key,
+            tool_name,
+            tool_args,
+            timeout=args.timeout,
+        )
+    except WorkerSyncError as error:
+        return {
+            "schema": "voco.auto-apply-control.worker-command.v1",
+            "operation": operation,
+            "workerUrl": args.worker_url,
+            "workerTool": tool_name,
+            "keySource": key_source,
+            "workerResult": None,
+            "localPreviewEvent": local_preview_event,
+            "failed": True,
+            "reason": str(error),
+            "httpStatus": error.status,
+            "surfaces": auto_apply_surface_report(
+                worker_control_events_touched=True,
+                worker_control_events_written=False,
+                worker_artifact_touched=make_available_now,
+                worker_artifact_published=False,
+                local_evidence_touched=False,
+                local_evidence_written=False,
+                local_active_model_touched=False,
+                evidence_store=evidence_store,
+            ),
+        }
+
+    worker_result = mcp["body"]
+    tool_is_error = bool(mcp.get("isError"))
+    realtime_overlay = worker_result.get("realtimeOverlay") if isinstance(worker_result, dict) else {}
+    worker_control_event_saved = bool(
+        worker_control_written
+        and (
+            not tool_is_error
+            or (isinstance(worker_result, dict) and worker_result.get("eventSaved") is True)
+            or (isinstance(worker_result, dict) and isinstance(worker_result.get("event"), dict))
+        )
+    )
+    worker_artifact_published = bool(
+        make_available_now
+        and isinstance(realtime_overlay, dict)
+        and realtime_overlay.get("published") is True
+    )
+    return {
+        "schema": "voco.auto-apply-control.worker-command.v1",
+        "operation": operation,
+        "workerUrl": args.worker_url,
+        "workerTool": tool_name,
+        "workerToolArguments": tool_args,
+        "workerResult": worker_result,
+        "workerToolIsError": tool_is_error,
+        "localPreviewEvent": local_preview_event,
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=True,
+            worker_control_events_written=worker_control_event_saved,
+            worker_artifact_touched=make_available_now,
+            worker_artifact_published=worker_artifact_published,
+            local_evidence_touched=False,
+            local_evidence_written=False,
+            local_active_model_touched=False,
+            evidence_store=evidence_store,
+        ),
+        "failed": tool_is_error,
+    }
+
+
+def worker_mcp_call_tool(
+    worker_url: str,
+    sync_key: str,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    *,
+    timeout: float,
+) -> dict[str, Any]:
+    quoted_key = urllib.parse.quote(sync_key.strip(), safe="")
+    sse_url = f"{worker_url.rstrip('/')}/mcp/sse?key={quoted_key}"
+    request = urllib.request.Request(
+        sse_url,
+        method="GET",
+        headers={
+            "Accept": "text/event-stream",
+            "Authorization": f"Bearer {sync_key.strip()}",
+            "User-Agent": "Voco-auto-apply-control/1.0",
+        },
+    )
+    try:
+        with WORKER_URL_OPENER(request, timeout=timeout) as response:
+            endpoint = read_mcp_endpoint_from_sse(response)
+            rpc_id = 1
+            payload = {
+                "jsonrpc": "2.0",
+                "id": rpc_id,
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": tool_args,
+                },
+            }
+            worker_request_bytes_url(
+                endpoint,
+                sync_key,
+                method="POST",
+                body=canonical_json_bytes(payload),
+                timeout=timeout,
+            )
+            message = read_mcp_message_from_sse(response, rpc_id)
+    except urllib.error.HTTPError as error:
+        try:
+            _ = error.read()
+        except Exception:
+            pass
+        raise WorkerSyncError(f"Worker MCP request failed: HTTP {error.code}", status=error.code) from error
+    except urllib.error.URLError as error:
+        raise WorkerSyncError(f"Worker MCP request failed: {error.reason}") from error
+
+    if "error" in message:
+        error = message["error"] if isinstance(message.get("error"), dict) else {}
+        raise WorkerSyncError(f"Worker MCP error: {error.get('message') or 'unknown error'}")
+    tool_result = message.get("result")
+    if not isinstance(tool_result, dict):
+        raise WorkerSyncError("Worker MCP returned a non-object tool result")
+    text = mcp_tool_text(tool_result)
+    body: Any
+    try:
+        body = json.loads(text) if text is not None else tool_result
+    except json.JSONDecodeError:
+        body = {"text": text}
+    return {
+        "jsonRpc": message,
+        "toolResult": tool_result,
+        "text": text,
+        "body": body,
+        "isError": bool(tool_result.get("isError")),
+    }
+
+
+def read_mcp_endpoint_from_sse(response: Any) -> str:
+    for _ in range(20):
+        event, data = read_sse_event(response)
+        if event == "endpoint" and data.strip():
+            return data.strip()
+    raise WorkerSyncError("Worker MCP SSE did not provide a message endpoint")
+
+
+def read_mcp_message_from_sse(response: Any, rpc_id: int) -> dict[str, Any]:
+    for _ in range(100):
+        event, data = read_sse_event(response)
+        if event != "message":
+            continue
+        try:
+            message = json.loads(data)
+        except json.JSONDecodeError as error:
+            raise WorkerSyncError(f"Worker MCP returned invalid JSON-RPC: {error}") from error
+        if not isinstance(message, dict):
+            raise WorkerSyncError("Worker MCP returned non-object JSON-RPC")
+        if message.get("id") == rpc_id:
+            return message
+    raise WorkerSyncError("Worker MCP SSE did not return the requested JSON-RPC response")
+
+
+def read_sse_event(response: Any) -> tuple[str, str]:
+    event = "message"
+    data_lines: list[str] = []
+    while True:
+        raw_line = response.readline()
+        if raw_line == b"" or raw_line == "":
+            raise WorkerSyncError("Worker MCP SSE stream ended before a complete event")
+        line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else str(raw_line)
+        line = line.rstrip("\r\n")
+        if line == "":
+            if data_lines:
+                return event, "\n".join(data_lines)
+            continue
+        if line.startswith(":"):
+            continue
+        if line.startswith("event:"):
+            event = line[len("event:") :].strip() or "message"
+        elif line.startswith("data:"):
+            data_lines.append(line[len("data:") :].lstrip())
+
+
+def worker_request_bytes_url(
+    url: str,
+    sync_key: str,
+    *,
+    method: str,
+    body: bytes | None,
+    timeout: float,
+) -> bytes:
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {sync_key.strip()}",
+            "Content-Type": "application/json",
+            "User-Agent": "Voco-auto-apply-control/1.0",
+        },
+    )
+    try:
+        with WORKER_URL_OPENER(request, timeout=timeout) as response:
+            status = int(getattr(response, "status", getattr(response, "code", 200)))
+            data = response.read()
+    except urllib.error.HTTPError as error:
+        try:
+            _ = error.read()
+        except Exception:
+            pass
+        raise WorkerSyncError(f"Worker request failed: HTTP {error.code}", status=error.code) from error
+    except urllib.error.URLError as error:
+        raise WorkerSyncError(f"Worker request failed: {error.reason}") from error
+    if not (200 <= status <= 299):
+        raise WorkerSyncError(f"Worker request failed: HTTP {status}", status=status)
+    return data
+
+
+def mcp_tool_text(tool_result: dict[str, Any]) -> str | None:
+    content = tool_result.get("content")
+    if not isinstance(content, list) or not content:
+        return None
+    first = content[0]
+    if not isinstance(first, dict):
+        return None
+    text = first.get("text")
+    return str(text) if text is not None else None
+
+
+def auto_apply_surface_report(
+    *,
+    worker_control_events_touched: bool,
+    worker_artifact_touched: bool,
+    local_evidence_touched: bool,
+    local_evidence_written: bool,
+    local_active_model_touched: bool,
+    worker_control_events_written: bool = False,
+    worker_artifact_published: bool = False,
+    local_active_model_written: bool = False,
+    evidence_store: Path | None = None,
+    active_model: Path | None = None,
+) -> dict[str, Any]:
+    return {
+        "workerCloudControlEvents": {
+            "role": "Worker JSON control event metadata",
+            "touched": worker_control_events_touched,
+            "written": worker_control_events_written,
+            "ordinaryTranscriptUploadAllowed": False,
+            "audioUploadAllowed": False,
+            "evidenceJsonlUploadAllowed": False,
+        },
+        "workerArtifactDistribution": {
+            "role": "Worker indexed-v2 auto-apply model artifact distribution",
+            "touched": worker_artifact_touched,
+            "published": worker_artifact_published,
+        },
+        "macLocalCanonicalEvidence": {
+            "role": "Mac local canonical AutoApplyControl evidence JSONL",
+            "path": str(evidence_store) if evidence_store else None,
+            "touched": local_evidence_touched,
+            "written": local_evidence_written,
+            "sourceOfTruthForProduction": "canonical compile input only after explicit local append or cloud-to-local reconcile",
+        },
+        "localActiveModel": {
+            "role": "Mac local active auto-apply model",
+            "path": str(active_model) if active_model else str(DEFAULT_ACTIVE_MODEL),
+            "touched": local_active_model_touched,
+            "written": local_active_model_written,
+        },
+    }
 
 
 def inspect_policy_proposal_artifact(artifact_dir: Path) -> dict[str, Any]:
@@ -1747,7 +2458,7 @@ def replay_metric_line(comparison: dict[str, Any], key: str) -> str:
 
 
 def compile_model_command(args: argparse.Namespace) -> dict[str, Any]:
-    evidence_store = args.evidence_store.expanduser()
+    evidence_store = evidence_store_path_from_args(args)
     base_model_path = args.base_model.expanduser()
     output_model = output_model_path(args)
     events = load_events(evidence_store)
@@ -2865,7 +3576,8 @@ def tombstone_matches_policy(tombstone: dict[str, Any], policy: dict[str, Any]) 
 def append_safety_contract(model: dict[str, Any]) -> None:
     existing = list(model.get("safetyContract") or [])
     additions = [
-        "control-plane rule changes must originate from append-only evidence JSONL events",
+        "canonical Mac compile rule changes must originate from append-only evidence JSONL events or explicit cloud-to-local reconcile events",
+        "Worker realtime overlay control events are cloud control metadata until they are reconciled into Mac canonical evidence",
         "manual context-locked scoped replacements require explicit context tokens or aliases",
         "manual unlocked replacements are reserved for closed-form strings with explicit examples and no context requirement",
         "manual tombstones preserve provenance by marking policies blocked or replaced instead of deleting evidence",
@@ -2881,7 +3593,7 @@ def append_safety_contract(model: dict[str, Any]) -> None:
 
 def validate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
-    evidence_store = args.evidence_store.expanduser()
+    evidence_store = evidence_store_path_from_args(args)
     base_model_path = args.base_model.expanduser()
     model = load_model(model_path)
     base_model = load_model(base_model_path) if base_model_path.exists() else None
@@ -2907,6 +3619,16 @@ def validate_model_command(args: argparse.Namespace) -> dict[str, Any]:
         "model": str(model_path),
         "report": str(report_path),
         "validation": validation_summary(report),
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=False,
+            worker_artifact_touched=False,
+            local_evidence_touched=True,
+            local_evidence_written=False,
+            local_active_model_touched=bool(args.write_readiness),
+            local_active_model_written=bool(args.write_readiness),
+            evidence_store=evidence_store,
+            active_model=model_path,
+        ),
         "failed": not report["ready"],
     }
 
@@ -3702,7 +4424,7 @@ def manifest_path_matches_candidate(
 def activate_model_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
     active_model = args.active_model.expanduser()
-    evidence_store = args.evidence_store.expanduser()
+    evidence_store = evidence_store_path_from_args(args)
     backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
     backup_retention = backup_retention_from_args(args)
     model = load_model(model_path)
@@ -3808,7 +4530,7 @@ def rollback_model_command(args: argparse.Namespace) -> dict[str, Any]:
             "reason": args.reason,
         },
     )
-    append_event(args.evidence_store.expanduser(), event)
+    append_event(evidence_store_path_from_args(args), event)
     active_model.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(backup, active_model)
     return {
@@ -3821,7 +4543,7 @@ def rollback_model_command(args: argparse.Namespace) -> dict[str, Any]:
 
 def upsert_protected_term_allowlist_guard_command(args: argparse.Namespace) -> dict[str, Any]:
     model_path = args.model.expanduser()
-    evidence_store = args.evidence_store.expanduser()
+    evidence_store = evidence_store_path_from_args(args)
     backup_dir = expanded_optional_path(getattr(args, "backup_dir", None))
     backup_retention = backup_retention_from_args(args)
     model = load_model(model_path)
@@ -3898,7 +4620,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
     base_model_path = args.base_model.expanduser()
     model = load_model(model_path)
     base_model = load_model(base_model_path) if base_model_path.exists() else None
-    events = load_events(args.evidence_store.expanduser())
+    events = load_events(evidence_store_path_from_args(args))
     validation = validate_model(
         model,
         events,
@@ -3918,6 +4640,16 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
             "published": False,
             "failed": True,
             "reason": "candidate validation failed; Worker release was not published",
+            "surfaces": auto_apply_surface_report(
+                worker_control_events_touched=False,
+                worker_artifact_touched=False,
+                worker_artifact_published=False,
+                local_evidence_touched=True,
+                local_evidence_written=False,
+                local_active_model_touched=False,
+                evidence_store=evidence_store_path_from_args(args),
+                active_model=DEFAULT_ACTIVE_MODEL,
+            ),
         }
 
     publish_model = copy.deepcopy(model)
@@ -3957,6 +4689,16 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
                     "keySource": key_source,
                     "published": False,
                 },
+                surfaces=auto_apply_surface_report(
+                    worker_control_events_touched=False,
+                    worker_artifact_touched=True,
+                    worker_artifact_published=False,
+                    local_evidence_touched=True,
+                    local_evidence_written=False,
+                    local_active_model_touched=False,
+                    evidence_store=evidence_store_path_from_args(args),
+                    active_model=DEFAULT_ACTIVE_MODEL,
+                ),
             )
         try:
             body = canonical_json_bytes({"manifest": manifest, "model": publish_model})
@@ -3978,6 +4720,16 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
                     "published": False,
                     "httpStatus": error.status,
                 },
+                surfaces=auto_apply_surface_report(
+                    worker_control_events_touched=False,
+                    worker_artifact_touched=True,
+                    worker_artifact_published=False,
+                    local_evidence_touched=True,
+                    local_evidence_written=False,
+                    local_active_model_touched=False,
+                    evidence_store=evidence_store_path_from_args(args),
+                    active_model=DEFAULT_ACTIVE_MODEL,
+                ),
             )
 
     report = {
@@ -3996,6 +4748,16 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "publishResult": publish_result,
         "privacyBoundary": worker_privacy_boundary(),
         "runtimeIndexRepair": runtime_index_repair,
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=False,
+            worker_artifact_touched=True,
+            worker_artifact_published=bool(publish_result),
+            local_evidence_touched=True,
+            local_evidence_written=False,
+            local_active_model_touched=False,
+            evidence_store=evidence_store_path_from_args(args),
+            active_model=DEFAULT_ACTIVE_MODEL,
+        ),
     }
     report_path.write_bytes(canonical_json_bytes(report))
     return {
@@ -4010,6 +4772,7 @@ def publish_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "dryRun": bool(args.dry_run),
         "validation": validation_summary(validation),
         "runtimeIndexRepair": runtime_index_repair,
+        "surfaces": report["surfaces"],
         "failed": False,
     }
 
@@ -4023,6 +4786,17 @@ def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
                 "Worker sync key is missing; keeping local active model",
                 active_model=active_model,
                 extra={"keySource": key_source},
+                surfaces=auto_apply_surface_report(
+                    worker_control_events_touched=False,
+                    worker_artifact_touched=True,
+                    worker_artifact_published=False,
+                    local_evidence_touched=False,
+                    local_evidence_written=False,
+                    local_active_model_touched=True,
+                    local_active_model_written=False,
+                    evidence_store=evidence_store_path_from_args(args),
+                    active_model=active_model,
+                ),
             )
         manifest = fetch_worker_manifest(args.worker_url, sync_key, timeout=args.timeout)
         model_sha = str(manifest["modelSha256"])
@@ -4042,6 +4816,17 @@ def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
             str(error),
             active_model=active_model,
             extra={"workerUrl": args.worker_url, "httpStatus": error.status},
+            surfaces=auto_apply_surface_report(
+                worker_control_events_touched=False,
+                worker_artifact_touched=True,
+                worker_artifact_published=False,
+                local_evidence_touched=False,
+                local_evidence_written=False,
+                local_active_model_touched=True,
+                local_active_model_written=False,
+                evidence_store=evidence_store_path_from_args(args),
+                active_model=active_model,
+            ),
         )
 
     output_dir = worker_fetch_output_dir(args.output_dir)
@@ -4061,7 +4846,7 @@ def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
             model=model_path,
             active_model=active_model,
             base_model=args.base_model.expanduser(),
-            evidence_store=args.evidence_store.expanduser(),
+            evidence_store=evidence_store_path_from_args(args),
             replaylab_root=args.replaylab_root.expanduser(),
             backup_suffix=args.backup_suffix,
             backup_dir=expanded_optional_path(args.backup_dir),
@@ -4106,6 +4891,17 @@ def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "activation": activation,
         "privacyBoundary": worker_privacy_boundary(),
         "verified": True,
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=False,
+            worker_artifact_touched=True,
+            worker_artifact_published=False,
+            local_evidence_touched=bool(args.install),
+            local_evidence_written=bool(activation and not activation.get("skipped")),
+            local_active_model_touched=bool(args.install),
+            local_active_model_written=installed,
+            evidence_store=evidence_store_path_from_args(args),
+            active_model=active_model,
+        ),
     }
     report_path.write_bytes(canonical_json_bytes(report))
     return {
@@ -4121,6 +4917,7 @@ def fetch_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "installRequested": bool(args.install),
         "installed": installed,
         "activation": activation,
+        "surfaces": report["surfaces"],
         "failed": False,
     }
 
@@ -4134,6 +4931,17 @@ def audit_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
                 "Worker sync key is missing; keeping local active model",
                 active_model=active_model,
                 extra={"keySource": key_source},
+                surfaces=auto_apply_surface_report(
+                    worker_control_events_touched=False,
+                    worker_artifact_touched=True,
+                    worker_artifact_published=False,
+                    local_evidence_touched=False,
+                    local_evidence_written=False,
+                    local_active_model_touched=True,
+                    local_active_model_written=False,
+                    evidence_store=evidence_store_path_from_args(args),
+                    active_model=active_model,
+                ),
             )
         manifest = fetch_worker_manifest(args.worker_url, sync_key, timeout=args.timeout)
     except WorkerSyncError as error:
@@ -4141,6 +4949,17 @@ def audit_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
             str(error),
             active_model=active_model,
             extra={"workerUrl": args.worker_url, "httpStatus": error.status},
+            surfaces=auto_apply_surface_report(
+                worker_control_events_touched=False,
+                worker_artifact_touched=True,
+                worker_artifact_published=False,
+                local_evidence_touched=False,
+                local_evidence_written=False,
+                local_active_model_touched=True,
+                local_active_model_written=False,
+                evidence_store=evidence_store_path_from_args(args),
+                active_model=active_model,
+            ),
         )
 
     local_sha = sha256_file(active_model) if active_model.exists() else None
@@ -4161,11 +4980,28 @@ def audit_worker_release_command(args: argparse.Namespace) -> dict[str, Any]:
         "inSync": bool(local_sha and local_sha == remote_sha),
         "privacyBoundary": worker_privacy_boundary(),
         "preservedLocalModel": True,
+        "surfaces": auto_apply_surface_report(
+            worker_control_events_touched=False,
+            worker_artifact_touched=True,
+            worker_artifact_published=False,
+            local_evidence_touched=False,
+            local_evidence_written=False,
+            local_active_model_touched=True,
+            local_active_model_written=False,
+            evidence_store=evidence_store_path_from_args(args),
+            active_model=active_model,
+        ),
         "failed": False,
     }
 
 
-def worker_failure_result(reason: str, *, active_model: Path, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+def worker_failure_result(
+    reason: str,
+    *,
+    active_model: Path,
+    extra: dict[str, Any] | None = None,
+    surfaces: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     result = {
         "failed": True,
         "reason": reason,
@@ -4176,6 +5012,8 @@ def worker_failure_result(reason: str, *, active_model: Path, extra: dict[str, A
     }
     if extra:
         result.update(extra)
+    if surfaces:
+        result["surfaces"] = surfaces
     return result
 
 
@@ -5338,6 +6176,13 @@ def timestamp_for_path() -> str:
 
 def expanded_optional_path(path: Path | None) -> Path | None:
     return path.expanduser() if path else None
+
+
+def evidence_store_path_from_args(args: argparse.Namespace) -> Path:
+    value = getattr(args, "evidence_store", DEFAULT_EVIDENCE_STORE)
+    if isinstance(value, Path):
+        return value.expanduser()
+    return Path(str(value)).expanduser()
 
 
 def backup_retention_from_args(args: argparse.Namespace, attr: str = "backup_retention") -> int:

@@ -94,10 +94,12 @@ actor Qwen3ASREngine {
     }
 
     private static let sampleRate = 16000
-    /// Maximum samples per chunk: 20 minutes at 16kHz
-    private static let maxSamplesPerChunk = 20 * 60 * sampleRate  // 19,200,000
-    /// Search window for silence detection: ±30 seconds around the target cut point
-    private static let silenceSearchWindow = 30 * sampleRate  // 480,000
+    /// Maximum samples per chunk: 60 seconds at 16kHz.
+    /// Qwen3-ASR memory grows steeply with audio context; 20-minute chunks can exhaust RAM.
+    private static let maxChunkDurationSeconds = 60
+    private static let maxSamplesPerChunk = maxChunkDurationSeconds * sampleRate
+    /// Search window for silence detection: ±10 seconds around the target cut point.
+    private static let silenceSearchWindow = 10 * sampleRate
     /// RMS analysis window: 0.5 seconds
     private static let rmsWindowSize = sampleRate / 2  // 0.5s at 16kHz
 
@@ -123,16 +125,16 @@ actor Qwen3ASREngine {
             lang = nil
         }
 
-        // Audio within 20 minutes: single pass
+        // Audio within the safe Qwen3 context window: single pass
         if samples.count <= Self.maxSamplesPerChunk {
             let result = try model.transcribe(audio: samples, sampleRate: Self.sampleRate, language: lang, prompt: prompt, decodingOptions: decodingOptions)
             Memory.clearCache()
             return result
         }
 
-        // Audio over 20 minutes: segment at silence points
+        // Longer audio: segment at silence points
         let sr = Self.sampleRate
-        Self.logger.info("Audio exceeds 20 minutes (\(samples.count / sr)s), segmenting at silence points...")
+        Self.logger.info("Audio exceeds \(Self.maxChunkDurationSeconds)s (\(samples.count / sr)s), segmenting at silence points...")
         var chunkResults: [Qwen3ASRModel.TranscriptionResult] = []
         var offset = 0
         while offset < samples.count {
@@ -146,7 +148,7 @@ actor Qwen3ASREngine {
                 break
             }
 
-            // Find the best silence point near the 20-minute mark
+            // Find the best silence point near the chunk boundary
             let cutPoint = Self.findSilenceCutPoint(in: samples, targetCut: offset + Self.maxSamplesPerChunk)
             let chunk = Array(samples[offset..<cutPoint])
             Self.logger.info("Chunk: \(offset / sr)s - \(cutPoint / sr)s (\(chunk.count / sr)s)")

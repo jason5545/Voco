@@ -22,59 +22,151 @@ enum Qwen3ServiceError: Error, LocalizedError {
     }
 }
 
+enum WAVSampleReaderError: Error, LocalizedError {
+    case invalidAudioData
+    case emptyAudioData
+    case unsupportedAudioFormat
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidAudioData:
+            return "Invalid WAV audio data."
+        case .emptyAudioData:
+            return "No audio samples were captured."
+        case .unsupportedAudioFormat:
+            return "Unsupported WAV audio format."
+        }
+    }
+}
+
 /// Read Int16 PCM samples from a WAV file, correctly parsing chunk structure.
 /// macOS Core Audio writes a FLLR padding chunk between fmt and data,
 /// so the data chunk typically starts at byte 4096, not the naive 44.
 func readWAVSamples(from url: URL) throws -> [Float] {
-    let data = try Data(contentsOf: url)
-    guard data.count > 12 else {
-        throw Qwen3ServiceError.invalidAudioData
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+
+    func readExact(_ count: Int) throws -> Data {
+        guard let data = try handle.read(upToCount: count), data.count == count else {
+            throw WAVSampleReaderError.invalidAudioData
+        }
+        return data
     }
 
-    // Read a little-endian UInt32 from Data at the given offset
+    func readUInt16(_ d: Data, at offset: Int) -> UInt16 {
+        UInt16(d[offset])
+            | (UInt16(d[offset + 1]) << 8)
+    }
+
     func readUInt32(_ d: Data, at offset: Int) -> UInt32 {
-        return UInt32(d[offset])
+        UInt32(d[offset])
             | (UInt32(d[offset + 1]) << 8)
             | (UInt32(d[offset + 2]) << 16)
             | (UInt32(d[offset + 3]) << 24)
     }
 
-    // Parse WAV chunks to find actual "data" chunk offset and size.
-    // macOS Core Audio writes a FLLR padding chunk between fmt and data,
-    // so the data chunk typically starts at byte 4096, not the naive 44.
-    var dataOffset: Int?
-    var dataSize: Int?
-    var pos = 12 // skip RIFF header (12 bytes)
-    while pos + 8 <= data.count {
-        let isDataChunk = data[pos] == 0x64      // 'd'
-            && data[pos + 1] == 0x61             // 'a'
-            && data[pos + 2] == 0x74             // 't'
-            && data[pos + 3] == 0x61             // 'a'
-        let chunkSize = Int(readUInt32(data, at: pos + 4))
-        if isDataChunk {
-            dataOffset = pos + 8
-            dataSize = chunkSize
+    let riffHeader = try readExact(12)
+    guard riffHeader.starts(with: [0x52, 0x49, 0x46, 0x46]), // RIFF
+          riffHeader[8] == 0x57, riffHeader[9] == 0x41,
+          riffHeader[10] == 0x56, riffHeader[11] == 0x45 else { // WAVE
+        throw WAVSampleReaderError.invalidAudioData
+    }
+
+    var audioFormat: UInt16?
+    var channelCount: UInt16?
+    var bitsPerSample: UInt16?
+    var dataOffset: UInt64?
+    var dataSize: UInt32?
+
+    while true {
+        guard let chunkHeader = try handle.read(upToCount: 8), !chunkHeader.isEmpty else {
             break
         }
-        pos += 8 + chunkSize
+        guard chunkHeader.count == 8 else {
+            throw WAVSampleReaderError.invalidAudioData
+        }
+
+        let chunkID = Array(chunkHeader[0..<4])
+        let chunkSize = readUInt32(chunkHeader, at: 4)
+        let chunkDataOffset = try handle.offset()
+        let paddedSize = UInt64(chunkSize) + UInt64(chunkSize % 2)
+
+        switch chunkID {
+        case [0x66, 0x6d, 0x74, 0x20]: // fmt
+            guard chunkSize >= 16 else {
+                throw WAVSampleReaderError.invalidAudioData
+            }
+
+            let bytesToRead = min(Int(chunkSize), 40)
+            let formatData = try readExact(bytesToRead)
+            audioFormat = readUInt16(formatData, at: 0)
+            channelCount = readUInt16(formatData, at: 2)
+            bitsPerSample = readUInt16(formatData, at: 14)
+            try handle.seek(toOffset: chunkDataOffset + paddedSize)
+
+        case [0x64, 0x61, 0x74, 0x61]: // data
+            dataOffset = chunkDataOffset
+            dataSize = chunkSize
+            break
+
+        default:
+            try handle.seek(toOffset: chunkDataOffset + paddedSize)
+        }
+
+        if dataOffset != nil {
+            break
+        }
     }
 
-    guard let offset = dataOffset, let size = dataSize, offset + size <= data.count else {
-        throw Qwen3ServiceError.invalidAudioData
+    guard let offset = dataOffset, let size = dataSize else {
+        throw WAVSampleReaderError.invalidAudioData
     }
     guard size > 0 else {
-        throw Qwen3ServiceError.emptyAudioData
+        throw WAVSampleReaderError.emptyAudioData
     }
     guard size >= 2, size.isMultiple(of: 2) else {
-        throw Qwen3ServiceError.invalidAudioData
+        throw WAVSampleReaderError.invalidAudioData
     }
 
-    // Convert Int16 PCM to Float
-    let endOffset = offset + size
-    return stride(from: offset, to: endOffset, by: 2).map { i in
-        let short = Int16(data[i]) | (Int16(data[i + 1]) << 8)
-        return max(-1.0, min(Float(short) / 32767.0, 1.0))
+    if let audioFormat, let channelCount, let bitsPerSample {
+        let isPCM = audioFormat == 1 || audioFormat == 0xFFFE
+        guard isPCM, channelCount == 1, bitsPerSample == 16 else {
+            throw WAVSampleReaderError.unsupportedAudioFormat
+        }
     }
+
+    try handle.seek(toOffset: offset)
+
+    var samples: [Float] = []
+    samples.reserveCapacity(Int(size / 2))
+
+    var remainingBytes = Int(size)
+    let readChunkSize = 1_048_576
+    while remainingBytes > 0 {
+        let byteCount = min(remainingBytes, readChunkSize)
+        guard let data = try handle.read(upToCount: byteCount), !data.isEmpty else {
+            throw WAVSampleReaderError.invalidAudioData
+        }
+
+        data.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.bindMemory(to: UInt8.self).baseAddress else {
+                return
+            }
+
+            var offset = 0
+            while offset + 1 < data.count {
+                let sample = UInt16(baseAddress[offset])
+                    | (UInt16(baseAddress[offset + 1]) << 8)
+                let value = Int16(bitPattern: sample)
+                samples.append(max(-1.0, min(Float(value) / 32767.0, 1.0)))
+                offset += 2
+            }
+        }
+
+        remainingBytes -= data.count
+    }
+
+    return samples
 }
 
 class Qwen3TranscriptionService: TranscriptionService {

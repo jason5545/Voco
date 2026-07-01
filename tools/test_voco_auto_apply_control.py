@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from argparse import Namespace
 from pathlib import Path
 
@@ -73,6 +75,73 @@ class FakeWorkerResponse:
 
     def read(self) -> bytes:
         return self._data
+
+
+class FakeMcpSseResponse(FakeWorkerResponse):
+    def __init__(self, endpoint: str):
+        super().__init__(b"", status=200)
+        self.lines = [
+            b"event: endpoint\n",
+            f"data: {endpoint}\n".encode("utf-8"),
+            b"\n",
+        ]
+
+    def queue_message(self, payload: dict):
+        self.lines.extend(
+            [
+                b"event: message\n",
+                f"data: {json.dumps(payload, ensure_ascii=False)}\n".encode("utf-8"),
+                b"\n",
+            ]
+        )
+
+    def readline(self):
+        if not self.lines:
+            return b""
+        return self.lines.pop(0)
+
+
+def fake_mcp_opener_factory(tool_bodies: dict[str, dict], calls: list[dict]):
+    session_id = "00000000-0000-0000-0000-000000000001"
+    endpoint = f"https://worker.example/mcp/messages/{session_id}?key=secret"
+    current_sse = {"value": None}
+
+    def fake_opener(request, timeout):
+        calls.append(
+            {
+                "url": request.full_url,
+                "method": request.get_method(),
+                "body": request.data,
+                "timeout": timeout,
+            }
+        )
+        if request.get_method() == "GET" and request.full_url.startswith("https://worker.example/mcp/sse"):
+            sse = FakeMcpSseResponse(endpoint)
+            current_sse["value"] = sse
+            return sse
+        if request.get_method() == "POST" and request.full_url == endpoint:
+            sse = current_sse["value"]
+            if sse is None:
+                raise AssertionError("POST received before MCP SSE session was opened")
+            rpc = json.loads(request.data.decode("utf-8"))
+            tool_name = rpc["params"]["name"]
+            tool_args = rpc["params"]["arguments"]
+            body = tool_bodies[tool_name]
+            calls[-1]["toolName"] = tool_name
+            calls[-1]["toolArgs"] = tool_args
+            result = {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(body, ensure_ascii=False),
+                    }
+                ]
+            }
+            sse.queue_message({"jsonrpc": "2.0", "id": rpc["id"], "result": result})
+            return FakeWorkerResponse(b"", status=202)
+        raise AssertionError(f"unexpected MCP URL {request.full_url}")
+
+    return fake_opener
 
 
 class VocoAutoApplyControlTests(unittest.TestCase):
@@ -1918,6 +1987,246 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertTrue(result["preservedLocalModel"])
             self.assertEqual(result["httpStatus"], 404)
             self.assertEqual(control.sha256_file(active), before_sha)
+
+    def test_add_correction_defaults_to_worker_preview_without_local_evidence_append(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            calls = []
+            preview = {
+                "schema": "voco.auto-apply-control.preview.v1",
+                "ok": True,
+                "eventSaved": False,
+                "published": False,
+                "wouldPublish": True,
+                "realtimeSupported": True,
+            }
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_mcp_opener_factory(
+                {"preview_auto_apply_control_event": preview},
+                calls,
+            )
+            try:
+                result = control.run_command(
+                    Namespace(
+                        command="addCorrection",
+                        actor="test",
+                        evidence_store=evidence,
+                        source_text="志工福利委員會",
+                        target_text="職工福利委員會",
+                        row_pk=None,
+                        context="",
+                        note="confirmed worker-only test",
+                        control_plane="worker",
+                        write_cloud=False,
+                        make_available_now=False,
+                        detect_duplicate=False,
+                        allow_replace_existing_exact=False,
+                        worker_url="https://worker.example",
+                        sync_key="secret",
+                        sync_key_file=root / "missing-key",
+                        timeout=5.0,
+                    )
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertFalse(result["failed"])
+            self.assertEqual(result["operation"], "previewWorkerControlEvent")
+            self.assertEqual(result["workerTool"], "preview_auto_apply_control_event")
+            post_call = [call for call in calls if call.get("method") == "POST"][0]
+            self.assertEqual(post_call["toolArgs"]["eventType"], "correction")
+            self.assertEqual(post_call["toolArgs"]["sourceText"], "志工福利委員會")
+            self.assertFalse(evidence.exists())
+            self.assertFalse(result["surfaces"]["macLocalCanonicalEvidence"]["written"])
+            self.assertFalse(result["surfaces"]["workerCloudControlEvents"]["written"])
+
+    def test_worker_cloud_write_make_available_now_does_not_append_local_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            calls = []
+            worker_body = {
+                "event": {
+                    "eventId": "evt-worker-write",
+                    "source": "voco-auto-apply-control",
+                    "action": "addReplacementRule",
+                    "payload": {},
+                },
+                "realtimeOverlay": {
+                    "published": True,
+                    "modelSha256": "8d4eca09417165f9fa7e36c207fcce37f89b70cbbc8a3493bae741e4c0357011",
+                },
+            }
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_mcp_opener_factory(
+                {"add_auto_apply_replacement_rule": worker_body},
+                calls,
+            )
+            try:
+                result = control.run_command(
+                    Namespace(
+                        command="addReplacementRule",
+                        actor="test",
+                        evidence_store=evidence,
+                        source_pattern="A卷",
+                        target_text="Agent",
+                        source_text="A卷要改一下",
+                        row_pk=None,
+                        rule_name=None,
+                        positive=[],
+                        negative=[],
+                        positive_text=None,
+                        positive_context="",
+                        expected_text=None,
+                        negative_text=None,
+                        negative_context="",
+                        family_id=None,
+                        family_role="alias",
+                        family_reason=None,
+                        note="confirmed invalid Jason-local surface",
+                        source_pattern_type="literal",
+                        target_template=None,
+                        regex_options=[],
+                        control_plane="worker",
+                        write_cloud=True,
+                        make_available_now=True,
+                        detect_duplicate=False,
+                        allow_replace_existing_exact=False,
+                        worker_url="https://worker.example",
+                        sync_key="secret",
+                        sync_key_file=root / "missing-key",
+                        timeout=5.0,
+                    )
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertFalse(result["failed"])
+            self.assertEqual(result["operation"], "writeWorkerControlEvent")
+            post_call = [call for call in calls if call.get("method") == "POST"][0]
+            self.assertEqual(post_call["toolName"], "add_auto_apply_replacement_rule")
+            self.assertTrue(post_call["toolArgs"]["makeAvailableNow"])
+            self.assertFalse(evidence.exists())
+            self.assertTrue(result["surfaces"]["workerCloudControlEvents"]["written"])
+            self.assertTrue(result["surfaces"]["workerArtifactDistribution"]["published"])
+            self.assertFalse(result["surfaces"]["macLocalCanonicalEvidence"]["written"])
+
+    def test_worker_only_event_is_visible_to_list_explain_and_reconcile_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            event = {
+                "schemaVersion": control.CONTROL_SCHEMA_VERSION,
+                "eventId": "evt-20260701T020114.433Z-d21431d010",
+                "createdAt": "2026-07-01T02:01:14.433Z",
+                "actor": "codex",
+                "source": "voco-auto-apply-control",
+                "action": "addCorrection",
+                "payload": {
+                    "ruleType": "exactTrainablePair",
+                    "sourceText": "志工福利委員會",
+                    "targetText": "職工福利委員會",
+                },
+            }
+            bodies = {
+                "list_auto_apply_control_events": {
+                    "schema": "voco.auto-apply-control.worker-events.v1",
+                    "eventCount": 1,
+                    "events": [event],
+                },
+                "explain_auto_apply_control_event": {
+                    "schema": "voco.auto-apply-control-event-explanation.v1",
+                    "ok": True,
+                    "eventId": event["eventId"],
+                    "eventSaved": True,
+                    "appliedByWorkerOverlay": True,
+                    "needsLocalControlPlaneReconcile": True,
+                },
+                "get_auto_apply_reconcile_status": {
+                    "schema": "voco.auto-apply-reconcile-status.v1",
+                    "ok": True,
+                    "workerOverlay": {
+                        "needsLocalControlPlaneReconcile": True,
+                        "appliedEventIds": [event["eventId"]],
+                    },
+                    "eventsNeedingLocalControlPlaneReconcile": [event["eventId"]],
+                },
+            }
+            calls = []
+            original_opener = control.WORKER_URL_OPENER
+            control.WORKER_URL_OPENER = fake_mcp_opener_factory(bodies, calls)
+            try:
+                base_args = {
+                    "actor": "test",
+                    "evidence_store": evidence,
+                    "worker_url": "https://worker.example",
+                    "sync_key": "secret",
+                    "sync_key_file": root / "missing-key",
+                    "timeout": 5.0,
+                }
+                listed = control.run_command(Namespace(command="listWorkerControlEvents", limit=20, **base_args))
+                explained = control.run_command(
+                    Namespace(command="explainWorkerControlEvent", event_id=event["eventId"], **base_args)
+                )
+                reconcile = control.run_command(
+                    Namespace(command="reconcileWorkerControlEvents", limit=20, write_local=False, **base_args)
+                )
+            finally:
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertEqual(listed["workerResult"]["events"][0]["eventId"], event["eventId"])
+            self.assertTrue(explained["workerResult"]["appliedByWorkerOverlay"])
+            self.assertTrue(reconcile["dryRun"])
+            self.assertEqual(reconcile["missingCanonicalEventIds"], [event["eventId"]])
+            self.assertFalse(evidence.exists())
+            self.assertFalse(reconcile["surfaces"]["macLocalCanonicalEvidence"]["written"])
+
+    def test_worker_preview_json_output_is_machine_readable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            calls = []
+            preview = {
+                "schema": "voco.auto-apply-control.preview.v1",
+                "ok": True,
+                "eventSaved": False,
+                "published": False,
+                "wouldPublish": True,
+            }
+            original_opener = control.WORKER_URL_OPENER
+            original_argv = sys.argv
+            control.WORKER_URL_OPENER = fake_mcp_opener_factory(
+                {"preview_auto_apply_control_event": preview},
+                calls,
+            )
+            stdout = io.StringIO()
+            try:
+                sys.argv = [
+                    "voco_auto_apply_control.py",
+                    "--json",
+                    "--evidence-store",
+                    str(root / "evidence.jsonl"),
+                    "addCorrection",
+                    "--source-text",
+                    "志工福利委員會",
+                    "--target-text",
+                    "職工福利委員會",
+                    "--worker-url",
+                    "https://worker.example",
+                    "--sync-key",
+                    "secret",
+                ]
+                with redirect_stdout(stdout):
+                    exit_code = control.main()
+            finally:
+                sys.argv = original_argv
+                control.WORKER_URL_OPENER = original_opener
+
+            self.assertEqual(exit_code, 0)
+            parsed = json.loads(stdout.getvalue())
+            self.assertEqual(parsed["operation"], "previewWorkerControlEvent")
+            self.assertEqual(parsed["workerResult"]["schema"], "voco.auto-apply-control.preview.v1")
+            self.assertFalse((root / "evidence.jsonl").exists())
 
     def test_policy_proposal_ranker_artifact_is_shadow_contract_only(self):
         with tempfile.TemporaryDirectory() as tmp:

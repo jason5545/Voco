@@ -138,12 +138,6 @@ class AudioTranscriptionManager: ObservableObject {
             let accessing = item.url.startAccessingSecurityScopedResource()
             defer { if accessing { item.url.stopAccessingSecurityScopedResource() } }
 
-            let samples = try await audioProcessor.processAudioToSamples(item.url)
-            try Task.checkCancellation()
-
-            let audioAsset = AVURLAsset(url: item.url)
-            let duration = CMTimeGetSeconds(try await audioAsset.load(.duration))
-
             let recordingsDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("com.prakashjoshipax.VoiceInk")
                 .appendingPathComponent("Recordings")
@@ -151,8 +145,7 @@ class AudioTranscriptionManager: ObservableObject {
             let fileName = "transcribed_\(UUID().uuidString).wav"
             let permanentURL = recordingsDirectory.appendingPathComponent(fileName)
 
-            try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
-            try audioProcessor.saveSamplesAsWav(samples: samples, to: permanentURL)
+            let duration = try await audioProcessor.transcodeToWhisperWav(item.url, to: permanentURL)
             try Task.checkCancellation()
 
             // Phase: Transcribing
