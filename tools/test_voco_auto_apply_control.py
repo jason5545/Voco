@@ -50,6 +50,15 @@ def worker_model_with_policy() -> dict:
     return model
 
 
+def identity_like_source_pattern() -> str:
+    digit = r"(zero|oh|one|two|three|four|five|six|seven|eight|nine|[0-9０-９零〇○洞一壹么二兩两貳贰三參叁四肆五伍六陸陆七柒八捌九玖])"
+    return r"(?<![A-Za-z0-9])([A-Za-z])\s*" + r"\s*".join([digit] * 9) + r"(?![A-Za-z0-9])"
+
+
+def identity_like_target_template() -> str:
+    return "${upper:1}" + "".join(f"${{digit:{index}}}" for index in range(2, 11))
+
+
 class FakeWorkerResponse:
     def __init__(self, data: bytes, status: int = 200):
         self._data = data
@@ -590,6 +599,42 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             runtime_policy = runtime["scopedApplyPolicies"][0]
             self.assertEqual(runtime_policy["sourcePatternType"], "regex")
             self.assertEqual(runtime_policy["targetTemplate"], r"v$1")
+
+    def test_regex_template_functions_normalize_direct_identity_like_token(self):
+        source_pattern = identity_like_source_pattern()
+        source_contract = {
+            "sourcePatternType": "regex",
+            "targetTemplate": identity_like_target_template(),
+            "regexOptions": ["caseInsensitive"],
+        }
+
+        self.assertEqual(
+            control.replace_text_for_source_contract(
+                "A一二三四五六七八九",
+                source_pattern,
+                "A123456789",
+                source_contract,
+            ),
+            "A123456789",
+        )
+        self.assertEqual(
+            control.replace_text_for_source_contract(
+                "a one two three four five six seven eight nine",
+                source_pattern,
+                "A123456789",
+                source_contract,
+            ),
+            "A123456789",
+        )
+        self.assertEqual(
+            control.replace_text_for_source_contract(
+                "AB一二三四五六七八九",
+                source_pattern,
+                "A123456789",
+                source_contract,
+            ),
+            "AB一二三四五六七八九",
+        )
 
     def test_readded_replacement_after_tombstone_validates_only_new_event_examples(self):
         with tempfile.TemporaryDirectory() as tmp:

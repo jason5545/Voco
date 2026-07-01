@@ -380,10 +380,22 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let protectedTermGuardReason = "auto-apply-model-protected-term-guard"
     static let supportedSchemaVersion = 2
     static let supportedSchemaVersions: Set<Int> = [1, 2]
-    static let supportedRuntimeSchemaVersion = 3
-    static let supportedRuntimeSchemaVersions: Set<Int> = [2, 3]
+    static let supportedRuntimeSchemaVersion = 4
+    static let supportedRuntimeSchemaVersions: Set<Int> = [2, 3, 4]
     static let automaticWorkerSyncInterval: TimeInterval = 60
     static let automaticWorkerSyncInitialDelay: TimeInterval = 5
+    private static let singleDigitTokenMap: [String: String] = [
+        "0": "0", "零": "0", "〇": "0", "○": "0", "洞": "0", "zero": "0", "oh": "0", "o": "0",
+        "1": "1", "一": "1", "壹": "1", "么": "1", "one": "1",
+        "2": "2", "二": "2", "兩": "2", "两": "2", "貳": "2", "贰": "2", "two": "2",
+        "3": "3", "三": "3", "參": "3", "叁": "3", "three": "3",
+        "4": "4", "四": "4", "肆": "4", "four": "4",
+        "5": "5", "五": "5", "伍": "5", "five": "5",
+        "6": "6", "六": "6", "陸": "6", "陆": "6", "six": "6",
+        "7": "7", "七": "7", "柒": "7", "seven": "7",
+        "8": "8", "八": "8", "捌": "8", "eight": "8",
+        "9": "9", "九": "9", "玖": "9", "nine": "9"
+    ]
 
     static var defaultModelDirectory: URL {
         AppIdentifiers.appSupportDirectory
@@ -1296,12 +1308,14 @@ final class VocoAutoApplyModelService: ObservableObject {
         if policy.sourcePatternType == "regex" {
             guard let regex = regularExpression(for: policy) else { return nil }
             let range = NSRange(location: 0, length: text.utf16.count)
-            return regex.stringByReplacingMatches(
-                in: text,
-                options: [],
-                range: range,
-                withTemplate: policy.targetTemplate ?? targetText
-            )
+            let template = policy.targetTemplate ?? targetText
+            var result = text
+            let matches = regex.matches(in: text, options: [], range: range)
+            for match in matches.reversed() {
+                guard let outputRange = Range(match.range, in: result) else { continue }
+                result.replaceSubrange(outputRange, with: expandRegexTemplate(template, match: match, text: text))
+            }
+            return result
         }
         return replace(
             sourcePattern,
@@ -1321,6 +1335,105 @@ final class VocoAutoApplyModelService: ObservableObject {
             options.insert(.caseInsensitive)
         }
         return try? NSRegularExpression(pattern: sourcePattern, options: options)
+    }
+
+    private func expandRegexTemplate(_ template: String, match: NSTextCheckingResult, text: String) -> String {
+        var output = ""
+        var index = template.startIndex
+        while index < template.endIndex {
+            let char = template[index]
+            guard char == "$" else {
+                output.append(char)
+                index = template.index(after: index)
+                continue
+            }
+            let nextIndex = template.index(after: index)
+            guard nextIndex < template.endIndex else {
+                output.append("$")
+                index = nextIndex
+                continue
+            }
+            let next = template[nextIndex]
+            if next == "$" {
+                output.append("$")
+                index = template.index(after: nextIndex)
+                continue
+            }
+            if next == "{" {
+                if let close = template[nextIndex...].firstIndex(of: "}") {
+                    let expressionStart = template.index(after: nextIndex)
+                    if expressionStart < close {
+                        let expression = String(template[expressionStart..<close])
+                        output += regexTemplateExpressionValue(expression, match: match, text: text)
+                        index = template.index(after: close)
+                        continue
+                    }
+                }
+            }
+            if next.isNumber {
+                var end = nextIndex
+                while end < template.endIndex && template[end].isNumber {
+                    end = template.index(after: end)
+                }
+                output += regexGroupValue(String(template[nextIndex..<end]), match: match, text: text)
+                index = end
+                continue
+            }
+            output.append("$")
+            index = nextIndex
+        }
+        return output
+    }
+
+    private func regexTemplateExpressionValue(
+        _ expression: String,
+        match: NSTextCheckingResult,
+        text: String
+    ) -> String {
+        let parts = expression.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else {
+            return regexGroupValue(expression, match: match, text: text)
+        }
+        let functionName = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let groupName = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = regexGroupValue(groupName, match: match, text: text)
+        switch functionName {
+        case "upper":
+            return value
+                .folding(options: [.widthInsensitive], locale: nil)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased()
+        case "digit":
+            return normalizeSingleDigitToken(value)
+        default:
+            return ""
+        }
+    }
+
+    private func regexGroupValue(_ groupName: String, match: NSTextCheckingResult, text: String) -> String {
+        let range: NSRange
+        if let groupIndex = Int(groupName) {
+            guard groupIndex >= 0 && groupIndex < match.numberOfRanges else { return "" }
+            range = match.range(at: groupIndex)
+        } else {
+            range = match.range(withName: groupName)
+        }
+        guard range.location != NSNotFound,
+              let stringRange = Range(range, in: text)
+        else { return "" }
+        return String(text[stringRange])
+    }
+
+    private func normalizeSingleDigitToken(_ value: String) -> String {
+        let folded = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.widthInsensitive, .caseInsensitive], locale: nil)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+        return Self.singleDigitTokenMap[folded] ?? folded
     }
 
     private func applyResultTransform(_ outputText: String, policy: VocoAutoApplyPolicy, inputText: String) -> String {

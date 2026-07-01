@@ -276,6 +276,53 @@ struct VocoAutoApplyModelServiceTests {
         #expect(result.applied.map(\.policyId) == ["regex-version-number"])
     }
 
+    @Test func indexedRuntimeV2RegexTemplateFunctionsNormalizeDirectIdentityLikeToken() throws {
+        let url = try temporaryDirectory().appendingPathComponent("regex-template-functions-runtime-v2.json")
+        let digitPattern = "([0-9０-９零〇○洞一壹么二兩两貳贰三參叁四肆五伍六陸陆七柒八捌九玖])"
+        let sourcePattern = "(?<![A-Za-z0-9])([A-Za-z])\\s*" +
+            Array(repeating: digitPattern, count: 9).joined(separator: "\\s*") +
+            "(?![A-Za-z0-9])"
+        let targetTemplate = "${upper:1}" + (2...10).map { "${digit:\($0)}" }.joined()
+        let model: [String: Any] = [
+            "schemaVersion": 1,
+            "runtimeSchemaVersion": VocoAutoApplyModelService.supportedRuntimeSchemaVersion,
+            "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+            "autoApplyModelVersion": "regex-template-functions-test",
+            "generatedAt": "2026-07-01T00:00:00Z",
+            "mergedReplayReadiness": [
+                "mergedAutoApplyModelReady": true,
+                "failures": []
+            ],
+            "actionCommandGuards": [],
+            "exactApplyPolicyByStrictKey": [String: Any](),
+            "scopedApplyPolicies": [
+                [
+                    "policyId": "direct-identity-like-token",
+                    "autoApplyMode": "apply",
+                    "policyType": "scopedReplacement",
+                    "sourcePattern": sourcePattern,
+                    "sourcePatternType": "regex",
+                    "targetText": "A123456789",
+                    "targetTemplate": targetTemplate,
+                    "regexOptions": ["caseInsensitive"],
+                    "contextRequired": false,
+                    "contextTokensAny": [],
+                    "contextAliasesAny": [],
+                    "sourceSlices": ["worker-realtime-overlay"]
+                ]
+            ],
+            "suggestPolicies": []
+        ]
+        try JSONSerialization.data(withJSONObject: model).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let result = service.evaluate("a一二三四五六七八九")
+        #expect(service.status.isAvailable == true)
+        #expect(result.outputText == "A123456789")
+        #expect(result.applied.map(\.policyId) == ["direct-identity-like-token"])
+        #expect(service.evaluate("AB一二三四五六七八九").outputText == "AB一二三四五六七八九")
+    }
+
     @Test func malformedIndexedRuntimeV2FallsBackToReadableV1Payload() throws {
         let url = try temporaryDirectory().appendingPathComponent("v2-marker-with-v1-fallback.json")
         try Data(indexedRuntimeV2DecodeFailureWithV1FallbackJSON().utf8).write(to: url)

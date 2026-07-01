@@ -54,8 +54,8 @@ DEFAULT_ACTION_COMMAND_GUARDS = [
     {"surface": "全部刪除"},
     {"surface": "全部删除"},
 ]
-RUNTIME_INDEXED_V2_SCHEMA_VERSION = 3
-SUPPORTED_RUNTIME_SCHEMA_VERSIONS = {2, RUNTIME_INDEXED_V2_SCHEMA_VERSION}
+RUNTIME_INDEXED_V2_SCHEMA_VERSION = 4
+SUPPORTED_RUNTIME_SCHEMA_VERSIONS = {2, 3, RUNTIME_INDEXED_V2_SCHEMA_VERSION}
 RUNTIME_INDEXED_V2_MODEL_FORMAT = "voco-auto-apply-runtime-indexed-v2"
 RUNTIME_INDEXED_V2_FILENAME = "full-db.auto-apply-runtime-v2.json"
 RUNTIME_INDEX_FIELD_KEYS = (
@@ -73,6 +73,69 @@ TERMINAL_PUNCTUATION_MODES = {"target", "strip", "preserve-input", "ensure"}
 TERMINAL_PUNCTUATION_CHARS = "。！？!?．."
 SOURCE_PATTERN_TYPES = {"literal", "regex"}
 REGEX_OPTIONS = {"caseInsensitive"}
+REGEX_TEMPLATE_FUNCTIONS = {"upper", "digit"}
+SINGLE_DIGIT_TOKEN_MAP = {
+    "0": "0",
+    "０": "0",
+    "零": "0",
+    "〇": "0",
+    "○": "0",
+    "洞": "0",
+    "zero": "0",
+    "oh": "0",
+    "o": "0",
+    "1": "1",
+    "１": "1",
+    "一": "1",
+    "壹": "1",
+    "么": "1",
+    "one": "1",
+    "2": "2",
+    "２": "2",
+    "二": "2",
+    "兩": "2",
+    "两": "2",
+    "貳": "2",
+    "贰": "2",
+    "two": "2",
+    "3": "3",
+    "３": "3",
+    "三": "3",
+    "參": "3",
+    "叁": "3",
+    "three": "3",
+    "4": "4",
+    "４": "4",
+    "四": "4",
+    "肆": "4",
+    "four": "4",
+    "5": "5",
+    "５": "5",
+    "五": "5",
+    "伍": "5",
+    "five": "5",
+    "6": "6",
+    "６": "6",
+    "六": "6",
+    "陸": "6",
+    "陆": "6",
+    "six": "6",
+    "7": "7",
+    "７": "7",
+    "七": "7",
+    "柒": "7",
+    "seven": "7",
+    "8": "8",
+    "８": "8",
+    "八": "8",
+    "捌": "8",
+    "eight": "8",
+    "9": "9",
+    "９": "9",
+    "九": "9",
+    "玖": "9",
+    "nine": "9",
+}
 STRICT_SPACE_RE = re.compile(r"\s+")
 ASCII_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+.#/-]*")
 FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,96}$")
@@ -323,7 +386,7 @@ def add_source_pattern_contract_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--target-template",
-        help="Replacement template for regex source patterns. Supports $1/$2 style capture references across Worker, Mac, and Android runtimes.",
+        help="Replacement template for regex source patterns. Supports $1/$2 capture references and ${upper:1}/${digit:2} template functions across Worker, Mac, and Android runtimes.",
     )
     parser.add_argument(
         "--regex-option",
@@ -4931,8 +4994,8 @@ def expand_regex_replacement(match: re.Match[str], template: str) -> str:
         if next_char == "{":
             end = template.find("}", index + 2)
             if end > index + 2:
-                group_name = template[index + 2:end]
-                output.append(regex_group_value(match, group_name))
+                expression = template[index + 2:end]
+                output.append(regex_template_expression_value(match, expression))
                 index = end + 1
                 continue
         if next_char.isdigit():
@@ -4947,6 +5010,20 @@ def expand_regex_replacement(match: re.Match[str], template: str) -> str:
     return "".join(output)
 
 
+def regex_template_expression_value(match: re.Match[str], expression: str) -> str:
+    if ":" not in expression:
+        return regex_group_value(match, expression)
+    function_name, group_name = expression.split(":", 1)
+    function_name = function_name.strip()
+    group_name = group_name.strip()
+    value = regex_group_value(match, group_name)
+    if function_name == "upper":
+        return unicodedata.normalize("NFKC", value).strip().upper()
+    if function_name == "digit":
+        return normalize_single_digit_token(value)
+    return ""
+
+
 def regex_group_value(match: re.Match[str], group_name: str) -> str:
     try:
         if group_name.isdigit():
@@ -4956,6 +5033,14 @@ def regex_group_value(match: re.Match[str], group_name: str) -> str:
     except (IndexError, KeyError):
         return ""
     return "" if value is None else str(value)
+
+
+def normalize_single_digit_token(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value or "").strip().casefold()
+    normalized = re.sub(r"[\s._-]+", "", normalized)
+    if normalized in SINGLE_DIGIT_TOKEN_MAP:
+        return SINGLE_DIGIT_TOKEN_MAP[normalized]
+    return normalized
 
 
 def range_for_ascii_bounded_source(source: str, text: str) -> tuple[int, int] | None:
