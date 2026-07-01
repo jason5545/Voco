@@ -2099,6 +2099,7 @@ def result_transform_from_args(
     source_pattern: str | None = None,
     target_text: str | None = None,
 ) -> dict[str, Any] | None:
+    _ = (source_text, source_pattern, target_text)
     raw_json = str(getattr(args, "result_transform_json", "") or "").strip()
     if raw_json:
         try:
@@ -2123,61 +2124,15 @@ def result_transform_from_args(
             raise SystemExit(f"--terminal-punctuation must be one of: {', '.join(sorted(TERMINAL_PUNCTUATION_MODES))}")
         return transform
 
-    return inferred_result_transform(source_text=source_text, source_pattern=source_pattern, target_text=target_text)
+    return None
 
 
 def policy_result_transform(policy: dict[str, Any]) -> dict[str, Any] | None:
-    return compact_result_transform(policy.get("resultTransform")) or inferred_result_transform(
-        source_text=policy.get("inputText") or policy.get("source"),
-        source_pattern=policy.get("sourcePattern"),
-        target_text=policy.get("targetText") or policy.get("target"),
-    )
+    return compact_result_transform(policy.get("resultTransform"))
 
 
 def payload_result_transform(payload: dict[str, Any]) -> dict[str, Any] | None:
-    return compact_result_transform(payload.get("resultTransform")) or inferred_result_transform(
-        source_text=payload.get("sourceText"),
-        source_pattern=payload.get("sourcePattern"),
-        target_text=payload.get("targetText"),
-    )
-
-
-def inferred_result_transform(
-    *,
-    source_text: Any = None,
-    source_pattern: Any = None,
-    target_text: Any = None,
-) -> dict[str, Any] | None:
-    target = str(target_text or "")
-    if not target:
-        return None
-    stripped_target = strip_terminal_punctuation(target)
-    if stripped_target == target:
-        return None
-    if not is_taiwan_mobile_number_like(stripped_target):
-        return None
-
-    source = str(source_text or source_pattern or "")
-    if source and not looks_like_phone_rule_source(source):
-        return None
-    return {
-        "schema": RESULT_TRANSFORM_SCHEMA,
-        "terminalPunctuation": "strip",
-    }
-
-
-def is_taiwan_mobile_number_like(value: str) -> bool:
-    digits = re.sub(r"\D", "", value)
-    return digits == value and digits.startswith("09") and len(digits) >= 10
-
-
-def looks_like_phone_rule_source(value: str) -> bool:
-    normalized = unicodedata.normalize("NFKC", value)
-    if re.search(r"09\d{8,}", normalized):
-        return True
-    phone_chars = set("零〇一二兩两三四五六七八九十拾0123456789 -()（）")
-    count = sum(1 for char in normalized if char in phone_chars)
-    return count >= 6
+    return compact_result_transform(payload.get("resultTransform"))
 
 
 def strip_terminal_punctuation(value: str) -> str:

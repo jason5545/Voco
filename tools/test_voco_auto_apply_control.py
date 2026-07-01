@@ -294,7 +294,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(compiled["scopedApplyPolicies"][0]["targetText"], "0975")
             self.assertEqual(report["runtimeIndexRepair"]["scopedAdded"], 1)
 
-    def test_result_transform_strip_phone_punctuation_survives_compile_and_replay(self):
+    def test_explicit_result_transform_strip_terminal_punctuation_survives_compile_and_replay(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             evidence = root / "evidence.jsonl"
@@ -307,6 +307,9 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                 row_pk=16143,
                 context="",
                 note=None,
+                terminal_punctuation="strip",
+                terminal_punctuation_text=None,
+                result_transform_json="",
             )
 
             event = control.correction_event(args)
@@ -336,6 +339,21 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             ]
             self.assertEqual(runtime_policy["targetText"], "0975936663。")
             self.assertEqual(runtime_policy["resultTransform"]["terminalPunctuation"], "strip")
+
+    def test_phone_shaped_rule_without_explicit_result_transform_keeps_target_punctuation(self):
+        args = Namespace(
+            actor="test",
+            source_text="零九七五九三六六六三。",
+            target_text="0975936663。",
+            row_pk=16143,
+            context="",
+            note=None,
+        )
+
+        event = control.correction_event(args)
+
+        self.assertNotIn("resultTransform", event["payload"])
+        self.assertEqual(event["payload"]["examples"]["positive"][0]["expectedText"], "0975936663。")
 
     def test_publish_worker_release_rebuilds_runtime_index_before_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:
