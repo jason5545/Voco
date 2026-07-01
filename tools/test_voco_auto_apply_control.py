@@ -601,6 +601,67 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(policy["contextTokensAny"], [])
             self.assertEqual(policy["contextAliasesAny"], [])
 
+    def test_unlocked_replacement_negative_example_compiles_runtime_guard(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="增建",
+                target_text="證件",
+                source_text="要補增建資料。",
+                row_pk=18001,
+                rule_name="broad-document-correction-with-house-negative",
+                positive=[],
+                negative=["房屋增建"],
+                positive_text="要補增建資料。",
+                positive_context="",
+                expected_text="要補證件資料。",
+                negative_text=None,
+                negative_context="",
+                family_id=None,
+                family_role="alias",
+                family_reason=None,
+                note=None,
+            )
+            control.append_event(evidence, control.replacement_rule_event(args))
+            model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+
+            validation = control.validate_model(
+                model,
+                control.load_events(evidence),
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            runtime = control.compile_indexed_runtime_v2_model(model)
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(validation["positiveExamples"][0]["actualText"], "要補證件資料。")
+            self.assertEqual(validation["negativeExamples"][0]["actualText"], "房屋增建")
+            self.assertEqual(model["policies"][0]["negativeSourceGuards"][0]["text"], "房屋增建")
+            self.assertEqual(runtime["scopedApplyPolicies"][0]["negativeSourceGuards"][0]["text"], "房屋增建")
+            output, fires = control.replay_apply_policies_unchecked(
+                "這是房屋增建案。",
+                "",
+                model["policies"],
+            )
+            self.assertEqual(output, "這是房屋增建案。")
+            self.assertEqual(fires, [])
+
     def test_regex_replacement_rule_compiles_and_replays_capture_template(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1154,6 +1215,87 @@ class VocoAutoApplyControlTests(unittest.TestCase):
 
         self.assertEqual(len(report["inheritedBaselineUnexpectedChanges"]), 1)
         self.assertEqual(report["unexpectedChanges"][0]["rowPk"], 13553)
+        self.assertFalse(report["readiness"]["rawInputReplayPass"])
+
+    def test_inherited_baseline_policy_fire_allows_runtime_currency_normalization(self):
+        report = {
+            "sentinelFailures": [],
+            "unexpectedChanges": [
+                {
+                    "rowPk": 11791,
+                    "before": "那個兩千塊的鍵盤，等入賬了我我會跟你說。",
+                    "after": "那個2000塊的鍵盤，等入賬了我會跟你說。",
+                    "cleanedText": "那個兩千塊的鍵盤，等入賬了我我會跟你說。",
+                    "fires": [
+                        {
+                            "policyId": "manual-replacement-dac528b364408ba7",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "我我",
+                            "targetText": "我",
+                        },
+                        {
+                            "policyId": control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+                            "policyType": control.CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE,
+                            "autoApplyMode": "apply",
+                            "sourcePattern": "兩千",
+                            "targetText": "2000",
+                            "sourceSlices": control.CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES,
+                        },
+                    ],
+                }
+            ],
+            "readiness": {"rawInputReplayPass": False, "reason": "raw input replay produced unexpected changes"},
+        }
+        base_model = tiny_base_model()
+        base_model["policies"] = [
+            {
+                "policyId": "manual-replacement-dac528b364408ba7",
+                "autoApplyMode": "apply",
+            }
+        ]
+
+        control.suppress_inherited_baseline_policy_fires(report, base_model)
+
+        self.assertEqual(len(report["inheritedBaselineUnexpectedChanges"]), 1)
+        self.assertEqual(report["unexpectedChanges"], [])
+        self.assertTrue(report["readiness"]["rawInputReplayPass"])
+
+    def test_new_policy_fire_with_runtime_currency_normalization_is_not_suppressed(self):
+        report = {
+            "sentinelFailures": [],
+            "unexpectedChanges": [
+                {
+                    "rowPk": 11791,
+                    "before": "那個兩千塊的鍵盤，等入賬了我我會跟你說。",
+                    "after": "那個2000塊的鍵盤，等入賬了我會跟你說。",
+                    "cleanedText": "那個兩千塊的鍵盤，等入賬了我我會跟你說。",
+                    "fires": [
+                        {
+                            "policyId": "manual-replacement-new",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "我我",
+                            "targetText": "我",
+                        },
+                        {
+                            "policyId": control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID,
+                            "policyType": control.CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE,
+                            "autoApplyMode": "apply",
+                            "sourcePattern": "兩千",
+                            "targetText": "2000",
+                            "sourceSlices": control.CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES,
+                        },
+                    ],
+                }
+            ],
+            "readiness": {"rawInputReplayPass": False, "reason": "raw input replay produced unexpected changes"},
+        }
+        base_model = tiny_base_model()
+        base_model["policies"] = []
+
+        control.suppress_inherited_baseline_policy_fires(report, base_model)
+
+        self.assertEqual(report["inheritedBaselineUnexpectedChanges"], [])
+        self.assertEqual(report["unexpectedChanges"][0]["rowPk"], 11791)
         self.assertFalse(report["readiness"]["rawInputReplayPass"])
 
     def test_protected_mingde_guard_matches_runtime_policy_boundary(self):

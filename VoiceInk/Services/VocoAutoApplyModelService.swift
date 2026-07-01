@@ -1241,6 +1241,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         guard let sourcePattern = policy.sourcePattern,
               sourceMatches(policy: policy, text: text, sourcePattern: sourcePattern)
         else { return false }
+        guard !negativeSourceGuardBlocks(policy, text: text, context: context) else { return false }
 
         let trusted = policy.contextFromContextOnly == true ? context : [text, context].joined(separator: "\n")
         let aliasHits = tokenHits(in: trusted, tokens: policy.contextAliasesAny)
@@ -1248,6 +1249,24 @@ final class VocoAutoApplyModelService: ObservableObject {
         if policy.requireAlias == true { return !aliasHits.isEmpty }
         if policy.contextRequired == true { return !aliasHits.isEmpty || !tokenHits.isEmpty }
         return true
+    }
+
+    private func negativeSourceGuardBlocks(
+        _ policy: VocoAutoApplyPolicy,
+        text: String,
+        context: String
+    ) -> Bool {
+        guard !policy.negativeSourceGuards.isEmpty else { return false }
+        let trusted = policy.contextFromContextOnly == true ? context : [text, context].joined(separator: "\n")
+        return policy.negativeSourceGuards.contains { guardRule in
+            if let guardText = guardRule.text, contextContainsToken(text: text, token: guardText) {
+                return true
+            }
+            if let guardContext = guardRule.context, contextContainsToken(text: trusted, token: guardContext) {
+                return true
+            }
+            return false
+        }
     }
 
     private func sourceMatches(policy: VocoAutoApplyPolicy, text: String, sourcePattern: String) -> Bool {
@@ -2245,6 +2264,12 @@ private struct VocoPolicyResultTransform: Decodable, Equatable {
     let terminalPunctuationText: String?
 }
 
+private struct VocoNegativeSourceGuard: Decodable, Equatable {
+    let text: String?
+    let context: String?
+    let reason: String?
+}
+
 private struct VocoAutoApplyPolicy: Decodable {
     let policyId: String
     let autoApplyMode: VocoAutoApplyMode
@@ -2270,6 +2295,7 @@ private struct VocoAutoApplyPolicy: Decodable {
     let familyId: String?
     let familyRole: String?
     let migrationSource: String?
+    let negativeSourceGuards: [VocoNegativeSourceGuard]
     let resultTransform: VocoPolicyResultTransform?
 
     var hasNonEmptyTarget: Bool {
@@ -2331,6 +2357,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         case familyId
         case familyRole
         case migrationSource
+        case negativeSourceGuards
         case resultTransform
     }
 
@@ -2359,6 +2386,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         familyId: String? = nil,
         familyRole: String? = nil,
         migrationSource: String? = nil,
+        negativeSourceGuards: [VocoNegativeSourceGuard] = [],
         resultTransform: VocoPolicyResultTransform? = nil
     ) {
         self.policyId = policyId
@@ -2385,6 +2413,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         self.familyId = familyId
         self.familyRole = familyRole
         self.migrationSource = migrationSource
+        self.negativeSourceGuards = negativeSourceGuards
         self.resultTransform = resultTransform
     }
 
@@ -2414,6 +2443,7 @@ private struct VocoAutoApplyPolicy: Decodable {
         familyId = try container.decodeIfPresent(String.self, forKey: .familyId)
         familyRole = try container.decodeIfPresent(String.self, forKey: .familyRole)
         migrationSource = try container.decodeIfPresent(String.self, forKey: .migrationSource)
+        negativeSourceGuards = try container.decodeIfPresent([VocoNegativeSourceGuard].self, forKey: .negativeSourceGuards) ?? []
         resultTransform = try container.decodeIfPresent(VocoPolicyResultTransform.self, forKey: .resultTransform)
     }
 }

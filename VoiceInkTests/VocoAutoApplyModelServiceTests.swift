@@ -323,6 +323,57 @@ struct VocoAutoApplyModelServiceTests {
         #expect(service.evaluate("AB一二三四五六七八九").outputText == "AB一二三四五六七八九")
     }
 
+    @Test func indexedRuntimeV2NegativeSourceGuardBlocksBroadReplacement() throws {
+        let url = try temporaryDirectory().appendingPathComponent("negative-source-guard-runtime-v2.json")
+        try Data(
+            """
+            {
+              "schemaVersion": 1,
+              "runtimeSchemaVersion": \(VocoAutoApplyModelService.supportedRuntimeSchemaVersion),
+              "modelFormat": "voco-auto-apply-runtime-indexed-v2",
+              "autoApplyModelVersion": "negative-source-guard-test",
+              "generatedAt": "2026-07-01T00:00:00Z",
+              "mergedReplayReadiness": {
+                "mergedAutoApplyModelReady": true,
+                "failures": []
+              },
+              "actionCommandGuards": [],
+              "exactApplyPolicyByStrictKey": {},
+              "scopedApplyPolicies": [
+                {
+                  "policyId": "broad-document-correction-with-house-negative",
+                  "autoApplyMode": "apply",
+                  "policyType": "scopedReplacement",
+                  "sourcePattern": "增建",
+                  "targetText": "證件",
+                  "contextRequired": false,
+                  "contextTokensAny": [],
+                  "contextAliasesAny": [],
+                  "negativeSourceGuards": [
+                    {
+                      "text": "房屋增建",
+                      "reason": "negativeExample"
+                    }
+                  ],
+                  "sourceSlices": ["worker-realtime-overlay"]
+                }
+              ],
+              "suggestPolicies": []
+            }
+            """.utf8
+        ).write(to: url)
+        let service = VocoAutoApplyModelService(modelURL: url, defaults: try temporaryDefaults())
+
+        let broad = service.evaluate("要補增建資料。")
+        #expect(service.status.isAvailable == true)
+        #expect(broad.outputText == "要補證件資料。")
+        #expect(broad.applied.map(\.policyId) == ["broad-document-correction-with-house-negative"])
+
+        let negative = service.evaluate("這是房屋增建案。")
+        #expect(negative.outputText == "這是房屋增建案。")
+        #expect(negative.applied.isEmpty)
+    }
+
     @Test func malformedIndexedRuntimeV2FallsBackToReadableV1Payload() throws {
         let url = try temporaryDirectory().appendingPathComponent("v2-marker-with-v1-fallback.json")
         try Data(indexedRuntimeV2DecodeFailureWithV1FallbackJSON().utf8).write(to: url)

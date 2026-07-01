@@ -2699,6 +2699,7 @@ def compact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
             "familyId": policy.get("familyId"),
             "familyRole": policy.get("familyRole"),
             "migrationSource": policy.get("migrationSource"),
+            "negativeSourceGuards": compact_negative_source_guards(policy.get("negativeSourceGuards")),
             "resultTransform": policy_result_transform(policy),
             **compact_source_pattern_contract(policy),
         }
@@ -2718,6 +2719,61 @@ def compact_nonempty(value: dict[str, Any]) -> dict[str, Any]:
             continue
         compacted[key] = item
     return compacted
+
+
+def negative_source_guards_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    examples = payload.get("examples") if isinstance(payload.get("examples"), dict) else {}
+    guards: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for example in examples.get("negative") or []:
+        if not isinstance(example, dict):
+            continue
+        text = str(example.get("text") or "").strip()
+        context = str(example.get("context") or "").strip()
+        if not text and not context:
+            continue
+        key = (strict_text_key(text), strict_text_key(context))
+        if key in seen:
+            continue
+        seen.add(key)
+        guard = compact_nonempty(
+            {
+                "text": text,
+                "context": context,
+                "reason": "negativeExample",
+            }
+        )
+        if guard:
+            guards.append(guard)
+    return guards
+
+
+def compact_negative_source_guards(value: Any) -> list[dict[str, Any]]:
+    guards: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    if not isinstance(value, list):
+        return guards
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        context = str(item.get("context") or "").strip()
+        if not text and not context:
+            continue
+        key = (strict_text_key(text), strict_text_key(context))
+        if key in seen:
+            continue
+        seen.add(key)
+        guard = compact_nonempty(
+            {
+                "text": text,
+                "context": context,
+                "reason": str(item.get("reason") or "negativeExample").strip(),
+            }
+        )
+        if guard:
+            guards.append(guard)
+    return guards
 
 
 def compact_result_transform(value: Any) -> dict[str, Any] | None:
@@ -3187,6 +3243,9 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    negative_guards = negative_source_guards_from_payload(payload)
+    if negative_guards:
+        policy["negativeSourceGuards"] = negative_guards
     if result_transform:
         policy["resultTransform"] = result_transform
     return policy
@@ -3257,6 +3316,9 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePolicies": [],
         "controlEvidenceEventIds": [event["eventId"]],
     }
+    negative_guards = negative_source_guards_from_payload(payload)
+    if negative_guards:
+        policy["negativeSourceGuards"] = negative_guards
     if result_transform:
         policy["resultTransform"] = result_transform
     apply_policy_family_metadata(policy, payload, event)
@@ -3358,6 +3420,9 @@ def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[s
                 "migrationSource": migration_source or None,
                 "sourceRuleId": payload.get("sourceRuleId"),
         }
+        negative_guards = negative_source_guards_from_payload(payload)
+        if negative_guards:
+            policy["negativeSourceGuards"] = negative_guards
         if result_transform:
             policy["resultTransform"] = result_transform
         policies.append(policy)
@@ -3398,11 +3463,30 @@ def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], ev
                 ids.append(event["eventId"])
             policy["controlEvidenceEventIds"] = ids
             merge_policy_family_metadata(policy, new_policy)
+            merge_policy_negative_source_guards(policy, new_policy)
             merge_policy_result_transform(policy, new_policy)
             policy["decisionReason"] = str(policy.get("decisionReason") or "") + "; reinforced by manual control-plane evidence"
             return 0
     policies.append(new_policy)
     return 1
+
+
+def merge_policy_negative_source_guards(policy: dict[str, Any], source_policy: dict[str, Any]) -> None:
+    existing = compact_negative_source_guards(policy.get("negativeSourceGuards"))
+    incoming = compact_negative_source_guards(source_policy.get("negativeSourceGuards"))
+    if not incoming:
+        return
+    by_key: dict[tuple[str, str], dict[str, Any]] = {
+        (strict_text_key(str(guard.get("text") or "")), strict_text_key(str(guard.get("context") or ""))): guard
+        for guard in existing
+    }
+    for guard in incoming:
+        key = (
+            strict_text_key(str(guard.get("text") or "")),
+            strict_text_key(str(guard.get("context") or "")),
+        )
+        by_key[key] = guard
+    policy["negativeSourceGuards"] = list(by_key.values())
 
 
 def merge_policy_result_transform(policy: dict[str, Any], source_policy: dict[str, Any]) -> None:
@@ -4098,11 +4182,8 @@ def suppress_inherited_baseline_policy_fires(report: dict[str, Any], base_model:
     inherited: list[dict[str, Any]] = []
     remaining: list[dict[str, Any]] = []
     for item in unexpected:
-        fire_ids = [
-            str((fire if isinstance(fire, dict) else {}).get("policyId") or "")
-            for fire in item.get("fires") or []
-        ]
-        if fire_ids and all(policy_id in base_apply_policy_ids for policy_id in fire_ids):
+        fires = [fire for fire in item.get("fires") or [] if isinstance(fire, dict)]
+        if fires and all(baseline_inherited_fire(fire, base_apply_policy_ids) for fire in fires):
             inherited.append(item)
         else:
             remaining.append(item)
@@ -4120,6 +4201,24 @@ def suppress_inherited_baseline_policy_fires(report: dict[str, Any], base_model:
     elif "autoApplyModelReady" in readiness:
         readiness["autoApplyModelReady"] = True
         readiness["reason"] = "cleaned corpus replay passed; only inherited active-model policy fires were ignored"
+
+
+def baseline_inherited_fire(fire: dict[str, Any], base_apply_policy_ids: set[str]) -> bool:
+    policy_id = str(fire.get("policyId") or "")
+    if policy_id in base_apply_policy_ids:
+        return True
+    return is_runtime_special_policy_fire(fire)
+
+
+def is_runtime_special_policy_fire(fire: dict[str, Any]) -> bool:
+    policy_id = str(fire.get("policyId") or "")
+    policy_type = str(fire.get("policyType") or "")
+    source_slices = {str(value) for value in fire.get("sourceSlices") or []}
+    return (
+        policy_id == CURRENCY_NUMBER_NORMALIZATION_POLICY_ID
+        and policy_type == CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE
+        and set(CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES).issubset(source_slices)
+    )
 
 
 def corpus_change_key(item: dict[str, Any]) -> tuple[Any, ...]:
@@ -5714,6 +5813,8 @@ def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     boundary_mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
     if not policy_source_matches(policy, text, source, boundary_mode):
         return False
+    if negative_source_guard_blocks_policy(policy, text, context):
+        return False
     trusted = context if policy.get("contextFromContextOnly") else "\n".join([text, context])
     alias_hits = token_hits(trusted, policy.get("contextAliasesAny") or [])
     context_hits = token_hits(trusted, policy.get("contextTokensAny") or [])
@@ -5722,6 +5823,21 @@ def policy_fires(policy: dict[str, Any], text: str, context: str) -> bool:
     if policy.get("contextRequired"):
         return bool(alias_hits or context_hits)
     return True
+
+
+def negative_source_guard_blocks_policy(policy: dict[str, Any], text: str, context: str) -> bool:
+    guards = compact_negative_source_guards(policy.get("negativeSourceGuards"))
+    if not guards:
+        return False
+    trusted = context if policy.get("contextFromContextOnly") else "\n".join([text, context])
+    for guard in guards:
+        guard_text = str(guard.get("text") or "")
+        if guard_text and token_hits(text, [guard_text]):
+            return True
+        guard_context = str(guard.get("context") or "")
+        if guard_context and token_hits(trusted, [guard_context]):
+            return True
+    return False
 
 
 def policy_source_matches(
