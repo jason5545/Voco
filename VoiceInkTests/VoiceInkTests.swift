@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import ApplicationServices
 import os
 import SwiftData
 import Testing
@@ -3201,6 +3202,59 @@ struct VoiceInkTests {
         #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: false, selectedText: "selected text"))
         #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: nil))
         #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: " \n\t "))
+    }
+
+    @Test func editModeRejectsClipboardEchoForElectronFallback() {
+        #expect(EditModeDetectionPolicy.isClipboardEcho(candidate: "same text", clipboardBaseline: "same text"))
+        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: "selected text", clipboardBaseline: "clipboard text"))
+        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: nil, clipboardBaseline: "clipboard text"))
+        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: "selected text", clipboardBaseline: nil))
+        #expect(EditModeDetectionPolicy.isClipboardEcho(candidate: "", clipboardBaseline: ""))
+    }
+
+    @Test func editModeRejectsAXSelectAllAndStaleRangeSignals() {
+        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextFieldRole as String,
+            selectedText: "https://example.com",
+            fieldValue: "https://example.com",
+            selectedRangeLength: "https://example.com".utf16.count
+        ))
+        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXComboBoxRole as String,
+            selectedText: "Search term",
+            fieldValue: "Search term",
+            selectedRangeLength: "Search term".utf16.count
+        ))
+        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextAreaRole as String,
+            selectedText: "full paragraph",
+            fieldValue: "full paragraph",
+            selectedRangeLength: "full paragraph".utf16.count
+        ))
+        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextFieldRole as String,
+            selectedText: "example",
+            fieldValue: "https://example.com",
+            selectedRangeLength: "example".utf16.count
+        ))
+        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextAreaRole as String,
+            selectedText: "stale",
+            fieldValue: "fresh text",
+            selectedRangeLength: 0
+        ))
+        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextFieldRole as String,
+            selectedText: "partial",
+            fieldValue: "partial field",
+            selectedRangeLength: nil
+        ))
+        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
+            role: kAXTextAreaRole as String,
+            selectedText: "emoji 👋",
+            fieldValue: "emoji 👋 plus more",
+            selectedRangeLength: "emoji 👋".utf16.count
+        ))
     }
 
     @Test func editModeElectronFallbackRequiresKnownBundleCacheMatchAndUnavailableFocus() {

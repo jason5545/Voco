@@ -321,8 +321,18 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         cacheMatchesFrontmostApp: Bool,
         focusedElementUnavailable: Bool
     ) async {
-        if SelectedTextService.isEditableTextFocused(for: pid) {
+        if let focusedTextInfo = SelectedTextService.focusedEditableTextInfo(for: pid) {
             let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
+            if let selectedText,
+               EditModeDetectionPolicy.shouldRejectAXSelection(
+                   role: focusedTextInfo.role,
+                   selectedText: selectedText,
+                   fieldValue: focusedTextInfo.fieldValue,
+                   selectedRangeLength: focusedTextInfo.selectedRangeLength
+               ) {
+                engine.forkState.clearEditMode()
+                return
+            }
             applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
             return
         }
@@ -340,7 +350,7 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         engine.forkState.editModeDetectionTask = Task { @MainActor [weak self, weak engine] in
             guard let self, let engine else { return }
 
-            let selectedText = await SelectedTextService.fetchSelectedText()
+            let selectedText = await SelectedTextService.fetchSelectedTextForElectronFallback()
             guard !Task.isCancelled else { return }
 
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
@@ -507,5 +517,34 @@ enum EditModeDetectionPolicy {
             return false
         }
         return true
+    }
+
+    static func isClipboardEcho(candidate: String?, clipboardBaseline: String?) -> Bool {
+        guard let candidate, let clipboardBaseline else { return false }
+        return candidate == clipboardBaseline
+    }
+
+    static func shouldRejectAXSelection(
+        role: String,
+        selectedText: String,
+        fieldValue: String?,
+        selectedRangeLength: Int?
+    ) -> Bool {
+        let singleLineEditableRoles: Set<String> = [
+            kAXTextFieldRole as String,
+            kAXComboBoxRole as String,
+        ]
+
+        if singleLineEditableRoles.contains(role),
+           let fieldValue,
+           selectedText == fieldValue {
+            return true
+        }
+
+        if selectedRangeLength == 0, !selectedText.isEmpty {
+            return true
+        }
+
+        return false
     }
 }
