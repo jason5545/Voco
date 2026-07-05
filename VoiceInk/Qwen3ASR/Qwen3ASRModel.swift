@@ -254,12 +254,16 @@ class Qwen3ASRModel {
     private static func pickNextToken(
         logits: MLXArray,
         generatedSoFar: [Int32],
-        options: Qwen3DecodingOptions
+        options: Qwen3DecodingOptions,
+        hotwordTokenSequences: [[Int32]] = []
     ) -> Int32 {
         // Fast path — pure greedy, no modifications.
         if options.repetitionPenalty == 1.0,
            options.noRepeatNgramSize == 0,
-           options.temperature == 0 {
+           options.temperature == 0,
+           options.hotwordBiasBoost == 0,
+           hotwordTokenSequences.isEmpty,
+           options.repeatNgramSize == 0 {
             return argMax(logits, axis: -1).squeezed().item(Int32.self)
         }
 
@@ -267,6 +271,15 @@ class Qwen3ASRModel {
         let flat = logits.squeezed().asType(.float32)
         let vocabSize = flat.size
         var scores: [Float] = flat.asArray(Float.self)
+
+        if options.hotwordBiasBoost != 0, !hotwordTokenSequences.isEmpty {
+            applyHotwordBias(
+                to: &scores,
+                generatedSoFar: generatedSoFar,
+                hotwordTokenSequences: hotwordTokenSequences,
+                boost: options.hotwordBiasBoost
+            )
+        }
 
         // Repetition penalty: divide logits for already-generated tokens.
         if options.repetitionPenalty > 1.0 && !generatedSoFar.isEmpty {
@@ -296,6 +309,13 @@ class Qwen3ASRModel {
                 }
             }
         }
+
+        applyRepeatNgramGuard(
+            to: &scores,
+            generatedSoFar: generatedSoFar,
+            ngramSize: options.repeatNgramSize,
+            maxCount: options.repeatNgramMaxCount
+        )
 
         // Temperature sampling via Gumbel-max trick:
         // argmax(logits/T + Gumbel(0,1)) ~ categorical(softmax(logits/T)).
@@ -327,6 +347,92 @@ class Qwen3ASRModel {
             }
         }
         return Int32(bestIdx)
+    }
+
+    private static func applyHotwordBias(
+        to scores: inout [Float],
+        generatedSoFar: [Int32],
+        hotwordTokenSequences: [[Int32]],
+        boost: Float
+    ) {
+        guard boost != 0 else { return }
+        for tokenIds in hotwordTokenSequences where !tokenIds.isEmpty {
+            let maxMatched = min(generatedSoFar.count, max(tokenIds.count - 1, 0))
+            for matched in stride(from: maxMatched, through: 0, by: -1) {
+                if matched > 0 {
+                    let suffix = generatedSoFar.suffix(matched)
+                    let prefix = tokenIds.prefix(matched)
+                    guard Array(suffix) == Array(prefix) else { continue }
+                }
+                let nextIndex = matched
+                guard nextIndex < tokenIds.count else { break }
+                let token = Int(tokenIds[nextIndex])
+                if token >= 0, token < scores.count {
+                    scores[token] += boost
+                }
+                break
+            }
+        }
+    }
+
+    private static func applyRepeatNgramGuard(
+        to scores: inout [Float],
+        generatedSoFar: [Int32],
+        ngramSize: Int,
+        maxCount: Int
+    ) {
+        guard ngramSize > 0, maxCount > 0 else { return }
+        guard generatedSoFar.count + 1 >= ngramSize else { return }
+        let topCount = min(64, scores.count)
+        guard topCount > 0 else { return }
+        var topCandidateIndices: [Int] = []
+        topCandidateIndices.reserveCapacity(topCount)
+        for index in scores.indices {
+            if topCandidateIndices.count < topCount {
+                topCandidateIndices.append(index)
+                if topCandidateIndices.count == topCount {
+                    topCandidateIndices.sort { scores[$0] > scores[$1] }
+                }
+                continue
+            }
+            if let last = topCandidateIndices.last, scores[index] > scores[last] {
+                topCandidateIndices.removeLast()
+                let insertionIndex = topCandidateIndices.firstIndex { scores[index] > scores[$0] } ?? topCandidateIndices.endIndex
+                topCandidateIndices.insert(index, at: insertionIndex)
+            }
+        }
+        for token in topCandidateIndices {
+            if wouldExceedNgramRepeat(
+                generatedSoFar: generatedSoFar,
+                nextToken: Int32(token),
+                ngramSize: ngramSize,
+                maxCount: maxCount
+            ) {
+                scores[token] = -.infinity
+            }
+        }
+    }
+
+    private static func wouldExceedNgramRepeat(
+        generatedSoFar: [Int32],
+        nextToken: Int32,
+        ngramSize: Int,
+        maxCount: Int
+    ) -> Bool {
+        guard ngramSize > 0, maxCount > 0 else { return false }
+        let candidate = generatedSoFar + [nextToken]
+        guard candidate.count >= ngramSize else { return false }
+        let target = Array(candidate.suffix(ngramSize))
+        var count = 0
+        for start in 0...(candidate.count - ngramSize) {
+            if Array(candidate[start..<(start + ngramSize)]) == target {
+                count += 1
+                if count > maxCount {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     func generateText(
@@ -394,6 +500,20 @@ class Qwen3ASRModel {
         var totalLogProb: Double = 0.0
         var logProbTokenCount: Int = 0
         var allTokenLogProbs: [(index: Int, tokenId: Int32, logProb: Double)] = []
+        let hotwordTokenSequences: [[Int32]] = {
+            guard let tokenizer, decodingOptions.hotwordBiasBoost != 0 else { return [] }
+            var seen = Set<[Int32]>()
+            var sequences: [[Int32]] = []
+            for term in decodingOptions.hotwordBiasTerms {
+                let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                let tokenIds = tokenizer.encode(trimmed).map { Int32($0) }
+                guard !tokenIds.isEmpty, !seen.contains(tokenIds) else { continue }
+                seen.insert(tokenIds)
+                sequences.append(tokenIds)
+            }
+            return sequences
+        }()
 
         // Extract log-probability for a token using logSumExp (avoids full softmax over 152K vocab)
         func collectLogProb(from logits: MLXArray, token: Int32) {
@@ -416,7 +536,8 @@ class Qwen3ASRModel {
         var nextToken = Self.pickNextToken(
             logits: logits,
             generatedSoFar: generatedTokens,
-            options: decodingOptions
+            options: decodingOptions,
+            hotwordTokenSequences: hotwordTokenSequences
         )
 
         if nextToken != Int32(tokens.eosTokenId) {
@@ -439,7 +560,8 @@ class Qwen3ASRModel {
             nextToken = Self.pickNextToken(
                 logits: logits,
                 generatedSoFar: generatedTokens,
-                options: decodingOptions
+                options: decodingOptions,
+                hotwordTokenSequences: hotwordTokenSequences
             )
 
             if nextToken != Int32(tokens.eosTokenId) {

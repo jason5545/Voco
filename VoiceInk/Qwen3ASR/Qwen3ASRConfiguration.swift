@@ -171,14 +171,35 @@ struct Qwen3DecodingOptions: Sendable {
     /// Gumbel-max. Higher = more random.
     var temperature: Float = 0.0
 
+    /// Decode-time token logit bias for contextual/domain terms. The strings
+    /// are tokenized by the loaded Qwen3 tokenizer before generation.
+    var hotwordBiasTerms: [String] = []
+
+    /// Logit boost to apply to the next token of each matching hotword sequence.
+    /// `0` disables hotword bias.
+    var hotwordBiasBoost: Float = 0.0
+
+    /// Repetition guard used by context-bias probes. Unlike noRepeatNgramSize,
+    /// this allows an n-gram to appear up to repeatNgramMaxCount times.
+    var repeatNgramSize: Int = 0
+    var repeatNgramMaxCount: Int = 2
+
     init(
         repetitionPenalty: Float = 1.1,
         noRepeatNgramSize: Int = 0,
-        temperature: Float = 0.0
+        temperature: Float = 0.0,
+        hotwordBiasTerms: [String] = [],
+        hotwordBiasBoost: Float = 0.0,
+        repeatNgramSize: Int = 0,
+        repeatNgramMaxCount: Int = 2
     ) {
         self.repetitionPenalty = repetitionPenalty
         self.noRepeatNgramSize = noRepeatNgramSize
         self.temperature = temperature
+        self.hotwordBiasTerms = hotwordBiasTerms
+        self.hotwordBiasBoost = hotwordBiasBoost
+        self.repeatNgramSize = repeatNgramSize
+        self.repeatNgramMaxCount = repeatNgramMaxCount
     }
 }
 

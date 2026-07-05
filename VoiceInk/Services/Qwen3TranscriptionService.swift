@@ -217,7 +217,18 @@ class Qwen3TranscriptionService: TranscriptionService {
 
         logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")
 
+        var activeDecodingOptions = Qwen3DecodingOptions()
         var result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
+        if let biasOptions = await contextBiasOptions(forBaselineTranscript: result.text, prompt: prompt) {
+            logger.info("Qwen3-ASR context hotword bias retry terms=\(biasOptions.hotwordBiasTerms.joined(separator: ","), privacy: .public) boost=\(biasOptions.hotwordBiasBoost, privacy: .public)")
+            activeDecodingOptions = biasOptions
+            result = try await engine.transcribe(
+                samples: audioSamples,
+                language: selectedLanguage,
+                prompt: prompt,
+                decodingOptions: biasOptions
+            )
+        }
         let audioDurationSeconds = Double(audioSamples.count) / 16_000.0
         if Qwen3ASRAdapterRuntimeGuard.shouldProbeBaseFallback(
             adapterTranscript: result.text,
@@ -228,7 +239,8 @@ class Qwen3TranscriptionService: TranscriptionService {
                 let baseResult = try await engine.transcribeBaseOnlyForAdapterGuard(
                     samples: audioSamples,
                     language: selectedLanguage,
-                    prompt: prompt
+                    prompt: prompt,
+                    decodingOptions: activeDecodingOptions
                 )
                 self.lastAdapterMetadata = await engine.currentAdapterMetadata()
                 if Qwen3ASRAdapterRuntimeGuard.shouldUseBaseFallback(
@@ -261,6 +273,27 @@ class Qwen3TranscriptionService: TranscriptionService {
 
     private func readAudioSamples(from url: URL) throws -> [Float] {
         return try readWAVSamples(from: url)
+    }
+
+    @MainActor
+    private func contextBiasOptions(forBaselineTranscript baseline: String, prompt: String?) -> Qwen3DecodingOptions? {
+        let store = Qwen3ASRContextBiasStore.shared
+        guard store.isEnabled else { return nil }
+        let profile = store.activeProfile()
+        let recent = ChinesePostProcessingService.shared.contextMemory.getRecent(count: 5)
+        let terms = Qwen3ContextHotwordBias.selectedTerms(
+            profile: profile,
+            baselineTranscript: baseline,
+            prompt: prompt,
+            recentTranscriptions: recent
+        )
+        guard !terms.isEmpty else { return nil }
+        return Qwen3DecodingOptions(
+            hotwordBiasTerms: terms,
+            hotwordBiasBoost: store.boostOverride ?? profile.boost,
+            repeatNgramSize: profile.repeatNgramSize,
+            repeatNgramMaxCount: profile.repeatNgramMaxCount
+        )
     }
 
     func cleanup() async {
