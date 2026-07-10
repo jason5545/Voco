@@ -33,14 +33,19 @@ final class RecordingContextSnapshotStore {
 
 @MainActor
 enum RecordingContextCaptureService {
-    static func startCapture(into store: RecordingContextSnapshotStore) -> [Task<Void, Never>] {
+    static func startCapture(
+        into store: RecordingContextSnapshotStore,
+        selectedTextProvider: @escaping @MainActor () async -> String?
+    ) -> [Task<Void, Never>] {
         [
             Task { @MainActor in
-                store.updateClipboardText(NSPasteboard.general.string(forType: .string))
+                let clipboardText = await ClipboardManager.getUserClipboardContentForRecordingContext()
+                guard !Task.isCancelled else { return }
+                store.updateClipboardText(clipboardText)
             },
             Task { @MainActor in
                 guard !Task.isCancelled else { return }
-                let selectedText = await SelectedTextService.fetchSelectedText()
+                let selectedText = await selectedTextProvider()
                 guard !Task.isCancelled else { return }
                 store.updateSelectedText(selectedText)
             },

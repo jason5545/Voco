@@ -11,6 +11,76 @@ struct WordSubstitution {
     let replacement: String
 }
 
+struct EditModeSelectionSnapshot: Equatable {
+    let text: String
+    let pid: pid_t
+}
+
+enum EditModeSelectionSnapshotPolicy {
+    /// Detection and recording startup are separate async steps. Only carry an
+    /// Edit Mode selection into the pipeline when both still refer to the same
+    /// foreground process.
+    static func validated(
+        _ snapshot: EditModeSelectionSnapshot?,
+        capturedAppPID: pid_t?
+    ) -> EditModeSelectionSnapshot? {
+        guard let snapshot, snapshot.pid == capturedAppPID else { return nil }
+        return snapshot
+    }
+}
+
+@MainActor
+private final class EditModeDetectionWaitResolution {
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    init(_ continuation: CheckedContinuation<Bool, Never>) {
+        self.continuation = continuation
+    }
+
+    @discardableResult
+    func resolve(_ completed: Bool) -> Bool {
+        guard let continuation else { return false }
+        self.continuation = nil
+        continuation.resume(returning: completed)
+        return true
+    }
+}
+
+@MainActor
+enum EditModeDetectionWaiter {
+    /// Races an unstructured AX detection task against a real deadline. A task
+    /// group cannot be used here because leaving its scope waits for the losing
+    /// child and turns the nominal timeout into an unbounded wait.
+    static func wait(
+        for detectionTask: Task<Void, Never>,
+        timeoutNanoseconds: UInt64
+    ) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let resolution = EditModeDetectionWaitResolution(continuation)
+
+            Task { @MainActor in
+                await detectionTask.value
+                resolution.resolve(true)
+            }
+
+            Task { @MainActor in
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                } catch {
+                    if resolution.resolve(false) {
+                        detectionTask.cancel()
+                    }
+                    return
+                }
+
+                if resolution.resolve(false) {
+                    detectionTask.cancel()
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Fork-specific stored properties via associated objects
 // Since Swift extensions cannot add stored properties,
 // we use a dedicated holder class initialized in VoiceInkEngine.
@@ -21,15 +91,20 @@ class ForkEngineState: ObservableObject {
     @Published var downloadProgress: [String: Double] = [:]
     @Published var whisperMLXDownloadStates: [String: Bool] = [:]
     @Published var qwen3DownloadStates: [String: Bool] = [:]
-    @Published var isEditMode: Bool = false
-    @Published var editModeSelectedText: String?
+    @Published private(set) var editModeSelection: EditModeSelectionSnapshot?
     @Published var pendingDictionaryEntry: WordSubstitution?
     /// Tracks the deferred edit mode detection task so it can be cancelled on dismiss.
     var editModeDetectionTask: Task<Void, Never>?
 
+    var isEditMode: Bool { editModeSelection != nil }
+    var editModeSelectedText: String? { editModeSelection?.text }
+
+    func armEditMode(selectedText: String, pid: pid_t) {
+        editModeSelection = EditModeSelectionSnapshot(text: selectedText, pid: pid)
+    }
+
     func clearEditMode() {
-        isEditMode = false
-        editModeSelectedText = nil
+        editModeSelection = nil
     }
 }
 
@@ -66,13 +141,11 @@ extension VoiceInkEngine {
     }
 
     var isEditMode: Bool {
-        get { forkState.isEditMode }
-        set { forkState.isEditMode = newValue }
+        forkState.isEditMode
     }
 
     var editModeSelectedText: String? {
-        get { forkState.editModeSelectedText }
-        set { forkState.editModeSelectedText = newValue }
+        forkState.editModeSelectedText
     }
 
     var pendingDictionaryEntry: WordSubstitution? {

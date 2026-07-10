@@ -337,8 +337,37 @@ class VoiceInkEngine: NSObject, ObservableObject {
         clearActiveRecordingContext()
 
         let store = RecordingContextSnapshotStore()
+        let editModeDetectionTask = forkState.editModeDetectionTask
+        let targetPID = capturedFrontAppPID
         activeRecordingContextStore = store
-        activeRecordingContextTasks = RecordingContextCaptureService.startCapture(into: store)
+        activeRecordingContextTasks = RecordingContextCaptureService.startCapture(
+            into: store,
+            selectedTextProvider: { [weak self] in
+                guard let self else { return nil }
+
+                // Edit detection and context capture used to run two overlapping
+                // SelectedTextKit pasteboard transactions. Reuse the same AX
+                // selection when Edit Mode is armed; only perform the lower-trust
+                // context capture after detection has settled.
+                if let editModeDetectionTask {
+                    await editModeDetectionTask.value
+                }
+                guard !Task.isCancelled else { return nil }
+
+                if let selection = self.forkState.editModeSelection,
+                   selection.pid == targetPID {
+                    return selection.text
+                }
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID else {
+                    return nil
+                }
+                let selectedText = await SelectedTextService.fetchSelectedText()
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID else {
+                    return nil
+                }
+                return selectedText
+            }
+        )
     }
 
     private func clearActiveRecordingContext() {
@@ -352,24 +381,10 @@ class VoiceInkEngine: NSObject, ObservableObject {
     private func waitForEditModeDetectionIfNeeded(timeoutNanoseconds: UInt64 = 500_000_000) async {
         guard let task = forkState.editModeDetectionTask else { return }
 
-        let completed = await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                await task.value
-                return true
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                return false
-            }
-
-            let completed = await group.next() ?? false
-            group.cancelAll()
-            return completed
-        }
-
-        if !completed {
-            task.cancel()
-        }
+        _ = await EditModeDetectionWaiter.wait(
+            for: task,
+            timeoutNanoseconds: timeoutNanoseconds
+        )
         forkState.editModeDetectionTask = nil
     }
 
@@ -391,6 +406,11 @@ class VoiceInkEngine: NSObject, ObservableObject {
         let session = currentSession
         let transcriptionID = transcription.id
         activePipelineTranscriptionID = transcriptionID
+
+        let editModeSelection = EditModeSelectionSnapshotPolicy.validated(
+            forkState.editModeSelection,
+            capturedAppPID: capturedFrontAppPID
+        )
 
         await pipeline.run(
             transcription: transcription,
@@ -419,8 +439,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
             outputConfiguration: {
                 ModeRuntimeResolver.outputConfiguration()
             },
-            isEditMode: forkState.isEditMode,
-            editModeSelectedText: forkState.editModeSelectedText,
+            editModeSelection: editModeSelection,
             capturedAppPID: capturedFrontAppPID,
             onStateChange: { [weak self] state in
                 guard let self, self.activePipelineTranscriptionID == transcriptionID else { return }

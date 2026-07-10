@@ -294,8 +294,7 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
             bundleID: bundleID,
             currentPID: currentPID,
             cachedPID: snapshot.pid,
-            cachedIsEditable: snapshot.isEditable,
-            focusedElementUnavailable: snapshot.focusedElementUnavailable
+            cachedIsEditable: snapshot.isEditable
         )
 
         switch decision {
@@ -303,13 +302,11 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
             engine.forkState.clearEditMode()
             return
 
-        case .applyLive(let cacheMatchesFrontmostApp, let focusedElementUnavailable):
+        case .applyLive(let searchFocusedWindow):
             await applyLiveEditModeDetection(
                 engine: engine,
                 pid: currentPID,
-                bundleID: bundleID,
-                cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
-                focusedElementUnavailable: focusedElementUnavailable
+                searchFocusedWindow: searchFocusedWindow
             )
         }
     }
@@ -317,40 +314,48 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
     private func applyLiveEditModeDetection(
         engine: VoiceInkEngine,
         pid: pid_t,
-        bundleID: String?,
-        cacheMatchesFrontmostApp: Bool,
-        focusedElementUnavailable: Bool
+        searchFocusedWindow: Bool
     ) async {
-        if let focusedTextInfo = SelectedTextService.focusedEditableTextInfo(for: pid) {
-            let selectedText = await SelectedTextService.fetchSelectedTextForEditModeDetection()
-            if let selectedText,
-               EditModeDetectionPolicy.shouldRejectAXSelection(
-                   role: focusedTextInfo.role,
-                   selectedText: selectedText,
-                   fieldValue: focusedTextInfo.fieldValue,
-                   selectedRangeLength: focusedTextInfo.selectedRangeLength
-               ) {
+        switch SelectedTextService.focusedEditableSelectionEvidence(for: pid) {
+        case .selected(let selectedText):
+            applyEditModeResult(
+                engine: engine,
+                targetPID: pid,
+                hasTrustedEditableSignal: true,
+                selectedText: selectedText
+            )
+            return
+        case .noSelection:
+            if !searchFocusedWindow {
                 engine.forkState.clearEditMode()
                 return
             }
-            applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
-            return
+        case .unavailable:
+            if !searchFocusedWindow {
+                engine.forkState.clearEditMode()
+                return
+            }
         }
 
-        guard EditModeDetectionPolicy.canUseElectronSelectionFallback(
-            bundleID: bundleID,
-            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
-            focusedElementUnavailable: focusedElementUnavailable
-        ) else {
+        guard searchFocusedWindow else {
             engine.forkState.clearEditMode()
             return
         }
 
+        // Do not block recorder startup on a deep Electron AX traversal. The
+        // result remains tied to this PID and is awaited (up to 500 ms) before
+        // the transcription pipeline decides whether it is in Edit Mode.
         engine.forkState.clearEditMode()
         engine.forkState.editModeDetectionTask = Task { @MainActor [weak self, weak engine] in
             guard let self, let engine else { return }
 
-            let selectedText = await SelectedTextService.fetchSelectedTextForElectronFallback()
+            let scanTask = Task.detached(priority: .userInitiated) {
+                SelectedTextService.focusedWindowEditableSelectionEvidence(for: pid)
+            }
+            let evidence = await withTaskCancellationHandler(
+                operation: { await scanTask.value },
+                onCancel: { scanTask.cancel() }
+            )
             guard !Task.isCancelled else { return }
 
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
@@ -358,21 +363,32 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
                 return
             }
 
-            self.applyEditModeResult(engine: engine, hasTrustedEditableSignal: true, selectedText: selectedText)
+            switch evidence {
+            case .selected(let selectedText):
+                self.applyEditModeResult(
+                    engine: engine,
+                    targetPID: pid,
+                    hasTrustedEditableSignal: true,
+                    selectedText: selectedText
+                )
+            case .noSelection, .unavailable:
+                engine.forkState.clearEditMode()
+            }
         }
     }
 
     private func applyEditModeResult(
         engine: VoiceInkEngine,
+        targetPID: pid_t,
         hasTrustedEditableSignal: Bool,
         selectedText: String?
     ) {
-        if EditModeDetectionPolicy.shouldEnterEditMode(
-            hasTrustedEditableSignal: hasTrustedEditableSignal,
-            selectedText: selectedText
-        ) {
-            engine.forkState.isEditMode = true
-            engine.forkState.editModeSelectedText = selectedText
+        if let selectedText,
+           EditModeDetectionPolicy.shouldEnterEditMode(
+               hasTrustedEditableSignal: hasTrustedEditableSignal,
+               selectedText: selectedText
+           ) {
+            engine.forkState.armEditMode(selectedText: selectedText, pid: targetPID)
         } else {
             engine.forkState.clearEditMode()
         }
@@ -440,10 +456,10 @@ enum RecorderPanelStartFlow {
 enum EditModeDetectionPolicy {
     enum InitialDecision: Equatable {
         case clear
-        case applyLive(cacheMatchesFrontmostApp: Bool, focusedElementUnavailable: Bool)
+        case applyLive(searchFocusedWindow: Bool)
     }
 
-    private static let electronSelectionFallbackBundleIDs: Set<String> = [
+    private static let focusedWindowSelectionBundleIDs: Set<String> = [
         "com.anthropic.claudefordesktop",
         "com.exafunction.windsurf",
         "com.microsoft.VSCode",
@@ -458,7 +474,6 @@ enum EditModeDetectionPolicy {
         currentPID: pid_t?,
         cachedPID: pid_t?,
         cachedIsEditable: Bool,
-        focusedElementUnavailable: Bool,
         terminalBundleIDs: Set<String> = EditModeCacheService.terminalBundleIDs
     ) -> InitialDecision {
         if let bundleID, terminalBundleIDs.contains(bundleID) {
@@ -473,21 +488,15 @@ enum EditModeDetectionPolicy {
             cachedPID: cachedPID,
             currentPID: currentPID
         )
+        let searchFocusedWindow = shouldSearchFocusedWindow(bundleID: bundleID)
 
         if cacheMatchesFrontmostApp,
            !cachedIsEditable,
-           !canUseElectronSelectionFallback(
-               bundleID: bundleID,
-               cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
-               focusedElementUnavailable: focusedElementUnavailable
-           ) {
+           !searchFocusedWindow {
             return .clear
         }
 
-        return .applyLive(
-            cacheMatchesFrontmostApp: cacheMatchesFrontmostApp,
-            focusedElementUnavailable: focusedElementUnavailable
-        )
+        return .applyLive(searchFocusedWindow: searchFocusedWindow)
     }
 
     static func cacheMatchesFrontmostApp(cachedPID: pid_t?, currentPID: pid_t?) -> Bool {
@@ -495,19 +504,9 @@ enum EditModeDetectionPolicy {
         return cachedPID == currentPID
     }
 
-    static func isElectronSelectionFallbackBundleID(_ bundleID: String?) -> Bool {
+    static func shouldSearchFocusedWindow(bundleID: String?) -> Bool {
         guard let bundleID else { return false }
-        return electronSelectionFallbackBundleIDs.contains(bundleID)
-    }
-
-    static func canUseElectronSelectionFallback(
-        bundleID: String?,
-        cacheMatchesFrontmostApp: Bool,
-        focusedElementUnavailable: Bool
-    ) -> Bool {
-        cacheMatchesFrontmostApp &&
-            focusedElementUnavailable &&
-            isElectronSelectionFallbackBundleID(bundleID)
+        return focusedWindowSelectionBundleIDs.contains(bundleID)
     }
 
     static func shouldEnterEditMode(hasTrustedEditableSignal: Bool, selectedText: String?) -> Bool {
@@ -519,32 +518,4 @@ enum EditModeDetectionPolicy {
         return true
     }
 
-    static func isClipboardEcho(candidate: String?, clipboardBaseline: String?) -> Bool {
-        guard let candidate, let clipboardBaseline else { return false }
-        return candidate == clipboardBaseline
-    }
-
-    static func shouldRejectAXSelection(
-        role: String,
-        selectedText: String,
-        fieldValue: String?,
-        selectedRangeLength: Int?
-    ) -> Bool {
-        let singleLineEditableRoles: Set<String> = [
-            kAXTextFieldRole as String,
-            kAXComboBoxRole as String,
-        ]
-
-        if singleLineEditableRoles.contains(role),
-           let fieldValue,
-           selectedText == fieldValue {
-            return true
-        }
-
-        if selectedRangeLength == 0, !selectedText.isEmpty {
-            return true
-        }
-
-        return false
-    }
 }

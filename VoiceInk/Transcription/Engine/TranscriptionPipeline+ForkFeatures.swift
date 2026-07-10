@@ -15,24 +15,43 @@ extension TranscriptionPipeline {
     /// Returns true if edit mode was handled (caller should return early), false otherwise.
     func handleEditMode(
         text: String,
-        selectedText: String,
+        selection: EditModeSelectionSnapshot,
         transcription: Transcription,
         enhancementService: AIEnhancementService?,
         onStateChange: @escaping (RecordingState) -> Void,
-        shouldCancel: () -> Bool,
+        shouldCancel: @escaping () -> Bool,
         onCleanup: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
         onEditModeComplete: ((WordSubstitution?) -> Void)?
     ) async -> Bool {
+        let selectedText = selection.text
+
         // 1. Direct edit commands (no LLM needed)
         if let editCommand = VoiceCommandService.shared.detectEditModeCommand(in: text) {
+            guard await editModeSelectionIsStillActive(selection) else {
+                await cancelEditModeDelivery(
+                    transcription: transcription,
+                    reason: "Edit mode selection changed before direct command",
+                    onDismiss: onDismiss
+                )
+                return true
+            }
+
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard await editModeSelectionIsStillActive(selection) else {
+                await cancelEditModeDelivery(
+                    transcription: transcription,
+                    reason: "Edit mode selection changed before direct command dispatch",
+                    onDismiss: onDismiss
+                )
+                return true
+            }
+
             logger.notice("🎤 Edit mode command detected: \(editCommand.rawValue, privacy: .private)")
+            editCommand.execute()
             transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
             try? modelContext.save()
             NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                editCommand.execute()
-            }
             await onDismiss()
             return true
         }
@@ -49,6 +68,15 @@ extension TranscriptionPipeline {
 
         if shouldCancel() { await onCleanup(); return true }
 
+        guard await editModeSelectionIsStillActive(selection) else {
+            await cancelEditModeDelivery(
+                transcription: transcription,
+                reason: "Edit mode selection changed before enhancement request",
+                onDismiss: onDismiss
+            )
+            return true
+        }
+
         onStateChange(.enhancing)
 
         do {
@@ -56,6 +84,45 @@ extension TranscriptionPipeline {
                 instruction: text, selectedText: selectedText
             )
             logger.notice("📝 Edit mode result: \(editedText, privacy: .private)")
+
+            if shouldCancel() { await onCleanup(); return true }
+
+            guard await editModeSelectionIsStillActive(selection) else {
+                await cancelEditModeDelivery(
+                    transcription: transcription,
+                    reason: "Edit mode selection changed while enhancement was running",
+                    onDismiss: onDismiss
+                )
+                return true
+            }
+
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard await editModeSelectionIsStillActive(selection) else {
+                await cancelEditModeDelivery(
+                    transcription: transcription,
+                    reason: "Edit mode selection changed before replacement paste",
+                    onDismiss: onDismiss
+                )
+                return true
+            }
+
+            let pasteResult = await CursorPaster.pasteAtCursorAndWaitUntilPosted(
+                editedText,
+                targetPID: selection.pid,
+                beforePosting: {
+                    guard !shouldCancel() else { return false }
+                    return await self.editModeSelectionIsStillActive(selection)
+                }
+            )
+            guard pasteResult.didPostPasteCommand else {
+                await cancelEditModeDelivery(
+                    transcription: transcription,
+                    reason: "Edit mode replacement paste was not posted",
+                    onDismiss: onDismiss
+                )
+                return true
+            }
+
             transcription.enhancedText = editedText
             transcription.enhancementDuration = editDuration
             transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
@@ -64,13 +131,6 @@ extension TranscriptionPipeline {
             transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
             try? modelContext.save()
             NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
-
-            if shouldCancel() { await onCleanup(); return true }
-
-            // Paste to replace selected text (no trailing space)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                CursorPaster.pasteAtCursor(editedText)
-            }
 
             // If LLM identified a simple word substitution → show dictionary confirmation
             if let sub = substitution {
@@ -102,6 +162,36 @@ extension TranscriptionPipeline {
 
         await onDismiss()
         return true
+    }
+
+    private func editModeSelectionIsStillActive(
+        _ selection: EditModeSelectionSnapshot
+    ) async -> Bool {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == selection.pid else {
+            return false
+        }
+
+        let bundleID = NSRunningApplication(processIdentifier: selection.pid)?.bundleIdentifier
+        let evidence = await SelectedTextService.currentEditableSelectionEvidence(
+            for: selection.pid,
+            searchFocusedWindow: EditModeDetectionPolicy.shouldSearchFocusedWindow(bundleID: bundleID)
+        )
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == selection.pid,
+              case .selected(let currentText) = evidence else {
+            return false
+        }
+        return currentText == selection.text
+    }
+
+    private func cancelEditModeDelivery(
+        transcription: Transcription,
+        reason: String,
+        onDismiss: @escaping () async -> Void
+    ) async {
+        logger.warning("\(reason, privacy: .public); aborting")
+        transcription.transcriptionStatus = TranscriptionStatus.canceled.rawValue
+        try? modelContext.save()
+        await onDismiss()
     }
 
     private func logEditModeShadowCorrection(

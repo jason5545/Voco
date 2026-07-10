@@ -60,11 +60,10 @@ class TranscriptionPipeline {
         enhancementConfiguration: @escaping () -> EnhancementRuntimeConfiguration?,
         recordingContextSnapshot: @escaping () async -> RecordingContextSnapshot? = { nil },
         outputConfiguration: @escaping () -> OutputRuntimeConfiguration,
-        isEditMode: Bool = false,
-        editModeSelectedText: String? = nil,
+        editModeSelection: EditModeSelectionSnapshot? = nil,
         capturedAppPID: pid_t? = nil,
         onStateChange: @escaping (RecordingState) -> Void,
-        shouldCancel: () -> Bool,
+        shouldCancel: @escaping () -> Bool,
         onCancel: @escaping () async -> Void,
         onDismiss: @escaping () async -> Void,
         onEditModeComplete: ((WordSubstitution?) -> Void)? = nil,
@@ -195,10 +194,10 @@ class TranscriptionPipeline {
             transcription.modeEmoji = modeMetadata.emoji
             finalText = text
 
-            if isEditMode, let selectedText = editModeSelectedText {
+            if let editModeSelection {
                 let handled = await handleEditMode(
                     text: text,
-                    selectedText: selectedText,
+                    selection: editModeSelection,
                     transcription: transcription,
                     enhancementService: enhancementService,
                     onStateChange: onStateChange,

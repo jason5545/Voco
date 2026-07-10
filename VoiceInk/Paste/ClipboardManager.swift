@@ -1,6 +1,119 @@
 import SwiftUI
 import AppKit
 
+/// Serializes Voco-owned pasteboard mutations.
+///
+/// `NSPasteboard.changeCount` only tells us that ownership changed; it does not
+/// identify which async operation changed it. Selection capture, transcription
+/// paste, and delayed clipboard restore must therefore share one transaction
+/// boundary or they can mistake one another's writes for a successful Copy.
+@MainActor
+final class ClipboardTransactionCoordinator {
+    static let shared = ClipboardTransactionCoordinator()
+
+    private var isLocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    /// Internal so the coordinator's ordering can be regression-tested without
+    /// touching the user's general pasteboard.
+    init() {}
+
+    func withExclusiveAccess<T>(
+        _ operation: @MainActor () async -> T
+    ) async -> T {
+        await acquire()
+        defer { release() }
+        return await operation()
+    }
+
+    /// Selection/context reads may become stale while waiting behind another
+    /// pasteboard transaction. In that case, release the slot without starting
+    /// a new Copy operation.
+    func withExclusiveAccessUnlessCancelled<T>(
+        _ operation: @MainActor () async -> T
+    ) async -> T? {
+        await acquire()
+        defer { release() }
+        guard !Task.isCancelled else { return nil }
+        return await operation()
+    }
+
+    private func acquire() async {
+        if !isLocked {
+            isLocked = true
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    private func release() {
+        guard !waiters.isEmpty else {
+            isLocked = false
+            return
+        }
+
+        let next = waiters.removeFirst()
+        next.resume()
+    }
+}
+
+struct ClipboardPasteSessionIdentity: Equatable {
+    let id: String
+    let text: String
+}
+
+/// Keeps rapid consecutive Voco pastes attached to the same user-owned
+/// clipboard snapshot. Without this lineage, paste #2 can save paste #1 as its
+/// restore target and leave an old transcription on the clipboard forever.
+struct ClipboardRestoreChain<Snapshot> {
+    private(set) var activeSession: ClipboardPasteSessionIdentity?
+    private var originalSnapshot: Snapshot?
+
+    mutating func originalSnapshotForNextPaste(
+        currentSession: ClipboardPasteSessionIdentity?,
+        makeSnapshot: () -> Snapshot
+    ) -> Snapshot {
+        if currentSession == activeSession, let originalSnapshot {
+            return originalSnapshot
+        }
+
+        clear()
+        return makeSnapshot()
+    }
+
+    mutating func begin(
+        session: ClipboardPasteSessionIdentity,
+        originalSnapshot: Snapshot
+    ) {
+        activeSession = session
+        self.originalSnapshot = originalSnapshot
+    }
+
+    mutating func clear(ifSessionMatches session: ClipboardPasteSessionIdentity? = nil) {
+        if let session, activeSession != session {
+            return
+        }
+        clear()
+    }
+
+    private mutating func clear() {
+        activeSession = nil
+        originalSnapshot = nil
+    }
+}
+
+enum ClipboardContextPolicy {
+    /// A Voco paste session is transient delivery state, not user clipboard
+    /// context. Returning it would feed the previous transcription back into
+    /// the next recording while delayed restore is still pending.
+    static func userClipboardText(_ text: String?, pasteSessionID: String?) -> String? {
+        pasteSessionID == nil ? text : nil
+    }
+}
+
 struct ClipboardManager {
     static let pasteSessionType = NSPasteboard.PasteboardType("com.VoiceInk.PasteSession")
     private static let sourceType = NSPasteboard.PasteboardType("org.nspasteboard.source")
@@ -41,6 +154,17 @@ struct ClipboardManager {
 
     static func getClipboardContent() -> String? {
         return NSPasteboard.general.string(forType: .string)
+    }
+
+    @MainActor
+    static func getUserClipboardContentForRecordingContext() async -> String? {
+        await ClipboardTransactionCoordinator.shared.withExclusiveAccessUnlessCancelled {
+            let pasteboard = NSPasteboard.general
+            return ClipboardContextPolicy.userClipboardText(
+                pasteboard.string(forType: .string),
+                pasteSessionID: pasteboard.string(forType: pasteSessionType)
+            )
+        } ?? nil
     }
 }
 

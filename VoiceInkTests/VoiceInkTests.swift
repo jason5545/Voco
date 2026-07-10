@@ -3204,85 +3204,261 @@ struct VoiceInkTests {
         #expect(!EditModeDetectionPolicy.shouldEnterEditMode(hasTrustedEditableSignal: true, selectedText: " \n\t "))
     }
 
-    @Test func editModeRejectsClipboardEchoForElectronFallback() {
-        #expect(EditModeDetectionPolicy.isClipboardEcho(candidate: "same text", clipboardBaseline: "same text"))
-        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: "selected text", clipboardBaseline: "clipboard text"))
-        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: nil, clipboardBaseline: "clipboard text"))
-        #expect(!EditModeDetectionPolicy.isClipboardEcho(candidate: "selected text", clipboardBaseline: nil))
-        #expect(EditModeDetectionPolicy.isClipboardEcho(candidate: "", clipboardBaseline: ""))
+    @Test func editModeAXSelectionRequiresPositiveEditableRange() {
+        let textAreaRole = kAXTextAreaRole as String
+        let textFieldRole = kAXTextFieldRole as String
+
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: textAreaRole,
+                selectedText: "old clipboard payload",
+                selectedRangeLength: 0
+            )
+        ]) == .noSelection)
+
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: textAreaRole,
+                selectedText: "stale AX payload",
+                selectedRangeLength: nil
+            )
+        ]) == .unavailable)
+
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: textAreaRole,
+                selectedText: "actual selection",
+                selectedRangeLength: "actual selection".utf16.count
+            )
+        ]) == .selected("actual selection"))
+
+        // Selecting the complete field is legitimate Edit Mode input. The old
+        // fieldValue == selectedText heuristic incorrectly rejected this case.
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: textFieldRole,
+                selectedText: "https://example.com",
+                selectedRangeLength: "https://example.com".utf16.count
+            )
+        ]) == .selected("https://example.com"))
+
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: textAreaRole,
+                selectedText: "\u{FFFC}\u{200B}",
+                selectedRangeLength: 2
+            )
+        ]) == .unavailable)
+
+        #expect(EditableTextSelectionPolicy.resolve(observations: [
+            EditableTextSelectionObservation(
+                role: kAXGroupRole as String,
+                selectedText: "static transcript selection",
+                selectedRangeLength: 27
+            )
+        ]) == .unavailable)
     }
 
-    @Test func editModeRejectsAXSelectAllAndStaleRangeSignals() {
-        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextFieldRole as String,
-            selectedText: "https://example.com",
-            fieldValue: "https://example.com",
-            selectedRangeLength: "https://example.com".utf16.count
-        ))
-        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXComboBoxRole as String,
-            selectedText: "Search term",
-            fieldValue: "Search term",
-            selectedRangeLength: "Search term".utf16.count
-        ))
-        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextAreaRole as String,
-            selectedText: "full paragraph",
-            fieldValue: "full paragraph",
-            selectedRangeLength: "full paragraph".utf16.count
-        ))
-        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextFieldRole as String,
-            selectedText: "example",
-            fieldValue: "https://example.com",
-            selectedRangeLength: "example".utf16.count
-        ))
-        #expect(EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextAreaRole as String,
-            selectedText: "stale",
-            fieldValue: "fresh text",
-            selectedRangeLength: 0
-        ))
-        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextFieldRole as String,
-            selectedText: "partial",
-            fieldValue: "partial field",
-            selectedRangeLength: nil
-        ))
-        #expect(!EditModeDetectionPolicy.shouldRejectAXSelection(
-            role: kAXTextAreaRole as String,
-            selectedText: "emoji 👋",
-            fieldValue: "emoji 👋 plus more",
-            selectedRangeLength: "emoji 👋".utf16.count
-        ))
+    @Test func editModeDeepScanRejectsRetainedSelectionFromUnfocusedEditor() {
+        let textAreaRole = kAXTextAreaRole as String
+
+        #expect(EditableTextSelectionPolicy.resolve(
+            observations: [
+                EditableTextSelectionObservation(
+                    role: textAreaRole,
+                    selectedText: "retained old selection",
+                    selectedRangeLength: 22,
+                    isFocused: false
+                ),
+                EditableTextSelectionObservation(
+                    role: textAreaRole,
+                    selectedText: nil,
+                    selectedRangeLength: 0,
+                    isFocused: true
+                ),
+            ],
+            requireFocusedElement: true
+        ) == .noSelection)
+
+        #expect(EditableTextSelectionPolicy.resolve(
+            observations: [
+                EditableTextSelectionObservation(
+                    role: textAreaRole,
+                    selectedText: "current selection",
+                    selectedRangeLength: 17,
+                    isFocused: true
+                )
+            ],
+            requireFocusedElement: true
+        ) == .selected("current selection"))
     }
 
-    @Test func editModeElectronFallbackRequiresKnownBundleCacheMatchAndUnavailableFocus() {
-        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.anthropic.claudefordesktop"))
-        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.todesktop.230313mzl4w4u92"))
-        #expect(EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.microsoft.VSCode"))
-        #expect(!EditModeDetectionPolicy.isElectronSelectionFallbackBundleID("com.apple.TextEdit"))
+    @Test func editModeMarkerSelectionRequiresOneEditableAncestor() {
+        #expect(EditableMarkerSelectionPolicy.resolve(
+            selectedText: "static transcript selection",
+            rangeLength: 27,
+            endpointsShareEditableAncestor: false,
+            editableAncestorIsFocused: false
+        ) == .noSelection)
 
-        #expect(EditModeDetectionPolicy.canUseElectronSelectionFallback(
-            bundleID: "com.anthropic.claudefordesktop",
-            cacheMatchesFrontmostApp: true,
-            focusedElementUnavailable: true
-        ))
-        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
-            bundleID: "com.anthropic.claudefordesktop",
-            cacheMatchesFrontmostApp: false,
-            focusedElementUnavailable: true
-        ))
-        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
-            bundleID: "com.anthropic.claudefordesktop",
-            cacheMatchesFrontmostApp: true,
-            focusedElementUnavailable: false
-        ))
-        #expect(!EditModeDetectionPolicy.canUseElectronSelectionFallback(
-            bundleID: "com.apple.TextEdit",
-            cacheMatchesFrontmostApp: true,
-            focusedElementUnavailable: true
-        ))
+        #expect(EditableMarkerSelectionPolicy.resolve(
+            selectedText: "composer selection",
+            rangeLength: 18,
+            endpointsShareEditableAncestor: true,
+            editableAncestorIsFocused: true
+        ) == .selected("composer selection"))
+
+        #expect(EditableMarkerSelectionPolicy.resolve(
+            selectedText: "selection retained in hidden editor",
+            rangeLength: 35,
+            endpointsShareEditableAncestor: true,
+            editableAncestorIsFocused: false
+        ) == .noSelection)
+
+        #expect(EditableMarkerSelectionPolicy.resolve(
+            selectedText: nil,
+            rangeLength: 0,
+            endpointsShareEditableAncestor: true,
+            editableAncestorIsFocused: true
+        ) == .noSelection)
+    }
+
+    @Test func editModeSelectionSnapshotMustMatchCapturedProcess() {
+        let snapshot = EditModeSelectionSnapshot(text: "selected", pid: 42)
+
+        #expect(EditModeSelectionSnapshotPolicy.validated(snapshot, capturedAppPID: 42) == snapshot)
+        #expect(EditModeSelectionSnapshotPolicy.validated(snapshot, capturedAppPID: 43) == nil)
+        #expect(EditModeSelectionSnapshotPolicy.validated(snapshot, capturedAppPID: nil) == nil)
+        #expect(EditModeSelectionSnapshotPolicy.validated(nil, capturedAppPID: 42) == nil)
+    }
+
+    @Test func editModeKnownElectronAppsUseFocusedWindowAXSearch() {
+        #expect(EditModeDetectionPolicy.shouldSearchFocusedWindow(bundleID: "com.openai.codex"))
+        #expect(EditModeDetectionPolicy.shouldSearchFocusedWindow(bundleID: "com.anthropic.claudefordesktop"))
+        #expect(EditModeDetectionPolicy.shouldSearchFocusedWindow(bundleID: "com.microsoft.VSCode"))
+        #expect(!EditModeDetectionPolicy.shouldSearchFocusedWindow(bundleID: "com.apple.TextEdit"))
+    }
+
+    @Test @MainActor func clipboardTransactionsKeepDelayedRestoreOutsideSelectionCapture() async {
+        let coordinator = ClipboardTransactionCoordinator()
+        let gate = TestAsyncGate()
+        var events: [String] = []
+
+        let selectionCapture = Task { @MainActor in
+            await coordinator.withExclusiveAccess {
+                events.append("selection-start")
+                await gate.wait()
+                events.append("selection-end")
+            }
+        }
+
+        while events.isEmpty {
+            await Task.yield()
+        }
+
+        let delayedRestore = Task { @MainActor in
+            await coordinator.withExclusiveAccess {
+                events.append("restore")
+            }
+        }
+
+        for _ in 0..<10 {
+            await Task.yield()
+        }
+        #expect(events == ["selection-start"])
+
+        gate.open()
+        await selectionCapture.value
+        await delayedRestore.value
+        #expect(events == ["selection-start", "selection-end", "restore"])
+    }
+
+    @Test func rapidVocoPastesKeepTheOriginalClipboardRestoreTarget() {
+        var chain = ClipboardRestoreChain<String>()
+        let firstSession = ClipboardPasteSessionIdentity(id: "paste-1", text: "first Voco output")
+        let secondSession = ClipboardPasteSessionIdentity(id: "paste-2", text: "second Voco output")
+
+        let firstBaseline = chain.originalSnapshotForNextPaste(
+            currentSession: nil,
+            makeSnapshot: { "user clipboard" }
+        )
+        chain.begin(session: firstSession, originalSnapshot: firstBaseline)
+
+        let secondBaseline = chain.originalSnapshotForNextPaste(
+            currentSession: firstSession,
+            makeSnapshot: { "first Voco output" }
+        )
+        #expect(secondBaseline == "user clipboard")
+
+        chain.begin(session: secondSession, originalSnapshot: secondBaseline)
+        chain.clear(ifSessionMatches: firstSession)
+        #expect(chain.activeSession == secondSession)
+        chain.clear(ifSessionMatches: secondSession)
+        #expect(chain.activeSession == nil)
+    }
+
+    @Test func recordingContextRejectsTransientVocoPasteSession() {
+        #expect(ClipboardContextPolicy.userClipboardText(
+            "previous transcription",
+            pasteSessionID: "active-voco-session"
+        ) == nil)
+        #expect(ClipboardContextPolicy.userClipboardText(
+            "user clipboard",
+            pasteSessionID: nil
+        ) == "user clipboard")
+    }
+
+    @Test @MainActor func canceledClipboardWaiterDoesNotStartAnotherCopyOperation() async {
+        let coordinator = ClipboardTransactionCoordinator()
+        let gate = TestAsyncGate()
+        var holderStarted = false
+        var canceledOperationRan = false
+
+        let holder = Task { @MainActor in
+            await coordinator.withExclusiveAccess {
+                holderStarted = true
+                await gate.wait()
+            }
+        }
+        while !holderStarted {
+            await Task.yield()
+        }
+
+        let canceledWaiter = Task { @MainActor in
+            await coordinator.withExclusiveAccessUnlessCancelled {
+                canceledOperationRan = true
+                return true
+            }
+        }
+        await Task.yield()
+        canceledWaiter.cancel()
+        gate.open()
+
+        await holder.value
+        let result = await canceledWaiter.value
+        #expect(result == nil)
+        #expect(!canceledOperationRan)
+    }
+
+    @Test @MainActor func editModeDetectionDeadlineDoesNotWaitForHungAXTask() async {
+        let gate = TestAsyncGate()
+        let detectionTask = Task { @MainActor in
+            await gate.wait()
+        }
+        let startedAt = Date()
+
+        let completed = await EditModeDetectionWaiter.wait(
+            for: detectionTask,
+            timeoutNanoseconds: 30_000_000
+        )
+        let elapsed = Date().timeIntervalSince(startedAt)
+
+        #expect(!completed)
+        #expect(elapsed < 0.2)
+        #expect(detectionTask.isCancelled)
+
+        gate.open()
+        await detectionTask.value
     }
 
     @Test func editModeInitialDecisionAvoidsLiveAXWhenCacheAlreadyRulesOutEditMode() {
@@ -3293,7 +3469,6 @@ struct VoiceInkTests {
             currentPID: 42,
             cachedPID: 42,
             cachedIsEditable: true,
-            focusedElementUnavailable: false,
             terminalBundleIDs: terminalBundleIDs
         ) == .clear)
 
@@ -3302,7 +3477,6 @@ struct VoiceInkTests {
             currentPID: nil,
             cachedPID: 42,
             cachedIsEditable: true,
-            focusedElementUnavailable: false,
             terminalBundleIDs: terminalBundleIDs
         ) == .clear)
 
@@ -3311,27 +3485,24 @@ struct VoiceInkTests {
             currentPID: 42,
             cachedPID: 42,
             cachedIsEditable: false,
-            focusedElementUnavailable: false,
             terminalBundleIDs: terminalBundleIDs
         ) == .clear)
 
         #expect(EditModeDetectionPolicy.initialDecision(
-            bundleID: "com.openai.chat",
+            bundleID: "com.openai.codex",
             currentPID: 42,
             cachedPID: 42,
             cachedIsEditable: false,
-            focusedElementUnavailable: true,
             terminalBundleIDs: terminalBundleIDs
-        ) == .applyLive(cacheMatchesFrontmostApp: true, focusedElementUnavailable: true))
+        ) == .applyLive(searchFocusedWindow: true))
 
         #expect(EditModeDetectionPolicy.initialDecision(
             bundleID: "com.apple.TextEdit",
             currentPID: 42,
             cachedPID: 42,
             cachedIsEditable: true,
-            focusedElementUnavailable: false,
             terminalBundleIDs: terminalBundleIDs
-        ) == .applyLive(cacheMatchesFrontmostApp: true, focusedElementUnavailable: false))
+        ) == .applyLive(searchFocusedWindow: false))
     }
 
     @Test func editModeDictionaryConfirmationTakesPriorityInRecorder() {
@@ -3905,6 +4076,26 @@ struct VoiceInkTests {
         #expect(maxMs < 200)
     }
 
+}
+
+@MainActor
+private final class TestAsyncGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func open() {
+        isOpen = true
+        let pending = waiters
+        waiters.removeAll()
+        pending.forEach { $0.resume() }
+    }
 }
 
 @MainActor
