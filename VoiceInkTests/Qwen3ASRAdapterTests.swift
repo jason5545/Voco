@@ -20,6 +20,17 @@ struct Qwen3ASRAdapterTests {
         #expect(trigger.requiredSurfaces == ["支援"])
     }
 
+    @Test func specialistRouterTriggersConfirmedSoftwareSupportComplaintWithoutRecentContext() {
+        for transcript in ["這個軟體的資源很差。", "這個軟體的資源都很差。"] {
+            let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
+                baselineTranscript: transcript,
+                recentTranscriptions: []
+            )
+            #expect(trigger.triggered)
+            #expect(trigger.requiredSurfaces == ["支援"])
+        }
+    }
+
     @Test func specialistRouterPreservesLegitimateResourceManagement() {
         let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
             baselineTranscript: "但是資源管理要做好。",
@@ -40,6 +51,26 @@ struct Qwen3ASRAdapterTests {
             trigger: trigger
         )
         #expect(!selection.selectSpecialist)
+    }
+
+    @Test func specialistRouterMergesOnlyConfirmedTargetSpan() {
+        let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
+            baselineTranscript: "這個軟體的資源都很差。",
+            recentTranscriptions: []
+        )
+        let selection = Qwen3ASRSpecialistRouter.selectionDecision(
+            baselineTranscript: "這個軟體的資源都很差。",
+            specialistTranscript: "這個軟體的支援度很差。",
+            trigger: trigger
+        )
+        #expect(selection.selectSpecialist)
+        #expect(
+            Qwen3ASRSpecialistRouter.mergeSelectedTarget(
+                baselineTranscript: "這個軟體的資源都很差。",
+                trigger: trigger,
+                selection: selection
+            ) == "這個軟體的支援都很差。"
+        )
     }
 
     @Test func specialistDiscoveryUsesSeparateDirectory() throws {

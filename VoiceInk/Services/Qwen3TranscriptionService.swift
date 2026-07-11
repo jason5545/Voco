@@ -282,7 +282,19 @@ class Qwen3TranscriptionService: TranscriptionService {
                     trigger: specialistTrigger
                 )
                 if selection.selectSpecialist {
-                    result = probe.result
+                    let mergedText = Qwen3ASRSpecialistRouter.mergeSelectedTarget(
+                        baselineTranscript: baselineResult.text,
+                        trigger: specialistTrigger,
+                        selection: selection
+                    )
+                    result = Qwen3ASRModel.TranscriptionResult(
+                        text: mergedText,
+                        avgLogProb: probe.result.avgLogProb,
+                        tokenCount: probe.result.tokenCount,
+                        detectedLanguage: probe.result.detectedLanguage,
+                        uncertainWords: probe.result.uncertainWords,
+                        wordConfidences: probe.result.wordConfidences
+                    )
                     logger.info("Qwen3-ASR specialist selected reasons=\(specialistTrigger.reasons.joined(separator: ","), privacy: .public)")
                 } else {
                     logger.info("Qwen3-ASR specialist rejected reason=\(selection.reason, privacy: .public)")

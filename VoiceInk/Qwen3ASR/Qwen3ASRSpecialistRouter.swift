@@ -60,8 +60,8 @@ enum Qwen3ASRSpecialistRouter {
 
         if matches("資源|资源", in: baseline) {
             let sameAnchor = (
-                matches("正式(?:資源|资源)", in: baseline)
-                    && matches("系統|系统|軟體|软体|軟件|软件|API|功能", in: baseline)
+                matches("軟體|软体|軟件|软件|software", in: baseline)
+                    && matches("差|不好|問題|问题", in: baseline)
             ) || (
                 matches("adapter|adopter|adaptor", in: baseline)
                     && matches("重新訓練|重新训练|訓練|训练|retrain", in: baseline)
@@ -138,6 +138,32 @@ enum Qwen3ASRSpecialistRouter {
             residualDistance,
             residualBudget
         )
+    }
+
+    /// The specialist confirms the ambiguous target, but the baseline owns all
+    /// surrounding text. This prevents a valid target fix from importing a
+    /// nearby specialist drift such as `支援度` when the baseline said `資源都`.
+    static func mergeSelectedTarget(
+        baselineTranscript: String,
+        trigger: Qwen3ASRSpecialistTriggerDecision,
+        selection: Qwen3ASRSpecialistSelectionDecision
+    ) -> String {
+        guard selection.selectSpecialist else { return baselineTranscript }
+        var merged = baselineTranscript
+        if trigger.requiredSurfaces.contains("韌體") {
+            for surface in firmwareAmbiguities {
+                merged = merged.replacingOccurrences(of: surface, with: "韌體")
+            }
+        }
+        if trigger.requiredSurfaces.contains("支援") {
+            for surface in ["資源", "资源"] {
+                merged = merged.replacingOccurrences(of: surface, with: "支援")
+            }
+        }
+        if trigger.requiredSurfaces.contains("adapter") {
+            merged = replacingRegex("\\b(?:adopter|adaptor)\\b", in: merged, with: "adapter")
+        }
+        return merged
     }
 
     private static func decision(
