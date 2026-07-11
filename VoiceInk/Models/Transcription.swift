@@ -69,6 +69,8 @@ final class Transcription {
     var autoApplyModelVersion: String?
     var autoApplyModelGeneratedAt: String?
     var autoApplyPolicyHitIDsJSON: String?
+    var qwen3AdapterMetadataJSON: String?
+    var qwen3SpecialistRoutingMetadataJSON: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }
@@ -120,6 +122,16 @@ final class Transcription {
         set { autoApplyPolicyHitIDsJSON = Self.encodeJSON(newValue) }
     }
 
+    var qwen3AdapterMetadata: Qwen3ASRAdapterMetadata? {
+        get { Self.decodeQwen3AdapterMetadata(qwen3AdapterMetadataJSON) }
+        set { qwen3AdapterMetadataJSON = Self.encodeJSON(newValue) }
+    }
+
+    var qwen3SpecialistRoutingMetadata: Qwen3ASRSpecialistRoutingMetadata? {
+        get { Self.decodeJSON(qwen3SpecialistRoutingMetadataJSON, as: Qwen3ASRSpecialistRoutingMetadata.self) }
+        set { qwen3SpecialistRoutingMetadataJSON = Self.encodeJSON(newValue) }
+    }
+
     var styleGuardReasons: [String] {
         get { Self.decodeStringArray(styleGuardReasonsJSON) }
         set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
@@ -155,7 +167,9 @@ final class Transcription {
         !canonicalizationReplacements.isEmpty ||
         !canonicalizationSuggestions.isEmpty ||
         !hypotheses.isEmpty ||
-        !hypothesisDetails.isEmpty
+        !hypothesisDetails.isEmpty ||
+        qwen3AdapterMetadata != nil ||
+        qwen3SpecialistRoutingMetadata != nil
     }
 
     var historyDisplayText: String {
@@ -385,6 +399,14 @@ final class Transcription {
         candidateSelectionSource = source.rawValue
     }
 
+    func recordQwen3AdapterMetadata(_ metadata: Qwen3ASRAdapterMetadata) {
+        qwen3AdapterMetadata = metadata
+    }
+
+    func recordQwen3SpecialistRoutingMetadata(_ metadata: Qwen3ASRSpecialistRoutingMetadata?) {
+        qwen3SpecialistRoutingMetadata = metadata
+    }
+
     func recordStyleGuardRejection(response: String, reasons: [String]) {
         styleGuardRejectedText = response
         styleGuardReasons = reasons
@@ -482,6 +504,8 @@ final class Transcription {
         retranscriptionSourceText = nil
         retranscriptionAnalysis = nil
         correctionFeedback = []
+        qwen3AdapterMetadata = nil
+        qwen3SpecialistRoutingMetadata = nil
     }
 
     private func recordCorrectionRisk(_ profile: VocoCorrectionRiskProfile?) {
@@ -502,6 +526,16 @@ final class Transcription {
     private static func encodeJSON<T: Encodable>(_ value: T) -> String? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeQwen3AdapterMetadata(_ json: String?) -> Qwen3ASRAdapterMetadata? {
+        guard let json, let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(Qwen3ASRAdapterMetadata.self, from: data)
+    }
+
+    private static func decodeJSON<T: Decodable>(_ json: String?, as type: T.Type) -> T? {
+        guard let json, let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
     }
 
     private static func hasText(_ value: String?) -> Bool {

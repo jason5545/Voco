@@ -3,6 +3,60 @@ import Testing
 @testable import Voco
 
 struct Qwen3ASRAdapterTests {
+    @Test func specialistRouterTriggersFirmwareWithUnicode() {
+        let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
+            baselineTranscript: "軟體定位在 Unicode。",
+            recentTranscriptions: []
+        )
+        #expect(trigger.triggered)
+        #expect(trigger.requiredSurfaces == ["韌體"])
+    }
+
+    @Test func specialistRouterUsesRecentSupportContext() {
+        let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
+            baselineTranscript: "這個軟體資源很差。",
+            recentTranscriptions: ["也就是應該要變成軟體 support 的那個東西。"]
+        )
+        #expect(trigger.requiredSurfaces == ["支援"])
+    }
+
+    @Test func specialistRouterPreservesLegitimateResourceManagement() {
+        let trigger = Qwen3ASRSpecialistRouter.triggerDecision(
+            baselineTranscript: "但是資源管理要做好。",
+            recentTranscriptions: []
+        )
+        #expect(!trigger.triggered)
+    }
+
+    @Test func specialistRouterRejectsNonTargetDrift() {
+        let trigger = Qwen3ASRSpecialistTriggerDecision(
+            triggered: true,
+            reasons: ["supportAmbiguity:資源"],
+            requiredSurfaces: ["支援"]
+        )
+        let selection = Qwen3ASRSpecialistRouter.selectionDecision(
+            baselineTranscript: "但是 Slack 資源 Cloud 開頭。",
+            specialistTranscript: "但是 slug 支援 Cloud 開頭。",
+            trigger: trigger
+        )
+        #expect(!selection.selectSpecialist)
+    }
+
+    @Test func specialistDiscoveryUsesSeparateDirectory() throws {
+        let modelDirectory = try temporaryDirectory()
+        let directory = Qwen3ASRAudioAdapterLoader.specialistAdaptersDirectory(in: modelDirectory)
+            .appendingPathComponent(Qwen3ASRSpecialistRouter.specialistID, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try validConfigData().write(to: directory.appendingPathComponent("adapter_config.json"))
+        try Data("fixture-safetensors".utf8).write(to: directory.appendingPathComponent("adapters.safetensors"))
+
+        let discovery = Qwen3ASRAudioAdapterLoader.discoverSpecialist(
+            in: modelDirectory,
+            specialistID: Qwen3ASRSpecialistRouter.specialistID
+        )
+        #expect(discovery.descriptor?.directory == directory)
+        #expect(Qwen3ASRAudioAdapterLoader.discover(in: modelDirectory).descriptor == nil)
+    }
     @Test func discoveryReturnsUnavailableWhenModelOrAdaptersDirectoryIsMissing() throws {
         let modelDirectory = try temporaryDirectory()
 
@@ -17,15 +71,35 @@ struct Qwen3ASRAdapterTests {
     }
 
     @Test func discoveryDetectsValidAdapterOnlyWhenBothRequiredFilesExist() throws {
-        let adapterDirectory = try makeAdapterDirectory()
+        let adapterDirectory = try makeAdapterDirectory(named: "current-promoted-adapter")
         try validConfigData().write(to: adapterDirectory.appendingPathComponent("adapter_config.json"))
         try Data("fixture-safetensors".utf8).write(to: adapterDirectory.appendingPathComponent("adapters.safetensors"))
 
         let discovery = Qwen3ASRAudioAdapterLoader.discover(in: adapterDirectory.deletingLastPathComponent().deletingLastPathComponent())
 
         #expect(discovery.adapterDetected == true)
-        #expect(discovery.descriptor?.directory == adapterDirectory)
+        #expect(discovery.descriptor?.directory.resolvingSymlinksInPath() == adapterDirectory.resolvingSymlinksInPath())
         #expect(discovery.error == nil)
+    }
+
+    @Test func discoveryRejectsMultipleValidAdaptersInsteadOfChoosingArbitrarily() throws {
+        let first = try makeAdapterDirectory(named: "adapter-a")
+        let modelDirectory = first.deletingLastPathComponent().deletingLastPathComponent()
+        let second = modelDirectory
+            .appendingPathComponent("adapters", isDirectory: true)
+            .appendingPathComponent("adapter-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+
+        for directory in [first, second] {
+            try validConfigData().write(to: directory.appendingPathComponent("adapter_config.json"))
+            try Data("fixture-safetensors".utf8).write(to: directory.appendingPathComponent("adapters.safetensors"))
+        }
+
+        let discovery = Qwen3ASRAudioAdapterLoader.discover(in: modelDirectory)
+        #expect(discovery.adapterDetected == false)
+        #expect(discovery.error?.contains("multiple valid") == true)
+        #expect(discovery.error?.contains("adapter-a") == true)
+        #expect(discovery.error?.contains("adapter-b") == true)
     }
 
     @Test func discoveryRejectsMissingConfigOrWeights() throws {
@@ -56,7 +130,10 @@ struct Qwen3ASRAdapterTests {
         try Data("fixture-safetensors".utf8).write(to: weightsURL)
 
         let initial = try #require(Qwen3ASRAudioAdapterLoader.fingerprint(in: modelDirectory))
-        #expect(initial.directoryPath == adapterDirectory.path)
+        #expect(
+            URL(fileURLWithPath: initial.directoryPath).resolvingSymlinksInPath()
+                == adapterDirectory.resolvingSymlinksInPath()
+        )
         #expect(initial.config.exists == true)
         #expect(initial.weights.exists == true)
 
@@ -197,7 +274,8 @@ struct Qwen3ASRAdapterTests {
             #expect(metadata.adapterDetected == true)
             #expect(metadata.adapterLoaded == true)
             #expect(metadata.adapterApplied == true)
-            #expect(metadata.adapterPath?.contains(Qwen3ASRAudioAdapterLoader.adapterDirectoryName) == true)
+            #expect(metadata.adapterPath != nil)
+            #expect(metadata.adapterSHA256?.count == 64)
             #expect(metadata.adapterLoadError == nil)
 
             #expect(
@@ -218,6 +296,34 @@ struct Qwen3ASRAdapterTests {
                 "row \(fixture.rowPk) regressed: actualCER=\(actualCER), baseCER=\(baseCER), transcript=\(transcript)"
             )
         }
+    }
+
+    @Test func actualWAVSmokeSelectsSupportFirmwareSpecialist() async throws {
+        guard let audioPath = ProcessInfo.processInfo.environment["VOCO_QWEN3_SPECIALIST_SMOKE_AUDIO"],
+              !audioPath.isEmpty else {
+            return
+        }
+        let audioURL = URL(fileURLWithPath: audioPath)
+        #expect(FileManager.default.fileExists(atPath: audioURL.path))
+        let model = try #require(
+            TranscriptionModelRegistry.models.compactMap { $0 as? Qwen3Model }
+                .first(where: { $0.name == "qwen3-asr-1.7b-8bit" })
+        )
+        let service = Qwen3TranscriptionService()
+        defer { Task { await service.cleanup() } }
+
+        let transcript = try await service.transcribe(
+            audioURL: audioURL,
+            model: model,
+            context: TranscriptionRequestContext(language: "Chinese", prompt: nil)
+        )
+        let routing = try #require(service.lastSpecialistRoutingMetadata)
+        #expect(routing.trigger.triggered)
+        #expect(routing.selection.selectSpecialist)
+        #expect(routing.specialistAdapter?.adapterApplied == true)
+        #expect(routing.specialistAdapter?.adapterSHA256?.count == 64)
+        #expect(transcript.contains("韌體"))
+        #expect(transcript.contains("Unicode"))
     }
 
     @Test func edgeTTSCenturyWindStockQuoteSpecialSmokeUsesAdapter() async throws {
@@ -252,7 +358,8 @@ struct Qwen3ASRAdapterTests {
         #expect(metadata.adapterDetected == true)
         #expect(metadata.adapterLoaded == true)
         #expect(metadata.adapterApplied == true)
-        #expect(metadata.adapterPath?.contains(Qwen3ASRAudioAdapterLoader.adapterDirectoryName) == true)
+        #expect(metadata.adapterPath != nil)
+        #expect(metadata.adapterSHA256?.count == 64)
         #expect(metadata.adapterLoadError == nil)
 
         let normalized = normalizeStockQuoteTranscript(transcript)
@@ -358,11 +465,11 @@ private enum EdgeTTSCenturyWindFixture {
     }
 }
 
-private func makeAdapterDirectory() throws -> URL {
+private func makeAdapterDirectory(named name: String = "test-audio-adapter") throws -> URL {
     let modelDirectory = try temporaryDirectory()
     let adapterDirectory = modelDirectory
         .appendingPathComponent("adapters", isDirectory: true)
-        .appendingPathComponent(Qwen3ASRAudioAdapterLoader.adapterDirectoryName, isDirectory: true)
+        .appendingPathComponent(name, isDirectory: true)
     try FileManager.default.createDirectory(at: adapterDirectory, withIntermediateDirectories: true)
     return adapterDirectory
 }
@@ -370,7 +477,7 @@ private func makeAdapterDirectory() throws -> URL {
 private func makeDescriptor(in modelDirectory: URL) throws -> Qwen3ASRAdapterDescriptor {
     let adapterDirectory = modelDirectory
         .appendingPathComponent("adapters", isDirectory: true)
-        .appendingPathComponent(Qwen3ASRAudioAdapterLoader.adapterDirectoryName, isDirectory: true)
+        .appendingPathComponent("test-audio-adapter", isDirectory: true)
     try FileManager.default.createDirectory(at: adapterDirectory, withIntermediateDirectories: true)
     let configURL = adapterDirectory.appendingPathComponent("adapter_config.json")
     let weightsURL = adapterDirectory.appendingPathComponent("adapters.safetensors")

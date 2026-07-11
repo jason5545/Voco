@@ -2,22 +2,41 @@
 // Audio-side LoRA adapter discovery and application for Qwen3-ASR.
 
 import Foundation
+import CryptoKit
 import MLX
 import MLXNN
 import os
 
-struct Qwen3ASRAdapterMetadata: Equatable {
+struct Qwen3ASRAdapterMetadata: Codable, Equatable {
     let adapterDetected: Bool
     let adapterLoaded: Bool
     let adapterApplied: Bool
     let adapterPath: String?
+    let adapterSHA256: String?
     let adapterLoadError: String?
+
+    init(
+        adapterDetected: Bool,
+        adapterLoaded: Bool,
+        adapterApplied: Bool,
+        adapterPath: String?,
+        adapterSHA256: String? = nil,
+        adapterLoadError: String?
+    ) {
+        self.adapterDetected = adapterDetected
+        self.adapterLoaded = adapterLoaded
+        self.adapterApplied = adapterApplied
+        self.adapterPath = adapterPath
+        self.adapterSHA256 = adapterSHA256
+        self.adapterLoadError = adapterLoadError
+    }
 
     static let unavailable = Qwen3ASRAdapterMetadata(
         adapterDetected: false,
         adapterLoaded: false,
         adapterApplied: false,
         adapterPath: nil,
+        adapterSHA256: nil,
         adapterLoadError: nil
     )
 }
@@ -151,18 +170,31 @@ enum Qwen3ASRAdapterError: LocalizedError {
 }
 
 enum Qwen3ASRAudioAdapterLoader {
-    static let adapterDirectoryName = "qwen3-asr-speaker-audio-lora-20260612-balanced-64iter"
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRAdapter")
 
-    static func adapterDirectory(in modelDirectory: URL) -> URL {
+    static func adaptersDirectory(in modelDirectory: URL) -> URL {
         modelDirectory
             .appendingPathComponent("adapters", isDirectory: true)
-            .appendingPathComponent(adapterDirectoryName, isDirectory: true)
+    }
+
+    static func specialistAdaptersDirectory(in modelDirectory: URL) -> URL {
+        modelDirectory.appendingPathComponent("specialist-adapters", isDirectory: true)
+    }
+
+    static func discoverSpecialist(
+        in modelDirectory: URL,
+        specialistID: String,
+        fileManager: FileManager = .default
+    ) -> Qwen3ASRAdapterDiscovery {
+        descriptorDiscovery(
+            at: specialistAdaptersDirectory(in: modelDirectory)
+                .appendingPathComponent(specialistID, isDirectory: true),
+            fileManager: fileManager
+        )
     }
 
     static func fingerprint(in modelDirectory: URL, fileManager: FileManager = .default) -> Qwen3ASRAdapterFingerprint? {
-        let adapterDirectory = adapterDirectory(in: modelDirectory)
-        guard fileManager.fileExists(atPath: adapterDirectory.path) else {
+        guard let adapterDirectory = discover(in: modelDirectory, fileManager: fileManager).descriptor?.directory else {
             return nil
         }
 
@@ -174,22 +206,145 @@ enum Qwen3ASRAudioAdapterLoader {
     }
 
     static func discover(in modelDirectory: URL, fileManager: FileManager = .default) -> Qwen3ASRAdapterDiscovery {
-        let adapterDirectory = adapterDirectory(in: modelDirectory)
-
-        guard fileManager.fileExists(atPath: adapterDirectory.path) else {
+        let adaptersDirectory = adaptersDirectory(in: modelDirectory)
+        guard fileManager.fileExists(atPath: adaptersDirectory.path) else {
             return .unavailable()
         }
 
+        let directoryURLs: [URL]
+        do {
+            directoryURLs = try fileManager.contentsOfDirectory(
+                at: adaptersDirectory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+            .filter { url in
+                (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        } catch {
+            return .unavailable(path: adaptersDirectory.path, error: error.localizedDescription)
+        }
+
+        guard !directoryURLs.isEmpty else {
+            return .unavailable()
+        }
+
+        var validDescriptors: [Qwen3ASRAdapterDescriptor] = []
+        var validationErrors: [String] = []
+        for adapterDirectory in directoryURLs {
+            let configURL = adapterDirectory.appendingPathComponent("adapter_config.json")
+            let weightsURL = adapterDirectory.appendingPathComponent("adapters.safetensors")
+
+            guard fileManager.isReadableFile(atPath: configURL.path) else {
+                validationErrors.append("\(adapterDirectory.lastPathComponent): adapter_config.json not readable")
+                continue
+            }
+            guard fileManager.isReadableFile(atPath: weightsURL.path) else {
+                validationErrors.append("\(adapterDirectory.lastPathComponent): adapters.safetensors not readable")
+                continue
+            }
+
+            do {
+                let config = try JSONDecoder().decode(Qwen3ASRAdapterConfig.self, from: Data(contentsOf: configURL))
+                try validate(config)
+                validDescriptors.append(Qwen3ASRAdapterDescriptor(
+                    directory: adapterDirectory,
+                    configURL: configURL,
+                    weightsURL: weightsURL,
+                    config: config
+                ))
+            } catch {
+                validationErrors.append("\(adapterDirectory.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        if validDescriptors.count == 1, let descriptor = validDescriptors.first {
+            return .available(descriptor)
+        }
+        if validDescriptors.count > 1 {
+            let names = validDescriptors.map { $0.directory.lastPathComponent }.joined(separator: ", ")
+            return .unavailable(
+                path: adaptersDirectory.path,
+                error: "multiple valid Qwen3-ASR audio adapters found; keep exactly one active adapter: \(names)"
+            )
+        }
+
+        let error = validationErrors.isEmpty ? nil : validationErrors.joined(separator: "; ")
+        let path = directoryURLs.count == 1 ? directoryURLs[0].path : adaptersDirectory.path
+        return .unavailable(path: path, error: error)
+    }
+
+    static func loadAndApplyIfPresent(
+        modelDirectory: URL,
+        audioEncoder: Qwen3AudioEncoder
+    ) -> Qwen3ASRAdapterMetadata {
+        let loadedMetadata = Qwen3ASRAdapterCoordinator.loadIfAvailable(
+            modelDirectory: modelDirectory,
+            discover: { discover(in: $0) },
+            apply: { descriptor in
+                try apply(descriptor: descriptor, to: audioEncoder)
+            }
+        )
+        let metadata = metadataWithSHA(loadedMetadata)
+
+        log(metadata)
+        return metadata
+    }
+
+    static func loadAndApply(
+        descriptor: Qwen3ASRAdapterDescriptor,
+        audioEncoder: Qwen3AudioEncoder
+    ) -> Qwen3ASRAdapterMetadata {
+        let loaded = Qwen3ASRAdapterCoordinator.loadIfAvailable(
+            modelDirectory: descriptor.directory.deletingLastPathComponent(),
+            discover: { _ in .available(descriptor) },
+            apply: { try apply(descriptor: $0, to: audioEncoder) }
+        )
+        let metadata = metadataWithSHA(loaded)
+        log(metadata)
+        return metadata
+    }
+
+    private static func metadataWithSHA(_ loadedMetadata: Qwen3ASRAdapterMetadata) -> Qwen3ASRAdapterMetadata {
+        Qwen3ASRAdapterMetadata(
+            adapterDetected: loadedMetadata.adapterDetected,
+            adapterLoaded: loadedMetadata.adapterLoaded,
+            adapterApplied: loadedMetadata.adapterApplied,
+            adapterPath: loadedMetadata.adapterPath,
+            adapterSHA256: loadedMetadata.adapterPath.flatMap { path in
+                sha256(of: URL(fileURLWithPath: path).appendingPathComponent("adapters.safetensors"))
+            },
+            adapterLoadError: loadedMetadata.adapterLoadError
+        )
+    }
+
+    private static func log(_ metadata: Qwen3ASRAdapterMetadata) {
+        if metadata.adapterApplied {
+            logger.info("Qwen3-ASR audio LoRA adapter applied: \(metadata.adapterPath ?? "unknown")")
+        } else if metadata.adapterDetected {
+            logger.error("Qwen3-ASR audio LoRA adapter detected but not applied: \(metadata.adapterLoadError ?? "unknown error")")
+        } else if let error = metadata.adapterLoadError {
+            logger.warning("Qwen3-ASR audio LoRA adapter unavailable: \(error)")
+        }
+
+    }
+
+    private static func descriptorDiscovery(
+        at adapterDirectory: URL,
+        fileManager: FileManager
+    ) -> Qwen3ASRAdapterDiscovery {
+        guard fileManager.fileExists(atPath: adapterDirectory.path) else {
+            return .unavailable(path: adapterDirectory.path)
+        }
         let configURL = adapterDirectory.appendingPathComponent("adapter_config.json")
         let weightsURL = adapterDirectory.appendingPathComponent("adapters.safetensors")
-
         guard fileManager.isReadableFile(atPath: configURL.path) else {
             return .unavailable(path: adapterDirectory.path, error: "adapter_config.json not readable")
         }
         guard fileManager.isReadableFile(atPath: weightsURL.path) else {
             return .unavailable(path: adapterDirectory.path, error: "adapters.safetensors not readable")
         }
-
         do {
             let config = try JSONDecoder().decode(Qwen3ASRAdapterConfig.self, from: Data(contentsOf: configURL))
             try validate(config)
@@ -204,27 +359,9 @@ enum Qwen3ASRAudioAdapterLoader {
         }
     }
 
-    static func loadAndApplyIfPresent(
-        modelDirectory: URL,
-        audioEncoder: Qwen3AudioEncoder
-    ) -> Qwen3ASRAdapterMetadata {
-        let metadata = Qwen3ASRAdapterCoordinator.loadIfAvailable(
-            modelDirectory: modelDirectory,
-            discover: { discover(in: $0) },
-            apply: { descriptor in
-                try apply(descriptor: descriptor, to: audioEncoder)
-            }
-        )
-
-        if metadata.adapterApplied {
-            logger.info("Qwen3-ASR audio LoRA adapter applied: \(metadata.adapterPath ?? "unknown")")
-        } else if metadata.adapterDetected {
-            logger.error("Qwen3-ASR audio LoRA adapter detected but not applied: \(metadata.adapterLoadError ?? "unknown error")")
-        } else if let error = metadata.adapterLoadError {
-            logger.warning("Qwen3-ASR audio LoRA adapter unavailable: \(error)")
-        }
-
-        return metadata
+    private static func sha256(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     static func apply(descriptor: Qwen3ASRAdapterDescriptor, to audioEncoder: Qwen3AudioEncoder) throws -> Int {

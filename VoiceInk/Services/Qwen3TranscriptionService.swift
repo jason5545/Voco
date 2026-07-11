@@ -190,6 +190,7 @@ class Qwen3TranscriptionService: TranscriptionService {
 
     /// Audio-side LoRA adapter status from the last Qwen3-ASR model load.
     private(set) var lastAdapterMetadata: Qwen3ASRAdapterMetadata = .unavailable
+    private(set) var lastSpecialistRoutingMetadata: Qwen3ASRSpecialistRoutingMetadata?
 
     func transcribe(
         audioURL: URL,
@@ -199,6 +200,7 @@ class Qwen3TranscriptionService: TranscriptionService {
         guard let qwen3Model = model as? Qwen3Model else {
             throw Qwen3ServiceError.invalidModel
         }
+        lastSpecialistRoutingMetadata = nil
 
         // Ensure model is loaded
         let modelDir = Qwen3ModelManager.modelDirectory(for: qwen3Model.modelId)
@@ -256,6 +258,65 @@ class Qwen3TranscriptionService: TranscriptionService {
                 self.lastAdapterMetadata = await engine.currentAdapterMetadata()
                 logger.error("Qwen3-ASR adapter guard base probe failed: \(error.localizedDescription, privacy: .public)")
             }
+        }
+        let recentTranscriptions = await MainActor.run {
+            ChinesePostProcessingService.shared.contextMemory.getRecent(count: 3)
+        }
+        let specialistTrigger = Qwen3ASRSpecialistRouter.triggerDecision(
+            baselineTranscript: result.text,
+            recentTranscriptions: recentTranscriptions,
+            prompt: prompt
+        )
+        if specialistTrigger.triggered {
+            let baselineResult = result
+            do {
+                let probe = try await engine.transcribeWithSpecialistAdapter(
+                    samples: audioSamples,
+                    language: selectedLanguage,
+                    prompt: prompt,
+                    specialistID: Qwen3ASRSpecialistRouter.specialistID
+                )
+                let selection = Qwen3ASRSpecialistRouter.selectionDecision(
+                    baselineTranscript: baselineResult.text,
+                    specialistTranscript: probe.result.text,
+                    trigger: specialistTrigger
+                )
+                if selection.selectSpecialist {
+                    result = probe.result
+                    logger.info("Qwen3-ASR specialist selected reasons=\(specialistTrigger.reasons.joined(separator: ","), privacy: .public)")
+                } else {
+                    logger.info("Qwen3-ASR specialist rejected reason=\(selection.reason, privacy: .public)")
+                }
+                lastSpecialistRoutingMetadata = Qwen3ASRSpecialistRoutingMetadata(
+                    specialistID: Qwen3ASRSpecialistRouter.specialistID,
+                    baselineTranscript: baselineResult.text,
+                    specialistTranscript: probe.result.text,
+                    chosenTranscript: result.text,
+                    trigger: specialistTrigger,
+                    selection: selection,
+                    specialistAdapter: probe.metadata
+                )
+            } catch {
+                let selection = Qwen3ASRSpecialistSelectionDecision(
+                    selectSpecialist: false,
+                    reason: "specialistUnavailable:\(error.localizedDescription)",
+                    editDistance: nil,
+                    editBudget: nil,
+                    residualEditDistance: nil,
+                    residualEditBudget: nil
+                )
+                lastSpecialistRoutingMetadata = Qwen3ASRSpecialistRoutingMetadata(
+                    specialistID: Qwen3ASRSpecialistRouter.specialistID,
+                    baselineTranscript: baselineResult.text,
+                    specialistTranscript: nil,
+                    chosenTranscript: baselineResult.text,
+                    trigger: specialistTrigger,
+                    selection: selection,
+                    specialistAdapter: nil
+                )
+                logger.warning("Qwen3-ASR specialist probe unavailable: \(error.localizedDescription, privacy: .public)")
+            }
+            self.lastAdapterMetadata = await engine.currentAdapterMetadata()
         }
         self.lastAvgLogProb = result.avgLogProb
         self.lastDetectedLanguage = result.detectedLanguage

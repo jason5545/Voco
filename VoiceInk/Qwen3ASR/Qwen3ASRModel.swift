@@ -148,6 +148,18 @@ class Qwen3ASRModel {
         Self.logger.info("Qwen3-ASR audio adapter refresh complete")
     }
 
+    func reloadAudioAdapter(descriptor: Qwen3ASRAdapterDescriptor, from directory: URL) throws {
+        Self.logger.info("Reloading Qwen3-ASR audio encoder for specialist adapter...")
+        audioEncoder.clearPosEmbeddingCache()
+        try Qwen3WeightLoader.loadAudioEncoderWeights(into: audioEncoder, from: directory)
+        adapterMetadata = Qwen3ASRAudioAdapterLoader.loadAndApply(
+            descriptor: descriptor,
+            audioEncoder: audioEncoder
+        )
+        Memory.clearCache()
+        Self.logger.info("Qwen3-ASR specialist adapter refresh complete")
+    }
+
     func reloadAudioEncoderBaseOnly(from directory: URL) throws {
         Self.logger.info("Reloading Qwen3-ASR base audio encoder weights for adapter guard...")
         audioEncoder.clearPosEmbeddingCache()

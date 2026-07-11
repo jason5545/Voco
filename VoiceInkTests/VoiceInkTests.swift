@@ -1103,6 +1103,54 @@ struct VoiceInkTests {
         #expect(transcription.candidateSelectionSource == nil)
     }
 
+    @Test func transcriptionStoresTraceableQwen3AdapterMetadata() async throws {
+        let transcription = Transcription(text: "", duration: 0)
+        let metadata = Qwen3ASRAdapterMetadata(
+            adapterDetected: true,
+            adapterLoaded: true,
+            adapterApplied: true,
+            adapterPath: "/tmp/adapters/current-promoted-adapter",
+            adapterSHA256: String(repeating: "a", count: 64),
+            adapterLoadError: nil
+        )
+
+        transcription.recordQwen3AdapterMetadata(metadata)
+
+        #expect(transcription.qwen3AdapterMetadata == metadata)
+        #expect(transcription.qwen3AdapterMetadataJSON?.contains("current-promoted-adapter") == true)
+        #expect(transcription.hasDictationMetadata)
+
+        let trigger = Qwen3ASRSpecialistTriggerDecision(
+            triggered: true,
+            reasons: ["firmwareAmbiguity:論題"],
+            requiredSurfaces: ["韌體"]
+        )
+        let selection = Qwen3ASRSpecialistSelectionDecision(
+            selectSpecialist: true,
+            reason: "requiredSurfaceAndNarrowEditPassed",
+            editDistance: 1,
+            editBudget: 3,
+            residualEditDistance: 0,
+            residualEditBudget: 1
+        )
+        transcription.recordQwen3SpecialistRoutingMetadata(
+            Qwen3ASRSpecialistRoutingMetadata(
+                specialistID: "support-firmware-v1",
+                baselineTranscript: "這個論題很差。",
+                specialistTranscript: "這個韌體很差。",
+                chosenTranscript: "這個韌體很差。",
+                trigger: trigger,
+                selection: selection,
+                specialistAdapter: metadata
+            )
+        )
+        #expect(transcription.qwen3SpecialistRoutingMetadata?.selection.selectSpecialist == true)
+
+        transcription.markAsCanceledTranscription()
+        #expect(transcription.qwen3AdapterMetadata == nil)
+        #expect(transcription.qwen3SpecialistRoutingMetadata == nil)
+    }
+
     @Test func transcriptionSyncsSelectedCandidateWithFinalPaste() async throws {
         let transcription = Transcription(
             text: "再跑一次轉怒的技能吧。",

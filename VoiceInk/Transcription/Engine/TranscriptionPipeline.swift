@@ -122,6 +122,19 @@ class TranscriptionPipeline {
             }
             let rawASRText = text
             shadowRawASRText = rawASRText
+            if model.provider == .qwen3 {
+                let adapterMetadata = serviceRegistry.qwen3TranscriptionService.lastAdapterMetadata
+                transcription.recordQwen3AdapterMetadata(adapterMetadata)
+                transcription.recordQwen3SpecialistRoutingMetadata(
+                    serviceRegistry.qwen3TranscriptionService.lastSpecialistRoutingMetadata
+                )
+                let adapterPath = adapterMetadata.adapterPath ?? "none"
+                let adapterSHA256 = adapterMetadata.adapterSHA256 ?? "none"
+                let adapterLoadError = adapterMetadata.adapterLoadError ?? "none"
+                logger.info(
+                    "Qwen3-ASR row adapter state detected=\(adapterMetadata.adapterDetected, privacy: .public) loaded=\(adapterMetadata.adapterLoaded, privacy: .public) applied=\(adapterMetadata.adapterApplied, privacy: .public) path=\(adapterPath, privacy: .public) sha256=\(adapterSHA256, privacy: .public) error=\(adapterLoadError, privacy: .public)"
+                )
+            }
             text = TranscriptionOutputFilter.filter(text)
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
 

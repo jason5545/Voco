@@ -5372,7 +5372,19 @@ def explain_rule_match(model_path: Path, text: str, context: str) -> dict[str, A
 
 
 def list_recent_transcriptions(store: Path, limit: int, min_pk: int | None) -> dict[str, Any]:
-    query = """
+    rows: list[dict[str, Any]] = []
+    with sqlite3.connect(f"file:{store}?mode=ro", uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        columns = {
+            str(row["name"])
+            for row in connection.execute("pragma table_info(ZTRANSCRIPTION)")
+        }
+        adapter_metadata_expression = (
+            "ZQWEN3ADAPTERMETADATAJSON"
+            if "ZQWEN3ADAPTERMETADATAJSON" in columns
+            else "null"
+        )
+        query = f"""
         select
           Z_PK,
           datetime(ZTIMESTAMP + 978307200, 'unixepoch', 'localtime') as local_time,
@@ -5380,15 +5392,13 @@ def list_recent_transcriptions(store: Path, limit: int, min_pk: int | None) -> d
           ZTEXT,
           ZENHANCEDTEXT,
           ZSELECTEDCANDIDATE,
-          ZFINALPASTEDTEXT
+          ZFINALPASTEDTEXT,
+          {adapter_metadata_expression} as ZQWEN3ADAPTERMETADATAJSON
         from ZTRANSCRIPTION
         where (? is null or Z_PK >= ?)
         order by ZTIMESTAMP desc
         limit ?
-    """
-    rows: list[dict[str, Any]] = []
-    with sqlite3.connect(f"file:{store}?mode=ro", uri=True) as connection:
-        connection.row_factory = sqlite3.Row
+        """
         for row in connection.execute(query, (min_pk, min_pk, limit)):
             rows.append(dict(row))
     return {"store": str(store), "limit": limit, "minPk": min_pk, "rows": rows}

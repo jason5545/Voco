@@ -8,11 +8,14 @@ import os
 
 enum Qwen3ASREngineError: LocalizedError {
     case warmupFailed(modelId: String, underlying: Error)
+    case specialistUnavailable(String)
 
     var errorDescription: String? {
         switch self {
         case .warmupFailed(let modelId, let underlying):
             return "Qwen3 warmup failed for \(modelId): \(underlying.localizedDescription)"
+        case .specialistUnavailable(let reason):
+            return "Qwen3 specialist adapter unavailable: \(reason)"
         }
     }
 }
@@ -224,6 +227,66 @@ actor Qwen3ASREngine {
             prompt: prompt,
             decodingOptions: decodingOptions
         )
+    }
+
+    func transcribeWithSpecialistAdapter(
+        samples: [Float],
+        language: String?,
+        prompt: String? = nil,
+        specialistID: String
+    ) throws -> (result: Qwen3ASRModel.TranscriptionResult, metadata: Qwen3ASRAdapterMetadata) {
+        guard let model,
+              let loadedModelId,
+              let loadedModelDirectory
+        else {
+            throw Qwen3ASRModelError.textDecoderNotLoaded
+        }
+        let discovery = Qwen3ASRAudioAdapterLoader.discoverSpecialist(
+            in: loadedModelDirectory,
+            specialistID: specialistID
+        )
+        guard let descriptor = discovery.descriptor else {
+            throw Qwen3ASREngineError.specialistUnavailable(
+                discovery.error ?? discovery.adapterPath ?? specialistID
+            )
+        }
+
+        let originalUsesAudioAdapter = loadedUsesAudioAdapter
+        try model.reloadAudioAdapter(descriptor: descriptor, from: loadedModelDirectory)
+        adapterMetadata = model.adapterMetadata
+        loadedUsesAudioAdapter = true
+        loadedAdapterFingerprint = nil
+        hasCompletedWarmup = false
+        let specialistMetadata = adapterMetadata
+
+        defer {
+            do {
+                if originalUsesAudioAdapter {
+                    try model.reloadAudioAdapter(from: loadedModelDirectory)
+                } else {
+                    try model.reloadAudioEncoderBaseOnly(from: loadedModelDirectory)
+                }
+                adapterMetadata = model.adapterMetadata
+                loadedUsesAudioAdapter = originalUsesAudioAdapter
+                loadedAdapterFingerprint = originalUsesAudioAdapter
+                    ? Qwen3ASRAudioAdapterLoader.fingerprint(in: loadedModelDirectory)
+                    : nil
+                hasCompletedWarmup = false
+            } catch {
+                adapterMetadata = model.adapterMetadata
+                loadedUsesAudioAdapter = model.adapterMetadata.adapterApplied
+                loadedAdapterFingerprint = loadedUsesAudioAdapter
+                    ? Qwen3ASRAudioAdapterLoader.fingerprint(in: loadedModelDirectory)
+                    : nil
+                hasCompletedWarmup = false
+                Self.logger.error(
+                    "Failed to restore primary Qwen3-ASR adapter after specialist \(specialistID) for \(loadedModelId): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+
+        let result = try transcribe(samples: samples, language: language, prompt: prompt)
+        return (result, specialistMetadata)
     }
 
     /// Find the quietest point (lowest RMS energy) within ±30s of the target cut position
