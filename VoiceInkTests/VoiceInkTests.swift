@@ -15,6 +15,64 @@ import Testing
 @Suite(.serialized)
 struct VoiceInkTests {
 
+    @Test func withinDictationDeduplicationRemovesRepeatedPhrase() {
+        let adjusted = ContextAwareInsertionService.shared.prepareForInsertion(
+            "我就可以就可以直接買了，對吧？",
+            textBefore: ""
+        )
+        #expect(adjusted == "我就可以直接買了，對吧？")
+    }
+
+    @Test func withinDictationDeduplicationCollapsesThreeRepeats() {
+        let adjusted = ContextAwareInsertionService.shared.removeAdjacentRepeatedPhrases(
+            "我覺得我覺得我覺得可以了"
+        )
+        #expect(adjusted == "我覺得可以了")
+    }
+
+    @Test func withinDictationDeduplicationPreservesShortNaturalRepetition() {
+        let text = "這真的非常非常好，看看就知道。"
+        #expect(ContextAwareInsertionService.shared.removeAdjacentRepeatedPhrases(text) == text)
+    }
+
+    @Test func withinAndCrossBoundaryDeduplicationCompose() {
+        let adjusted = ContextAwareInsertionService.shared.prepareForInsertion(
+            "就可以就可以直接買了",
+            textBefore: "我就可以"
+        )
+        #expect(adjusted == "直接買了")
+    }
+
+    @Test func boundaryDeduplicationRemovesRepeatedChinesePhrase() {
+        let adjusted = ContextAwareInsertionService.shared.removeOverlappingPrefix(
+            "就可以直接買了，對吧？",
+            textBefore: "我就可以"
+        )
+        #expect(adjusted == "直接買了，對吧？")
+    }
+
+    @Test func boundaryDeduplicationUsesLongestOverlap() {
+        let adjusted = ContextAwareInsertionService.shared.removeOverlappingPrefix(
+            "這一段繼續處理",
+            textBefore: "前面已經有這一段"
+        )
+        #expect(adjusted == "繼續處理")
+    }
+
+    @Test func boundaryDeduplicationDoesNotRemoveSingleCharacterCoincidence() {
+        let adjusted = ContextAwareInsertionService.shared.removeOverlappingPrefix(
+            "歡迎回來",
+            textBefore: "我很喜歡"
+        )
+        #expect(adjusted == "歡迎回來")
+    }
+
+    @Test func boundaryDeduplicationRequiresEnglishWordBoundaries() {
+        let service = ContextAwareInsertionService.shared
+        #expect(service.removeOverlappingPrefix("today is fine", textBefore: "we need to") == "today is fine")
+        #expect(service.removeOverlappingPrefix("can buy it now", textBefore: "I think we can") == " buy it now")
+    }
+
     private func requireLoadedPinyinDatabase() async throws {
         for _ in 0..<100 {
             if PinyinDatabase.shared.isLoaded { return }

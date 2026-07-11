@@ -221,10 +221,6 @@ extension TranscriptionPipeline {
         let contextAwareEnabled = UserDefaults.standard.bool(forKey: "ContextAwareInsertionEnabled")
         let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
 
-        guard contextAwareEnabled else {
-            return text + (appendSpace ? " " : "")
-        }
-
         // Query surrounding text via AX API — prefer PID captured at recording start
         let context: SurroundingTextContext?
         let pid = capturedAppPID ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -234,6 +230,18 @@ extension TranscriptionPipeline {
             context = nil
         }
 
+        // Boundary overlap removal is always active. It is narrower than the
+        // optional context-aware formatting rules and only removes speech that
+        // exactly repeats the text immediately before the cursor.
+        let boundaryAdjusted = context.map {
+            ContextAwareInsertionService.shared.prepareForInsertion(
+                text, textBefore: $0.textBefore)
+        } ?? ContextAwareInsertionService.shared.removeAdjacentRepeatedPhrases(text)
+        guard contextAwareEnabled else {
+            return boundaryAdjusted + (appendSpace && !boundaryAdjusted.isEmpty ? " " : "")
+        }
+        guard !boundaryAdjusted.isEmpty else { return "" }
+
         // LLM merge takes precedence for mid-text insertion — if it succeeds, skip rule-based entirely
         let llmMergeEnabled = UserDefaults.standard.bool(forKey: "ContextAwareLLMMergeEnabled")
         if llmMergeEnabled,
@@ -241,7 +249,7 @@ extension TranscriptionPipeline {
            let enhancementService, enhancementService.isConfigured {
             do {
                 let (merged, _) = try await enhancementService.enhanceMerge(
-                    insertedText: text,
+                    insertedText: boundaryAdjusted,
                     textBefore: ctx.textBefore,
                     textAfter: ctx.textAfter
                 )
@@ -255,6 +263,6 @@ extension TranscriptionPipeline {
 
         // Rule-based adjustments (fallback, or when LLM merge not applicable)
         return ContextAwareInsertionService.shared.adjust(
-            text, context: context, appendTrailingSpace: appendSpace)
+            boundaryAdjusted, context: context, appendTrailingSpace: appendSpace)
     }
 }

@@ -15,7 +15,7 @@ final class ContextAwareInsertionService {
             return text + (appendTrailingSpace ? " " : "")
         }
 
-        var result = text
+        var result = prepareForInsertion(text, textBefore: ctx.textBefore)
 
         // Rule 1: Smart leading space (English word boundary)
         result = adjustLeadingSpace(result, textBefore: ctx.textBefore)
@@ -33,6 +33,98 @@ final class ContextAwareInsertionService {
         result = adjustTrailingSpace(result, textAfter: ctx.textAfter, appendSpaceSetting: appendTrailingSpace)
 
         return result
+    }
+
+    /// Removes the longest exact overlap between the existing text suffix and
+    /// the new dictation prefix. A minimum of two letters or digits avoids
+    /// treating a coincidental single character as repeated speech.
+    func removeOverlappingPrefix(_ text: String, textBefore: String) -> String {
+        guard !text.isEmpty, !textBefore.isEmpty else { return text }
+
+        let incoming = text.drop(while: { $0.isWhitespace })
+        let beforeEnd = textBefore.lastIndex(where: { !$0.isWhitespace })
+            .map { textBefore.index(after: $0) } ?? textBefore.startIndex
+        let before = textBefore[..<beforeEnd]
+        guard !incoming.isEmpty, !before.isEmpty else { return text }
+
+        let maximumOverlap = min(before.count, incoming.count)
+        for length in stride(from: maximumOverlap, through: 1, by: -1) {
+            let overlap = incoming.prefix(length)
+            guard before.suffix(length).elementsEqual(overlap),
+                  overlap.filter({ $0.isLetter || $0.isNumber }).count >= 2,
+                  hasLatinWordBoundaries(
+                    before: before,
+                    incoming: incoming,
+                    overlapLength: length,
+                    overlap: overlap
+                  ) else {
+                continue
+            }
+            return String(incoming.dropFirst(length))
+        }
+        return text
+    }
+
+    func prepareForInsertion(_ text: String, textBefore: String) -> String {
+        removeOverlappingPrefix(
+            removeAdjacentRepeatedPhrases(text),
+            textBefore: textBefore
+        )
+    }
+
+    /// Collapses an immediately repeated speech phrase inside one dictation.
+    /// Three content characters keeps ordinary forms such as「看看」and
+    ///「非常非常」outside this automatic correction.
+    func removeAdjacentRepeatedPhrases(_ text: String) -> String {
+        var characters = Array(text)
+
+        while let repeatedRange = adjacentRepeatedPhraseRange(in: characters) {
+            characters.removeSubrange(repeatedRange)
+        }
+        return String(characters)
+    }
+
+    private func adjacentRepeatedPhraseRange(in characters: [Character]) -> Range<Int>? {
+        guard characters.count >= 6 else { return nil }
+
+        for start in characters.indices {
+            let maximumLength = (characters.count - start) / 2
+            guard maximumLength > 0 else { continue }
+
+            for length in stride(from: maximumLength, through: 1, by: -1) {
+                let secondStart = start + length
+                let secondEnd = secondStart + length
+                let phrase = characters[start..<secondStart]
+                guard isMeaningfulRepeatedPhrase(phrase),
+                      phrase.elementsEqual(characters[secondStart..<secondEnd]) else {
+                    continue
+                }
+                return secondStart..<secondEnd
+            }
+        }
+        return nil
+    }
+
+    private func isMeaningfulRepeatedPhrase(_ phrase: ArraySlice<Character>) -> Bool {
+        let content = phrase.filter { $0.isLetter || $0.isNumber }
+        return content.count >= 3 && Set(content).count >= 2
+    }
+
+    private func hasLatinWordBoundaries(
+        before: Substring,
+        incoming: Substring,
+        overlapLength: Int,
+        overlap: Substring
+    ) -> Bool {
+        if overlap.first?.isASCIILetter == true, before.count > overlapLength {
+            let precedingIndex = before.index(before.endIndex, offsetBy: -overlapLength - 1)
+            if before[precedingIndex].isASCIILetter { return false }
+        }
+        if overlap.last?.isASCIILetter == true, incoming.count > overlapLength {
+            let followingIndex = incoming.index(incoming.startIndex, offsetBy: overlapLength)
+            if incoming[followingIndex].isASCIILetter { return false }
+        }
+        return true
     }
 
     // MARK: - Rule Implementations
@@ -154,6 +246,12 @@ final class ContextAwareInsertionService {
 // Character.isCJK is defined in CorrectionEngine.swift
 
 extension Character {
+    fileprivate var isASCIILetter: Bool {
+        unicodeScalars.count == 1 && unicodeScalars.first.map {
+            (65...90).contains(Int($0.value)) || (97...122).contains(Int($0.value))
+        } == true
+    }
+
     var isCJKPunctuation: Bool {
         let cjkPunct: Set<Character> = ["，", "。", "？", "！", "、", "；", "：", "「", "」", "（", "）", "《", "》", "【", "】", "〈", "〉"]
         return cjkPunct.contains(self)
