@@ -67,6 +67,36 @@ struct VoiceInkTests {
         #expect(adjusted == "歡迎回來")
     }
 
+    @Test func boundaryDeduplicationRemovesConfirmedSingleCharacterRestartOverlap() {
+        let cases = [
+            ("我懷疑是不是又", "又要調 adapter 了", "要調 adapter 了"),
+            ("那我就", "就是這樣", "是這樣"),
+            ("這樣也", "也可以", "可以"),
+            ("目前還", "還是要看", "是要看"),
+            ("等等再", "再試一次", "試一次"),
+            ("大家都", "都是這樣", "是這樣"),
+            ("這樣才", "才會成功", "會成功"),
+            ("我只", "只是測試", "是測試"),
+        ]
+
+        for (textBefore, incoming, expected) in cases {
+            #expect(
+                ContextAwareInsertionService.shared.removeOverlappingPrefix(
+                    incoming,
+                    textBefore: textBefore
+                ) == expected
+            )
+        }
+    }
+
+    @Test func boundaryDeduplicationPreservesNaturalSingleCharacterReduplication() {
+        let adjusted = ContextAwareInsertionService.shared.removeOverlappingPrefix(
+            "常去那裡",
+            textBefore: "我最近常"
+        )
+        #expect(adjusted == "常去那裡")
+    }
+
     @Test func boundaryDeduplicationRequiresEnglishWordBoundaries() {
         let service = ContextAwareInsertionService.shared
         #expect(service.removeOverlappingPrefix("today is fine", textBefore: "we need to") == "today is fine")

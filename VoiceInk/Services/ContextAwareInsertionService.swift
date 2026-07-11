@@ -51,7 +51,7 @@ final class ContextAwareInsertionService {
         for length in stride(from: maximumOverlap, through: 1, by: -1) {
             let overlap = incoming.prefix(length)
             guard before.suffix(length).elementsEqual(overlap),
-                  overlap.filter({ $0.isLetter || $0.isNumber }).count >= 2,
+                  isMeaningfulBoundaryOverlap(overlap),
                   hasLatinWordBoundaries(
                     before: before,
                     incoming: incoming,
@@ -63,6 +63,11 @@ final class ContextAwareInsertionService {
             return String(incoming.dropFirst(length))
         }
         return text
+    }
+
+    private func isMeaningfulBoundaryOverlap(_ overlap: Substring) -> Bool {
+        if Self.singleCharacterRestartOverlaps.contains(String(overlap)) { return true }
+        return overlap.filter({ $0.isLetter || $0.isNumber }).count >= 2
     }
 
     func prepareForInsertion(_ text: String, textBefore: String) -> String {
@@ -109,6 +114,8 @@ final class ContextAwareInsertionService {
         let content = phrase.filter { $0.isLetter || $0.isNumber }
         return content.count >= 3 && Set(content).count >= 2
     }
+
+    private static let singleCharacterRestartOverlaps: Set<String> = ["又", "就", "也", "還", "再", "都", "才", "只"]
 
     private func hasLatinWordBoundaries(
         before: Substring,
