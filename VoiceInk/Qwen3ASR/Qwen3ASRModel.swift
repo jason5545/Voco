@@ -51,11 +51,6 @@ class Qwen3ASRModel {
 
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ASRModel")
 
-    /// Language tags that cause English transliteration; remap to preserve code-switching
-    private static let codeSwitchLanguageRemap: [String: String] = [
-        "Chinese": "English",
-    ]
-
     /// Count CJK characters in text
     private static func cjkCount(in text: String) -> Int {
         text.unicodeScalars.filter {
@@ -65,14 +60,7 @@ class Qwen3ASRModel {
         }.count
     }
 
-    /// Count Latin letter characters in text
-    private static func latinCount(in text: String) -> Int {
-        text.unicodeScalars.filter {
-            $0.isASCII && CharacterSet.letters.contains($0)
-        }.count
-    }
-
-    /// Map NLLanguage to the language names used by codeSwitchLanguageRemap
+    /// Map NLLanguage to stable language names for detectedLanguage reporting
     private static let nlLanguageToName: [NLLanguage: String] = [
         .simplifiedChinese: "Chinese",
         .traditionalChinese: "Chinese",
@@ -202,57 +190,18 @@ class Qwen3ASRModel {
             decodingOptions: decodingOptions
         )
 
-        // Code-switch remap: detect language from output text using NLLanguageRecognizer.
-        // If the dominant language transliterates English (e.g. Chinese), re-run with
-        // a remapped tag to preserve code-switching.
+        // Auto 模式：僅以 NLLanguageRecognizer 標記偵測語言供後處理 routing 參考，
+        // 不做任何二次解碼（code-switch remap 已於 2026-09-05 依 ReplayLab eval493
+        // 證據移除：接受 4 筆 0 改善 4 退步，CER 0.0289 → 0.0309）。
         if language == nil {
-            let detectedLang = Self.detectLanguage(from: result.text)
-            let resultWithLang = TranscriptionResult(
+            return TranscriptionResult(
                 text: result.text,
                 avgLogProb: result.avgLogProb,
                 tokenCount: result.tokenCount,
-                detectedLanguage: detectedLang,
+                detectedLanguage: Self.detectLanguage(from: result.text),
                 uncertainWords: result.uncertainWords,
                 wordConfidences: result.wordConfidences
             )
-            if let detectedLang,
-               let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
-                Memory.clearCache()  // Release GPU buffers from the first pass
-                Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
-                let remapped = try generateText(
-                    audioEmbeds: audioEmbeds,
-                    textDecoder: textDecoder,
-                    language: remappedLang,
-                    prompt: prompt,
-                    maxTokens: effectiveMaxTokens,
-                    decodingOptions: decodingOptions
-                )
-                // Guard against translation: require that the remapped result
-                // retains at least 70% of CJK characters AND actually gained Latin content.
-                let originalCJK = Self.cjkCount(in: result.text)
-                let remappedCJK = Self.cjkCount(in: remapped.text)
-                let originalLatin = Self.latinCount(in: result.text)
-                let remappedLatin = Self.latinCount(in: remapped.text)
-                let cjkRetained = originalCJK == 0 || Double(remappedCJK) >= Double(originalCJK) * 0.7
-                let latinGained = remappedLatin > originalLatin
-                let lengthReasonable = remapped.text.count <= result.text.count * 2
-
-                if cjkRetained && latinGained && lengthReasonable {
-                    Self.logger.info("Code-switch remap accepted (CJK \(originalCJK)→\(remappedCJK), Latin \(originalLatin)→\(remappedLatin))")
-                    return TranscriptionResult(
-                        text: remapped.text,
-                        avgLogProb: remapped.avgLogProb,
-                        tokenCount: remapped.tokenCount,
-                        detectedLanguage: detectedLang,
-                        uncertainWords: remapped.uncertainWords,
-                        wordConfidences: remapped.wordConfidences
-                    )
-                } else {
-                    Self.logger.warning("Code-switch remap rejected (CJK \(originalCJK)→\(remappedCJK), Latin \(originalLatin)→\(remappedLatin), len \(result.text.count)→\(remapped.text.count)), using original")
-                    return resultWithLang
-                }
-            }
-            return resultWithLang
         }
 
         return result

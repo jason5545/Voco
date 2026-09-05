@@ -27,11 +27,6 @@ enum Qwen3CoreMLHybridModelError: Error, LocalizedError {
 class Qwen3CoreMLHybridModel {
     private static let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3CoreMLHybridModel")
 
-    /// Language tags that cause English transliteration; remap to preserve code-switching
-    private static let codeSwitchLanguageRemap: [String: String] = [
-        "Chinese": "English",
-    ]
-
     private let coremlEncoder = Qwen3CoreMLEncoder()
     private var mlxModel: Qwen3ASRModel?
 
@@ -86,44 +81,15 @@ class Qwen3CoreMLHybridModel {
         eval(audioEmbeds)
 
         // Step 3: Decode with MLX text decoder (runs on GPU)
-        let result = try mlxModel.generateText(
+        // 單趟解碼；code-switch remap 二次解碼已於 2026-09-05 移除
+        // （依據 ReplayLab eval493 證據，詳見 Qwen3ASRModel.transcribe()）。
+        return try mlxModel.generateText(
             audioEmbeds: audioEmbeds,
             textDecoder: textDecoder,
             language: language,
             prompt: prompt,
             maxTokens: effectiveMaxTokens
         )
-
-        // Step 4: Code-switch remap (same logic as Qwen3ASRModel.transcribe())
-        if language == nil,
-           let detectedLang = result.detectedLanguage,
-           let remappedLang = Self.codeSwitchLanguageRemap[detectedLang] {
-            Memory.clearCache()
-            Self.logger.info("Code-switch remap: \(detectedLang) → \(remappedLang)")
-
-            // Re-encode with CoreML for the remapped pass
-            let remappedAudioEmbeds = try coremlEncoder.encode(melFeatures: melFeatures)
-                .expandedDimensions(axis: 0)
-            eval(remappedAudioEmbeds)
-
-            let remapped = try mlxModel.generateText(
-                audioEmbeds: remappedAudioEmbeds,
-                textDecoder: textDecoder,
-                language: remappedLang,
-                prompt: prompt,
-                maxTokens: effectiveMaxTokens
-            )
-            return Qwen3ASRModel.TranscriptionResult(
-                text: remapped.text,
-                avgLogProb: remapped.avgLogProb,
-                tokenCount: remapped.tokenCount,
-                detectedLanguage: detectedLang,
-                uncertainWords: remapped.uncertainWords,
-                wordConfidences: remapped.wordConfidences
-            )
-        }
-
-        return result
     }
 
     func unload() {
