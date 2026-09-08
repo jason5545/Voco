@@ -12,7 +12,10 @@ struct MenuBarView: View {
     @EnvironmentObject var enhancementService: AIEnhancementService
     @EnvironmentObject var aiService: AIService
     @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
-    @State private var launchAtLoginEnabled = LaunchAtLogin.isEnabled
+    // View initialization runs again when recording state changes. Reading
+    // LaunchAtLogin here synchronously waits on ServiceManagement and stalls
+    // the main thread before the recorder's continuation can resume.
+    @State private var launchAtLoginEnabled: Bool?
 
     var body: some View {
         VStack {
@@ -69,9 +72,21 @@ struct MenuBarView: View {
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
 
-            Toggle("Launch at Login", isOn: $launchAtLoginEnabled)
-                .onChange(of: launchAtLoginEnabled) { _, newValue in
+            Toggle("Launch at Login", isOn: Binding(
+                get: { launchAtLoginEnabled ?? false },
+                set: { newValue in
                     LaunchAtLogin.isEnabled = newValue
+                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                }
+            ))
+                .disabled(launchAtLoginEnabled == nil)
+                .task {
+                    launchAtLoginEnabled = nil
+                    let enabled = await Task.detached(priority: .utility) {
+                        LaunchAtLogin.isEnabled
+                    }.value
+                    guard !Task.isCancelled else { return }
+                    launchAtLoginEnabled = enabled
                 }
 
             Divider()
