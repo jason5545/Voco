@@ -3,6 +3,46 @@ import os
 
 final class ContextAwareInsertionService {
     static let shared = ContextAwareInsertionService()
+    static let adjacentRepeatedPhraseRuleID = "context-aware-insertion.adjacent-phrase-dedup.v2"
+
+    struct DeduplicationResult: Equatable {
+        let text: String
+        let events: [DeduplicationEvent]
+    }
+
+    struct DeduplicationEvent: Equatable {
+        enum Decision: String, Equatable {
+            case removed
+            case preservedForReview
+        }
+
+        let ruleID: String
+        let decision: Decision
+        let reason: String
+        let beforeText: String
+        let afterText: String
+        let repeatedPhrase: String
+        /// Character offsets in `beforeText` covering both adjacent copies.
+        let matchedRange: Range<Int>
+        /// Character offsets in `beforeText`; nil when the candidate is preserved.
+        let removedRange: Range<Int>?
+    }
+
+    private struct AdjacentRepeatedPhraseCandidate {
+        let firstRange: Range<Int>
+        let duplicateRange: Range<Int>
+
+        var matchedRange: Range<Int> {
+            firstRange.lowerBound..<duplicateRange.upperBound
+        }
+    }
+
+    private struct ReviewCueFamily {
+        let reason: String
+        let phrases: [String]
+        let patterns: [String]
+    }
+
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "ContextAwareInsertion")
 
     private init() {}
@@ -79,20 +119,81 @@ final class ContextAwareInsertionService {
 
     /// Collapses an immediately repeated speech phrase inside one dictation.
     /// Three content characters keeps ordinary forms such as「看看」and
-    ///「非常非常」outside this automatic correction.
+    ///「非常非常」outside this automatic correction. Candidates containing
+    /// semantic control cues, literal/quoted text, or ASCII and numeric tokens
+    /// are preserved for review because an exact character repeat may still
+    /// carry meaning.
     func removeAdjacentRepeatedPhrases(_ text: String) -> String {
-        var characters = Array(text)
-
-        while let repeatedRange = adjacentRepeatedPhraseRange(in: characters) {
-            characters.removeSubrange(repeatedRange)
-        }
-        return String(characters)
+        let result = deduplicateAdjacentRepeatedPhrases(text)
+        result.events.forEach(logDeduplicationEvent)
+        return result.text
     }
 
-    private func adjacentRepeatedPhraseRange(in characters: [Character]) -> Range<Int>? {
-        guard characters.count >= 6 else { return nil }
+    func deduplicateAdjacentRepeatedPhrases(_ text: String) -> DeduplicationResult {
+        var characters = Array(text)
+        var events: [DeduplicationEvent] = []
+        var searchStart = 0
 
-        for start in characters.indices {
+        while let candidate = adjacentRepeatedPhraseCandidate(
+            in: characters,
+            startingAt: searchStart
+        ) {
+            let beforeText = String(characters)
+            let repeatedPhrase = String(characters[candidate.firstRange])
+            let clause = surroundingClause(in: characters, matchedRange: candidate.matchedRange)
+
+            if let protectedReason = protectedReviewReason(
+                repeatedPhrase: repeatedPhrase,
+                surroundingClause: clause,
+                isInsideLiteralQuote: isInsideLiteralQuote(
+                    in: characters,
+                    matchedRange: candidate.matchedRange
+                )
+            ) {
+                events.append(
+                    DeduplicationEvent(
+                        ruleID: Self.adjacentRepeatedPhraseRuleID,
+                        decision: .preservedForReview,
+                        reason: protectedReason,
+                        beforeText: beforeText,
+                        afterText: beforeText,
+                        repeatedPhrase: repeatedPhrase,
+                        matchedRange: candidate.matchedRange,
+                        removedRange: nil
+                    )
+                )
+                searchStart = candidate.duplicateRange.upperBound
+                continue
+            }
+
+            characters.removeSubrange(candidate.duplicateRange)
+            let afterText = String(characters)
+            events.append(
+                DeduplicationEvent(
+                    ruleID: Self.adjacentRepeatedPhraseRuleID,
+                    decision: .removed,
+                    reason: "exact-adjacent-phrase-repeat",
+                    beforeText: beforeText,
+                    afterText: afterText,
+                    repeatedPhrase: repeatedPhrase,
+                    matchedRange: candidate.matchedRange,
+                    removedRange: candidate.duplicateRange
+                )
+            )
+            // Re-scan after a mutation so three or more adjacent copies collapse.
+            searchStart = 0
+        }
+
+        return DeduplicationResult(text: String(characters), events: events)
+    }
+
+    private func adjacentRepeatedPhraseCandidate(
+        in characters: [Character],
+        startingAt searchStart: Int
+    ) -> AdjacentRepeatedPhraseCandidate? {
+        guard characters.count >= 6, searchStart < characters.count else { return nil }
+
+        for start in searchStart..<characters.count {
             let maximumLength = (characters.count - start) / 2
             guard maximumLength > 0 else { continue }
 
@@ -104,7 +205,10 @@ final class ContextAwareInsertionService {
                       phrase.elementsEqual(characters[secondStart..<secondEnd]) else {
                     continue
                 }
-                return secondStart..<secondEnd
+                return AdjacentRepeatedPhraseCandidate(
+                    firstRange: start..<secondStart,
+                    duplicateRange: secondStart..<secondEnd
+                )
             }
         }
         return nil
@@ -115,6 +219,174 @@ final class ContextAwareInsertionService {
         return content.count >= 3 && Set(content).count >= 2
     }
 
+    private func surroundingClause(
+        in characters: [Character],
+        matchedRange: Range<Int>
+    ) -> String {
+        var lowerBound = matchedRange.lowerBound
+        while lowerBound > 0, !Self.clauseBoundaries.contains(characters[lowerBound - 1]) {
+            lowerBound -= 1
+        }
+
+        var upperBound = matchedRange.upperBound
+        while upperBound < characters.count, !Self.clauseBoundaries.contains(characters[upperBound]) {
+            upperBound += 1
+        }
+        return String(characters[lowerBound..<upperBound])
+    }
+
+    private func protectedReviewReason(
+        repeatedPhrase: String,
+        surroundingClause: String,
+        isInsideLiteralQuote: Bool
+    ) -> String? {
+        if isInsideLiteralQuote
+            || repeatedPhrase.contains(where: { Self.quoteMarkers.contains($0) })
+            || matches(Self.literalOrMetaCueFamily, in: surroundingClause) {
+            return Self.literalOrMetaCueFamily.reason
+        }
+        if matches(Self.selfRepairCueFamily, in: surroundingClause) {
+            return Self.selfRepairCueFamily.reason
+        }
+        if let reason = firstMatchingReason(
+            in: repeatedPhrase,
+            families: Self.semanticCueFamilies
+        ) {
+            return reason
+        }
+        if let reason = firstMatchingReason(
+            in: surroundingClause,
+            families: Self.semanticCueFamilies
+        ) {
+            return reason
+        }
+        if repeatedPhrase.unicodeScalars.contains(where: {
+            $0.isASCII && CharacterSet.alphanumerics.contains($0)
+        }) {
+            return "review-protected-ascii-or-number"
+        }
+        return nil
+    }
+
+    private func firstMatchingReason(
+        in text: String,
+        families: [ReviewCueFamily]
+    ) -> String? {
+        families.first(where: { matches($0, in: text) })?.reason
+    }
+
+    private func matches(_ family: ReviewCueFamily, in text: String) -> Bool {
+        containsAny(family.phrases, in: text)
+            || family.patterns.contains(where: { matchesCuePattern($0, in: text) })
+    }
+
+    private func containsAny(_ cues: [String], in text: String) -> Bool {
+        cues.contains(where: text.contains)
+    }
+
+    private func matchesCuePattern(_ pattern: String, in text: String) -> Bool {
+        text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private func isInsideLiteralQuote(
+        in characters: [Character],
+        matchedRange: Range<Int>
+    ) -> Bool {
+        for pair in Self.directionalQuotePairs {
+            var depth = 0
+            for character in characters[..<matchedRange.lowerBound] {
+                if character == pair.open {
+                    depth += 1
+                } else if character == pair.close, depth > 0 {
+                    depth -= 1
+                }
+            }
+            if depth > 0,
+               characters[matchedRange.upperBound...].contains(pair.close) {
+                return true
+            }
+        }
+
+        for quote in Self.symmetricQuoteCharacters {
+            let precedingCount = characters[..<matchedRange.lowerBound]
+                .filter { $0 == quote }
+                .count
+            if precedingCount.isMultiple(of: 2) == false,
+               characters[matchedRange.upperBound...].contains(quote) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func logDeduplicationEvent(_ event: DeduplicationEvent) {
+        let matchedRange = "\(event.matchedRange.lowerBound)..<\(event.matchedRange.upperBound)"
+        let removedRange = event.removedRange.map {
+            "\($0.lowerBound)..<\($0.upperBound)"
+        } ?? "none"
+        logger.notice(
+            "Adjacent repetition rule=\(event.ruleID, privacy: .public) decision=\(event.decision.rawValue, privacy: .public) reason=\(event.reason, privacy: .public) matchedRange=\(matchedRange, privacy: .public) removedRange=\(removedRange, privacy: .public) repeatedPhrase=\(event.repeatedPhrase, privacy: .private(mask: .hash)) before=\(event.beforeText, privacy: .private) after=\(event.afterText, privacy: .private)"
+        )
+    }
+
+    private static let clauseBoundaries: Set<Character> = ["。", "！", "？", ".", "!", "?", "；", ";", "\n", "\r"]
+    private static let literalOrMetaCueFamily = ReviewCueFamily(
+        reason: "review-protected-literal-or-quoted-text",
+        phrases: [
+            "字面", "原文", "逐字", "照抄", "請寫", "请写", "寫出", "写出",
+            "請保留", "请保留", "保留", "請輸出", "请输出", "輸出", "输出",
+            "重複", "重复", "不要改", "別改", "别改", "這幾個字", "这几个字",
+            "這段文字", "这段文字", "字串", "字符串",
+        ],
+        patterns: ["\\b(?:literal|literally|verbatim|quote|quoted|string)\\b"]
+    )
+    private static let selfRepairCueFamily = ReviewCueFamily(
+        reason: "review-protected-self-repair-cue",
+        phrases: [
+            "應該是", "应该是", "我的意思是", "我是說", "我是说", "其實是", "其实是",
+            "更正", "修正一下", "應該說", "应该说", "改成", "改口", "重來", "重来",
+            "重新說", "重新说", "不對", "不对",
+        ],
+        patterns: [
+            "(?:^|[，,、；;：:\\s])等一下(?:[，,、；;：:]|$)",
+            "\\b(?:i\\s+mean|correction|sorry|wait)\\b",
+        ]
+    )
+    private static let semanticCueFamilies = [
+        ReviewCueFamily(
+            reason: "review-protected-contrast-cue",
+            phrases: ["但是", "但", "不過", "不过", "可是", "然而", "卻", "却", "反而"],
+            patterns: ["\\b(?:but|however|instead)\\b|\\brather\\s+than\\b"]
+        ),
+        ReviewCueFamily(
+            reason: "review-protected-comparison-cue",
+            phrases: [
+                "或者", "還是", "还是", "或是", "比較", "比较", "相比", "相較", "相较",
+                "比起", "不如", "不同", "一樣", "一样", "前者", "後者", "后者",
+            ],
+            patterns: ["\\b(?:or|versus|vs)\\b"]
+        ),
+        ReviewCueFamily(
+            reason: "review-protected-negation-cue",
+            phrases: [
+                "不要", "不能", "不是", "沒有", "没有", "別", "别", "非", "勿", "莫",
+                "甭", "不", "沒", "没", "未", "無", "无",
+            ],
+            patterns: ["\\b(?:not|no|cannot|can't|don't|doesn't)\\b"]
+        ),
+    ]
+    private static let directionalQuotePairs: [(open: Character, close: Character)] = [
+        ("「", "」"),
+        ("『", "』"),
+        ("“", "”"),
+        ("‘", "’"),
+        ("〈", "〉"),
+        ("《", "》"),
+    ]
+    private static let symmetricQuoteCharacters: Set<Character> = ["\""]
+    private static let quoteMarkers: Set<Character> = [
+        "「", "」", "『", "』", "“", "”", "‘", "’", "〈", "〉", "《", "》", "\"",
+    ]
     private static let singleCharacterRestartOverlaps: Set<String> = ["又", "就", "也", "還", "再", "都", "才", "只"]
 
     private func hasLatinWordBoundaries(

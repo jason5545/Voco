@@ -161,6 +161,7 @@ DEFAULT_SOURCE_BOUNDARY_MODE = "default"
 CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE = "cjk-unsafe-continuation"
 SOURCE_BOUNDARY_MODES = {DEFAULT_SOURCE_BOUNDARY_MODE, CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE}
 UNSAFE_CJK_CONTINUATION_AFTER_PAIR_SOURCE = set("分性化度感型式區市縣里路街段號款項章篇版光睛")
+BROAD_INVALID_SURFACE_FAMILY_ROLE = "broad-invalid-surface"
 CURRENCY_NUMBER_NORMALIZATION_POLICY_ID = "runtime.currency-number-normalization"
 CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE = "currencyNumberNormalization"
 CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES = ["runtimeSpecialPolicy"]
@@ -3027,12 +3028,13 @@ def compile_model(
     strip_proposal_candidate_metadata(model)
     strip_runtime_index_fields(model)
     policies = [copy.deepcopy(policy) for policy in model.get("policies") or []]
+    applied_events, event_scope = select_incremental_control_events(base_model, events, evidence_store)
     overlay_policy_count = 0
     tombstone_count = 0
     family_tag_count = 0
     family_tag_misses: list[dict[str, Any]] = []
 
-    for event in events:
+    for event in applied_events:
         action = str(event.get("action") or "")
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         if action == "addCorrection":
@@ -3082,6 +3084,9 @@ def compile_model(
         "evidenceStore": str(evidence_store),
         "evidenceStoreSha256": sha256_file(evidence_store) if evidence_store.exists() else None,
         "eventCount": len(events),
+        "appliedEventCount": len(applied_events),
+        "historicalEventCount": len(events) - len(applied_events),
+        "compileScope": event_scope,
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
         "tombstoneDispositionCounts": tombstone_disposition_counts,
@@ -3097,6 +3102,9 @@ def compile_model(
         "basePolicyTypeCounts": base_model.get("policyTypeCounts") or {},
         "newPolicyTypeCounts": model["policyTypeCounts"],
         "eventCount": len(events),
+        "appliedEventCount": len(applied_events),
+        "historicalEventCount": len(events) - len(applied_events),
+        "compileScope": event_scope,
         "overlayPolicyCount": overlay_policy_count,
         "tombstoneCount": tombstone_count,
         "tombstoneDispositionCounts": tombstone_disposition_counts,
@@ -3106,6 +3114,43 @@ def compile_model(
         "runtimeIndexRepair": runtime_index_repair,
     }
     return model, report
+
+
+def select_incremental_control_events(
+    base_model: dict[str, Any],
+    events: list[dict[str, Any]],
+    evidence_store: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Apply only evidence appended after the base model snapshot when safe.
+
+    The canonical evidence store is append-only. Replaying its full history on
+    top of an already compiled active model can resurrect superseded policies
+    and reattach stale examples. If the base model records the same evidence
+    store and a valid event count, the delta is the only control input needed.
+    """
+    control_plane = base_model.get("controlPlane") if isinstance(base_model.get("controlPlane"), dict) else {}
+    raw_event_count = control_plane.get("eventCount")
+    raw_evidence_store = str(control_plane.get("evidenceStore") or "").strip()
+    if (
+        isinstance(raw_event_count, int)
+        and not isinstance(raw_event_count, bool)
+        and 0 <= raw_event_count <= len(events)
+        and raw_evidence_store
+    ):
+        base_evidence_store = Path(raw_evidence_store).expanduser()
+        if base_evidence_store.resolve() == evidence_store.expanduser().resolve():
+            return events[raw_event_count:], {
+                "mode": "incremental",
+                "baseEventCount": raw_event_count,
+                "totalEventCount": len(events),
+            }
+    return events, {
+        "mode": "full-history-fallback",
+        "baseEventCount": raw_event_count,
+        "totalEventCount": len(events),
+        "baseEvidenceStore": raw_evidence_store or None,
+        "evidenceStore": str(evidence_store),
+    }
 
 
 def strip_proposal_candidate_metadata(model: dict[str, Any]) -> None:
@@ -3731,10 +3776,17 @@ def validate_model(
 ) -> dict[str, Any]:
     apply_policies = [policy for policy in model.get("policies") or [] if policy.get("autoApplyMode") == "apply"]
     active_control_event_ids = control_event_ids_for_policies(apply_policies)
+    model_control_plane = model.get("controlPlane") if isinstance(model.get("controlPlane"), dict) else {}
+    model_evidence_store = str(model_control_plane.get("evidenceStore") or "").strip()
+    validation_events, validation_event_scope = select_incremental_control_events(
+        base_model or {},
+        events,
+        Path(model_evidence_store).expanduser() if model_evidence_store else Path(""),
+    )
     protected_guards = protected_term_allowlist_guards(model)
     failures: list[dict[str, Any]] = []
-    positive_results = validate_positive_examples(events, apply_policies, active_control_event_ids, protected_guards)
-    negative_results = validate_negative_examples(events, apply_policies, active_control_event_ids, protected_guards)
+    positive_results = validate_positive_examples(validation_events, apply_policies, active_control_event_ids, protected_guards)
+    negative_results = validate_negative_examples(validation_events, apply_policies, active_control_event_ids, protected_guards)
     failures.extend(item for item in positive_results if not item["passed"])
     failures.extend(item for item in negative_results if not item["passed"])
     exact_conflicts = exact_apply_conflicts(apply_policies)
@@ -3775,6 +3827,7 @@ def validate_model(
         "familyMetadataFailures": family_metadata_failures,
         "policyCounts": model.get("policyCounts") or {},
         "policyTypeCounts": model.get("policyTypeCounts") or {},
+        "validationEventScope": validation_event_scope,
         "policyCountReport": count_report,
         "corpusReplay": corpus_reports,
         "failures": failures,
@@ -3940,7 +3993,13 @@ def manual_replacement_rule_failures(apply_policies: list[dict[str, Any]]) -> li
             )
         if not is_regex_policy and manual_replacement_noop_key(source) == manual_replacement_noop_key(target):
             failures.append({"kind": "manualReplacementNoOp", "policyId": policy_id, "passed": False})
-        if not is_regex_policy and len(strict_text_key(source)) < 2 and not contains_ascii_token(source):
+        strict_source = strict_text_key(source)
+        short_cjk_broad_surface = (
+            policy.get("familyRole") == BROAD_INVALID_SURFACE_FAMILY_ROLE
+            and len(strict_source) == 1
+            and is_all_cjk(strict_source)
+        )
+        if not is_regex_policy and len(strict_source) < 2 and not contains_ascii_token(source) and not short_cjk_broad_surface:
             failures.append({"kind": "manualReplacementSourceTooShort", "policyId": policy_id, "sourcePattern": source, "passed": False})
         mode = str(policy.get("sourceBoundaryMode") or DEFAULT_SOURCE_BOUNDARY_MODE)
         if mode not in SOURCE_BOUNDARY_MODES:

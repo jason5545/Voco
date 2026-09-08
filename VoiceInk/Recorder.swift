@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AppKit
 import CoreAudio
 import os
 
@@ -10,6 +11,7 @@ class Recorder: NSObject, ObservableObject {
     private let deviceManager = AudioDeviceManager.shared
     private var deviceSwitchObserver: NSObjectProtocol?
     private var audioDeviceChangedObserver: NSObjectProtocol?
+    private var lifecycleObservers: [NSObjectProtocol] = []
     private var isReconfiguring = false
     private let mediaController = MediaController.shared
     private let playbackController = PlaybackController.shared
@@ -19,6 +21,7 @@ class Recorder: NSObject, ObservableObject {
     /// Dedicated serial queue for hardware setup.
     private let audioSetupQueue = DispatchQueue(label: "com.prakashjoshipax.voiceink.audioSetup", qos: .userInitiated)
     private var audioMuteTask: Task<Void, Never>?
+    private var mediaPauseTask: Task<Void, Never>?
     private var audioRestorationTask: Task<Void, Never>?
     private let smoothedValuesLock = NSLock()
     private var smoothedAverage: Float = 0
@@ -38,6 +41,7 @@ class Recorder: NSObject, ObservableObject {
         super.init()
         setupDeviceSwitchObserver()
         setupAudioDeviceChangedObserver()
+        setupLifecycleObservers()
         schedulePrepareForCurrentDevice(reason: "init")
     }
 
@@ -61,8 +65,26 @@ class Recorder: NSObject, ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 guard let self, !self.deviceManager.isRecordingActive else { return }
+                self.invalidatePreparedAudioUnit()
                 self.schedulePrepareForCurrentDevice(reason: "device-changed")
             }
+        }
+    }
+
+    private func setupLifecycleObservers() {
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.didWakeNotification] {
+            lifecycleObservers.append(
+                workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.invalidatePreparedAudioUnit()
+                        if notification.name == NSWorkspace.didWakeNotification {
+                            self.schedulePrepareForCurrentDevice(reason: "system-wake")
+                        }
+                    }
+                }
+            )
         }
     }
 
@@ -162,10 +184,7 @@ class Recorder: NSObject, ObservableObject {
             StartupTracer.checkpoint("Recorder.CoreAudioRecorder_started")
 
             startAudioMeterTimer()
-            Task { [weak self] in
-                guard let self else { return }
-                await self.playbackController.pauseMedia()
-            }
+            pauseMedia()
         } catch {
             logger.error("Failed to start recording deviceID=\(deviceID, privacy: .public) file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             await stopRecording()
@@ -176,6 +195,8 @@ class Recorder: NSObject, ObservableObject {
     func stopRecording() async {
         audioMuteTask?.cancel()
         audioMuteTask = nil
+        mediaPauseTask?.cancel()
+        mediaPauseTask = nil
         audioMeterUpdateTimer?.cancel()
         audioMeterUpdateTimer = nil
 
@@ -197,11 +218,20 @@ class Recorder: NSObject, ObservableObject {
 
         audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
 
+        audioRestorationTask?.cancel()
         audioRestorationTask = Task {
             await mediaController.unmuteSystemAudio()
             await playbackController.resumeMedia()
         }
         deviceManager.isRecordingActive = false
+    }
+
+    private func pauseMedia() {
+        mediaPauseTask?.cancel()
+        mediaPauseTask = Task { [weak self] in
+            guard !Task.isCancelled, let self else { return }
+            await self.playbackController.pauseMedia()
+        }
     }
 
     private func handleRecordingError(_ error: Error) async {
@@ -253,6 +283,13 @@ class Recorder: NSObject, ObservableObject {
         }
     }
 
+    private func invalidatePreparedAudioUnit() {
+        guard let coreAudioRecorder = recorder else { return }
+        audioSetupQueue.async {
+            coreAudioRecorder.invalidatePreparation()
+        }
+    }
+
     private func updateAudioMeter() {
         guard let recorder = recorder else { return }
 
@@ -299,6 +336,8 @@ class Recorder: NSObject, ObservableObject {
     // MARK: - Cleanup
 
     deinit {
+        audioMuteTask?.cancel()
+        mediaPauseTask?.cancel()
         audioMeterUpdateTimer?.cancel()
         audioRestorationTask?.cancel()
         if let observer = deviceSwitchObserver {
@@ -306,6 +345,9 @@ class Recorder: NSObject, ObservableObject {
         }
         if let observer = audioDeviceChangedObserver {
             NotificationCenter.default.removeObserver(observer)
+        }
+        for observer in lifecycleObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
         recorder?.teardown()
     }

@@ -107,7 +107,11 @@ class WordReplacementService {
 
     private func smartBoundaryPattern(for word: String) -> String {
         let escaped = NSRegularExpression.escapedPattern(for: word)
-        return "(?<![a-zA-Z0-9])\(escaped)(?![a-zA-Z0-9])"
+        // Treat Unicode letters, marks, and numbers as word characters. Exclude
+        // scripts without spaces so Latin terms adjacent to CJK/Thai continue to match.
+        // Script_Extensions also covers shared marks such as U+30FC.
+        let wordChar = "[[\\p{L}\\p{M}\\p{N}]-[\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\\p{scx=Thai}]]"
+        return "(?<!\(wordChar))\(escaped)(?!\(wordChar))"
     }
 
     private func usesWordBoundaries(for text: String) -> Bool {

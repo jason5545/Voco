@@ -5,6 +5,85 @@ import SwiftData
 import AppKit
 import os
 
+/// Serializes the handoff from the recording-start buffer to a live streaming
+/// callback. New chunks cannot overtake chunks captured before session.prepare()
+/// completes, and the bounded buffer keeps startup memory finite.
+final class RealtimeAudioChunkGate: @unchecked Sendable {
+    private struct State {
+        var callback: ((Data) -> Void)?
+        var isActive = false
+        var droppedChunks = 0
+    }
+
+    let pendingChunks: OSAllocatedUnfairLock<[Data]>
+    private let maxBufferedChunks = 2_048
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    init() {
+        pendingChunks = OSAllocatedUnfairLock(initialState: [])
+    }
+
+    func receive(_ data: Data) {
+        let callback = state.withLock { state -> ((Data) -> Void)? in
+            guard state.isActive else {
+                pendingChunks.withLock { chunks in
+                    if chunks.count < maxBufferedChunks {
+                        chunks.append(data)
+                    } else {
+                        state.droppedChunks += 1
+                    }
+                }
+                return nil
+            }
+            return state.callback
+        }
+        callback?(data)
+    }
+
+    func activate(_ callback: @escaping (Data) -> Void) {
+        state.withLock { state in
+            state.callback = callback
+            state.isActive = false
+        }
+
+        while true {
+            let chunks = pendingChunks.withLock { chunks -> [Data] in
+                let result = chunks
+                chunks.removeAll(keepingCapacity: true)
+                return result
+            }
+            for chunk in chunks {
+                callback(chunk)
+            }
+
+            let shouldFinish = state.withLock { state -> Bool in
+                let hasPending = pendingChunks.withLock { !$0.isEmpty }
+                if !hasPending {
+                    state.isActive = true
+                }
+                return !hasPending
+            }
+            if shouldFinish { return }
+        }
+    }
+
+    func reset() {
+        state.withLock { state in
+            state.callback = nil
+            state.isActive = false
+            pendingChunks.withLock { $0.removeAll(keepingCapacity: false) }
+        }
+    }
+
+    func takeDroppedChunkCount() -> Int {
+        state.withLock { state in
+            let count = state.droppedChunks
+            state.droppedChunks = 0
+            return count
+        }
+    }
+}
+
 @MainActor
 class VoiceInkEngine: NSObject, ObservableObject {
     private enum RecordingUseCase {
@@ -202,7 +281,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                     }
                 )
                 let permanentURL = startFlow.recordingURL
-                let pendingChunks = startFlow.pendingChunks
+                let realtimeAudioGate = startFlow.realtimeAudioGate
 
                 guard self.activeRecordingStartID == startID,
                       self.recorderUIManager?.isRecorderPanelVisible ?? false,
@@ -267,20 +346,45 @@ class VoiceInkEngine: NSObject, ObservableObject {
                         configuration: transcriptionConfiguration
                     )
 
-                    if let realCallback {
-                        self.recorder.onAudioChunk = realCallback
-                        let buffered = pendingChunks.withLock { chunks -> [Data] in
-                            let result = chunks
-                            chunks.removeAll()
-                            return result
+                    guard self.activeRecordingStartID == startID,
+                          self.recordingState == .recording,
+                          !self.shouldCancelRecording else {
+                        session.cancel()
+                        realtimeAudioGate.reset()
+                        if self.activeRecordingStartID == startID,
+                           self.currentSession === session
+                        {
+                            self.recorder.onAudioChunk = nil
+                            self.currentSession = nil
+                            self.currentSessionTranscriptionConfiguration = nil
                         }
-                        for chunk in buffered { realCallback(chunk) }
+                        return
+                    }
+
+                    if let realCallback {
+                        realtimeAudioGate.activate(realCallback)
+                        let dropped = realtimeAudioGate.takeDroppedChunkCount()
+                        if dropped > 0 {
+                            self.logger.warning("Dropped startup audio chunks count=\(dropped, privacy: .public)")
+                        }
+                    } else {
+                        // A realtime configuration must provide a callback. If
+                        // preparation intentionally returns nil, discard the
+                        // startup gate so it cannot retain audio forever.
+                        realtimeAudioGate.reset()
+                        if self.activeRecordingStartID == startID,
+                           self.currentSession === session
+                        {
+                            self.recorder.onAudioChunk = nil
+                            self.currentSession = nil
+                            self.currentSessionTranscriptionConfiguration = nil
+                        }
                     }
                 } else {
                     self.currentSession = nil
                     self.currentSessionTranscriptionConfiguration = nil
                     self.recorder.onAudioChunk = nil
-                    pendingChunks.withLock { $0.removeAll() }
+                    realtimeAudioGate.reset()
                 }
 
                 Task { @MainActor [weak self] in
@@ -696,6 +800,7 @@ enum EngineRecordingStartFlow {
     struct Output {
         let recordingURL: URL
         let pendingChunks: OSAllocatedUnfairLock<[Data]>
+        let realtimeAudioGate: RealtimeAudioChunkGate
     }
 
     static func run(
@@ -712,9 +817,10 @@ enum EngineRecordingStartFlow {
         setRecordedFile(recordingURL)
         checkpoint("toggleRecord_recording_file_prepared")
 
-        let pendingChunks = OSAllocatedUnfairLock(initialState: [Data]())
+        let realtimeAudioGate = RealtimeAudioChunkGate()
+        let pendingChunks = realtimeAudioGate.pendingChunks
         setAudioChunkCallback { data in
-            pendingChunks.withLock { $0.append(data) }
+            realtimeAudioGate.receive(data)
         }
         checkpoint("toggleRecord_audio_callback_set")
 
@@ -726,7 +832,11 @@ enum EngineRecordingStartFlow {
         try await startRecording(recordingURL)
         endTrace("recorder_startRecording_done")
 
-        return Output(recordingURL: recordingURL, pendingChunks: pendingChunks)
+        return Output(
+            recordingURL: recordingURL,
+            pendingChunks: pendingChunks,
+            realtimeAudioGate: realtimeAudioGate
+        )
     }
 }
 

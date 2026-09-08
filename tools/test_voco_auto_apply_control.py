@@ -217,6 +217,66 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(validation["positiveExamples"][0]["actualText"], "lab repo")
             self.assertEqual(model["policyCounts"]["apply"], 1)
 
+    def test_compile_uses_only_events_appended_after_base_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base_model = tiny_base_model()
+            base_model["controlPlane"] = {
+                "eventCount": 1,
+                "evidenceStore": str(evidence),
+            }
+            base.write_text(json.dumps(base_model), encoding="utf-8")
+
+            old_args = Namespace(
+                actor="test",
+                source_text="舊事件",
+                target_text="舊結果",
+                row_pk=1,
+                context="",
+                note=None,
+            )
+            new_args = Namespace(
+                actor="test",
+                source_text="新事件",
+                target_text="新結果",
+                row_pk=2,
+                context="",
+                note=None,
+            )
+            events = [control.correction_event(old_args), control.correction_event(new_args)]
+            for event in events:
+                control.append_event(evidence, event)
+
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertEqual(report["compileScope"]["mode"], "incremental")
+            self.assertEqual(report["appliedEventCount"], 1)
+            self.assertEqual(report["historicalEventCount"], 1)
+            self.assertEqual([policy["source"] for policy in model["policies"]], ["新事件"])
+            self.assertTrue(validation["ready"])
+            self.assertEqual(validation["validationEventScope"]["mode"], "incremental")
+            self.assertEqual([item["eventId"] for item in validation["positiveExamples"]], [events[1]["eventId"]])
+
     def test_compile_runtime_model_writes_indexed_v2_without_evidence_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -600,6 +660,68 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertFalse(policy["contextRequired"])
             self.assertEqual(policy["contextTokensAny"], [])
             self.assertEqual(policy["contextAliasesAny"], [])
+
+    def test_broad_invalid_surface_allows_single_cjk_replacement_only_when_explicitly_marked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            args = Namespace(
+                actor="test",
+                source_pattern="嗭",
+                target_text="只",
+                source_text="嗭",
+                row_pk=None,
+                rule_name="broad-invalid-surface-zhi",
+                positive=[],
+                negative=[],
+                positive_text="這個嗭要改成只，嗭也要改。",
+                positive_context="Jason confirmed broad invalid-surface replacement",
+                expected_text="這個只要改成只，只也要改。",
+                negative_text=None,
+                negative_context="",
+                family_id="broad-invalid-surface-aliases",
+                family_role=control.BROAD_INVALID_SURFACE_FAMILY_ROLE,
+                family_reason="Explicit broad one-character CJK invalid-surface correction.",
+                note="Single CJK broad replacement is allowed only for this explicit family role.",
+            )
+            control.append_event(evidence, control.replacement_rule_event(args))
+            events = control.load_events(evidence)
+            model, _report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+
+            self.assertTrue(validation["ready"])
+            self.assertEqual(validation["positiveExamples"][0]["actualText"], "這個只要改成只，只也要改。")
+            self.assertEqual(
+                control.replay_apply_policies("嗭嗭", "", model["policies"])[0],
+                "只只",
+            )
+            policy = model["policies"][0]
+            self.assertEqual(policy["familyRole"], control.BROAD_INVALID_SURFACE_FAMILY_ROLE)
+
+            ordinary_alias = dict(policy)
+            ordinary_alias["familyRole"] = "alias"
+            failures = control.manual_replacement_rule_failures([ordinary_alias])
+            self.assertEqual(failures[0]["kind"], "manualReplacementSourceTooShort")
 
     def test_unlocked_replacement_negative_example_compiles_runtime_guard(self):
         with tempfile.TemporaryDirectory() as tmp:

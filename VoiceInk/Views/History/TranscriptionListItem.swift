@@ -102,8 +102,19 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             badges.append(reviewBadge)
         }
 
-        if let selectionSource = VocoCandidateSelectionSource(rawValue: transcription.candidateSelectionSource ?? "") {
+        let selectionSource = VocoCandidateSelectionSource(
+            rawValue: transcription.candidateSelectionSource ?? ""
+        )
+        if let selectionSource, selectionSource != .finalPaste {
             badges.append(selectionBadge(for: selectionSource))
+        }
+
+        if hasPastedOutcome(transcription) {
+            badges.append(selectionBadge(for: .finalPaste))
+        } else if selectionSource == .finalPaste {
+            // Preserve display compatibility for rows written before paste outcome
+            // had its own finalPastedText/pasteCommandPosted fields.
+            badges.append(selectionBadge(for: .finalPaste))
         }
 
         if let retranscriptionBadge = retranscriptionBadge(for: transcription.retranscriptionAnalysis) {
@@ -155,6 +166,11 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
 
         guard limit > 0 else { return [] }
         return Array(badges.prefix(limit))
+    }
+
+    private static func hasPastedOutcome(_ transcription: Transcription) -> Bool {
+        transcription.pasteCommandPosted == true
+            && transcription.finalPastedText?.contains(where: { !$0.isWhitespace }) == true
     }
 
     private static func selectionBadge(for source: VocoCandidateSelectionSource) -> TranscriptionAssistiveBadge {

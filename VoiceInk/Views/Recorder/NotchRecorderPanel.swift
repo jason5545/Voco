@@ -1,6 +1,15 @@
 import SwiftUI
 import AppKit
 
+enum RecorderScreenResolver {
+    static func resolve() -> NSScreen? {
+        if let main = NSScreen.main { return main }
+        let mouseLocation = NSEvent.mouseLocation
+        return NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.screens.first
+    }
+}
+
 class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -45,7 +54,7 @@ class NotchRecorderPanel: KeyablePanel {
     }
 
     static func calculateWindowMetrics() -> (frame: NSRect, notchWidth: CGFloat, notchHeight: CGFloat) {
-        guard let screen = NSScreen.main else {
+        guard let screen = RecorderScreenResolver.resolve() else {
             return (NSRect(x: 0, y: 0, width: 280, height: 24), 280, 24)
         }
 
@@ -72,10 +81,13 @@ class NotchRecorderPanel: KeyablePanel {
         return (frame, notchWidth, notchHeight)
     }
 
-    func show() {
+    @discardableResult
+    func show() -> Bool {
+        guard RecorderScreenResolver.resolve() != nil else { return false }
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
         setFrame(metrics.frame, display: true)
         orderFrontRegardless()
+        return true
     }
 
     @objc private func handleScreenParametersChange() {

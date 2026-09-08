@@ -34,7 +34,7 @@ class MiniRecorderPanel: NSPanel {
         let width: CGFloat = 540
         let height: CGFloat = 430
 
-        guard let screen = NSScreen.main else {
+        guard let screen = RecorderScreenResolver.resolve() else {
             return NSRect(x: 0, y: 0, width: width, height: height)
         }
 
@@ -54,10 +54,13 @@ class MiniRecorderPanel: NSPanel {
         )
     }
 
-    func show() {
+    @discardableResult
+    func show() -> Bool {
+        guard RecorderScreenResolver.resolve() != nil else { return false }
         let metrics = MiniRecorderPanel.calculateWindowMetrics()
         setFrame(metrics, display: true)
         orderFrontRegardless()
+        return true
     }
 
 }

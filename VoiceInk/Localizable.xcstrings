@@ -1711,6 +1711,16 @@
         }
       }
     },
+    "The assigned shortcut cancels the recording. Resetting restores the default double-Escape behavior.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指定的快捷鍵會取消錄音。重設後會恢復預設的雙按 Esc 行為。"
+          }
+        }
+      }
+    },
     "Language: English": {
       "localizations": {
         "zh-Hant": {

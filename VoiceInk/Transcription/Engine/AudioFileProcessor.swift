@@ -52,12 +52,47 @@ class AudioProcessor {
     }
 
     func transcodeToWhisperWav(_ url: URL, to destinationURL: URL) async throws -> TimeInterval {
-        try await Task.detached(priority: .userInitiated) {
+        let worker = Task.detached(priority: .userInitiated) {
             try Self.transcodeToWhisperWavSync(url, to: destinationURL)
-        }.value
+        }
+        do {
+            let duration = try await withTaskCancellationHandler(operation: {
+                try await worker.value
+            }, onCancel: {
+                worker.cancel()
+            })
+            try Task.checkCancellation()
+            return duration
+        } catch {
+            worker.cancel()
+            if Task.isCancelled {
+                try? FileManager.default.removeItem(at: destinationURL)
+                throw CancellationError()
+            }
+            try Task.checkCancellation()
+            guard !Self.isPolicyError(error) else { throw error }
+            logger.warning("AVAudioFile import failed for \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public). Falling back to AVAssetReader.")
+            do {
+                return try await transcodeUsingAssetReader(url, to: destinationURL)
+            } catch {
+                try? FileManager.default.removeItem(at: destinationURL)
+                throw error
+            }
+        }
     }
     
     func processAudioToSamples(_ url: URL) async throws -> [Float] {
+        do {
+            return try readUsingAudioFile(url)
+        } catch {
+            try Task.checkCancellation()
+            guard !Self.isPolicyError(error) else { throw error }
+            logger.warning("AVAudioFile sample extraction failed for \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public). Falling back to AVAssetReader.")
+            return try await readUsingAssetReader(url)
+        }
+    }
+
+    private func readUsingAudioFile(_ url: URL) throws -> [Float] {
         guard let audioFile = try? AVAudioFile(forReading: url) else {
             throw AudioProcessingError.invalidAudioFile
         }
@@ -84,6 +119,7 @@ class AudioProcessor {
         var currentFrame: AVAudioFramePosition = 0
         
         while currentFrame < totalFrames {
+            try Task.checkCancellation()
             let remainingFrames = totalFrames - currentFrame
             let framesToRead = min(chunkSize, AVAudioFrameCount(remainingFrames))
             
@@ -135,6 +171,256 @@ class AudioProcessor {
         }
         
         return allSamples
+    }
+
+    private func readUsingAssetReader(_ url: URL) async throws -> [Float] {
+        let asset = AVURLAsset(url: url)
+        let durationTime = try await asset.load(.duration)
+        let duration = CMTimeGetSeconds(durationTime)
+        guard duration.isFinite, duration > 0 else {
+            throw AudioProcessingError.invalidAudioMetadata
+        }
+        guard duration <= ProcessingLimits.maxSafeDuration else {
+            throw AudioProcessingError.audioTooLong(
+                duration: duration,
+                limit: ProcessingLimits.maxSafeDuration
+            )
+        }
+        guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
+            throw AudioProcessingError.invalidAudioFile
+        }
+
+        let reader = try AVAssetReader(asset: asset)
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: AudioFormat.targetSampleRate,
+            AVNumberOfChannelsKey: AudioFormat.targetChannels,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        output.alwaysCopiesSampleData = false
+        guard reader.canAdd(output) else { throw AudioProcessingError.conversionFailed }
+        reader.add(output)
+        guard reader.startReading() else {
+            throw reader.error ?? AudioProcessingError.sampleExtractionFailed
+        }
+
+        let maxDecodedSamples = Int(ProcessingLimits.maxSafeDuration * AudioFormat.targetSampleRate)
+        var decodedSamples = 0
+        var samples: [Float] = []
+        do {
+            while let sampleBuffer = output.copyNextSampleBuffer() {
+                try Task.checkCancellation()
+                guard CMSampleBufferDataIsReady(sampleBuffer),
+                      let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+                      let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription),
+                      let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+
+                let format = streamDescription.pointee
+                guard format.mFormatID == kAudioFormatLinearPCM,
+                      abs(format.mSampleRate - AudioFormat.targetSampleRate) < 1.0,
+                      format.mChannelsPerFrame == AudioFormat.targetChannels,
+                      format.mBitsPerChannel == 32,
+                      (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0 else {
+                    throw AudioProcessingError.conversionFailed
+                }
+
+                let byteCount = CMBlockBufferGetDataLength(blockBuffer)
+                guard byteCount > 0, byteCount % MemoryLayout<Float>.size == 0 else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+                let chunkSampleCount = byteCount / MemoryLayout<Float>.size
+                guard decodedSamples <= maxDecodedSamples - chunkSampleCount else {
+                    throw AudioProcessingError.audioTooLong(
+                        duration: Double(decodedSamples + chunkSampleCount) / AudioFormat.targetSampleRate,
+                        limit: ProcessingLimits.maxSafeDuration
+                    )
+                }
+                var chunk = [Float](repeating: 0, count: byteCount / MemoryLayout<Float>.size)
+                let status = chunk.withUnsafeMutableBytes { destination in
+                    CMBlockBufferCopyDataBytes(
+                        blockBuffer,
+                        atOffset: 0,
+                        dataLength: byteCount,
+                        destination: destination.baseAddress!
+                    )
+                }
+                guard status == kCMBlockBufferNoErr else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+                samples.append(contentsOf: chunk)
+                decodedSamples += chunkSampleCount
+            }
+            if reader.status == .failed {
+                throw reader.error ?? AudioProcessingError.sampleExtractionFailed
+            }
+            if reader.status == .cancelled { throw CancellationError() }
+        } catch {
+            reader.cancelReading()
+            throw error
+        }
+
+        guard !samples.isEmpty else { throw AudioProcessingError.sampleExtractionFailed }
+        let maxSample = samples.reduce(0) { max($0, abs($1)) }
+        if maxSample > 0 {
+            samples = samples.map { $0 / maxSample }
+        }
+        return samples
+    }
+
+    private static func isPolicyError(_ error: Error) -> Bool {
+        guard let error = error as? AudioProcessingError else { return false }
+        switch error {
+        case .invalidAudioMetadata, .audioTooLong:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Decode through AVAssetReader when AVAudioFile cannot open a valid media
+    /// container. The reader emits bounded PCM sample buffers and each buffer is
+    /// written immediately, so a long import never accumulates all samples.
+    private func transcodeUsingAssetReader(_ url: URL, to destinationURL: URL) async throws -> TimeInterval {
+        let asset = AVURLAsset(url: url)
+        let durationTime = try await asset.load(.duration)
+        let duration = CMTimeGetSeconds(durationTime)
+        guard duration.isFinite, duration > 0 else {
+            throw AudioProcessingError.invalidAudioMetadata
+        }
+        guard duration <= ProcessingLimits.maxSafeDuration else {
+            throw AudioProcessingError.audioTooLong(
+                duration: duration,
+                limit: ProcessingLimits.maxSafeDuration
+            )
+        }
+        guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
+            throw AudioProcessingError.invalidAudioFile
+        }
+
+        let reader = try AVAssetReader(asset: asset)
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: AudioFormat.targetSampleRate,
+            AVNumberOfChannelsKey: AudioFormat.targetChannels,
+            AVLinearPCMBitDepthKey: AudioFormat.targetBitDepth,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        output.alwaysCopiesSampleData = false
+        guard reader.canAdd(output) else { throw AudioProcessingError.conversionFailed }
+        reader.add(output)
+
+        let maxDecodedFrames = Int64(ProcessingLimits.maxSafeDuration * AudioFormat.targetSampleRate)
+        var decodedFrames: Int64 = 0
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(
+            at: destinationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: AudioFormat.targetSampleRate,
+            channels: AudioFormat.targetChannels,
+            interleaved: true
+        ) else { throw AudioProcessingError.unsupportedFormat }
+
+        do {
+            guard reader.startReading() else {
+                throw reader.error ?? AudioProcessingError.sampleExtractionFailed
+            }
+            let audioFile = try AVAudioFile(
+                forWriting: destinationURL,
+                settings: format.settings,
+                commonFormat: .pcmFormatInt16,
+                interleaved: true
+            )
+
+            while let sampleBuffer = output.copyNextSampleBuffer() {
+                try Task.checkCancellation()
+                guard CMSampleBufferDataIsReady(sampleBuffer),
+                      let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+                      let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription),
+                      let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+                let streamFormat = streamDescription.pointee
+                let formatFlags = streamFormat.mFormatFlags
+                guard streamFormat.mFormatID == kAudioFormatLinearPCM,
+                      abs(streamFormat.mSampleRate - AudioFormat.targetSampleRate) < 1.0,
+                      streamFormat.mChannelsPerFrame == AudioFormat.targetChannels,
+                      streamFormat.mBitsPerChannel == AudioFormat.targetBitDepth,
+                      (formatFlags & kAudioFormatFlagIsFloat) == 0,
+                      (formatFlags & kAudioFormatFlagIsBigEndian) == 0,
+                      (formatFlags & kAudioFormatFlagIsNonInterleaved) == 0 else {
+                    throw AudioProcessingError.conversionFailed
+                }
+                let byteCount = CMBlockBufferGetDataLength(blockBuffer)
+                guard byteCount > 0,
+                      byteCount % MemoryLayout<Int16>.size == 0 else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+                let frameCount = AVAudioFrameCount(byteCount / MemoryLayout<Int16>.size)
+                decodedFrames += Int64(frameCount)
+                guard decodedFrames <= maxDecodedFrames else {
+                    throw AudioProcessingError.audioTooLong(
+                        duration: Double(decodedFrames) / AudioFormat.targetSampleRate,
+                        limit: ProcessingLimits.maxSafeDuration
+                    )
+                }
+                guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+                      let channelData = pcmBuffer.int16ChannelData?.pointee else {
+                    throw AudioProcessingError.conversionFailed
+                }
+                pcmBuffer.frameLength = frameCount
+                let status = CMBlockBufferCopyDataBytes(
+                    blockBuffer,
+                    atOffset: 0,
+                    dataLength: byteCount,
+                    destination: channelData
+                )
+                guard status == kCMBlockBufferNoErr else {
+                    throw AudioProcessingError.sampleExtractionFailed
+                }
+                try audioFile.write(from: pcmBuffer)
+            }
+
+            if reader.status == .failed {
+                throw reader.error ?? AudioProcessingError.sampleExtractionFailed
+            }
+            if reader.status == .cancelled {
+                throw CancellationError()
+            }
+            guard reader.status == .completed, decodedFrames > 0 else {
+                throw AudioProcessingError.sampleExtractionFailed
+            }
+            return Double(decodedFrames) / AudioFormat.targetSampleRate
+        } catch {
+            reader.cancelReading()
+            try? fileManager.removeItem(at: destinationURL)
+            throw error
+        }
+    }
+
+    /// Internal test hook for exercising the resilient reader with a valid fixture.
+    func transcodeUsingAssetReaderForTesting(_ url: URL, to destinationURL: URL) async throws -> TimeInterval {
+        do {
+            return try await transcodeUsingAssetReader(url, to: destinationURL)
+        } catch {
+            try? FileManager.default.removeItem(at: destinationURL)
+            throw error
+        }
     }
 
     private static func transcodeToWhisperWavSync(_ sourceURL: URL, to destinationURL: URL) throws -> TimeInterval {

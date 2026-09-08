@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import AppKit
+import AVFoundation
+import Carbon.HIToolbox
 import ApplicationServices
 import os
 import SwiftData
@@ -14,6 +17,140 @@ import Testing
 
 @Suite(.serialized)
 struct VoiceInkTests {
+
+    @Test func realtimeAudioGateDrainsInCaptureOrderBeforeLiveChunks() {
+        let gate = RealtimeAudioChunkGate()
+        var delivered: [Data] = []
+
+        gate.receive(Data([1]))
+        gate.receive(Data([2]))
+        gate.activate {
+            delivered.append($0)
+            if $0 == Data([1]) {
+                gate.receive(Data([3]))
+            }
+        }
+
+        #expect(delivered == [Data([1]), Data([2]), Data([3])])
+        #expect(gate.takeDroppedChunkCount() == 0)
+    }
+
+    @Test func realtimeAudioGateBoundsStartupBufferAndReportsOverflow() {
+        let gate = RealtimeAudioChunkGate()
+        for value in 0..<2_050 {
+            gate.receive(Data([UInt8(value & 0xff)]))
+        }
+
+        var deliveredCount = 0
+        gate.activate { _ in deliveredCount += 1 }
+
+        #expect(deliveredCount == 2_048)
+        #expect(gate.takeDroppedChunkCount() == 2)
+    }
+
+    @Test func assetReaderFallbackDecodesFixtureAndWritesWav() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("asset-reader-fallback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceURL = directory.appendingPathComponent("source.wav")
+        let outputURL = directory.appendingPathComponent("output.wav")
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: true
+        ), let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1_600) else {
+            Issue.record("Could not create WAV fixture")
+            return
+        }
+
+        buffer.frameLength = 1_600
+        guard let samples = buffer.int16ChannelData?[0] else {
+            Issue.record("Could not access WAV fixture samples")
+            return
+        }
+        for index in 0..<1_600 {
+            samples[index] = Int16((index % 32) * 500)
+        }
+        do {
+            let source = try AVAudioFile(
+                forWriting: sourceURL,
+                settings: format.settings,
+                commonFormat: .pcmFormatInt16,
+                interleaved: true
+            )
+            try source.write(from: buffer)
+        }
+
+        let processor = AudioProcessor()
+        let duration = try await processor.transcodeUsingAssetReaderForTesting(sourceURL, to: outputURL)
+        let decoded = try AVAudioFile(forReading: outputURL)
+
+        #expect(duration > 0.09)
+        #expect(duration < 0.11)
+        #expect(decoded.processingFormat.sampleRate == 16_000)
+        #expect(decoded.processingFormat.channelCount == 1)
+        #expect(decoded.length > 0)
+    }
+
+    @Test func cancelRecorderAllowsPlainEscapeButOtherShortcutsDoNot() {
+        let escape = Shortcut.key(keyCode: UInt16(kVK_Escape), modifierFlags: [])
+
+        #expect(ShortcutValidator.validationError(for: escape, action: .cancelRecorder) == nil)
+        #expect(
+            ShortcutValidator.validationError(for: escape, action: .primaryRecording)
+                == .plainKeyRequiresModifier
+        )
+    }
+
+    @Test @MainActor func unicodeWordBoundaryPreservesAdjacentUnicodeAndMatchesCJK() throws {
+        let context = try makeDictionaryContext()
+        context.insert(WordReplacement(originalText: "mode", replacementText: "MODE"))
+        context.insert(VocabularyWord(word: "Mode"))
+
+        let result = WordReplacementService.shared.applyReplacements(
+            to: "ämode mode 模式mode",
+            using: context
+        )
+
+        #expect(result == "ämode MODE 模式MODE")
+
+        let cased = WordReplacementService.shared.enforceVocabularyCasing(
+            text: "ämode mode 模式mode",
+            using: context
+        )
+        #expect(cased == "ämode Mode 模式Mode")
+    }
+
+    @Test func installedAppScanSkipsDirectorySymlinksButKeepsAppSymlinks() throws {
+        let fileManager = FileManager.default
+        let scanRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("installed-app-scan-\(UUID().uuidString)", isDirectory: true)
+        let outsideRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("installed-app-outside-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: scanRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: scanRoot) }
+        try fileManager.createDirectory(at: outsideRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: outsideRoot) }
+
+        let realApp = outsideRoot.appendingPathComponent("Real.app", isDirectory: true)
+        let nestedApp = outsideRoot.appendingPathComponent("Nested.app", isDirectory: true)
+        try fileManager.createDirectory(at: realApp, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: nestedApp, withIntermediateDirectories: true)
+
+        let linkedDirectory = scanRoot.appendingPathComponent("LinkedDirectory")
+        let linkedApp = scanRoot.appendingPathComponent("Linked.app")
+        try fileManager.createSymbolicLink(at: linkedDirectory, withDestinationURL: outsideRoot)
+        try fileManager.createSymbolicLink(at: linkedApp, withDestinationURL: realApp)
+
+        let urls = InstalledApps.applicationURLs(in: [scanRoot], fileManager: fileManager)
+        let paths = Set(urls.map { $0.standardizedFileURL.path })
+
+        #expect(paths.contains(linkedApp.resolvingSymlinksInPath().standardizedFileURL.path))
+        #expect(!paths.contains(nestedApp.standardizedFileURL.path))
+    }
 
     @Test func withinDictationDeduplicationRemovesRepeatedPhrase() {
         let adjusted = ContextAwareInsertionService.shared.prepareForInsertion(
@@ -33,6 +170,223 @@ struct VoiceInkTests {
     @Test func withinDictationDeduplicationPreservesShortNaturalRepetition() {
         let text = "這真的非常非常好，看看就知道。"
         #expect(ContextAwareInsertionService.shared.removeAdjacentRepeatedPhrases(text) == text)
+    }
+
+    @Test func withinDictationDeduplicationProducesAuditableRemovalTrace() throws {
+        let result = ContextAwareInsertionService.shared.deduplicateAdjacentRepeatedPhrases(
+            "我覺得我覺得可以了"
+        )
+        let event = try #require(result.events.first)
+
+        #expect(result.text == "我覺得可以了")
+        #expect(event.ruleID == ContextAwareInsertionService.adjacentRepeatedPhraseRuleID)
+        #expect(event.decision == .removed)
+        #expect(event.reason == "exact-adjacent-phrase-repeat")
+        #expect(event.beforeText == "我覺得我覺得可以了")
+        #expect(event.afterText == "我覺得可以了")
+        #expect(event.repeatedPhrase == "我覺得")
+        #expect(event.matchedRange == (0..<6))
+        #expect(event.removedRange == (3..<6))
+    }
+
+    @Test func withinDictationDeduplicationPreservesRow18001NegatedContrast() throws {
+        let text = "就是帶一下也好，說不定會用得到。 可可靠不可靠不知道，可是有就好。"
+        let service = ContextAwareInsertionService.shared
+        let result = service.deduplicateAdjacentRepeatedPhrases(text)
+        let event = try #require(result.events.first)
+
+        #expect(result.text == text)
+        #expect(service.prepareForInsertion(text, textBefore: "前一句已經完成。") == text)
+        #expect(event.decision == .preservedForReview)
+        #expect(event.reason == "review-protected-negation-cue")
+        #expect(event.repeatedPhrase == "可靠不")
+        #expect(event.removedRange == nil)
+    }
+
+    @Test func withinDictationDeduplicationPreservesRow17654Comparison() throws {
+        let text = "But did you bring my ID, me or me or?"
+        let service = ContextAwareInsertionService.shared
+        let result = service.deduplicateAdjacentRepeatedPhrases(text)
+        let event = try #require(result.events.first)
+
+        #expect(result.text == text)
+        #expect(service.prepareForInsertion(text, textBefore: "") == text)
+        #expect(event.decision == .preservedForReview)
+        #expect(event.reason == "review-protected-comparison-cue")
+        #expect(event.removedRange == nil)
+    }
+
+    @Test func withinDictationDeduplicationPreservesRow17917ForReview() throws {
+        let text = "是不是 kernel su 的 amount amount 的問題？"
+        let service = ContextAwareInsertionService.shared
+        let result = service.deduplicateAdjacentRepeatedPhrases(text)
+        let event = try #require(result.events.first)
+
+        #expect(result.text == text)
+        #expect(service.prepareForInsertion(text, textBefore: "") == text)
+        #expect(event.decision == .preservedForReview)
+        #expect(event.reason == "review-protected-negation-cue")
+        #expect(event.removedRange == nil)
+    }
+
+    @Test func withinDictationDeduplicationCollapsesRow18720DiagnosticCandidate() {
+        let text = "好了，不過這次有不同的地方。 這次是直接跳直接跳船龍失敗，以前還會等一下才跳船龍失敗。"
+        let result = ContextAwareInsertionService.shared.deduplicateAdjacentRepeatedPhrases(text)
+
+        // Mechanical behavior smoke only: row 18720 is not confirmed semantic gold.
+        #expect(
+            result.text
+                == "好了，不過這次有不同的地方。 這次是直接跳船龍失敗，以前還會等一下才跳船龍失敗。"
+        )
+        #expect(result.events.contains(where: {
+            $0.decision == .removed && $0.repeatedPhrase == "直接跳"
+        }))
+    }
+
+    @Test func withinDictationDeduplicationPreservesNegationCueFamily() throws {
+        let cases = [
+            "我不要我不要現在改",
+            "這不能這不能自動套用",
+            "不是這樣不是這樣",
+            "我沒想到我沒想到會失敗",
+            "別刪這句別刪這句",
+            "别删这句别删这句",
+            "非必要非必要",
+            "勿重試勿重試",
+            "莫名其妙莫名其妙",
+            "甭再試了甭再試了",
+            "尚未完成尚未完成",
+            "無法執行無法執行",
+            "无法执行无法执行",
+        ]
+
+        for text in cases {
+            let result = ContextAwareInsertionService.shared.deduplicateAdjacentRepeatedPhrases(text)
+            let event = try #require(result.events.first)
+
+            #expect(result.text == text)
+            #expect(event.decision == .preservedForReview)
+            #expect(event.reason == "review-protected-negation-cue")
+        }
+    }
+
+    @Test func withinDictationDeduplicationPreservesSelfRepairCueFamily() throws {
+        let cases = [
+            "我說資源我說資源，應該是支援",
+            "我說資源我說資源，应该是支援",
+            "我說資源我說資源，我的意思是支援",
+            "我說資源我說資源，我是說支援",
+            "我說資源我說資源，我是说支援",
+            "我說資源我說資源，其實是支援",
+            "我說資源我說資源，其实是支援",
+            "我說資源我說資源，更正為支援",
+            "我說資源我說資源，改成支援",
+            "我說資源我說資源，重來",
+            "我說資源我說資源，重来",
+            "等一下，我說資源我說資源",
+        ]
+
+        for text in cases {
+            let result = ContextAwareInsertionService.shared
+                .deduplicateAdjacentRepeatedPhrases(text)
+            let event = try #require(result.events.first)
+
+            #expect(result.text == text)
+            #expect(event.decision == .preservedForReview)
+            #expect(event.reason == "review-protected-self-repair-cue")
+        }
+    }
+
+    @Test func withinDictationDeduplicationPreservesLiteralInstructionCueFamily() throws {
+        let cases = [
+            "請寫直接跳直接跳",
+            "请写直接跳直接跳",
+            "寫出直接跳直接跳",
+            "写出直接跳直接跳",
+            "保留直接跳直接跳",
+            "請保留直接跳直接跳",
+            "请保留直接跳直接跳",
+            "請輸出直接跳直接跳",
+            "请输出直接跳直接跳",
+            "逐字直接跳直接跳",
+            "原文直接跳直接跳",
+            "字串直接跳直接跳",
+            "字符串直接跳直接跳",
+            "直接跳直接跳，不要改",
+            "直接跳直接跳，別改",
+            "直接跳直接跳，别改",
+        ]
+
+        for text in cases {
+            let result = ContextAwareInsertionService.shared
+                .deduplicateAdjacentRepeatedPhrases(text)
+            let event = try #require(result.events.first)
+
+            #expect(result.text == text)
+            #expect(event.decision == .preservedForReview)
+            #expect(event.reason == "review-protected-literal-or-quoted-text")
+        }
+    }
+
+    @Test func withinDictationDeduplicationPreservesSemanticCuesNearCleanRepeat() throws {
+        let cases = [
+            ("跑得動跑得動，不代表可信", "review-protected-negation-cue"),
+            ("我同意這個我同意這個，但前提不同", "review-protected-contrast-cue"),
+            ("請輸出直接跳直接跳", "review-protected-literal-or-quoted-text"),
+            ("請重複直接跳直接跳，不要改", "review-protected-literal-or-quoted-text"),
+        ]
+
+        for (text, expectedReason) in cases {
+            let result = ContextAwareInsertionService.shared
+                .deduplicateAdjacentRepeatedPhrases(text)
+            let event = try #require(result.events.first)
+
+            #expect(result.text == text)
+            #expect(event.decision == .preservedForReview)
+            #expect(event.reason == expectedReason)
+            #expect(event.removedRange == nil)
+        }
+    }
+
+    @Test func withinDictationDeduplicationPreservesLiteralQuoteMetaASCIIAndNumbers() {
+        let cases = [
+            "他念「直接跳直接跳」後停下",
+            "他念「直接跳」「直接跳」後停下",
+            "原文是直接跳直接跳這個字串",
+            "但是要留但是要留",
+            "version version should stay",
+            "版本 123 123 應該保留",
+        ]
+
+        for text in cases {
+            let result = ContextAwareInsertionService.shared.deduplicateAdjacentRepeatedPhrases(text)
+            #expect(result.text == text)
+            #expect(result.events.contains(where: { $0.decision == .preservedForReview }))
+            #expect(result.events.allSatisfy { $0.removedRange == nil })
+        }
+    }
+
+    @Test func withinDictationDeduplicationIsIdempotent() {
+        let service = ContextAwareInsertionService.shared
+        let once = service.deduplicateAdjacentRepeatedPhrases("我覺得我覺得我覺得可以了")
+        let twice = service.deduplicateAdjacentRepeatedPhrases(once.text)
+
+        #expect(once.text == "我覺得可以了")
+        #expect(twice.text == once.text)
+        #expect(twice.events.isEmpty)
+    }
+
+    @Test func withinDictationDeduplicationHandlesPunctuationAndWhitespaceEdges() {
+        let service = ContextAwareInsertionService.shared
+
+        #expect(
+            service.removeAdjacentRepeatedPhrases("請處理， 請處理， 下一步")
+                == "請處理， 下一步"
+        )
+        #expect(
+            service.removeAdjacentRepeatedPhrases("請處理，請處理下一步")
+                == "請處理，請處理下一步"
+        )
     }
 
     @Test func withinAndCrossBoundaryDeduplicationCompose() {
@@ -1151,7 +1505,7 @@ struct VoiceInkTests {
         #expect(transcription.qwen3SpecialistRoutingMetadata == nil)
     }
 
-    @Test func transcriptionSyncsSelectedCandidateWithFinalPaste() async throws {
+    @Test func transcriptionPastePreservesCandidateEvidenceAndRecordsOutcomeSeparately() async throws {
         let transcription = Transcription(
             text: "再跑一次轉怒的技能吧。",
             duration: 0,
@@ -1164,8 +1518,12 @@ struct VoiceInkTests {
         )
 
         #expect(transcription.finalPastedText == "再跑一次轉錄的技能吧。")
-        #expect(transcription.selectedCandidate == "再跑一次轉錄的技能吧。")
-        #expect(transcription.candidateSelectionSource == VocoCandidateSelectionSource.finalPaste.rawValue)
+        #expect(transcription.selectedCandidate == "再跑一次轉怒的技能吧。")
+        #expect(transcription.candidateSelectionSource == nil)
+        #expect(
+            TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
+                .contains(where: { $0.id == "candidate-final-paste" })
+        )
 
         let reviewed = Transcription(
             text: "今天看到焰很大",
@@ -1178,8 +1536,34 @@ struct VoiceInkTests {
             didPostCommand: true
         )
 
-        #expect(reviewed.selectedCandidate == "今天看到炎很大。")
+        #expect(reviewed.finalPastedText == "今天看到炎很大。")
+        #expect(reviewed.selectedCandidate == "今天看到炎很大")
         #expect(reviewed.candidateSelectionSource == VocoCandidateSelectionSource.userSelection.rawValue)
+        #expect(TranscriptionAssistiveBadge.badges(for: reviewed, limit: 10).map(\.id) == [
+            "candidate-user-selection",
+            "candidate-final-paste",
+        ])
+
+        let missing = Transcription(
+            text: "原始文字",
+            duration: 0
+        )
+        missing.recordPasteAttempt(
+            text: "  實際貼上  ",
+            didPostCommand: true
+        )
+
+        #expect(missing.finalPastedText == "  實際貼上  ")
+        #expect(missing.selectedCandidate == nil)
+        #expect(missing.candidateSelectionSource == nil)
+
+        missing.recordPasteAttempt(
+            text: "第二次貼上",
+            didPostCommand: true
+        )
+        #expect(missing.finalPastedText == "第二次貼上")
+        #expect(missing.selectedCandidate == nil)
+        #expect(missing.candidateSelectionSource == nil)
     }
 
     @Test func csvExportPreservesContextAwareSessionMetadata() async throws {
@@ -1771,10 +2155,10 @@ struct VoiceInkTests {
         let transcription = Transcription(
             text: "hello",
             duration: 1.0,
-            finalPastedText: finalPastedText,
-            pasteCommandPosted: true,
+            selectedCandidate: "hello candidate",
             transcriptionStatus: .completed
         )
+        transcription.recordPasteAttempt(text: finalPastedText, didPostCommand: true)
         context.insert(transcription)
 
         let inserted = try SessionMetricRecorder.recordRecorderSession(
@@ -1787,6 +2171,8 @@ struct VoiceInkTests {
         let metric = try #require(try context.fetch(FetchDescriptor<SessionMetric>()).first)
         #expect(inserted)
         #expect(metric.wordCount == 2)
+        #expect(metric.selectedCandidate == "hello candidate")
+        #expect(metric.candidateSelectionSource == nil)
         #expect(metric.finalPastedWordCount == 2)
         #expect(metric.finalPastedCharacterCount == finalPastedText.count)
         #expect(metric.pasteCommandPosted == true)

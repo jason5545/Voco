@@ -19,7 +19,6 @@ struct SettingsView: View {
     @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 2.0
     @AppStorage(PasteMethod.userDefaultsKey) private var pasteMethodRawValue = PasteMethod.standard.rawValue
     @State private var showResetOnboardingAlert = false
-    @State private var hasCancelRecordingShortcut = ShortcutStore.shortcut(for: .cancelRecorder) != nil
     @State private var cancelRecordingShortcutRecorderResetID = 0
 
     @State private var isMiddleClickExpanded = false
@@ -92,20 +91,18 @@ struct SettingsView: View {
                         .controlSize(.small)
                 }
 
-                LabeledContent("Cancel Recording") {
+                LabeledContent {
                     HStack(spacing: 8) {
                         ShortcutRecorder(
                             action: .cancelRecorder,
                             defaultShortcut: Self.defaultCancelRecordingShortcut
-                        ) {
-                            hasCancelRecordingShortcut = true
-                        }
+                        )
                             .id(cancelRecordingShortcutRecorderResetID)
                             .controlSize(.small)
 
                         Button {
+                            RecorderPanelShortcutManager.resetEscapeConfirmationHint()
                             ShortcutStore.setShortcut(nil, for: .cancelRecorder)
-                            hasCancelRecordingShortcut = false
                             cancelRecordingShortcutRecorderResetID += 1
                         } label: {
                             Image(systemName: "arrow.counterclockwise")
@@ -113,10 +110,13 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .help("Reset to default")
                     }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: ShortcutStore.shortcutDidChange)) { notification in
-                    guard let action = notification.object as? ShortcutAction, action == .cancelRecorder else { return }
-                    hasCancelRecordingShortcut = ShortcutStore.shortcut(for: .cancelRecorder) != nil
+                } label: {
+                    HStack(spacing: 2) {
+                        Text("Cancel Recording")
+                        InfoTip(
+                            "The assigned shortcut cancels the recording. Resetting restores the default double-Escape behavior."
+                        )
+                    }
                 }
 
                 ExpandableSettingsRow(

@@ -415,14 +415,8 @@ final class Transcription {
     func recordPasteAttempt(text: String, didPostCommand: Bool) {
         finalPastedText = text
         pasteCommandPosted = didPostCommand
-
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        selectedCandidate = trimmed
-        if candidateSelectionSource?.isEmpty != false {
-            candidateSelectionSource = VocoCandidateSelectionSource.finalPaste.rawValue
-        }
+        // Paste is an outcome surface. Candidate text and its source describe the
+        // earlier selection decision and must remain unchanged.
     }
 
     @discardableResult

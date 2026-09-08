@@ -30,11 +30,14 @@ class MiniWindowManager {
         }
     }
 
-    func show() {
+    @discardableResult
+    func show() -> Bool {
         StartupTracer.checkpoint("MiniWindowManager.show_enter")
         if panel == nil { initializeWindow() }
-        panel?.show()
+        guard let panel else { return false }
+        panel.show()
         StartupTracer.checkpoint("MiniWindowManager.show_panel_visible")
+        return true
     }
 
     func hide() {

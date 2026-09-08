@@ -30,11 +30,14 @@ class NotchWindowManager {
         }
     }
 
-    func show() {
+    @discardableResult
+    func show() -> Bool {
         StartupTracer.checkpoint("NotchWindowManager.show_enter")
         if panel == nil { initializeWindow() }
-        panel?.show()
+        guard let panel else { return false }
+        panel.show()
         StartupTracer.checkpoint("NotchWindowManager.show_panel_visible")
+        return true
     }
 
     func hide() {
