@@ -4,6 +4,7 @@ import os
 final class ContextAwareInsertionService {
     static let shared = ContextAwareInsertionService()
     static let adjacentRepeatedPhraseRuleID = "context-aware-insertion.adjacent-phrase-dedup.v2"
+    static let shortStutterRuleID = "context-aware-insertion.short-stutter-dedup.v1"
 
     struct DeduplicationResult: Equatable {
         let text: String
@@ -34,6 +35,16 @@ final class ContextAwareInsertionService {
 
         var matchedRange: Range<Int> {
             firstRange.lowerBound..<duplicateRange.upperBound
+        }
+    }
+
+    private struct ShortStutterCandidate {
+        let repeatedCharacter: Character
+        let duplicateRange: Range<Int>
+        let reason: String
+
+        var matchedRange: Range<Int> {
+            (duplicateRange.lowerBound - 1)..<duplicateRange.upperBound
         }
     }
 
@@ -132,6 +143,9 @@ final class ContextAwareInsertionService {
     func deduplicateAdjacentRepeatedPhrases(_ text: String) -> DeduplicationResult {
         var characters = Array(text)
         var events: [DeduplicationEvent] = []
+
+        deduplicateShortStutters(in: &characters, events: &events)
+
         var searchStart = 0
 
         while let candidate = adjacentRepeatedPhraseCandidate(
@@ -185,6 +199,115 @@ final class ContextAwareInsertionService {
         }
 
         return DeduplicationResult(text: String(characters), events: events)
+    }
+
+    /// Removes only two high-confidence forms of one-character speech stutter:
+    /// a small set of lexical word starts that cannot be valid reduplications,
+    /// and a repeated personal pronoun at a punctuation/whitespace boundary.
+    /// The latter is deliberately not applied to arbitrary CJK characters so
+    /// ordinary reduplications such as「看看」and「等等」remain untouched.
+    private func deduplicateShortStutters(
+        in characters: inout [Character],
+        events: inout [DeduplicationEvent]
+    ) {
+        var index = 0
+
+        while index + 2 < characters.count {
+            guard let candidate = shortStutterCandidate(in: characters, at: index) else {
+                index += 1
+                continue
+            }
+            let beforeText = String(characters)
+            let clause = surroundingClause(in: characters, matchedRange: candidate.matchedRange)
+            let isInsideLiteralQuote = isInsideLiteralQuote(
+                in: characters,
+                matchedRange: candidate.matchedRange
+            )
+
+            if let protectedReason = protectedReviewReason(
+                repeatedPhrase: String(candidate.repeatedCharacter),
+                surroundingClause: clause,
+                isInsideLiteralQuote: isInsideLiteralQuote
+            ) {
+                events.append(
+                    DeduplicationEvent(
+                        ruleID: Self.shortStutterRuleID,
+                        decision: .preservedForReview,
+                        reason: protectedReason,
+                        beforeText: beforeText,
+                        afterText: beforeText,
+                        repeatedPhrase: String(candidate.repeatedCharacter),
+                        matchedRange: candidate.matchedRange,
+                        removedRange: nil
+                    )
+                )
+                index = candidate.duplicateRange.upperBound
+                continue
+            }
+
+            characters.removeSubrange(candidate.duplicateRange)
+            let afterText = String(characters)
+            events.append(
+                DeduplicationEvent(
+                    ruleID: Self.shortStutterRuleID,
+                    decision: .removed,
+                    reason: candidate.reason,
+                    beforeText: beforeText,
+                    afterText: afterText,
+                    repeatedPhrase: String(candidate.repeatedCharacter),
+                    matchedRange: candidate.matchedRange,
+                    removedRange: candidate.duplicateRange
+                )
+            )
+
+            // Re-check the same position so three or more stutter copies
+            // collapse without rescanning the entire string. Step back once
+            // as well so an overlapping candidate such as「可可可以」can
+            // remove the extra copy before the retained「可以」token.
+            index = max(0, index - 1)
+        }
+    }
+
+    private func shortStutterCandidate(
+        in characters: [Character],
+        at index: Int
+    ) -> ShortStutterCandidate? {
+        guard index + 2 < characters.count,
+              characters[index] == characters[index + 1] else {
+            return nil
+        }
+
+        let repeatedCharacter = characters[index]
+        let duplicateRange = (index + 1)..<(index + 2)
+
+        if Self.shortStutterPronouns.contains(repeatedCharacter),
+           isShortStutterBoundary(in: characters, at: index),
+           characters[index + 2].isCJK {
+            return ShortStutterCandidate(
+                repeatedCharacter: repeatedCharacter,
+                duplicateRange: duplicateRange,
+                reason: "single-character-pronoun-stutter-at-boundary"
+            )
+        }
+
+        let continuation = characters[(index + 1)...]
+        if Self.shortStutterLexicalContinuations.contains(where: {
+            $0.count <= continuation.count && continuation.prefix($0.count).elementsEqual($0)
+        }) {
+            return ShortStutterCandidate(
+                repeatedCharacter: repeatedCharacter,
+                duplicateRange: duplicateRange,
+                reason: "single-character-lexical-onset-stutter"
+            )
+        }
+
+        return nil
+    }
+
+    private func isShortStutterBoundary(in characters: [Character], at index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let previous = characters[index - 1]
+        return previous.isWhitespace || previous.isPunctuation || previous.isCJKPunctuation
     }
 
     private func adjacentRepeatedPhraseCandidate(
@@ -388,6 +511,19 @@ final class ContextAwareInsertionService {
         "「", "」", "『", "』", "“", "”", "‘", "’", "〈", "〉", "《", "》", "\"",
     ]
     private static let singleCharacterRestartOverlaps: Set<String> = ["又", "就", "也", "還", "再", "都", "才", "只"]
+    private static let shortStutterPronouns: Set<Character> = ["我", "你", "他", "她", "它", "您"]
+    private static let shortStutterLexicalContinuations: [[Character]] = [
+        Array("可以"),
+        Array("仍然"),
+        Array("如果"),
+        Array("甚至"),
+        Array("正在"),
+        Array("我們"),
+        Array("你們"),
+        Array("他們"),
+        Array("她們"),
+        Array("它們"),
+    ]
 
     private func hasLatinWordBoundaries(
         before: Substring,
