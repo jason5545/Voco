@@ -62,8 +62,6 @@
 				"Services/ChinesePostProcessing/OpenCCConverter.swift",
 				"Services/ChinesePostProcessing/PinyinCorrector.swift",
 				"Services/ChinesePostProcessing/PinyinDatabase.swift",
-				"Services/ChinesePostProcessing/HomophoneCorrectionEngine.swift",
-				"Services/ChinesePostProcessing/NasalCorrectionEngine.swift",
 				"Services/ChinesePostProcessing/CorrectionEngine.swift",
 				"Services/ChinesePostProcessing/PunctuationConverter.swift",
 				"Services/ChinesePostProcessing/RepetitionDetector.swift",

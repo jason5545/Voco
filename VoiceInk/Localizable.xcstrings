@@ -3621,36 +3621,6 @@
         }
       }
     },
-    "Data-Driven Homophone Correction": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "資料驅動同音字糾錯"
-          }
-        }
-      }
-    },
-    "Automatically detect and fix same-sound character errors using pinyin lookup and word frequency scoring. Supplements the hand-curated rules.": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用拼音查表與詞頻評分，自動偵測並修正同音字錯誤。作為手動規則的補充。"
-          }
-        }
-      }
-    },
-    "Nasal Ending Correction (-n/-ng)": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "鼻音韻尾校正（ㄣ/ㄥ）"
-          }
-        }
-      }
-    },
     "Syllable Expansion": {
       "localizations": {
         "zh-Hant": {
@@ -3727,26 +3697,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "上下文記憶"
-          }
-        }
-      }
-    },
-    "Semantic Scoring (BERT)": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "語意評分（BERT）"
-          }
-        }
-      }
-    },
-    "Use a BERT language model to score homophone/nasal corrections based on context instead of word frequency.": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用 BERT 語言模型根據上下文評分同音字／鼻音校正，取代詞頻評分。"
           }
         }
       }

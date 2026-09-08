@@ -11,6 +11,9 @@ struct PostProcessingResult {
 }
 
 /// Analysis-only snapshots of existing post-processing stages.
+///
+/// The homophone and nasal fields are retained for historical trace decoding.
+/// The removed data-driven engines no longer populate them.
 struct ChinesePostProcessingTrace {
     var afterOpenCC: String?
     var afterPinyinCorrector: String?
@@ -36,10 +39,6 @@ class ChinesePostProcessingService: ObservableObject {
 
     let openCCConverter = OpenCCConverter.shared
     let pinyinCorrector = PinyinCorrector.shared
-    let dataDrivenEngines: [CorrectionEngine] = [
-        HomophoneCorrectionEngine.shared,
-        NasalCorrectionEngine.shared,
-    ]
     let punctuationConverter = PunctuationConverter.shared
     let repetitionDetector = RepetitionDetector.shared
     let contextMemory = TranscriptionContextMemory()
@@ -65,14 +64,6 @@ class ChinesePostProcessingService: ObservableObject {
 
     @Published var isPinyinCorrectionEnabled: Bool {
         didSet { UserDefaults.standard.set(isPinyinCorrectionEnabled, forKey: "ChinesePostProcessingPinyin") }
-    }
-
-    @Published var isDataDrivenCorrectionEnabled: Bool {
-        didSet { UserDefaults.standard.set(isDataDrivenCorrectionEnabled, forKey: "ChinesePostProcessingDataDriven") }
-    }
-
-    @Published var isNasalCorrectionEnabled: Bool {
-        didSet { UserDefaults.standard.set(isNasalCorrectionEnabled, forKey: "ChinesePostProcessingNasal") }
     }
 
     @Published var isSpokenPunctuationEnabled: Bool {
@@ -111,27 +102,12 @@ class ChinesePostProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(whisperForceLLMThreshold, forKey: "ChinesePostProcessingWhisperForceLLMThreshold") }
     }
 
-    @Published var isBERTScoringEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(isBERTScoringEnabled, forKey: "ChinesePostProcessingBERTScoring")
-            #if os(macOS)
-            if isBERTScoringEnabled {
-                Task { await BERTScorer.shared.loadModel() }
-            } else {
-                BERTScorer.shared.unloadModel()
-            }
-            #endif
-        }
-    }
-
     // MARK: - Init
 
     private init() {
         self.isEnabled = UserDefaults.standard.bool(forKey: "ChinesePostProcessingEnabled")
         self.isOpenCCEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingOpenCC") as? Bool ?? true
         self.isPinyinCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingPinyin") as? Bool ?? true
-        self.isDataDrivenCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingDataDriven") as? Bool ?? true
-        self.isNasalCorrectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingNasal") as? Bool ?? true
         self.isSpokenPunctuationEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingSpokenPunctuation") as? Bool ?? true
         self.isHalfWidthConversionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingHalfWidth") as? Bool ?? true
         self.isRepetitionDetectionEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingRepetition") as? Bool ?? true
@@ -141,14 +117,6 @@ class ChinesePostProcessingService: ObservableObject {
         self.logProbThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingLogProbThreshold") as? Double ?? -0.3
         self.qwen3SkipThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingQwen3SkipThreshold") as? Int ?? 30
         self.whisperForceLLMThreshold = UserDefaults.standard.object(forKey: "ChinesePostProcessingWhisperForceLLMThreshold") as? Int ?? 30
-        self.isBERTScoringEnabled = UserDefaults.standard.object(forKey: "ChinesePostProcessingBERTScoring") as? Bool ?? false
-
-        // Auto-load BERT model if enabled
-        #if os(macOS)
-        if isBERTScoringEnabled {
-            Task { await BERTScorer.shared.loadModel() }
-        }
-        #endif
     }
 
     // MARK: - Main Processing Pipeline
@@ -209,42 +177,6 @@ class ChinesePostProcessingService: ObservableObject {
                 result = correctionResult.text
             }
 
-            // Layer 2-3: Data-driven engines (each with independent toggle)
-            if isDataDrivenCorrectionEnabled, PinyinDatabase.shared.isLoaded {
-                let enabledEngines: [(CorrectionEngine, Bool)] = [
-                    (HomophoneCorrectionEngine.shared, true), // always on when data-driven is on
-                    (NasalCorrectionEngine.shared, isNasalCorrectionEnabled),
-                ]
-                for (engine, enabled) in enabledEngines where enabled {
-                    let engineResult = engine.correct(result)
-                    switch engine.name {
-                    case HomophoneCorrectionEngine.shared.name:
-                        trace.afterHomophoneCorrection = engineResult.text
-                    case NasalCorrectionEngine.shared.name:
-                        trace.afterNasalCorrection = engineResult.text
-                    default:
-                        break
-                    }
-                    if !engineResult.corrections.isEmpty {
-                        steps.append(engine.name)
-                        for c in engineResult.corrections {
-                            logger.debug("Pinyin \(engine.logPrefix): \(c.original) → \(c.corrected) (score=\(String(format: "%.1f", c.score)))")
-                        }
-                        result = engineResult.text
-                    }
-                }
-
-                // Layer 1 re-scan: catch patterns introduced by data-driven layers
-                let reCheckResult = pinyinCorrector.correct(result, context: correctionContext)
-                trace.afterPinyinCorrector = reCheckResult.text
-                if !reCheckResult.corrections.isEmpty {
-                    steps.append("PinyinReCheck")
-                    for c in reCheckResult.corrections {
-                        logger.debug("Pinyin [recheck]: \(c.original) → \(c.corrected)")
-                    }
-                    result = reCheckResult.text
-                }
-            }
         }
 
         // Step 4: Spoken punctuation conversion

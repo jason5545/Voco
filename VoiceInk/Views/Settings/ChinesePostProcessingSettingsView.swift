@@ -25,21 +25,6 @@ struct ChinesePostProcessingSettingsView: View {
 
                 Toggle("Pinyin Correction", isOn: $service.isPinyinCorrectionEnabled)
 
-                if service.isPinyinCorrectionEnabled {
-                    Toggle(isOn: $service.isDataDrivenCorrectionEnabled) {
-                        HStack(spacing: 4) {
-                            Text("Data-Driven Homophone Correction")
-                            InfoTip("Automatically detect and fix same-sound character errors using pinyin lookup and word frequency scoring. Supplements the hand-curated rules.")
-                        }
-                    }
-                    .padding(.leading, 20)
-
-                    if service.isDataDrivenCorrectionEnabled {
-                        Toggle("Nasal Ending Correction (-n/-ng)", isOn: $service.isNasalCorrectionEnabled)
-                            .padding(.leading, 40)
-                    }
-                }
-
                 Toggle("Spoken Punctuation Conversion", isOn: $service.isSpokenPunctuationEnabled)
 
                 Toggle("Half-Width → Full-Width Punctuation", isOn: $service.isHalfWidthConversionEnabled)
@@ -119,17 +104,6 @@ struct ChinesePostProcessingSettingsView: View {
                                 HStack(spacing: 4) {
                                     Text("LLM Response Validation")
                                     InfoTip("Reject invalid LLM responses (blacklisted phrases, excessive length) and fall back to pre-LLM text.")
-                                }
-                            }
-
-                            Divider()
-                                .padding(.vertical, 4)
-
-                            // BERT Semantic Scoring
-                            Toggle(isOn: $service.isBERTScoringEnabled) {
-                                HStack(spacing: 4) {
-                                    Text("Semantic Scoring (BERT)")
-                                    InfoTip("Use a BERT language model to score homophone/nasal corrections based on context instead of word frequency.")
                                 }
                             }
 

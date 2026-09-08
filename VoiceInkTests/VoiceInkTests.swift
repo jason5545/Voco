@@ -700,19 +700,13 @@ struct VoiceInkTests {
         let service = ChinesePostProcessingService.shared
         let oldOpenCC = service.isOpenCCEnabled
         let oldPinyin = service.isPinyinCorrectionEnabled
-        let oldDataDriven = service.isDataDrivenCorrectionEnabled
-        let oldNasal = service.isNasalCorrectionEnabled
         defer {
             service.isOpenCCEnabled = oldOpenCC
             service.isPinyinCorrectionEnabled = oldPinyin
-            service.isDataDrivenCorrectionEnabled = oldDataDriven
-            service.isNasalCorrectionEnabled = oldNasal
         }
 
         service.isOpenCCEnabled = true
         service.isPinyinCorrectionEnabled = true
-        service.isDataDrivenCorrectionEnabled = true
-        service.isNasalCorrectionEnabled = true
 
         let result = service.process("我不是要你鉴定什么的。如果真的要鉴定，我还有一个更严重的CP呢。")
 
@@ -726,19 +720,13 @@ struct VoiceInkTests {
         let service = ChinesePostProcessingService.shared
         let oldOpenCC = service.isOpenCCEnabled
         let oldPinyin = service.isPinyinCorrectionEnabled
-        let oldDataDriven = service.isDataDrivenCorrectionEnabled
-        let oldNasal = service.isNasalCorrectionEnabled
         defer {
             service.isOpenCCEnabled = oldOpenCC
             service.isPinyinCorrectionEnabled = oldPinyin
-            service.isDataDrivenCorrectionEnabled = oldDataDriven
-            service.isNasalCorrectionEnabled = oldNasal
         }
 
         service.isOpenCCEnabled = true
         service.isPinyinCorrectionEnabled = true
-        service.isDataDrivenCorrectionEnabled = true
-        service.isNasalCorrectionEnabled = true
 
         let localModel = service.process("我剛剛在訓練本地模型。")
         #expect(localModel.processedText.contains("本地模型"))
@@ -763,19 +751,13 @@ struct VoiceInkTests {
         let service = ChinesePostProcessingService.shared
         let oldOpenCC = service.isOpenCCEnabled
         let oldPinyin = service.isPinyinCorrectionEnabled
-        let oldDataDriven = service.isDataDrivenCorrectionEnabled
-        let oldNasal = service.isNasalCorrectionEnabled
         defer {
             service.isOpenCCEnabled = oldOpenCC
             service.isPinyinCorrectionEnabled = oldPinyin
-            service.isDataDrivenCorrectionEnabled = oldDataDriven
-            service.isNasalCorrectionEnabled = oldNasal
         }
 
         service.isOpenCCEnabled = true
         service.isPinyinCorrectionEnabled = true
-        service.isDataDrivenCorrectionEnabled = true
-        service.isNasalCorrectionEnabled = true
 
         let result = service.process("所以你整体看我的過癮障礙到底到了什麼程度？我越來越懷疑自己比我自己想的嚴重了。")
 
@@ -1118,6 +1100,29 @@ struct VoiceInkTests {
                 context: therapyContext
             ).text == "但是我對諮商師就不會這樣啊！"
         )
+    }
+
+    @Test @MainActor func chinesePostProcessingKeepsDataDrivenHomophonesRemoved() {
+        let service = ChinesePostProcessingService.shared
+        let oldEnabled = service.isEnabled
+        let oldOpenCC = service.isOpenCCEnabled
+        let oldPinyin = service.isPinyinCorrectionEnabled
+        defer {
+            service.isEnabled = oldEnabled
+            service.isOpenCCEnabled = oldOpenCC
+            service.isPinyinCorrectionEnabled = oldPinyin
+        }
+
+        service.isEnabled = true
+        service.isOpenCCEnabled = true
+        service.isPinyinCorrectionEnabled = true
+
+        #expect(service.process("記得發布，請確認").processedText == "記得發布，請確認")
+        #expect(service.process("客服已回覆，請稍候").processedText == "客服已回覆，請稍候")
+        #expect(service.process("你先去試一下這個流程").processedText == "你先去試一下這個流程")
+        #expect(service.process("只有這些通過才可繼續").processedText == "只有這些透過才可繼續")
+        #expect(service.process("全部刪除").processedText == "全部刪除")
+        #expect(service.process("心理智商").processedText == "心理諮商")
     }
 
     @Test func pinyinCorrectorFixesContextualSessionAndUITerms() async throws {
