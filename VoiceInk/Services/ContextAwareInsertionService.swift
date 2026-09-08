@@ -262,8 +262,7 @@ final class ContextAwareInsertionService {
 
             // Re-check the same position so three or more stutter copies
             // collapse without rescanning the entire string. Step back once
-            // as well so an overlapping candidate such as「可可可以」can
-            // remove the extra copy before the retained「可以」token.
+            // as well so overlapping lexical onset candidates are revisited.
             index = max(0, index - 1)
         }
     }
@@ -513,7 +512,6 @@ final class ContextAwareInsertionService {
     private static let singleCharacterRestartOverlaps: Set<String> = ["又", "就", "也", "還", "再", "都", "才", "只"]
     private static let shortStutterPronouns: Set<Character> = ["我", "你", "他", "她", "它", "您"]
     private static let shortStutterLexicalContinuations: [[Character]] = [
-        Array("可以"),
         Array("仍然"),
         Array("如果"),
         Array("甚至"),

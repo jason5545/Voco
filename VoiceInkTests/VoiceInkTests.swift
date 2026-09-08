@@ -174,31 +174,31 @@ struct VoiceInkTests {
 
     @Test func shortStutterDeduplicationRemovesCuratedLexicalOnsets() {
         let service = ContextAwareInsertionService.shared
-        let text = "然後就可可以推送個。仍仍然會出現。如如果你看見。甚甚至 Coding 都很順。正正在連線。"
+        let text = "然後就仍仍然卡住。仍仍然會出現。如如果你看見。甚甚至 Coding 都很順。正正在連線。"
 
         #expect(
             service.removeAdjacentRepeatedPhrases(text)
-                == "然後就可以推送個。仍然會出現。如果你看見。甚至 Coding 都很順。正在連線。"
+                == "然後就仍然卡住。仍然會出現。如果你看見。甚至 Coding 都很順。正在連線。"
         )
     }
 
     @Test func shortStutterDeduplicationRemovesPronounAtClauseBoundary() {
         let service = ContextAwareInsertionService.shared
-        let text = "我我剛才說過。你你自己先測試。可可以直接執行。"
+        let text = "我我剛才說過。你你自己先測試。仍仍然持續。"
 
         #expect(
             service.removeAdjacentRepeatedPhrases(text)
-                == "我剛才說過。你自己先測試。可以直接執行。"
+                == "我剛才說過。你自己先測試。仍然持續。"
         )
     }
 
     @Test func shortStutterDeduplicationCollapsesThreeCopiesAndMultipleCandidates() {
         let service = ContextAwareInsertionService.shared
         let result = service.deduplicateAdjacentRepeatedPhrases(
-            "我我我可以。你你自己。可可可以。"
+            "我我我可以。你你自己。仍仍仍然。"
         )
 
-        #expect(result.text == "我可以。你自己。可以。")
+        #expect(result.text == "我可以。你自己。仍然。")
         #expect(
             result.events.filter { $0.ruleID == ContextAwareInsertionService.shortStutterRuleID }
                 .count == 5
@@ -208,16 +208,16 @@ struct VoiceInkTests {
 
     @Test func shortStutterDeduplicationProducesAuditableTrace() throws {
         let result = ContextAwareInsertionService.shared
-            .deduplicateAdjacentRepeatedPhrases("可可以推送個。")
+            .deduplicateAdjacentRepeatedPhrases("仍仍然持續。")
         let event = try #require(result.events.first)
 
-        #expect(result.text == "可以推送個。")
+        #expect(result.text == "仍然持續。")
         #expect(event.ruleID == ContextAwareInsertionService.shortStutterRuleID)
         #expect(event.decision == .removed)
         #expect(event.reason == "single-character-lexical-onset-stutter")
-        #expect(event.beforeText == "可可以推送個。")
-        #expect(event.afterText == "可以推送個。")
-        #expect(event.repeatedPhrase == "可")
+        #expect(event.beforeText == "仍仍然持續。")
+        #expect(event.afterText == "仍然持續。")
+        #expect(event.repeatedPhrase == "仍")
         #expect(event.matchedRange == (0..<2))
         #expect(event.removedRange == (1..<2))
     }
@@ -225,7 +225,7 @@ struct VoiceInkTests {
     @Test func shortStutterDeduplicationPreservesQuotedSemanticAndLiteralText() throws {
         let cases = [
             ("「我我可以」", "review-protected-literal-or-quoted-text"),
-            ("原文可可以，不要改", "review-protected-literal-or-quoted-text"),
+            ("原文仍仍然，不要改", "review-protected-literal-or-quoted-text"),
             ("我我不要刪除", "review-protected-negation-cue"),
             ("你你但是前提不同", "review-protected-contrast-cue"),
             ("如如果你可以，但前提不同", "review-protected-contrast-cue"),
@@ -258,6 +258,12 @@ struct VoiceInkTests {
         #expect(service.removeAdjacentRepeatedPhrases("🙂我我可以") == "🙂我我可以")
         #expect(service.removeAdjacentRepeatedPhrases("我我Agent") == "我我Agent")
         #expect(service.removeAdjacentRepeatedPhrases("我我") == "我我")
+    }
+
+    @Test func shortStutterDeduplicationPreservesCocoaAndAmbiguousNames() {
+        for text in ["可可可以喝。", "這杯可可可以加牛奶。", "可可以熱水沖泡。", "可可以推送。"] {
+            #expect(ContextAwareInsertionService.shared.removeAdjacentRepeatedPhrases(text) == text)
+        }
     }
 
     @Test func withinDictationDeduplicationProducesAuditableRemovalTrace() throws {
