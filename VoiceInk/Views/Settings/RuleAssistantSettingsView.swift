@@ -3,11 +3,19 @@ import SwiftUI
 /// Settings section for the rule assistant: the OpenCode Go API key (this Mac's Keychain
 /// only) and the read-only Worker sync key status. Key values are never displayed or logged.
 struct RuleAssistantSettingsView: View {
+    static let autoScanOnOpenKey = "RuleAssistantAutoScanOnOpen"
+
     @State private var apiKeyInput = ""
     @State private var hasStoredKey = RuleAssistantKeyStore.shared.apiKey != nil
+    @AppStorage(Self.autoScanOnOpenKey) private var autoScanOnOpen = true
 
     var body: some View {
         Section {
+            Toggle("Find issues automatically when the assistant opens", isOn: $autoScanOnOpen)
+            Text("The AI scans the record once per conversation and lists suspected errors as options to tick. Turn this off to start every conversation by hand.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
             HStack {
                 Text("OpenCode Go API key")
 

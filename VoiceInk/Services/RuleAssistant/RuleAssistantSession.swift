@@ -24,9 +24,25 @@ enum RuleAssistantPhase: Equatable {
     }
 }
 
+/// Who authored the user side of a turn. Decides the broad-rule gate: only text Jason typed
+/// himself may authorise replacementRule / replacementFamily, except candidates he explicitly
+/// scoped as "any context" on a question card.
+enum RuleAssistantTurnKind: Equatable {
+    case manual
+    case scan
+    case choice(broadSurfaces: Set<String>)
+
+    var isManual: Bool { self == .manual }
+}
+
 struct RuleAssistantTurn: Equatable {
     var role: String
     var text: String
+    /// Structured question carried by an assistant turn (rendered as option buttons).
+    var question: RuleAssistantQuestion? = nil
+    /// Filled in once the question was answered; the card then renders read-only.
+    var answeredOptionIds: [String] = []
+    var answeredScopes: [String: RuleAssistantScope] = [:]
 }
 
 struct RuleAssistantPreview: Equatable {
@@ -112,6 +128,24 @@ struct RuleAssistantUIState: Equatable {
     var neighborsShared = 0
     var publishedSha256: String?
     var publishMessage: String?
+    /// Question from the latest answer that still waits for the user's choice.
+    var pendingQuestion: RuleAssistantQuestion?
+    var selectedOptionIds: [String] = []
+    var optionScopes: [String: RuleAssistantScope] = [:]
+    /// Set once the panel triggered the automatic find-issues turn, so reopening never rescans.
+    var hasAutoScanned = false
+    /// Kind of the turn currently in flight (nil when idle).
+    var busyTurnKind: RuleAssistantTurnKind?
+
+    var canSubmitChoice: Bool {
+        pendingQuestion != nil && !selectedOptionIds.isEmpty && !phase.isBusy
+    }
+
+    /// A running find-issues turn may be interrupted by typing: it carries nothing of Jason's.
+    /// Draft checks, publishing and syncing are never interruptible.
+    var isInterruptible: Bool {
+        busyTurnKind == .scan && (phase == .loadingTools || phase == .thinking)
+    }
 
     /// The draft a bare confirm acts on: the first one still waiting, else the last one (for its outcome).
     var activeDraft: RuleAssistantDraftEntry? {
@@ -192,8 +226,11 @@ final class RuleAssistantSession: ObservableObject {
     /// Committed wire history; a failed or cancelled round never leaves dangling tool calls here.
     private var history: [OpenCodeMessage] = []
     private var generation: Int64 = 0
-    private var pendingPrompt: String?
-    private var autoGuessTurn = false
+    /// The user turn in flight: wire text sent to the model, display text shown in the transcript, kind.
+    private var pendingTurn: (wire: String, display: String, kind: RuleAssistantTurnKind, restore: String?)?
+    /// Question state to put back when a choice reply fails or is cancelled.
+    private var pendingChoiceRestore: (question: RuleAssistantQuestion, selected: [String], scopes: [String: RuleAssistantScope])?
+    private var turnKind: RuleAssistantTurnKind = .manual
 
     init(
         context: RuleAssistantContext,
@@ -218,8 +255,13 @@ final class RuleAssistantSession: ObservableObject {
 
     func setUserText(_ value: String) {
         let current = state
-        if current.phase.isBusy { return }
         if value == current.userText { return }
+        // Typing while a find-issues turn runs is allowed (the caller cancels it on send);
+        // typing during any other busy phase is ignored.
+        if current.phase.isBusy {
+            if current.isInterruptible { state.userText = value }
+            return
+        }
         // Editing after a draft was proposed invalidates that draft; the next submit starts a new turn.
         if current.drafts.contains(where: { !$0.consumed }) {
             state.userText = value
@@ -243,18 +285,22 @@ final class RuleAssistantSession: ObservableObject {
         generation += 1
         closeClients()
         let current = state
-        let aborted = pendingPrompt
+        let aborted = pendingTurn
         if current.phase.isBusy {
             state.phase = .idle
-            if let aborted { state.userText = aborted }
+            state.busyTurnKind = nil
+            // Only text Jason typed goes back into the composer; a scan or choice reply has nothing to restore.
+            if let restore = aborted?.restore { state.userText = restore }
             state.reasoning = ""
             state.answer = ""
             state.toolStatus.append(String(localized: "Stopped."))
             if let aborted {
-                dropTrailingUserTurn(aborted)
+                dropTrailingUserTurn(aborted.display)
             }
+            restorePendingChoice()
         }
-        pendingPrompt = nil
+        pendingTurn = nil
+        pendingChoiceRestore = nil
     }
 
     func closeClients() {
@@ -267,20 +313,33 @@ final class RuleAssistantSession: ObservableObject {
 
     // MARK: Submit
 
+    /// Text Jason typed himself.
     func submit(_ prompt: String) async {
         let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        await submitTurn(wire: clean, display: clean, kind: .manual, restore: clean)
+    }
+
+    /// `restore` is the text put back into the composer when the turn fails or is stopped:
+    /// what Jason typed (never a scan prompt or a choice reply's wire text).
+    private func submitTurn(wire: String, display: String, kind: RuleAssistantTurnKind, restore: String?) async {
+        let clean = wire
         if clean.isEmpty || state.phase.isBusy { return }
         let gen = generation
-        pendingPrompt = clean
+        pendingTurn = (wire: clean, display: display, kind: kind, restore: restore)
+        turnKind = kind
         state.userText = ""
         state.phase = .loadingTools
+        state.busyTurnKind = kind
         state.reasoning = ""
         state.answer = ""
         state.toolStatus = []
         state.drafts = []
         state.publishedSha256 = nil
         state.publishMessage = nil
-        state.transcript.append(RuleAssistantTurn(role: "user", text: clean))
+        state.pendingQuestion = nil
+        state.selectedOptionIds = []
+        state.optionScopes = [:]
+        state.transcript.append(RuleAssistantTurn(role: "user", text: display))
         var transaction = history
         do {
             if provider == nil { provider = providerFactory() }
@@ -368,18 +427,112 @@ final class RuleAssistantSession: ObservableObject {
             if gen != generation { return }
             let message = Self.message(of: error)
             state.phase = .failed(message)
-            state.userText = clean
-            dropTrailingUserTurn(clean)
+            state.busyTurnKind = nil
+            if let restore { state.userText = restore }
+            dropTrailingUserTurn(display)
+            restorePendingChoice()
         }
-        pendingPrompt = nil
+        if gen == generation {
+            pendingTurn = nil
+            pendingChoiceRestore = nil
+            state.busyTurnKind = nil
+        }
     }
 
-    /// Auto-guess mode: no explanation from the user; the model works from the record, nearby
-    /// records, and must ask when unsure.
-    func submitAutoGuess() async {
-        autoGuessTurn = true
-        defer { autoGuessTurn = false }
-        await submit(Self.autoGuessPrompt)
+    /// Find-issues mode: no explanation from the user. The model lists the places it suspects as
+    /// options on a question card; the user picks instead of typing.
+    func submitScan() async {
+        state.hasAutoScanned = true
+        await submitTurn(
+            wire: Self.scanPrompt,
+            display: String(localized: "(Looking for issues automatically)"),
+            kind: .scan,
+            restore: nil
+        )
+    }
+
+    /// Run the automatic find-issues turn once per session, only on a fresh, configured session.
+    func autoScanIfNeeded() async {
+        let current = state
+        guard !current.hasAutoScanned, current.transcript.isEmpty, current.phase == .idle,
+              current.goKeyConfigured, current.syncConfigured
+        else { return }
+        await submitScan()
+    }
+
+    // MARK: Questions
+
+    func toggleOption(_ optionId: String) {
+        let current = state
+        guard let question = current.pendingQuestion,
+              question.options.contains(where: { $0.id == optionId }),
+              !current.phase.isBusy
+        else { return }
+        if current.selectedOptionIds.contains(optionId) {
+            state.selectedOptionIds.removeAll { $0 == optionId }
+        } else if question.multiSelect {
+            state.selectedOptionIds.append(optionId)
+        } else {
+            state.selectedOptionIds = [optionId]
+        }
+    }
+
+    func setScope(_ scope: RuleAssistantScope, for optionId: String) {
+        guard state.pendingQuestion?.options.contains(where: { $0.id == optionId }) == true, !state.phase.isBusy else { return }
+        state.optionScopes[optionId] = scope
+    }
+
+    /// Send the selected options (plus any note in the composer) as the reply to the pending question.
+    func submitChoice() async {
+        let current = state
+        guard let question = current.pendingQuestion, !current.selectedOptionIds.isEmpty, !current.phase.isBusy else { return }
+        let chosen = question.options.filter { current.selectedOptionIds.contains($0.id) }
+        guard !chosen.isEmpty else { return }
+        let note = current.userText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var wireLines = ["回覆問題 \(question.id)：\(question.prompt)"]
+        var displayParts: [String] = []
+        var broadSurfaces = Set<String>()
+        var scopes: [String: RuleAssistantScope] = [:]
+        for option in chosen {
+            var line = "[\(option.id)] \(option.label)"
+            var shown = option.label
+            if option.isCandidate {
+                let scope = current.optionScopes[option.id] ?? .sentence
+                scopes[option.id] = scope
+                line += "（範圍：\(scope.wireLabel)）"
+                shown += "（\(scope.wireLabel)）"
+                if scope == .broad, let surface = option.surface { broadSurfaces.insert(surface) }
+            }
+            wireLines.append("選擇：\(line)")
+            displayParts.append(shown)
+        }
+        wireLines.append("補充：\(note.isEmpty ? "無" : note)")
+        var display = String(localized: "Chose: \(displayParts.joined(separator: "、"))")
+        if !note.isEmpty { display += "\n\(note)" }
+        // A typed note is Jason's own statement: the turn counts as manual and the broad gate is off.
+        let kind: RuleAssistantTurnKind = note.isEmpty ? .choice(broadSurfaces: broadSurfaces) : .manual
+        pendingChoiceRestore = (question: question, selected: current.selectedOptionIds, scopes: current.optionScopes)
+        markQuestionAnswered(question.id, selected: current.selectedOptionIds, scopes: scopes)
+        await submitTurn(wire: wireLines.joined(separator: "\n"), display: display, kind: kind, restore: note.isEmpty ? nil : note)
+    }
+
+    private func markQuestionAnswered(_ questionId: String, selected: [String], scopes: [String: RuleAssistantScope]) {
+        guard let index = state.transcript.lastIndex(where: { $0.role == "assistant" && $0.question?.id == questionId }) else { return }
+        state.transcript[index].answeredOptionIds = selected
+        state.transcript[index].answeredScopes = scopes
+    }
+
+    /// A failed or cancelled choice reply puts the question back so the user can answer again.
+    private func restorePendingChoice() {
+        guard let restore = pendingChoiceRestore else { return }
+        pendingChoiceRestore = nil
+        state.pendingQuestion = restore.question
+        state.selectedOptionIds = restore.selected
+        state.optionScopes = restore.scopes
+        if let index = state.transcript.lastIndex(where: { $0.role == "assistant" && $0.question?.id == restore.question.id }) {
+            state.transcript[index].answeredOptionIds = []
+            state.transcript[index].answeredScopes = [:]
+        }
     }
 
     // MARK: Confirm / write / sync
@@ -638,9 +791,10 @@ final class RuleAssistantSession: ObservableObject {
     ) async throws {
         let located = RuleAssistantDraft.locateAllJSON(in: answer)
         let proposed = RuleAssistantDraft.parseAll(located)
-        // Cut every draft object out of the visible reply (only when at least one parsed as a draft).
+        let question = RuleAssistantQuestion.parseFirst(located)
+        // Cut every JSON object out of the visible reply (only when at least one parsed as a draft or question).
         var display: String
-        if !proposed.isEmpty {
+        if !proposed.isEmpty || question != nil {
             var trimmed = answer
             for item in located.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) {
                 trimmed.removeSubrange(item.range)
@@ -653,27 +807,38 @@ final class RuleAssistantSession: ObservableObject {
         }
         // Commit the wire history only for a normally completed turn.
         history = transaction
-        let fallback = proposed.isEmpty
-            ? String(localized: "(No text reply)")
-            : String(localized: "(Rule draft proposed)")
-        state.transcript.append(RuleAssistantTurn(role: "assistant", text: display.isEmpty ? fallback : display))
+        let fallback: String
+        if question != nil {
+            fallback = String(localized: "(Question for you)")
+        } else if proposed.isEmpty {
+            fallback = String(localized: "(No text reply)")
+        } else {
+            fallback = String(localized: "(Rule draft proposed)")
+        }
+        state.transcript.append(RuleAssistantTurn(role: "assistant", text: display.isEmpty ? fallback : display, question: question))
         // The live-answer bubble in the panel is for streaming only; once the turn is
         // committed to the transcript, keeping state.answer would render the reply twice.
         state.answer = ""
+        // The choice reply that led here is committed; a later failure must not resurrect its question.
+        pendingChoiceRestore = nil
+        if let question {
+            state.pendingQuestion = question
+            state.selectedOptionIds = []
+            state.optionScopes = [:]
+        }
         if proposed.isEmpty {
             state.phase = .idle
             return
         }
         var rejected: [String] = []
+        let kind = turnKind
         let accepted = proposed.filter { draft in
             if !draft.isSafeForWrite() {
                 rejected.append(String(localized: "The AI proposed a draft with incomplete or unsafe fields (\(draft.eventType)); it was not listed for confirmation. Add more detail and send again."))
                 return false
             }
-            // Broad rules need Jason's explicit statement that the source is never intended; a guess is not that.
-            if autoGuessTurn && (draft.isBroad || draft.isTransaction) {
-                let source = draft.sourcePattern ?? draft.aliases.joined(separator: "\u{3001}")
-                rejected.append(String(localized: "Auto-guess never creates broad rules or moves/merges families (\(draft.eventType): \(source) → \(draft.targetText ?? "")). For a batch replacement, state yourself that the source is never valid in any context and send again, or use a whole-utterance correction or a context-locked rule."))
+            if let reason = Self.gateReason(for: draft, kind: kind) {
+                rejected.append(reason)
                 return false
             }
             return true
@@ -682,7 +847,8 @@ final class RuleAssistantSession: ObservableObject {
             status(String(localized: "Skipped a draft: \(String(reason.prefix(120)))"))
         }
         guard !accepted.isEmpty else {
-            state.phase = .failed(rejected.first ?? String(localized: "No confirmable draft."))
+            // A question alongside only-rejected drafts still deserves an answer; keep the turn usable.
+            state.phase = question != nil ? .idle : .failed(rejected.first ?? String(localized: "No confirmable draft."))
             return
         }
         state.drafts = accepted.map { RuleAssistantDraftEntry(draft: $0) }
@@ -756,6 +922,34 @@ final class RuleAssistantSession: ObservableObject {
         )
     }
 
+    /// Broad rules need Jason's explicit statement that the source is never intended. A guess is not
+    /// that, and neither is ticking a candidate, unless he scoped that candidate as "any context".
+    /// Family moves/merges are never proposed without him asking in his own words.
+    static func gateReason(for draft: RuleAssistantDraft, kind: RuleAssistantTurnKind) -> String? {
+        switch kind {
+        case .manual:
+            return nil
+        case .scan:
+            guard draft.isBroad || draft.isTransaction else { return nil }
+            let source = draft.sourcePattern ?? draft.aliases.joined(separator: "\u{3001}")
+            return String(localized: "Find-issues never creates broad rules or moves/merges families (\(draft.eventType): \(source) → \(draft.targetText ?? "")). Tick the candidate and choose “Any context”, or state yourself that the source is never valid and send again.")
+        case .choice(let broadSurfaces):
+            if draft.isTransaction {
+                return String(localized: "Moving or merging families needs your own words (\(draft.eventType)); it is not created from a choice.")
+            }
+            guard draft.isBroad else { return nil }
+            let surfaces: [String]
+            if draft.eventType == "replacementFamily" {
+                surfaces = draft.aliases
+            } else {
+                surfaces = [draft.sourcePattern ?? ""]
+            }
+            let allAuthorised = !surfaces.isEmpty && surfaces.allSatisfy { broadSurfaces.contains($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            if allAuthorised { return nil }
+            return String(localized: "A broad rule for \(surfaces.joined(separator: "\u{3001}")) needs “Any context” chosen for that candidate; only this sentence or a context-locked rule was authorised.")
+        }
+    }
+
     private func updateEntry(nonce: String, transform: (inout RuleAssistantDraftEntry) -> Void) {
         state.drafts = state.drafts.map { entry in
             var entry = entry
@@ -804,7 +998,7 @@ final class RuleAssistantSession: ObservableObject {
     static let maxToolResultChars = 60_000
     static let maxStatusLines = 30
 
-    static let autoGuessPrompt = "使用者沒有說明原意，請自動判斷。先看這筆各階段文字；單筆看不出來就用 load_nearby_records 讀前後紀錄；仍不確定就直接問一句，不要輸出草稿。"
+    static let scanPrompt = "使用者沒有說明原意，請找出可疑之處。看這筆各階段文字，把你覺得不合理、可能是辨識或標準化錯誤的地方全部列成一題多選 question 的候選，每個候選附 surface 與你猜的 target；可以用 load_nearby_records 與唯讀工具輔助，但不確定的就列成候選讓使用者勾，不要靠上下文硬猜。找不到問題就說明並附一題 question（選項：這筆沒錯／其實有錯，我來說）。"
 
     static let systemPrompt = """
         You help Jason maintain his private Voco/Vocotype ASR correction layer.
@@ -817,7 +1011,18 @@ final class RuleAssistantSession: ObservableObject {
         - If the source/target boundary is unclear, ask one short clarification and output no draft.
         - If Jason says "X to Y", "X -> Y", "same logic", or clearly confirms a normalization, propose the draft directly.
         - You may use the read-only Worker tools (lookup_auto_apply_policy, list_auto_apply_families, detect_duplicate_control_event, preview_auto_apply_control_event, suggest_auto_apply_tombstone, get_auto_apply_reconcile_status, get_auto_apply_row_corrections) to check existing rules before proposing. Write tools are blocked for you; do not call them.
-        - Auto-guess: when Jason gives no explanation (or the single record is not enough to tell the wrong surface from the intended text), call load_nearby_records to read up to 5 records before and 5 after on this Mac and use them as context (the same term often appears correctly nearby). If it is still unclear after that, ask one short question and output no draft. Never guess a target that the record, the nearby records, or Jason's words do not support. In auto-guess (no explanation from Jason) never propose replacementRule or replacementFamily: use correction for the whole utterance, or contextLockedRule when the term recurs; you may mention that a broad rule is possible if Jason confirms it explicitly.
+        - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): Jason gave no explanation. Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or Jason's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the reply scoped that candidate as 任何語境; use correction for the whole utterance (scope 只改這句) or contextLockedRule (scope 語境限定).
+
+        Questions (instead of free-text clarification):
+        - Whenever you would ask Jason something, emit exactly one JSON object in its own ```json fence, for example:
+          {"question": {"id": "q1", "prompt": "這筆哪些地方是錯的？", "multiSelect": true, "options": [{"id": "a", "label": "西賴 → CLI", "detail": "程式工具語境", "surface": "西賴", "target": "CLI"}, {"id": "b", "label": "這筆沒錯"}]}}
+          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. Jason types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets Jason add a free-text note to his choice.
+        - The App replies to a question as a user message in this shape:
+          回覆問題 q1：<prompt>
+          選擇：[a] 西賴 → CLI（範圍：只改這句）
+          選擇：[b] ...
+          補充：<Jason's note, or 無>
+          Scope of a chosen candidate: 只改這句 → correction for the whole utterance; 語境限定 → contextLockedRule (pick contextTokensAny from the record; if unsure ask a question whose options are token choices); 任何語境 → replacementRule or replacementFamily is allowed for that surface only. A 「再猜」-style choice means your target was wrong: offer new candidates as another question, never a draft.
 
         Chinese script handling:
         - Voco/Vocotype has its own Chinese normalization pipeline: OpenCC conversion runs before the correction layer. Simplified-to-Traditional conversion belongs to that pipeline, not correction rules.
@@ -864,7 +1069,7 @@ final class RuleAssistantSession: ObservableObject {
         3. One JSON draft object per plan line, in the same order, each in its own ```json fence (at most 8). Fields: eventType, sourceText, targetText, sourcePattern, familyId, aliases, contextTokensAny, contextAliasesAny, policyId, fromFamilyId, toFamilyId, reason, disposition, positiveExamples, negativeExamples. Example objects use text, context, expectedText. Omit fields that do not apply. Do not include actor, rowPk, correctionSource, correctionRow, note, or makeAvailableNow; the App adds provenance itself.
         The App shows every draft as its own card; Jason confirms and publishes them one at a time inside the App, so never say a rule "will follow later"—emit all of them now.
 
-        If unsure, do not output a draft. Ask: 「我不確定要改的是哪個 surface：A -> B 對嗎？」
+        If unsure, do not output a draft. Ask a question with options, e.g. prompt 「要改的是哪個 surface？」 with the candidates and 「都不對，再猜」.
         Answer in Taiwanese Traditional Chinese, briefly.
         """
 }

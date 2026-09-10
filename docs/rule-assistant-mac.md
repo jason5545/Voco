@@ -61,6 +61,38 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
 - **不跟隨 redirect**：provider 與 MCP 都掛 `RuleAssistantNoRedirectDelegate`
   （`completionHandler(nil)`），有測試覆蓋。
 
+## 找問題與選擇題（2026-09-11）
+
+原本的「自動猜測」只有兩種結局：有把握就出草稿，沒把握就用純文字問一句，後者得打字回答。
+改成兩個通用機制，Android 同步實作、protocol 與 prompt 相同：
+
+- **選擇題原語** `RuleAssistantQuestion`（`RuleAssistantProtocol.swift`）：模型在回覆裡附一個
+  `{"question": {id, prompt, multiSelect, options[{id, label, detail?, surface?, target?}]}}`
+  JSON（與草稿同一套 `locateAllJSON` 找到，一回合最多一題，多的忽略；欄位不合法就整題丟掉、
+  當純文字顯示）。App 渲染成選項按鈕（多選勾、單選圓點，⌘1 到 ⌘9 切換），有 `surface`＋`target`
+  的候選被勾選後出現範圍 segmented：只改這句／語境限定／任何語境。按「送出選擇」把選擇組成固定
+  格式的使用者訊息回給模型（`回覆問題 q1：…／選擇：[a] …（範圍：只改這句）／補充：無`），
+  transcript 顯示的是可讀摘要（「選了：…」），wire 才是完整格式。輸入框的文字會當「補充」一起送。
+  答過的題變唯讀並標「已回答」；回覆失敗或被停止時題目與勾選狀態放回去（`pendingChoiceRestore`）。
+- **找問題模式** `submitScan()` 取代 `submitAutoGuess()`：固定指令要模型把可疑處列成一題多選
+  question 的候選，不確定的交給使用者勾，不靠上下文硬猜；有把握的候選可同回合直接出草稿。
+  開啟面板時自動跑一次（`RuleAssistantPanelView.attach` → `autoScanIfNeeded()`，每個 session
+  只跑一次，`hasAutoScanned`；設定 `RuleAssistantAutoScanOnOpen` 可關，預設開）。找問題執行中輸入框
+  仍可打字（`isInterruptible`：只有 scan 回合的 loadingTools／thinking 可被打斷），送出就取消掃描
+  改送手動說明；停止時掃描指令不會回填到輸入框，placeholder 回合會從 transcript 移除。
+- **broad 閘門留在 App 端**（`RuleAssistantSession.gateReason`）：回合分 `manual`／`scan`／
+  `choice(broadSurfaces)`。scan 回合拒絕 replacementRule／replacementFamily／transaction；
+  choice 回合拒絕 transaction，broad 只在使用者對該候選選了「任何語境」時放行
+  （replacementRule 比對 `sourcePattern`，replacementFamily 要求所有 `aliases` 都被授權）；
+  有打字補充的 choice 視為 manual（Jason 親自說明）。只有被拒的草稿但同回合有題目時，phase 保持
+  idle 讓使用者能作答，不進 failed。
+- 模型維持 `glm-5.3-flash`：model-arena 五輪把它定位在 Opus 5 級，沒有換模型的理由；候選品質要看
+  實機使用。
+- 測試：`RuleAssistantQuestionParseTests`（解析、預設 id、去重、fail-closed、上限 8、與草稿互不干擾）、
+  `RuleAssistantIntegrationTests` 新增 scan 出題、選擇回覆格式與閘門、任何語境放行、補充視為
+  manual、失敗還原題目、壞題目當純文字、題目與草稿同回合、自動掃描只跑一次、掃描中打字與取消、
+  手動回合打字被忽略但停止會還原。
+
 ## 本機規則覆蓋（coverage）
 
 2026-09-10 加入。Worker 收據（`RowCorrectionMarkings`）綁的是 row 身分（platform + rowPk +

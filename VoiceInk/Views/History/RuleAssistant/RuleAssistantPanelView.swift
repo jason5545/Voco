@@ -9,6 +9,7 @@ struct RuleAssistantPanelView: View {
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var registry = RuleAssistantSessionRegistry.shared
+    @AppStorage(RuleAssistantSettingsView.autoScanOnOpenKey) private var autoScanOnOpen = true
     @State private var session: RuleAssistantSession?
 
     var body: some View {
@@ -42,7 +43,11 @@ struct RuleAssistantPanelView: View {
     }
 
     private func attach() {
-        session = registry.session(for: transcription, modelContext: modelContext)
+        let attached = registry.session(for: transcription, modelContext: modelContext)
+        session = attached
+        // Opening the assistant already states the intent; run the find-issues turn once per session.
+        guard autoScanOnOpen, let attached else { return }
+        Task { @MainActor in await attached.autoScanIfNeeded() }
     }
 }
 
@@ -185,6 +190,9 @@ private struct RuleAssistantSessionView: View {
                         userBubble(turn.text)
                     } else {
                         assistantBubble(turn.text)
+                        if let question = turn.question {
+                            questionCard(question, turn: turn)
+                        }
                     }
                 }
 
@@ -247,6 +255,129 @@ private struct RuleAssistantSessionView: View {
             }
             Spacer(minLength: 40)
         }
+    }
+
+    // MARK: Question cards
+
+    /// Interactive while it is the pending question; read-only (showing what was chosen) afterwards.
+    private func questionCard(_ question: RuleAssistantQuestion, turn: RuleAssistantTurn) -> some View {
+        let interactive = state.pendingQuestion?.id == question.id && turn.answeredOptionIds.isEmpty
+        let selected = interactive ? state.selectedOptionIds : turn.answeredOptionIds
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(question.prompt)
+                .font(.system(size: 13, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(question.multiSelect ? "Pick every option that applies" : "Pick one")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
+            ForEach(Array(question.options.enumerated()), id: \.element.id) { index, option in
+                let isSelected = selected.contains(option.id)
+                VStack(alignment: .leading, spacing: 6) {
+                    optionButton(option, index: index, isSelected: isSelected, interactive: interactive)
+                    if isSelected, option.isCandidate {
+                        scopePicker(for: option, turn: turn, interactive: interactive)
+                    }
+                }
+            }
+
+            if interactive {
+                HStack(spacing: 10) {
+                    Button("Send choices") {
+                        run { await session.submitChoice() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.system(size: 12, weight: .semibold))
+                    .disabled(!state.canSubmitChoice || !configured)
+                    Text("⌘1–⌘9 toggle options · a note below is sent with them")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            } else if !turn.answeredOptionIds.isEmpty {
+                Label("Answered", systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
+                .fill(AppTheme.Surface.materialCard)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
+                        .strokeBorder(interactive ? AppTheme.Border.tint : AppTheme.Border.subtle, lineWidth: 1)
+                }
+        }
+    }
+
+    private func optionButton(_ option: RuleAssistantQuestionOption, index: Int, isSelected: Bool, interactive: Bool) -> some View {
+        let button = Button {
+            session.toggleOption(option.id)
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundColor(isSelected ? AppTheme.Status.positive : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.label)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail = option.detail {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+                if index < 9 {
+                    Text("⌘\(index + 1)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!interactive)
+
+        return Group {
+            if index < 9, interactive {
+                button.keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+            } else {
+                button
+            }
+        }
+    }
+
+    private func scopePicker(for option: RuleAssistantQuestionOption, turn: RuleAssistantTurn, interactive: Bool) -> some View {
+        let binding = Binding<RuleAssistantScope>(
+            get: {
+                interactive
+                    ? (state.optionScopes[option.id] ?? .sentence)
+                    : (turn.answeredScopes[option.id] ?? .sentence)
+            },
+            set: { session.setScope($0, for: option.id) }
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            Picker("Scope", selection: binding) {
+                Text("This sentence only").tag(RuleAssistantScope.sentence)
+                Text("Context-locked").tag(RuleAssistantScope.context)
+                Text("Any context").tag(RuleAssistantScope.broad)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .disabled(!interactive)
+            if binding.wrappedValue == .broad {
+                Text("Any context creates a broad rule: the source will be replaced everywhere.")
+                    .font(.footnote)
+                    .foregroundColor(AppTheme.Status.warningStrong)
+            }
+        }
+        .padding(.leading, 22)
     }
 
     // MARK: Tool status
@@ -553,26 +684,37 @@ private struct RuleAssistantSessionView: View {
         state.goKeyConfigured && state.syncConfigured
     }
 
-    private var canSend: Bool {
-        configured
-            && !state.phase.isBusy
-            && !state.userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var hasText: Bool {
+        !state.userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var canAutoGuess: Bool {
-        configured
-            && !state.phase.isBusy
-            && state.userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    /// Return / Send: a choice with selected options, or typed text. Typed text may also
+    /// interrupt a running find-issues turn.
+    private var canSend: Bool {
+        guard configured else { return false }
+        if state.phase.isBusy { return state.isInterruptible && hasText }
+        return state.canSubmitChoice || hasText
+    }
+
+    private var canScan: Bool {
+        configured && !state.phase.isBusy && !hasText
+    }
+
+    private var composerPlaceholder: String {
+        if state.pendingQuestion != nil {
+            return String(localized: "Optional note to send with your choice, or answer in your own words")
+        }
+        return state.transcript.isEmpty
+            ? String(localized: "Describe what you actually said, or press Find issues")
+            : String(localized: "Add detail or ask a follow-up")
     }
 
     private var inputArea: some View {
         VStack(spacing: 8) {
             ComposerEditor(
                 text: userTextBinding,
-                placeholder: state.transcript.isEmpty
-                    ? String(localized: "Describe what you actually said")
-                    : String(localized: "Add detail or ask a follow-up"),
-                isEnabled: !state.phase.isBusy,
+                placeholder: composerPlaceholder,
+                isEnabled: !state.phase.isBusy || state.isInterruptible,
                 onSend: { if canSend { send() } }
             )
             .frame(minHeight: 68, maxHeight: 120)
@@ -585,7 +727,7 @@ private struct RuleAssistantSessionView: View {
                             .strokeBorder(AppTheme.Border.tint, lineWidth: 1)
                     }
             }
-            .disabled(state.phase.isBusy)
+            .disabled(state.phase.isBusy && !state.isInterruptible)
 
             HStack(spacing: 10) {
                 if state.phase.isBusy {
@@ -593,8 +735,16 @@ private struct RuleAssistantSessionView: View {
                         session.cancel()
                     }
                     .font(.system(size: 12, weight: .medium))
+                    if state.isInterruptible {
+                        Button("Send to AI") {
+                            send()
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .disabled(!canSend)
+                        .keyboardShortcut(.return, modifiers: .command)
+                    }
                 } else {
-                    Button("Send to AI") {
+                    Button(state.canSubmitChoice ? "Send choices" : "Send to AI") {
                         send()
                     }
                     .buttonStyle(.borderedProminent)
@@ -602,11 +752,12 @@ private struct RuleAssistantSessionView: View {
                     .disabled(!canSend)
                     .keyboardShortcut(.return, modifiers: .command)
 
-                    Button("Auto-guess") {
-                        run { await session.submitAutoGuess() }
+                    Button("Find issues") {
+                        run { await session.submitScan() }
                     }
                     .font(.system(size: 12, weight: .medium))
-                    .disabled(!canAutoGuess)
+                    .disabled(!canScan)
+                    .help("The AI lists the places it suspects; tick the ones that are wrong.")
                 }
                 Spacer()
             }
@@ -618,6 +769,15 @@ private struct RuleAssistantSessionView: View {
     // MARK: Actions
 
     private func send() {
+        // Typing during a find-issues turn replaces it with Jason's own words.
+        if state.phase.isBusy {
+            guard state.isInterruptible, hasText else { return }
+            session.cancel()
+        }
+        if state.canSubmitChoice {
+            run { await session.submitChoice() }
+            return
+        }
         let text = state.userText
         run { await session.submit(text) }
     }

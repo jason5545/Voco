@@ -62,6 +62,70 @@ struct RuleAssistantDraftParsingTests {
 }
 
 @Suite(.serialized)
+struct RuleAssistantQuestionParseTests {
+    @Test func nestedQuestionWithCandidatesAndIds() {
+        let parsed = RuleAssistantQuestion.parse([
+            "question": [
+                "id": "q7",
+                "prompt": "哪個錯？",
+                "multiSelect": true,
+                "options": [
+                    ["id": "a", "label": "西賴 → CLI", "detail": "程式語境", "surface": "西賴", "target": "CLI"],
+                    ["label": "這筆沒錯"],
+                ],
+            ] as [String: Any],
+        ])
+        #expect(parsed?.id == "q7")
+        #expect(parsed?.multiSelect == true)
+        #expect(parsed?.options.count == 2)
+        #expect(parsed?.options[0].isCandidate == true)
+        #expect(parsed?.options[0].detail == "程式語境")
+        // Missing ids get letters by position; existing ids are kept.
+        #expect(parsed?.options[1].id == "b")
+        #expect(parsed?.options[1].isCandidate == false)
+    }
+
+    @Test func bareShapeWithStringOptionsAndQuestionKeyAsPrompt() {
+        let parsed = RuleAssistantQuestion.parse([
+            "question": "A 還是 B？",
+            "options": ["A", "B"],
+        ])
+        #expect(parsed?.prompt == "A 還是 B？")
+        #expect(parsed?.multiSelect == false)
+        #expect(parsed?.options.map(\.id) == ["a", "b"])
+        #expect(parsed?.options.map(\.label) == ["A", "B"])
+    }
+
+    @Test func duplicateIdsAreMadeUnique() {
+        let parsed = RuleAssistantQuestion.parse([
+            "prompt": "?",
+            "options": [["id": "a", "label": "1"], ["id": "a", "label": "2"]],
+        ])
+        #expect(parsed?.options.map(\.id) == ["a", "b1"])
+    }
+
+    @Test func malformedQuestionsFailClosed() {
+        #expect(RuleAssistantQuestion.parse(["question": ["prompt": "x", "options": [] as [Any]] as [String: Any]]) == nil)
+        #expect(RuleAssistantQuestion.parse(["question": ["options": [["label": "x"]]] as [String: Any]]) == nil)
+        #expect(RuleAssistantQuestion.parse(["question": ["prompt": "x", "options": [["detail": "no label"]]] as [String: Any]]) == nil)
+        #expect(RuleAssistantQuestion.parse(["eventType": "correction", "sourceText": "a", "targetText": "b"]) == nil)
+        let long = String(repeating: "很", count: 401)
+        #expect(RuleAssistantQuestion.parse(["prompt": long, "options": ["x"]]) == nil)
+    }
+
+    @Test func optionsAreCappedAtEightAndDraftsIgnoreQuestions() {
+        let options = (1...12).map { ["label": "選項 \($0)"] }
+        let parsed = RuleAssistantQuestion.parse(["prompt": "?", "options": options])
+        #expect(parsed?.options.count == 8)
+        let answer = "說明\n" + RuleAssistantTestJSON.string(["question": ["prompt": "?", "options": ["a"]] as [String: Any]])
+            + "\n" + RuleAssistantTestJSON.string(["eventType": "correction", "sourceText": "a", "targetText": "b"])
+        let located = RuleAssistantDraft.locateAllJSON(in: answer)
+        #expect(RuleAssistantDraft.parseAll(located).count == 1)
+        #expect(RuleAssistantQuestion.parseFirst(located)?.prompt == "?")
+    }
+}
+
+@Suite(.serialized)
 struct RuleAssistantDraftSafetyTests {
     private func draft(
         _ type: String,

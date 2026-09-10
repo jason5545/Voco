@@ -12994,6 +12994,226 @@
           }
         }
       }
+    },
+    "(Looking for issues automatically)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（自動找問題）"
+          }
+        }
+      }
+    },
+    "Chose: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選了：%@"
+          }
+        }
+      }
+    },
+    "(Question for you)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（有問題要問你）"
+          }
+        }
+      }
+    },
+    "Find-issues never creates broad rules or moves/merges families (%@: %@ → %@). Tick the candidate and choose “Any context”, or state yourself that the source is never valid and send again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找問題不會建立廣泛規則，也不會搬移或合併群組（%1$@：%2$@ → %3$@）。請勾選該候選並選「任何語境」，或自己說明來源在任何語境都不成立再送一次。"
+          }
+        }
+      }
+    },
+    "Moving or merging families needs your own words (%@); it is not created from a choice.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搬移或合併群組需要你親自說明（%@），不會從勾選建立。"
+          }
+        }
+      }
+    },
+    "A broad rule for %@ needs “Any context” chosen for that candidate; only this sentence or a context-locked rule was authorised.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的廣泛規則需要在該候選選「任何語境」；你只授權了只改這句或語境限定。"
+          }
+        }
+      }
+    },
+    "Pick every option that applies": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "勾選所有符合的選項"
+          }
+        }
+      }
+    },
+    "Pick one": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選一個"
+          }
+        }
+      }
+    },
+    "Send choices": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送出選擇"
+          }
+        }
+      }
+    },
+    "⌘1–⌘9 toggle options · a note below is sent with them": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘1 到 ⌘9 切換選項；下方補充會一起送出"
+          }
+        }
+      }
+    },
+    "Answered": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已回答"
+          }
+        }
+      }
+    },
+    "Scope": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範圍"
+          }
+        }
+      }
+    },
+    "This sentence only": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只改這句"
+          }
+        }
+      }
+    },
+    "Context-locked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語境限定"
+          }
+        }
+      }
+    },
+    "Any context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任何語境"
+          }
+        }
+      }
+    },
+    "Any context creates a broad rule: the source will be replaced everywhere.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任何語境會建立廣泛規則：來源在所有地方都會被取代。"
+          }
+        }
+      }
+    },
+    "Optional note to send with your choice, or answer in your own words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可補充說明一起送出，或直接用自己的話回答"
+          }
+        }
+      }
+    },
+    "Describe what you actually said, or press Find issues": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "描述你實際說的內容，或按「找問題」"
+          }
+        }
+      }
+    },
+    "Find issues": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找問題"
+          }
+        }
+      }
+    },
+    "The AI lists the places it suspects; tick the ones that are wrong.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 會列出它懷疑的地方，勾選真的有錯的即可。"
+          }
+        }
+      }
+    },
+    "Find issues automatically when the assistant opens": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟規則助手時自動找問題"
+          }
+        }
+      }
+    },
+    "The AI scans the record once per conversation and lists suspected errors as options to tick. Turn this off to start every conversation by hand.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 每段對話會掃描一次這筆紀錄，把懷疑的錯誤列成選項讓你勾。關閉後每段對話都由你自己開始。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

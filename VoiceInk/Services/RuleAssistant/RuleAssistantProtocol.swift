@@ -216,6 +216,112 @@ struct RuleAssistantContext: Equatable {
     }
 }
 
+// MARK: - Questions
+
+/// Where a confirmed candidate should apply. Chosen by the user on the question card, never by
+/// the model; only `broad` lifts the App-side gate against replacementRule / replacementFamily.
+enum RuleAssistantScope: String, CaseIterable, Equatable {
+    case sentence
+    case context
+    case broad
+
+    /// Wire label understood by the system prompt (Taiwanese Traditional Chinese on purpose).
+    var wireLabel: String {
+        switch self {
+        case .sentence: return "只改這句"
+        case .context: return "語境限定"
+        case .broad: return "任何語境"
+        }
+    }
+}
+
+struct RuleAssistantQuestionOption: Equatable {
+    var id: String
+    var label: String
+    var detail: String?
+    /// Wrong surface and intended text when the option is a correction candidate.
+    var surface: String?
+    var target: String?
+
+    var isCandidate: Bool { surface != nil && target != nil }
+}
+
+/// A structured question the model asks instead of free text. The App renders the options as
+/// buttons so the user picks instead of typing; the reply goes back as a user message.
+struct RuleAssistantQuestion: Equatable {
+    var id: String
+    var prompt: String
+    var multiSelect: Bool
+    var options: [RuleAssistantQuestionOption]
+
+    static let maxOptions = 8
+    static let maxPromptChars = 400
+    static let maxLabelChars = 200
+
+    /// Accepts {"question": {...}} and a bare {"prompt"/"question": "...", "options": [...]} object.
+    /// Fail-closed: anything malformed yields nil and the answer is shown as plain text.
+    static func parse(_ json: [String: Any]) -> RuleAssistantQuestion? {
+        let body: [String: Any]
+        if let nested = json.raDict("question") {
+            body = nested
+        } else if json["options"] != nil {
+            body = json
+        } else {
+            return nil
+        }
+        guard let prompt = body.raNonBlankString("prompt") ?? body.raNonBlankString("question"),
+              prompt.count <= maxPromptChars,
+              let rawOptions = body.raArray("options"), !rawOptions.isEmpty
+        else { return nil }
+        var options: [RuleAssistantQuestionOption] = []
+        var usedIds = Set<String>()
+        for raw in rawOptions.prefix(maxOptions) {
+            var label: String?
+            var detail: String?
+            var surface: String?
+            var target: String?
+            var id: String?
+            if let dict = raw as? [String: Any] {
+                label = dict.raNonBlankString("label") ?? dict.raNonBlankString("text")
+                detail = dict.raNonBlankString("detail")
+                surface = dict.raNonBlankString("surface") ?? dict.raNonBlankString("sourceText")
+                target = dict.raNonBlankString("target") ?? dict.raNonBlankString("targetText")
+                id = dict.raNonBlankString("id")
+            } else if let string = raw as? String, !string.trimmingCharacters(in: .whitespaces).isEmpty {
+                label = string
+            }
+            guard let label, label.count <= maxLabelChars else { return nil }
+            if (detail?.count ?? 0) > maxLabelChars || (surface?.count ?? 0) > maxLabelChars || (target?.count ?? 0) > maxLabelChars {
+                return nil
+            }
+            var resolvedId = id.map { String($0.prefix(32)) } ?? Self.defaultId(options.count)
+            var suffix = 0
+            while usedIds.contains(resolvedId) {
+                suffix += 1
+                resolvedId = "\(Self.defaultId(options.count))\(suffix)"
+            }
+            usedIds.insert(resolvedId)
+            options.append(RuleAssistantQuestionOption(id: resolvedId, label: label, detail: detail, surface: surface, target: target))
+        }
+        guard !options.isEmpty else { return nil }
+        let id = body.raNonBlankString("id").map { String($0.prefix(32)) } ?? "q1"
+        return RuleAssistantQuestion(id: id, prompt: prompt, multiSelect: body.raBool("multiSelect"), options: options)
+    }
+
+    /// The first question object in an answer; later ones are ignored (one question per turn).
+    static func parseFirst(_ located: [(json: [String: Any], range: Range<String.Index>)]) -> RuleAssistantQuestion? {
+        for (json, _) in located {
+            if let question = parse(json) { return question }
+        }
+        return nil
+    }
+
+    private static func defaultId(_ index: Int) -> String {
+        let letters = Array("abcdefghijklmnopqrstuvwxyz")
+        return index < letters.count ? String(letters[index]) : "o\(index + 1)"
+    }
+}
+
 // MARK: - Drafts
 
 struct RuleAssistantExample: Equatable {

@@ -578,12 +578,303 @@ struct RuleAssistantIntegrationTests {
             ]),
         ])
         let session = makeRuleAssistantSession(server: server)
-        await session.submitAutoGuess()
+        await session.submitScan()
         guard case .failed = session.state.phase else {
             Issue.record("expected failed, got \(session.state.phase)")
             return
         }
         #expect(session.state.drafts.isEmpty)
+        #expect(session.state.hasAutoScanned)
+        // The scan prompt never lands in the composer; the transcript shows the placeholder, not the wire text.
+        #expect(session.state.userText.isEmpty)
+        #expect(session.state.transcript.first?.text.contains("請找出可疑之處") == false)
+    }
+
+    // MARK: Questions and choices
+
+    private func questionJSON(id: String = "q1", multiSelect: Bool = true, options: [[String: Any]]) -> String {
+        RuleAssistantTestJSON.string([
+            "question": [
+                "id": id,
+                "prompt": "這筆哪些地方是錯的？",
+                "multiSelect": multiSelect,
+                "options": options,
+            ] as [String: Any],
+        ])
+    }
+
+    private var candidateOptions: [[String: Any]] {
+        [
+            ["id": "a", "label": "小振 → 小鎮", "detail": "地名", "surface": "小振", "target": "小鎮"],
+            ["id": "b", "label": "去 → 趣", "surface": "去", "target": "趣"],
+            ["id": "c", "label": "這筆沒錯"],
+        ]
+    }
+
+    private func lastUserMessage(_ index: Int) -> String {
+        providerMessages(index).last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
+    }
+
+    @Test func scanQuestionIsParsedAndWaitsForChoice() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: "我找到兩個可疑處。\n```json\n" + questionJSON(options: candidateOptions) + "\n```"),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        #expect(session.state.phase == .idle)
+        #expect(session.state.drafts.isEmpty)
+        let question = session.state.pendingQuestion
+        #expect(question?.id == "q1")
+        #expect(question?.multiSelect == true)
+        #expect(question?.options.map(\.id) == ["a", "b", "c"])
+        #expect(question?.options[0].isCandidate == true)
+        #expect(question?.options[2].isCandidate == false)
+        // The JSON is cut out of the visible reply; the card hangs off the assistant turn.
+        let assistant = session.state.transcript.last
+        #expect(assistant?.role == "assistant")
+        #expect(assistant?.text == "我找到兩個可疑處。")
+        #expect(assistant?.question?.id == "q1")
+        #expect(session.state.transcript.first?.text.contains("自動") == true || session.state.transcript.first?.text.contains("automatically") == true)
+        #expect(!server.toolCalls.contains { $0.name == "preview_auto_apply_control_event" })
+        // Only the scan prompt went to the model.
+        #expect(lastUserMessage(0).contains("請找出可疑之處"))
+    }
+
+    @Test func choiceReplyCarriesSelectionsAndBlocksUnscopedBroadDraft() async {
+        server.reset()
+        let broad = RuleAssistantTestJSON.string([
+            "eventType": "replacementRule",
+            "sourcePattern": "小振",
+            "targetText": "小鎮",
+        ])
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我們去小振家", "我們去小鎮家"), broad])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        #expect(session.state.pendingQuestion != nil)
+        // Single-select semantics are per question; this one is multi-select.
+        session.toggleOption("a")
+        session.toggleOption("c")
+        session.toggleOption("c")
+        session.toggleOption("b")
+        #expect(session.state.selectedOptionIds == ["a", "b"])
+        session.setScope(.context, for: "b")
+        await session.submitChoice()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        // The exact correction is offered; the broad one was not scoped as any-context.
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.drafts[0].draft.eventType == "correction")
+        #expect(session.state.toolStatus.contains { $0.contains("Skipped") || $0.contains("略過") })
+        // Wire reply shape.
+        let reply = lastUserMessage(1)
+        #expect(reply.contains("回覆問題 q1：這筆哪些地方是錯的？"))
+        #expect(reply.contains("選擇：[a] 小振 → 小鎮（範圍：只改這句）"))
+        #expect(reply.contains("選擇：[b] 去 → 趣（範圍：語境限定）"))
+        #expect(reply.contains("補充：無"))
+        #expect(!reply.contains("[c]"))
+        // Question is consumed and marked answered on its turn.
+        #expect(session.state.pendingQuestion == nil)
+        let questionTurn = session.state.transcript.first { $0.question != nil }
+        #expect(questionTurn?.answeredOptionIds == ["a", "b"])
+        #expect(questionTurn?.answeredScopes["b"] == .context)
+        // The user turn shows a readable summary, not the wire text.
+        let userTurn = session.state.transcript.last { $0.role == "user" }
+        #expect(userTurn?.text.contains("回覆問題") == false)
+        #expect(userTurn?.text.contains("小振 → 小鎮") == true)
+    }
+
+    @Test func choiceScopedAnyContextAllowsMatchingBroadDraftOnly() async {
+        server.reset()
+        let broadA = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "小振", "targetText": "小鎮"])
+        let broadB = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "去", "targetText": "趣"])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broadA, broadB])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.toggleOption("b")
+        session.setScope(.broad, for: "a")
+        await session.submitChoice()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.drafts.map { $0.draft.sourcePattern } == ["小振"])
+        #expect(lastUserMessage(1).contains("[a] 小振 → 小鎮（範圍：任何語境）"))
+    }
+
+    @Test func choiceWithTypedNoteCountsAsJasonsOwnWords() async {
+        server.reset()
+        let broad = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "小振", "targetText": "小鎮"])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(multiSelect: false, options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("b")
+        session.toggleOption("a")
+        // Single-select: the second pick replaces the first.
+        #expect(session.state.selectedOptionIds == ["a"])
+        session.setUserText("小振在我這裡永遠是小鎮")
+        await session.submitChoice()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.drafts.first?.draft.eventType == "replacementRule")
+        #expect(lastUserMessage(1).contains("補充：小振在我這裡永遠是小鎮"))
+        #expect(session.state.userText.isEmpty)
+    }
+
+    @Test func failedChoiceReplyRestoresTheQuestion() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .httpError(500),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setScope(.context, for: "a")
+        await session.submitChoice()
+        guard case .failed = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.pendingQuestion?.id == "q1")
+        #expect(session.state.selectedOptionIds == ["a"])
+        #expect(session.state.optionScopes["a"] == .context)
+        #expect(session.state.transcript.first { $0.question != nil }?.answeredOptionIds.isEmpty == true)
+        #expect(session.state.transcript.last?.role == "assistant")
+        // The wire reply never lands in the composer; only a typed note would.
+        #expect(session.state.userText.isEmpty)
+    }
+
+    @Test func failedChoiceReplyWithNoteRestoresOnlyTheNote() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .httpError(500),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setUserText("其實是小鎮")
+        await session.submitChoice()
+        guard case .failed = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.userText == "其實是小鎮")
+        #expect(session.state.pendingQuestion?.id == "q1")
+        #expect(session.state.selectedOptionIds == ["a"])
+    }
+
+    @Test func malformedQuestionIsShownAsPlainText() async {
+        server.reset()
+        let bad = RuleAssistantTestJSON.string(["question": ["prompt": "沒有選項", "options": [] as [Any]] as [String: Any]])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "看不出來。" + bad), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("看看")
+        #expect(session.state.phase == .idle)
+        #expect(session.state.pendingQuestion == nil)
+        #expect(session.state.transcript.last?.text.contains("看不出來") == true)
+    }
+
+    @Test func questionAndDraftInOneAnswerBothSurvive() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我們去小振家", "我們去小鎮家")]) + "\n" + questionJSON(options: [["id": "x", "label": "去 → 趣", "surface": "去", "target": "趣"], ["label": "沒錯"]])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.pendingQuestion?.options.map(\.id) == ["x", "b"])
+        #expect(session.state.canSubmitChoice == false)
+        session.toggleOption("x")
+        #expect(session.state.canSubmitChoice)
+    }
+
+    @Test func autoScanRunsOnceAndOnlyOnFreshConfiguredSession() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "沒有問題。"), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        // Not configured: nothing happens.
+        await session.autoScanIfNeeded()
+        #expect(FakeGoProvider.recorded.isEmpty)
+        #expect(!session.state.hasAutoScanned)
+        session.setConfig(goKeyConfigured: true, syncConfigured: true)
+        await session.autoScanIfNeeded()
+        #expect(FakeGoProvider.recorded.count == 1)
+        #expect(session.state.hasAutoScanned)
+        await session.autoScanIfNeeded()
+        #expect(FakeGoProvider.recorded.count == 1)
+    }
+
+    @Test func typingDuringScanIsKeptAndScanCancelRestoresNothing() async {
+        server.reset()
+        // The provider never answers, so the scan stays in flight until cancelled.
+        FakeGoProvider.reset(scripts: [.hang])
+        let session = makeRuleAssistantSession(server: server)
+        let task = Task { @MainActor in await session.submitScan() }
+        _ = await waitForRequests(1)
+        #expect(session.state.phase.isBusy)
+        #expect(session.state.isInterruptible)
+        #expect(session.state.busyTurnKind == .scan)
+        session.setUserText("其實是小鎮")
+        #expect(session.state.userText == "其實是小鎮")
+        session.cancel()
+        task.cancel()
+        _ = await task.value
+        // Typed text survives; the scan placeholder turn is dropped and its prompt never lands in the composer.
+        #expect(session.state.userText == "其實是小鎮")
+        #expect(session.state.phase == .idle)
+        #expect(session.state.busyTurnKind == nil)
+        #expect(session.state.transcript.isEmpty)
+    }
+
+    @Test func typingDuringManualTurnIsIgnoredButCancelRestoresIt() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [.hang])
+        let session = makeRuleAssistantSession(server: server)
+        let task = Task { @MainActor in await session.submit("小振是小鎮") }
+        _ = await waitForRequests(1)
+        #expect(!session.state.isInterruptible)
+        session.setUserText("不該進去")
+        #expect(session.state.userText.isEmpty)
+        session.cancel()
+        task.cancel()
+        _ = await task.value
+        #expect(session.state.userText == "小振是小鎮")
     }
 
     // MARK: Nearby records
