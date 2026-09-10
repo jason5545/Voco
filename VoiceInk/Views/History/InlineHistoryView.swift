@@ -15,6 +15,7 @@ struct InlineHistoryView: View {
     @State private var hasMoreContent = true
     @State private var lastTimestamp: Date?
     @State private var isViewCurrentlyVisible = false
+    @ObservedObject private var markingRefresher = RowCorrectionMarkingRefresher.shared
 
     private let exportService = VoiceInkCSVExportService()
     private let pageSize = 20
@@ -83,6 +84,20 @@ struct InlineHistoryView: View {
             topBar
             Divider()
 
+            if markingRefresher.refreshFailed {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("Correction markings not refreshed; showing last result")
+                        .font(.system(size: 11))
+                    Spacer()
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 6)
+                Divider()
+            }
+
             if displayedTranscriptions.isEmpty && !isLoading {
                 emptyStateView
             } else {
@@ -102,7 +117,7 @@ struct InlineHistoryView: View {
             set: { newValue in
                 if !newValue { closePanel() }
             }
-        )) {
+        ), width: panelMode == .ruleAssistant ? 480 : 400) {
             panelContent
         }
         .alert("Delete Selected Items?", isPresented: $showDeleteConfirmation) {
@@ -258,6 +273,9 @@ struct InlineHistoryView: View {
                         onToggleCheck: { toggleSelection(transcription) },
                         onShowInfo: {
                             openPanel(mode: .info, transcriptionID: transcription.id)
+                        },
+                        onFixWithAI: {
+                            openPanel(mode: .ruleAssistant, transcriptionID: transcription.id)
                         }
                     )
                 }
@@ -302,6 +320,8 @@ struct InlineHistoryView: View {
                 }
             )
             .id(selectedTranscriptions.count)
+        case .ruleAssistant:
+            ruleAssistantPanelContent
         }
     }
 
@@ -311,6 +331,19 @@ struct InlineHistoryView: View {
 
             if let transcription = panelTranscription {
                 TranscriptionInfoPanel(transcription: transcription)
+                    .id(transcription.id)
+            } else {
+                Spacer()
+            }
+        }
+    }
+
+    private var ruleAssistantPanelContent: some View {
+        VStack(spacing: 0) {
+            AppPanelHeader(title: "Rule Assistant", onClose: closePanel)
+
+            if let transcription = panelTranscription {
+                RuleAssistantPanelView(transcription: transcription)
                     .id(transcription.id)
             } else {
                 Spacer()
@@ -331,6 +364,7 @@ struct InlineHistoryView: View {
             displayedTranscriptions = items
             lastTimestamp = items.last?.timestamp
             hasMoreContent = items.count == pageSize
+            markingRefresher.refresh(items, modelContext: modelContext)
         } catch {
             print("Error loading transcriptions: \(error)")
         }
@@ -348,6 +382,7 @@ struct InlineHistoryView: View {
             displayedTranscriptions.append(contentsOf: newItems)
             self.lastTimestamp = newItems.last?.timestamp
             hasMoreContent = newItems.count == pageSize
+            markingRefresher.refresh(displayedTranscriptions, modelContext: modelContext)
         } catch {
             print("Error loading more transcriptions: \(error)")
         }
@@ -451,6 +486,7 @@ private struct HistoryCardRow: View {
     let onToggleExpand: () -> Void
     let onToggleCheck: () -> Void
     let onShowInfo: () -> Void
+    let onFixWithAI: () -> Void
 
     @State private var selectedTab: TranscriptionTab = .original
 
@@ -486,6 +522,20 @@ private struct HistoryCardRow: View {
                     Text(transcription.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
+
+                    if let marking = transcription.correctionMarkingLabel {
+                        Label {
+                            Text(marking.text)
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        } icon: {
+                            Image(systemName: RowCorrectionMarkings.badgeIcon(for: transcription.corrections))
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .foregroundStyle(marking.tone.color)
+                        .labelStyle(.titleAndIcon)
+                    }
 
                     if !isExpanded {
                         Text(transcription.enhancedText ?? transcription.text)
@@ -558,11 +608,23 @@ private struct HistoryCardRow: View {
             if hasAudioFile, let urlString = transcription.audioFileURL,
                let url = URL(string: urlString) {
                 Divider()
-                AudioPlayerView(url: url, transcription: transcription, onInfoTap: onShowInfo)
-                    .padding(.vertical, 4)
+                AudioPlayerView(
+                    url: url,
+                    transcription: transcription,
+                    onInfoTap: onShowInfo,
+                    onRuleAssistantTap: onFixWithAI
+                )
+                .padding(.vertical, 4)
             } else {
-                HStack {
+                HStack(spacing: 12) {
                     Spacer()
+                    Button(action: onFixWithAI) {
+                        Image(systemName: "text.badge.checkmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fix with AI")
                     Button(action: onShowInfo) {
                         Image(systemName: "info.circle")
                             .font(.system(size: 14, weight: .medium))

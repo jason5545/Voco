@@ -71,6 +71,9 @@ final class Transcription {
     var autoApplyPolicyHitIDsJSON: String?
     var qwen3AdapterMetadataJSON: String?
     var qwen3SpecialistRoutingMetadataJSON: String?
+    /// Cached Worker correction receipts for this row (voco.row-corrections.v1 payload).
+    /// Written only by RowCorrectionMarkingRefresher / the rule assistant; Core Data name ZCORRECTIONSJSON.
+    var correctionsJSON: String?
 
     var activeContextIDs: [String] {
         get { Self.decodeStringArray(activeContextIDsJSON) }

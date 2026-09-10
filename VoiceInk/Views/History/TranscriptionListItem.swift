@@ -102,6 +102,10 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             badges.append(reviewBadge)
         }
 
+        if let markingBadge = correctionMarkingBadge(for: transcription) {
+            badges.append(markingBadge)
+        }
+
         let selectionSource = VocoCandidateSelectionSource(
             rawValue: transcription.candidateSelectionSource ?? ""
         )
@@ -234,6 +238,18 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
         )
     }
 
+    /// Worker correction receipts cached on the row (sits before selection badges so
+    /// the limit: 3 cap cannot push it out when a review badge is present).
+    private static func correctionMarkingBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
+        guard let label = transcription.correctionMarkingLabel else { return nil }
+        return TranscriptionAssistiveBadge(
+            id: "correction-marking",
+            icon: RowCorrectionMarkings.badgeIcon(for: transcription.corrections),
+            title: label.text,
+            tone: label.tone.badgeTone
+        )
+    }
+
     private static func styleGuardBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
         let reasonCount = transcription.styleGuardReasons.count
         guard reasonCount > 0 || transcription.styleGuardRejectedText?.isEmpty == false else {
@@ -317,6 +333,18 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
     private static func percent(_ value: Double) -> String {
         "\(Int((value * 100).rounded()))%"
     }
+}
+
+extension RowCorrectionMarkingTone {
+    var badgeTone: TranscriptionAssistiveBadge.Tone {
+        switch self {
+        case .green: return .green
+        case .orange: return .orange
+        case .secondary: return .secondary
+        }
+    }
+
+    var color: Color { badgeTone.color }
 }
 
 struct TranscriptionAssistiveBadgeRow: View {

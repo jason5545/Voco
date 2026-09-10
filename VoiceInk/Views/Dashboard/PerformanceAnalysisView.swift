@@ -5,6 +5,7 @@ import SwiftUI
 enum PanelMode {
     case info
     case analysis
+    case ruleAssistant
 }
 
 struct PerformanceAnalyzer {

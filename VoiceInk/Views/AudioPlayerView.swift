@@ -349,6 +349,8 @@ struct AudioPlayerView: View {
     let url: URL
     let transcription: Transcription?
     var onInfoTap: (() -> Void)?
+    /// Optional extra entry point rendered to the right of the info button (rule assistant).
+    var onRuleAssistantTap: (() -> Void)?
     @StateObject private var playerManager = AudioPlayerManager()
     @State private var isHovering = false
     @State private var isRetranscribing = false
@@ -458,6 +460,11 @@ struct AudioPlayerView: View {
                     if let onInfoTap {
                         CircleIconButton(icon: "info.circle", action: onInfoTap)
                             .help("View details")
+                    }
+
+                    if let onRuleAssistantTap {
+                        CircleIconButton(icon: "text.badge.checkmark", action: onRuleAssistantTap)
+                            .help("Fix with AI")
                     }
                 }
 

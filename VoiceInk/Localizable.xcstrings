@@ -11544,6 +11544,1396 @@
           }
         }
       }
+    },
+    "unknown source": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知來源"
+          }
+        }
+      }
+    },
+    "Correction applied (Worker)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正已套用（Worker）"
+          }
+        }
+      }
+    },
+    "Correction pending": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正待處理"
+          }
+        }
+      }
+    },
+    "Rule already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則已存在"
+          }
+        }
+      }
+    },
+    "Correction recorded, not confirmed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正已記錄，尚未確認"
+          }
+        }
+      }
+    },
+    "Stopped.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停止。"
+          }
+        }
+      }
+    },
+    "OpenCode Go connection failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenCode Go 連線失敗：%@"
+          }
+        }
+      }
+    },
+    "The provider stream exceeded the safety length limit.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提供者串流超過安全長度上限。"
+          }
+        }
+      }
+    },
+    "The provider stream exceeded the total time limit.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提供者串流超過總時限。"
+          }
+        }
+      }
+    },
+    "The provider stream ended before [DONE].": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提供者串流在 [DONE] 之前就結束了。"
+          }
+        }
+      }
+    },
+    "The MCP session is closed.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 連線已關閉。"
+          }
+        }
+      }
+    },
+    "MCP SSE connection failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP SSE 連線失敗：%@"
+          }
+        }
+      }
+    },
+    "MCP POST failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP POST 失敗：%@"
+          }
+        }
+      }
+    },
+    "More than %lld tool calls": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工具呼叫超過 %lld 個"
+          }
+        }
+      }
+    },
+    "Tool call #%lld exceeded the length limit": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 個工具呼叫超過長度上限"
+          }
+        }
+      }
+    },
+    "Tool call #%lld is missing an id": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 個工具呼叫缺少 id"
+          }
+        }
+      }
+    },
+    "Tool call #%lld is missing a name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 個工具呼叫缺少名稱"
+          }
+        }
+      }
+    },
+    "Tool call #%lld (%@) has incomplete argument JSON": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 個工具呼叫（%2$@）的參數 JSON 不完整"
+          }
+        }
+      }
+    },
+    "(No text reply)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（沒有文字回覆）"
+          }
+        }
+      }
+    },
+    "(Rule draft proposed)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（已提出規則草稿）"
+          }
+        }
+      }
+    },
+    "Check whether the old rule should be retired first": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先確認是否該停用舊規則"
+          }
+        }
+      }
+    },
+    "Correction markings not refreshed; showing last result (%@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正標記未更新，顯示上次結果（%@）"
+          }
+        }
+      }
+    },
+    "Loaded nearby records: %lld before, %lld after": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已載入鄰近紀錄：前 %1$lld 筆、後 %2$lld 筆"
+          }
+        }
+      }
+    },
+    "No confirmable draft.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可確認的草稿。"
+          }
+        }
+      }
+    },
+    "Paused write tool %@: user confirmation required": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暫停寫入工具 %@：需要使用者確認"
+          }
+        }
+      }
+    },
+    "Published (SHA %@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已發佈（SHA %@）"
+          }
+        }
+      }
+    },
+    "Querying %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查詢 %@"
+          }
+        }
+      }
+    },
+    "Refused a tool that is not allowlisted: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒絕不在允許清單的工具：%@"
+          }
+        }
+      }
+    },
+    "Retire the conflicting rule or narrow the scope first": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先停用衝突的規則，或縮小適用範圍"
+          }
+        }
+      }
+    },
+    "Save the OpenCode Go API key first.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先設定 OpenCode Go API 金鑰。"
+          }
+        }
+      }
+    },
+    "Skipped a draft: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過一則草稿：%@"
+          }
+        }
+      }
+    },
+    "The AI proposed a draft with incomplete or unsafe fields (%@); it was not listed for confirmation. Add more detail and send again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 提出的草稿欄位不完整或不安全（%@），未列出供確認。請補充細節後重新送出。"
+          }
+        }
+      }
+    },
+    "The AI reply was cut off by the length limit; please send again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 回覆被長度上限截斷，請重新送出。"
+          }
+        }
+      }
+    },
+    "The AI response exceeded the safety length limit.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 回應超過安全長度上限。"
+          }
+        }
+      }
+    },
+    "The AI used more than %lld tool rounds; please rephrase and try again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 使用了超過 %lld 輪工具呼叫，請換個說法再試一次。"
+          }
+        }
+      }
+    },
+    "The Worker already has an identical event (%lld); not writing again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已有相同事件（%lld 筆），不再重複寫入。"
+          }
+        }
+      }
+    },
+    "The Worker did not offer any rule tools.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 沒有提供任何規則工具。"
+          }
+        }
+      }
+    },
+    "The Worker published %@, but the Mac sync SHA does not match (remote=%@, installed=%@).": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已發佈 %1$@，但 Mac 同步的 SHA 不符（遠端＝%2$@，已安裝＝%3$@）。"
+          }
+        }
+      }
+    },
+    "The Worker published %@, but the Mac sync did not complete: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已發佈 %1$@，但 Mac 同步未完成：%2$@"
+          }
+        }
+      }
+    },
+    "The Worker published %@; syncing the Mac model…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已發佈 %@，正在同步 Mac 模型…"
+          }
+        }
+      }
+    },
+    "The Worker published and the Mac model is in sync (SHA %@). The canonical ReplayLab merge is handled separately.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已發佈，Mac 模型已同步（SHA %@）。正式的 ReplayLab 整併會另外處理。"
+          }
+        }
+      }
+    },
+    "The Worker realtime overlay did not carry a valid published SHA.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 的即時覆層沒有帶有效的已發佈 SHA。"
+          }
+        }
+      }
+    },
+    "The Worker recorded the event (%@) but did not publish: %@. The event stays pending on the Worker and will not be resent; resolve the cause first (for example, retire the conflicting rule).": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已記錄事件（%1$@）但未發佈：%2$@。事件會以待處理狀態留在 Worker，不會重送；請先排除原因（例如停用衝突的規則）。"
+          }
+        }
+      }
+    },
+    "The Worker recorded the event (pending) but did not publish it in realtime: %@. It will not be resent.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已記錄事件（待處理），但未即時發佈：%@。不會重送。"
+          }
+        }
+      }
+    },
+    "The Worker recorded the event, but this rule did not change the model (%@). It will not be resent.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 已記錄事件，但這條規則沒有改變模型（%@）。不會重送。"
+          }
+        }
+      }
+    },
+    "The Worker rejected the write: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 拒絕寫入：%@"
+          }
+        }
+      }
+    },
+    "The Worker sync key is not configured on this Mac.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 尚未設定 Worker 同步金鑰。"
+          }
+        }
+      }
+    },
+    "The Worker write outcome is unknown (%@). Moves and merges cannot be duplicate-checked, so the transaction was not resent; confirm with lookup_auto_apply_policy or the Worker reconcile state before asking again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 寫入結果不明（%@）。搬移與合併無法查重，所以交易不會重送；再次操作前請用 lookup_auto_apply_policy 或 Worker 對帳狀態確認。"
+          }
+        }
+      }
+    },
+    "The Worker write outcome is unknown (%@); the duplicate check did not find this rule, so nothing was resent. Press Confirm & Publish again — the full check runs before writing.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 寫入結果不明（%@）；查重也找不到這條規則，所以沒有重送。再按一次「確認並發佈」，寫入前會重新完整檢查。"
+          }
+        }
+      }
+    },
+    "The Worker write response was lost, but the duplicate check shows the rule already exists; it was not resent. Use Resync Mac model shortly to confirm the Mac model.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 寫入回應遺失，但查重顯示規則已存在，所以沒有重送。稍後用「重新同步 Mac 模型」確認 Mac 端模型。"
+          }
+        }
+      }
+    },
+    "The provider finished with [%@]; the tool calls may be incomplete, so this round was not executed.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提供者以 [%@] 結束；工具呼叫可能不完整，這一輪未執行。"
+          }
+        }
+      }
+    },
+    "This draft does not satisfy the safety field limits; please send again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這則草稿不符合安全欄位限制，請重新送出。"
+          }
+        }
+      }
+    },
+    "This rule is already applied in the current Worker model; no need to write it again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前 Worker 模型已套用這條規則，不需要再寫入。"
+          }
+        }
+      }
+    },
+    "Unknown rule type: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知的規則類型：%@"
+          }
+        }
+      }
+    },
+    "Worker duplicate check": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 查重"
+          }
+        }
+      }
+    },
+    "Worker duplicate check failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 查重失敗：%@"
+          }
+        }
+      }
+    },
+    "Worker preview (%@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 預覽（%@）"
+          }
+        }
+      }
+    },
+    "Worker preview failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 預覽失敗：%@"
+          }
+        }
+      }
+    },
+    "Worker warnings: %@ — %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 警告：%1$@ — %2$@"
+          }
+        }
+      }
+    },
+    "Writing %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在寫入 %@"
+          }
+        }
+      }
+    },
+    "%@ reported an error: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 回報錯誤：%2$@"
+          }
+        }
+      }
+    },
+    "check again shortly": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後再確認"
+          }
+        }
+      }
+    },
+    "it may already exist or not match": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能已存在或不符"
+          }
+        }
+      }
+    },
+    "unknown": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
+          }
+        }
+      }
+    },
+    "The Worker cannot publish this event type in realtime (unsupported=%lld, skipped=%lld): %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 無法即時發佈這種事件類型（unsupported=%1$lld、skipped=%2$lld）：%3$@"
+          }
+        }
+      }
+    },
+    "Conflicts with existing rules (%lld): %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "與現有規則衝突（%1$lld 條）：%2$@"
+          }
+        }
+      }
+    },
+    "The Worker preview says this would not change the model: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 預覽顯示這不會改變模型：%@"
+          }
+        }
+      }
+    },
+    "Auto-guess never creates broad rules or moves/merges families (%@: %@ → %@). For a batch replacement, state yourself that the source is never valid in any context and send again, or use a whole-utterance correction or a context-locked rule.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動猜測不會建立廣泛規則，也不會搬移或合併群組（%1$@：%2$@ → %3$@）。如果要批次取代，請明確說明來源在任何語境都不成立再送一次，或改用整句修正或鎖定語境的規則。"
+          }
+        }
+      }
+    },
+    "Rule Assistant": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則助手"
+          }
+        }
+      }
+    },
+    "This record cannot use the rule assistant": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這筆紀錄無法使用規則助手"
+          }
+        }
+      }
+    },
+    "It has no database row identity yet, so corrections cannot be attributed to it.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它還沒有資料庫列身分，修正無法歸屬到這筆紀錄。"
+          }
+        }
+      }
+    },
+    "Shared %lld nearby records with the model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已提供前後共 %lld 筆紀錄的文字給模型"
+          }
+        }
+      }
+    },
+    "Only this record's texts and this conversation are sent — never audio. When one record is not enough, the model may read up to 5 records before and after.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只會送出這筆紀錄的文字與本對話，不會送音檔。單筆紀錄不夠判斷時，模型可以讀取前後各最多 5 筆紀錄。"
+          }
+        }
+      }
+    },
+    "voco:row:%lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "voco:row:%lld"
+          }
+        }
+      }
+    },
+    "· %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %@"
+          }
+        }
+      }
+    },
+    "Auto-apply %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-apply %@"
+          }
+        }
+      }
+    },
+    "Set the OpenCode Go API key to use the rule assistant.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定 OpenCode Go API 金鑰才能使用規則助手。"
+          }
+        }
+      }
+    },
+    "The Worker sync key is not configured on this Mac; rules cannot be published.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 尚未設定 Worker 同步金鑰，無法發佈規則。"
+          }
+        }
+      }
+    },
+    "Show thinking": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示思考過程"
+          }
+        }
+      }
+    },
+    "Rule %lld / %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則 %1$lld／%2$lld"
+          }
+        }
+      }
+    },
+    "Exact correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精確修正"
+          }
+        }
+      }
+    },
+    "Context-locked replacement": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定語境的取代"
+          }
+        }
+      }
+    },
+    "Broad replacement": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "廣泛取代"
+          }
+        }
+      }
+    },
+    "Replacement family": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取代群組"
+          }
+        }
+      }
+    },
+    "Retire rule": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用規則"
+          }
+        }
+      }
+    },
+    "Move alias to family": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搬移別名到群組"
+          }
+        }
+      }
+    },
+    "Merge families": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合併群組"
+          }
+        }
+      }
+    },
+    "This is a broad replacement rule; it applies in every context. Check the source boundary before confirming.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是廣泛詞彙規則，會套用在所有語境；確認前請檢查來源邊界。"
+          }
+        }
+      }
+    },
+    "This change moves or merges whole families and cannot be duplicate-checked; confirm only when you are sure.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個變更會搬移或合併整個群組，而且無法查重；確定無誤再確認。"
+          }
+        }
+      }
+    },
+    "Pattern": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "Target": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標"
+          }
+        }
+      }
+    },
+    "Family": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "群組"
+          }
+        }
+      }
+    },
+    "Aliases": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別名"
+          }
+        }
+      }
+    },
+    "Context tokens": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語境詞"
+          }
+        }
+      }
+    },
+    "Context aliases": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語境別名"
+          }
+        }
+      }
+    },
+    "Policy": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "策略"
+          }
+        }
+      }
+    },
+    "Disposition": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "處置"
+          }
+        }
+      }
+    },
+    "From": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從"
+          }
+        }
+      }
+    },
+    "To": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到"
+          }
+        }
+      }
+    },
+    "Note": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備註"
+          }
+        }
+      }
+    },
+    "Positive examples": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正面範例"
+          }
+        }
+      }
+    },
+    "Negative examples": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反面範例"
+          }
+        }
+      }
+    },
+    "%@ → %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ → %@"
+          }
+        }
+      }
+    },
+    "Preview: would publish immediately": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預覽：會立即發佈"
+          }
+        }
+      }
+    },
+    "Preview: would not publish": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預覽：不會發佈"
+          }
+        }
+      }
+    },
+    "conflicts %lld · skipped %lld · unsupported %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "衝突 %1$lld · 略過 %2$lld · 不支援 %3$lld"
+          }
+        }
+      }
+    },
+    "Base SHA %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基準 SHA %@"
+          }
+        }
+      }
+    },
+    "Duplicate check: already applied": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查重：已套用過"
+          }
+        }
+      }
+    },
+    "Duplicate check: possible duplicate (policies %lld, events %lld)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查重：可能重複（策略 %1$lld 筆、事件 %2$lld 筆）"
+          }
+        }
+      }
+    },
+    "Duplicate check: none found": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查重：沒有重複"
+          }
+        }
+      }
+    },
+    "Checking with the Worker…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在向 Worker 檢查…"
+          }
+        }
+      }
+    },
+    "Confirm & Publish": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認並發佈"
+          }
+        }
+      }
+    },
+    "Confirming re-runs the preview and duplicate check before writing.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認時會在寫入前重新預覽與查重。"
+          }
+        }
+      }
+    },
+    "Sent": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已送出"
+          }
+        }
+      }
+    },
+    "Resync Mac model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新同步 Mac 模型"
+          }
+        }
+      }
+    },
+    "Syncing Mac model…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步 Mac 模型…"
+          }
+        }
+      }
+    },
+    "Loading Worker tools…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入 Worker 工具…"
+          }
+        }
+      }
+    },
+    "Waiting for the AI…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 AI…"
+          }
+        }
+      }
+    },
+    "Checking the draft with the Worker…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在向 Worker 檢查草稿…"
+          }
+        }
+      }
+    },
+    "Publishing…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在發佈…"
+          }
+        }
+      }
+    },
+    "Working…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "處理中…"
+          }
+        }
+      }
+    },
+    "Describe what you actually said": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "描述你實際說的內容"
+          }
+        }
+      }
+    },
+    "Add detail or ask a follow-up": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "補充細節或追問"
+          }
+        }
+      }
+    },
+    "Send to AI": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送給 AI"
+          }
+        }
+      }
+    },
+    "Auto-guess": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動猜測"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        }
+      }
+    },
+    "Fix with AI": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 AI 修正"
+          }
+        }
+      }
+    },
+    "Correction markings not refreshed; showing last result": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正標記未更新，顯示上次結果"
+          }
+        }
+      }
+    },
+    "Correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正"
+          }
+        }
+      }
+    },
+    "Correction events": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正事件"
+          }
+        }
+      }
+    },
+    "OpenCode Go API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenCode Go API 金鑰"
+          }
+        }
+      }
+    },
+    "Set": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已設定"
+          }
+        }
+      }
+    },
+    "Not set": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未設定"
+          }
+        }
+      }
+    },
+    "API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 金鑰"
+          }
+        }
+      }
+    },
+    "Update": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
+    "The key is stored only in this Mac's Keychain and is sent to OpenCode Go only. It never goes to the Worker, into model payloads, logs, or UserDefaults.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "金鑰只存在這台 Mac 的鑰匙圈，而且只會送給 OpenCode Go；不會送給 Worker，也不會出現在模型內容、log 或 UserDefaults。"
+          }
+        }
+      }
+    },
+    "Worker sync key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 同步金鑰"
+          }
+        }
+      }
+    },
+    "Set (environment variable)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已設定（環境變數）"
+          }
+        }
+      }
+    },
+    "Set (key file)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已設定（金鑰檔案）"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

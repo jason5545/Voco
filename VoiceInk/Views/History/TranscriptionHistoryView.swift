@@ -11,11 +11,13 @@ struct TranscriptionHistoryView: View {
     @State private var isAnalysisPanelPresented = false
     @State private var isLeftSidebarVisible = true
     @State private var isRightSidebarVisible = false
+    @State private var isRuleAssistantPanelPresented = false
     @State private var leftSidebarWidth: CGFloat = 300
     @State private var displayedTranscriptions: [Transcription] = []
     @State private var isLoading = false
     @State private var hasMoreContent = true
     @State private var lastTimestamp: Date?
+    @ObservedObject private var markingRefresher = RowCorrectionMarkingRefresher.shared
 
     private let exportService = VoiceInkCSVExportService()
     private let pageSize = 20
@@ -60,6 +62,7 @@ struct TranscriptionHistoryView: View {
 
     private func openAnalysisPanel() {
         isRightSidebarVisible = false
+        isRuleAssistantPanelPresented = false
         isAnalysisPanelPresented = true
     }
 
@@ -69,11 +72,22 @@ struct TranscriptionHistoryView: View {
 
     private func openInfoPanel() {
         isAnalysisPanelPresented = false
+        isRuleAssistantPanelPresented = false
         isRightSidebarVisible = true
     }
 
     private func closeInfoPanel() {
         isRightSidebarVisible = false
+    }
+
+    private func openRuleAssistantPanel() {
+        isAnalysisPanelPresented = false
+        isRightSidebarVisible = false
+        isRuleAssistantPanelPresented = true
+    }
+
+    private func closeRuleAssistantPanel() {
+        isRuleAssistantPanelPresented = false
     }
     
     var body: some View {
@@ -98,6 +112,15 @@ struct TranscriptionHistoryView: View {
             }
 
             ToolbarItemGroup(placement: .automatic) {
+                Button(action: {
+                    withAnimation {
+                        isRuleAssistantPanelPresented ? closeRuleAssistantPanel() : openRuleAssistantPanel()
+                    }
+                }) {
+                    Label("Fix with AI", systemImage: "text.badge.checkmark")
+                }
+                .disabled(selectedTranscription?.sqliteRowPK == nil)
+
                 Button(action: {
                     withAnimation {
                         isRightSidebarVisible ? closeInfoPanel() : openInfoPanel()
@@ -134,6 +157,14 @@ struct TranscriptionHistoryView: View {
                 onClose: closeAnalysisPanel
             )
             .id(selectedTranscriptions.count)
+        }
+        .sidePanel(isPresented: .init(
+            get: { isRuleAssistantPanelPresented },
+            set: { newValue in
+                if !newValue { closeRuleAssistantPanel() }
+            }
+        ), width: 480) {
+            ruleAssistantSidePanelView
         }
         .onAppear {
             isViewCurrentlyVisible = true
@@ -201,6 +232,21 @@ struct TranscriptionHistoryView: View {
             .padding(12)
 
             Divider()
+
+            if markingRefresher.refreshFailed {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("Correction markings not refreshed; showing last result")
+                        .font(.system(size: 11))
+                    Spacer()
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+
+                Divider()
+            }
 
             ZStack(alignment: .bottom) {
                 if displayedTranscriptions.isEmpty && !isLoading {
@@ -317,6 +363,19 @@ struct TranscriptionHistoryView: View {
         }
     }
 
+    private var ruleAssistantSidePanelView: some View {
+        VStack(spacing: 0) {
+            AppPanelHeader(title: "Rule Assistant", onClose: closeRuleAssistantPanel)
+
+            if let transcription = selectedTranscription {
+                RuleAssistantPanelView(transcription: transcription)
+                    .id(transcription.id)
+            } else {
+                Spacer()
+            }
+        }
+    }
+
     private var allSelected: Bool {
         !displayedTranscriptions.isEmpty && displayedTranscriptions.allSatisfy { selectedTranscriptions.contains($0) }
     }
@@ -402,6 +461,7 @@ struct TranscriptionHistoryView: View {
             displayedTranscriptions = items
             lastTimestamp = items.last?.timestamp
             hasMoreContent = items.count == pageSize
+            markingRefresher.refresh(items, modelContext: modelContext)
         } catch {
             print("Error loading transcriptions: \(error)")
         }
@@ -419,6 +479,7 @@ struct TranscriptionHistoryView: View {
             displayedTranscriptions.append(contentsOf: newItems)
             self.lastTimestamp = newItems.last?.timestamp
             hasMoreContent = newItems.count == pageSize
+            markingRefresher.refresh(displayedTranscriptions, modelContext: modelContext)
         } catch {
             print("Error loading more transcriptions: \(error)")
         }

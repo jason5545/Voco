@@ -81,6 +81,24 @@ struct TranscriptionInfoPanel: View {
                     value: modeValue
                 )
             }
+
+            if let marking = transcription.correctionMarkingLabel {
+                metadataRow(
+                    icon: "checkmark.seal",
+                    label: "Correction",
+                    value: marking.text
+                )
+
+                let events = transcription.corrections
+                if events.count > 1 {
+                    let latestId = events.compactMap(\.eventId).last.map { String($0.prefix(12)) } ?? "-"
+                    metadataRow(
+                        icon: "list.bullet.rectangle",
+                        label: "Correction events",
+                        value: "\(events.count) · \(latestId)"
+                    )
+                }
+            }
         } header: {
             Text("Details")
         }

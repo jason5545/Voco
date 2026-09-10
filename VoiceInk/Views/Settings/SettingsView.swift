@@ -188,6 +188,7 @@ struct SettingsView: View {
 
             ChinesePostProcessingSettingsView()
             AutoApplyModelSettingsView()
+            RuleAssistantSettingsView()
             ASRContextBiasSettingsView()
 
             Section("General") {
