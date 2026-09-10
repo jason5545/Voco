@@ -845,6 +845,7 @@ final class RuleAssistantSession: ObservableObject {
         - Never invent a correction.
         - Never create broad replacements for common words that Jason might intentionally use.
         - Never alter Voco action commands such as 全部刪除.
+        - Single-character speech restarts (A+AB such as 資資料, 可可以, 我我們, 綜綜上所述) are collapsed on every device by the runtime rule runtime.single-prefix-restart-collapse; never propose replacementRule, replacementFamily, moveAliasToFamily, or family tags for that shape, and never add them to speech-partial-restart-overlap. If the runtime rule missed one, propose a whole-utterance correction for this record only and say the runtime rule did not cover it.
         - For interrupted/self-repair speech, do not propose a rule unless Jason confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when Jason confirms it.
         - Do not ask for audio, file paths, or other history; only this record and this chat exist.

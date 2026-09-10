@@ -178,6 +178,102 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                 self.assertEqual(after, text)
                 self.assertEqual(fires, [])
 
+    def test_single_prefix_restart_collapse_is_lexical_not_enumerated(self):
+        lexicon = {
+            "資料": 28506, "投資": 27886, "可以": 70958, "可可": 602, "認可": 1836,
+            "綜上所述": 218, "綜上": 6, "就是": 9283, "成就": 3599, "他們": 197480,
+            "時候": 63042, "時時": 1298, "天氣": 5314, "天天": 1855, "好吃": 2799, "好好": 2640,
+            "謝謝": 2178, "的話": 5000, "要求": 8000, "吃飯": 6164, "問題": 111126, "問問": 1122,
+            "二八": 67, "媽媽": 9000, "這樣": 40000,
+        }
+        lookup = lambda word: lexicon.get(word, 0)  # noqa: E731
+
+        after, fires = control.collapse_single_prefix_restarts("資資料整理好了，可可以刪除，然後綜綜上所述。", lookup)
+        self.assertEqual(after, "資料整理好了，可以刪除，然後綜上所述。")
+        self.assertEqual([fire["sourcePattern"] for fire in fires], ["資資料", "可可以", "綜綜上所述"])
+        self.assertEqual([fire["targetText"] for fire in fires], ["資料", "可以", "綜上所述"])
+        for fire in fires:
+            self.assertEqual(fire["policyId"], control.SINGLE_PREFIX_RESTART_POLICY_ID)
+            self.assertEqual(fire["policyType"], control.SINGLE_PREFIX_RESTART_POLICY_TYPE)
+            self.assertEqual(fire["sourceSlices"], ["runtimeSpecialPolicy"])
+            self.assertTrue(control.is_runtime_special_policy_fire(fire))
+
+        self.assertEqual(control.collapse_single_prefix_restarts("就就就是這樣", lookup)[0], "就是這樣")
+        self.assertEqual(control.collapse_single_prefix_restarts("他他他們的", lookup)[0], "他們的")
+        self.assertEqual(control.collapse_single_prefix_restarts("可可可以", lookup)[0], "可以")
+
+        unchanged = [
+            "投資資料整理好了",
+            "他的成就就是這個",
+            "時時刻刻",
+            "天天氣很好",
+            "好好吃",
+            "謝謝你",
+            "錯的的話",
+            "要要求退貨",
+            "吃吃飯",
+            "問問題",
+            "二二八",
+            "資資",
+            "媽媽媽媽",
+        ]
+        for text in unchanged:
+            with self.subTest(text=text):
+                after, fires = control.collapse_single_prefix_restarts(text, lookup)
+                self.assertEqual(after, text)
+                self.assertEqual(fires, [])
+
+    def test_single_prefix_restart_runs_after_scoped_policies_with_bundled_lexicon(self):
+        after, fires = control.replay_apply_policies_unchecked("台幣一千二百元，資資料。", "", [])
+        self.assertEqual(after, "台幣1200元，資料。")
+        self.assertEqual(
+            [fire["policyId"] for fire in fires],
+            [control.CURRENCY_NUMBER_NORMALIZATION_POLICY_ID, control.SINGLE_PREFIX_RESTART_POLICY_ID],
+        )
+
+    def test_reissued_manual_policy_fire_is_inherited_baseline_drift(self):
+        base_model = {
+            "policies": [
+                {
+                    "policyId": "manual-context-old",
+                    "policyType": "scopedReplacement",
+                    "autoApplyMode": "apply",
+                    "sourcePattern": "麥克",
+                    "targetText": "Mac",
+                }
+            ]
+        }
+        report = {
+            "unexpectedChanges": [
+                {
+                    "rowPk": 1,
+                    "fires": [
+                        {
+                            "policyId": "manual-context-new",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "麥克",
+                            "targetText": "Mac",
+                        }
+                    ],
+                },
+                {
+                    "rowPk": 2,
+                    "fires": [
+                        {
+                            "policyId": "manual-context-other",
+                            "policyType": "scopedReplacement",
+                            "sourcePattern": "麥克",
+                            "targetText": "Mike",
+                        }
+                    ],
+                },
+            ],
+            "readiness": {"rawInputReplayPass": False, "reason": "x"},
+        }
+        control.suppress_inherited_baseline_policy_fires(report, base_model)
+        self.assertEqual([item["rowPk"] for item in report["inheritedBaselineUnexpectedChanges"]], [1])
+        self.assertEqual([item["rowPk"] for item in report["unexpectedChanges"]], [2])
+
     def test_append_compile_and_validate_exact_correction(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

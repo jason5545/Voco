@@ -134,6 +134,57 @@ struct VocoAutoApplyModelServiceTests {
         }
     }
 
+    @Test func singlePrefixRestartCollapseIsLexicalNotEnumerated() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: try writeFixture(ready: true),
+            defaults: try temporaryDefaults(),
+            wordFrequencyProvider: { Self.restartLexicon[$0] ?? 0 }
+        )
+
+        let collapsed = service.evaluate("資資料整理好了，可可以刪除，然後綜綜上所述。")
+        #expect(collapsed.outputText == "資料整理好了，可以刪除，然後綜上所述。")
+        #expect(collapsed.applied.map(\.sourcePattern) == ["資資料", "可可以", "綜綜上所述"])
+        #expect(collapsed.applied.map(\.targetText) == ["資料", "可以", "綜上所述"])
+        #expect(collapsed.applied.allSatisfy {
+            $0.policyId == VocoAutoApplyModelService.singlePrefixRestartCollapsePolicyId
+                && $0.policyType == VocoAutoApplyModelService.singlePrefixRestartCollapsePolicyType
+                && $0.sourceSlices == ["runtimeSpecialPolicy"]
+        })
+
+        // Three or more copies collapse to one; the leftover pair is re-checked.
+        #expect(service.evaluate("就就就是這樣").outputText == "就是這樣")
+        #expect(service.evaluate("他他他們的").outputText == "他們的")
+        #expect(service.evaluate("可可可以").outputText == "可以")
+
+        for text in [
+            "投資資料整理好了",      // previous character forms a word with the onset
+            "他的成就就是這個",
+            "時時刻刻",              // AABB reduplication
+            "天天氣很好",            // AA is a real reduplication and AB is not dominant
+            "好好吃",
+            "謝謝你",
+            "錯的的話",              // structural particle
+            "要要求退貨",            // modal 要
+            "吃吃飯",                // everyday verb reduplication
+            "問問題",
+            "二二八",                // numerals
+            "資資",                  // no continuation word
+            "媽媽媽媽"
+        ] {
+            let result = service.evaluate(text)
+            #expect(result.outputText == text, Comment(rawValue: text))
+            #expect(result.applied.isEmpty, Comment(rawValue: text))
+        }
+    }
+
+    private static let restartLexicon: [String: Int] = [
+        "資料": 28506, "投資": 27886, "可以": 70958, "可可": 602, "認可": 1836,
+        "綜上所述": 218, "綜上": 6, "就是": 9283, "成就": 3599, "他們": 197480,
+        "時候": 63042, "時時": 1298, "天氣": 5314, "天天": 1855, "好吃": 2799, "好好": 2640,
+        "謝謝": 2178, "的話": 5000, "要求": 8000, "吃飯": 6164, "問題": 111126, "問問": 1122,
+        "二八": 67, "媽媽": 9000, "這樣": 40000
+    ]
+
     @Test func cjkBoundaryGuardedScopedReplacementDoesNotOverreachIntoContinuationWords() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try writeFixture(ready: true),

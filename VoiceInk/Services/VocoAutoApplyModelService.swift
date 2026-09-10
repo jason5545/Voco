@@ -410,6 +410,8 @@ final class VocoAutoApplyModelService: ObservableObject {
 
     private let modelURL: URL
     private let defaults: UserDefaults
+    /// Word -> frequency lookup for `runtime.single-prefix-restart-collapse`; injectable for tests.
+    private let wordFrequencyProvider: (String) -> Int
     private let workerSyncClient: VocoAutoApplyWorkerSyncClient
     private let workerSyncKeyProvider: () -> String?
     private let modelBackupRetention: Int
@@ -432,6 +434,31 @@ final class VocoAutoApplyModelService: ObservableObject {
     static let cjkUnsafeContinuationBoundaryMode = "cjk-unsafe-continuation"
     static let currencyNumberNormalizationPolicyId = "runtime.currency-number-normalization"
     static let currencyNumberNormalizationPolicyType = "currencyNumberNormalization"
+    static let singlePrefixRestartCollapsePolicyId = "runtime.single-prefix-restart-collapse"
+    static let singlePrefixRestartCollapsePolicyType = "singlePrefixRestartCollapse"
+    private static let singlePrefixRestartSourceSlices = ["runtimeSpecialPolicy"]
+    static let singlePrefixRestartWordMinFrequency = 50
+    static let singlePrefixRestartReduplicationMinFrequency = 50
+    static let singlePrefixRestartReduplicationDominanceRatio = 20
+    static let singlePrefixRestartMaxWordLength = 4
+    /// Onsets that never collapse: numerals (二二八, 九九乘法), structural particles
+    /// (錯的的話 = 錯的 + 的話), the modal 要 (要要求 = 要 + 要求), kinship / onomatopoeia
+    /// reduplications, and everyday monosyllabic verbs whose V+V+O reduplication is
+    /// natural speech (吃吃飯, 說說話, 問問題, 加加油). Keep identical to the Python
+    /// `SINGLE_PREFIX_RESTART_PROTECTED_ONSETS` and the Kotlin runtime.
+    static let singlePrefixRestartProtectedOnsets: Set<Character> = Set(
+        "零〇一二三四五六七八九十百千萬億兩壹貳參肆伍陸柒捌玖拾佰仟"
+        + "的得地了著呢嗎吧啊喔哦嘛呀欸要"
+        + "媽爸哥姐弟妹奶爺叔伯婆娃寶哈嘻呵嘿"
+        + "吃喝玩看聽說講讀寫走跑跳唱洗睡聊談幫摸坐站躺等逛散游泡曬敲拍翻搜選挑算聞嚐嘗唸念猜"
+        + "抓拉推拿放擦掃刷煮炒剪畫彈按滑試動歇躲抱親舉抬扭攪拌沖燒烤蒸燙藏撿搬挪排擺疊折綁"
+        + "開關塞抽拔插削剝切割砍塗噴灑澆想找查問學練教做忙休打用換弄搞買賣送借還付交帶提背"
+        + "搭騎爬滾起穿脫戴掛拆裝拼貼縫補煎炸燉撕捏揉搓踢踩揮甩扔丟投接握捧摟扯拖撞碰觸壓擠"
+        + "灌倒潑涮浸晾烘凍收堆卸拎牽趕追跟陪迎候尋摘採劈鋸鑽釘錘磨雕刻描抄印裁織繡編捆鎖撥"
+        + "撬扳旋搖晃抖蹦躍攀登跨邁踏蹬衝闖閃避逃逐喊叫哭笑罵吵鬧喘咳嚼吞吐舔咬啃嗅瞧瞄望盯"
+        + "瞪眨睜閉張皺揚點聳挺彎伸縮蹲跪趴靠倚撐扶拽拋擲踹跺揍揪撓搔撫掀蓋遮擋攔圍堵封黏粘"
+        + "拴纏繞捲攤鋪墊覆罩包裹紮飲嚥吸吹擤剃梳漱加"
+    )
     private static let terminalPunctuationCharacters: Set<Character> = ["。", "！", "？", "!", "?", "．", "."]
     private static let unsafeCJKContinuationAfterPairSource: Set<Character> = [
         "分", "性", "化", "度", "感", "型", "式", "區", "市", "縣", "里", "路",
@@ -531,10 +558,12 @@ final class VocoAutoApplyModelService: ObservableObject {
         defaults: UserDefaults = .standard,
         workerSyncClient: VocoAutoApplyWorkerSyncClient = VocoAutoApplyWorkerSyncClient(),
         workerSyncKeyProvider: @escaping () -> String? = VocoAutoApplyModelService.defaultWorkerSyncKey,
-        modelBackupRetention: Int = 3
+        modelBackupRetention: Int = 3,
+        wordFrequencyProvider: @escaping (String) -> Int = { VocoWordFrequencyLexicon.shared.frequency(of: $0) }
     ) {
         self.modelURL = modelURL
         self.defaults = defaults
+        self.wordFrequencyProvider = wordFrequencyProvider
         self.workerSyncClient = workerSyncClient
         self.workerSyncKeyProvider = workerSyncKeyProvider
         self.modelBackupRetention = modelBackupRetention
@@ -1166,6 +1195,10 @@ final class VocoAutoApplyModelService: ObservableObject {
         output = currencyNormalization.outputText
         applied.append(contentsOf: currencyNormalization.applied)
 
+        let restartCollapse = collapseSinglePrefixRestarts(in: output)
+        output = restartCollapse.outputText
+        applied.append(contentsOf: restartCollapse.applied)
+
         return guardedEvaluation(
             inputText: text,
             proposedOutputText: output,
@@ -1694,6 +1727,107 @@ final class VocoAutoApplyModelService: ObservableObject {
                 )
             }
         return (output, fires)
+    }
+
+    /// Collapses the single-character speech restart A+AB -> AB (資資料 -> 資料).
+    ///
+    /// The decision is lexical, not enumerated: AB (2-4 chars) must be a known word,
+    /// AA must not be a dominant reduplication (可可以 collapses because 可以 >> 可可;
+    /// 天天氣 stays because 天氣 is not 20x 天天), AABB stays (時時刻刻), and the
+    /// previous character must not form a word with A (投資資料, 反應應該). Runs after
+    /// scoped policies so explicit family rules keep their own hit IDs. Mirrors
+    /// `collapse_single_prefix_restarts` in tools/voco_auto_apply_control.py and the
+    /// Kotlin runtime.
+    func collapseSinglePrefixRestarts(in text: String) -> (outputText: String, applied: [VocoAutoApplyPolicyFire]) {
+        var chars = Array(text)
+        var fires: [VocoAutoApplyPolicyFire] = []
+        var index = 0
+        let lookup = wordFrequencyProvider
+
+        while index + 2 < chars.count {
+            let onset = chars[index]
+            guard Self.isHanCharacter(onset),
+                  chars[index + 1] == onset,
+                  Self.isHanCharacter(chars[index + 2]),
+                  !Self.singlePrefixRestartProtectedOnsets.contains(onset)
+            else {
+                index += 1
+                continue
+            }
+            if index + 3 < chars.count, chars[index + 2] == chars[index + 3] {
+                index += 1
+                continue
+            }
+            // A previous character that forms a word with the onset marks a real word
+            // boundary (投資|資料). A previous copy of the onset itself is just a longer
+            // run (可可可以) and is collapsed from the right.
+            let previousIsOnset = index > 0 && chars[index - 1] == onset
+            if !previousIsOnset,
+               index > 0,
+               Self.isHanCharacter(chars[index - 1]),
+               lookup(String([chars[index - 1], onset])) > 0 {
+                index += 1
+                continue
+            }
+            if !previousIsOnset,
+               index > 1,
+               Self.isHanCharacter(chars[index - 2]),
+               Self.isHanCharacter(chars[index - 1]),
+               lookup(String([chars[index - 2], chars[index - 1], onset])) > 0 {
+                index += 1
+                continue
+            }
+
+            var bestFrequency = 0
+            var matchedLength = 0
+            for length in 2...Self.singlePrefixRestartMaxWordLength {
+                let end = index + 1 + length
+                guard end <= chars.count else { break }
+                let continuation = chars[(index + 2)..<end]
+                guard continuation.allSatisfy(Self.isHanCharacter) else { break }
+                let wordFrequency = lookup(String([onset] + continuation))
+                if wordFrequency >= Self.singlePrefixRestartWordMinFrequency {
+                    matchedLength = length
+                }
+                bestFrequency = max(bestFrequency, wordFrequency)
+            }
+            guard bestFrequency >= Self.singlePrefixRestartWordMinFrequency else {
+                index += 1
+                continue
+            }
+
+            let reduplicationFrequency = lookup(String([onset, onset]))
+            if reduplicationFrequency >= Self.singlePrefixRestartReduplicationMinFrequency,
+               bestFrequency < reduplicationFrequency * Self.singlePrefixRestartReduplicationDominanceRatio {
+                index += 1
+                continue
+            }
+
+            let source = String(chars[index..<(index + 1 + matchedLength)])
+            let target = String([onset] + chars[(index + 2)..<(index + 1 + matchedLength)])
+            chars.remove(at: index + 1)
+            fires.append(
+                VocoAutoApplyPolicyFire(
+                    policyId: Self.singlePrefixRestartCollapsePolicyId,
+                    policyType: Self.singlePrefixRestartCollapsePolicyType,
+                    autoApplyMode: VocoAutoApplyMode.apply.rawValue,
+                    sourcePattern: source,
+                    targetText: target,
+                    sourceSlices: Self.singlePrefixRestartSourceSlices
+                )
+            )
+            index = max(0, index - 1)
+        }
+
+        return (String(chars), fires)
+    }
+
+    /// Han ideograph test shared with the Python and Kotlin runtimes (Unified + Ext A + Ext B).
+    private static func isHanCharacter(_ character: Character) -> Bool {
+        guard let value = character.unicodeScalars.first?.value, character.unicodeScalars.count == 1 else { return false }
+        return (0x4E00...0x9FFF).contains(value)
+            || (0x3400...0x4DBF).contains(value)
+            || (0x20000...0x2A6DF).contains(value)
     }
 
     private func normalizedChineseCurrencyAmount(_ amount: String) -> String? {

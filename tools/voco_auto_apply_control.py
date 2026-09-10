@@ -26,7 +26,7 @@ import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -165,6 +165,31 @@ BROAD_INVALID_SURFACE_FAMILY_ROLE = "broad-invalid-surface"
 CURRENCY_NUMBER_NORMALIZATION_POLICY_ID = "runtime.currency-number-normalization"
 CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE = "currencyNumberNormalization"
 CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES = ["runtimeSpecialPolicy"]
+SINGLE_PREFIX_RESTART_POLICY_ID = "runtime.single-prefix-restart-collapse"
+SINGLE_PREFIX_RESTART_POLICY_TYPE = "singlePrefixRestartCollapse"
+SINGLE_PREFIX_RESTART_SOURCE_SLICES = ["runtimeSpecialPolicy"]
+SINGLE_PREFIX_RESTART_WORD_MIN_FREQUENCY = 50
+SINGLE_PREFIX_RESTART_REDUPLICATION_MIN_FREQUENCY = 50
+SINGLE_PREFIX_RESTART_REDUPLICATION_DOMINANCE_RATIO = 20
+SINGLE_PREFIX_RESTART_MAX_WORD_LENGTH = 4
+# Onsets that never collapse: numerals (二二八, 九九乘法), structural particles
+# (錯的的話 = 錯的 + 的話), the modal 要 (要要求 = 要 + 要求), kinship / onomatopoeia
+# reduplications, and everyday monosyllabic verbs whose V+V+O reduplication is
+# natural speech (吃吃飯, 說說話, 問問題, 加加油).
+SINGLE_PREFIX_RESTART_PROTECTED_ONSETS = frozenset(
+    "零〇一二三四五六七八九十百千萬億兩壹貳參肆伍陸柒捌玖拾佰仟"
+    "的得地了著呢嗎吧啊喔哦嘛呀欸要"
+    "媽爸哥姐弟妹奶爺叔伯婆娃寶哈嘻呵嘿"
+    "吃喝玩看聽說講讀寫走跑跳唱洗睡聊談幫摸坐站躺等逛散游泡曬敲拍翻搜選挑算聞嚐嘗唸念猜"
+    "抓拉推拿放擦掃刷煮炒剪畫彈按滑試動歇躲抱親舉抬扭攪拌沖燒烤蒸燙藏撿搬挪排擺疊折綁"
+    "開關塞抽拔插削剝切割砍塗噴灑澆想找查問學練教做忙休打用換弄搞買賣送借還付交帶提背"
+    "搭騎爬滾起穿脫戴掛拆裝拼貼縫補煎炸燉撕捏揉搓踢踩揮甩扔丟投接握捧摟扯拖撞碰觸壓擠"
+    "灌倒潑涮浸晾烘凍收堆卸拎牽趕追跟陪迎候尋摘採劈鋸鑽釘錘磨雕刻描抄印裁織繡編捆鎖撥"
+    "撬扳旋搖晃抖蹦躍攀登跨邁踏蹬衝闖閃避逃逐喊叫哭笑罵吵鬧喘咳嚼吞吐舔咬啃嗅瞧瞄望盯"
+    "瞪眨睜閉張皺揚點聳挺彎伸縮蹲跪趴靠倚撐扶拽拋擲踹跺揍揪撓搔撫掀蓋遮擋攔圍堵封黏粘"
+    "拴纏繞捲攤鋪墊覆罩包裹紮飲嚥吸吹擤剃梳漱加"
+)
+DEFAULT_WORD_FREQUENCY_LEXICON = REPO_ROOT / "VoiceInk/Resources/ChineseCorrection/word_freq.tsv"
 CHINESE_CURRENCY_AMOUNT_CHARS = "零〇一二兩两三四五六七八九壹貳參叁肆伍陸柒捌玖十拾百佰千仟萬万億亿點点"
 CURRENCY_APPROXIMATION_CHARS = set("幾几多來余餘約近半")
 CHINESE_CURRENCY_DIGITS = {
@@ -4238,11 +4263,12 @@ def suppress_inherited_baseline_policy_fires(report: dict[str, Any], base_model:
         for policy in base_model.get("policies") or []
         if policy.get("autoApplyMode") == "apply" and policy.get("policyId")
     }
+    base_manual_signatures = baseline_manual_policy_signatures(base_model)
     inherited: list[dict[str, Any]] = []
     remaining: list[dict[str, Any]] = []
     for item in unexpected:
         fires = [fire for fire in item.get("fires") or [] if isinstance(fire, dict)]
-        if fires and all(baseline_inherited_fire(fire, base_apply_policy_ids) for fire in fires):
+        if fires and all(baseline_inherited_fire(fire, base_apply_policy_ids, base_manual_signatures) for fire in fires):
             inherited.append(item)
         else:
             remaining.append(item)
@@ -4262,21 +4288,58 @@ def suppress_inherited_baseline_policy_fires(report: dict[str, Any], base_model:
         readiness["reason"] = "cleaned corpus replay passed; only inherited active-model policy fires were ignored"
 
 
-def baseline_inherited_fire(fire: dict[str, Any], base_apply_policy_ids: set[str]) -> bool:
+def baseline_manual_policy_signatures(base_model: dict[str, Any]) -> set[tuple[str, str, str]]:
+    """(policyType, sourcePattern, targetText) of manual apply policies in the baseline.
+
+    A manual rule that is tombstoned and re-issued (for example to fix its own
+    positive example) compiles under a new policyId; its corpus fires are still
+    inherited baseline behaviour, not new drift.
+    """
+    signatures: set[tuple[str, str, str]] = set()
+    for policy in base_model.get("policies") or []:
+        policy_id = str(policy.get("policyId") or "")
+        if policy.get("autoApplyMode") != "apply" or not policy_id.startswith(("manual-context-", "manual-replacement-")):
+            continue
+        source = str(policy.get("sourcePattern") or "")
+        target = str(policy.get("targetText") or "")
+        if source and target:
+            signatures.add((str(policy.get("policyType") or ""), source, target))
+    return signatures
+
+
+def baseline_inherited_fire(
+    fire: dict[str, Any],
+    base_apply_policy_ids: set[str],
+    base_manual_signatures: set[tuple[str, str, str]] | None = None,
+) -> bool:
     policy_id = str(fire.get("policyId") or "")
     if policy_id in base_apply_policy_ids:
         return True
-    return is_runtime_special_policy_fire(fire)
+    if is_runtime_special_policy_fire(fire):
+        return True
+    if base_manual_signatures and policy_id.startswith(("manual-context-", "manual-replacement-")):
+        signature = (
+            str(fire.get("policyType") or ""),
+            str(fire.get("sourcePattern") or ""),
+            str(fire.get("targetText") or ""),
+        )
+        return signature in base_manual_signatures
+    return False
+
+
+RUNTIME_SPECIAL_POLICY_CONTRACTS = (
+    (CURRENCY_NUMBER_NORMALIZATION_POLICY_ID, CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE, CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES),
+    (SINGLE_PREFIX_RESTART_POLICY_ID, SINGLE_PREFIX_RESTART_POLICY_TYPE, SINGLE_PREFIX_RESTART_SOURCE_SLICES),
+)
 
 
 def is_runtime_special_policy_fire(fire: dict[str, Any]) -> bool:
     policy_id = str(fire.get("policyId") or "")
     policy_type = str(fire.get("policyType") or "")
     source_slices = {str(value) for value in fire.get("sourceSlices") or []}
-    return (
-        policy_id == CURRENCY_NUMBER_NORMALIZATION_POLICY_ID
-        and policy_type == CURRENCY_NUMBER_NORMALIZATION_POLICY_TYPE
-        and set(CURRENCY_NUMBER_NORMALIZATION_SOURCE_SLICES).issubset(source_slices)
+    return any(
+        policy_id == contract_id and policy_type == contract_type and set(contract_slices).issubset(source_slices)
+        for contract_id, contract_type, contract_slices in RUNTIME_SPECIAL_POLICY_CONTRACTS
     )
 
 
@@ -5602,6 +5665,8 @@ def replay_apply_policies_unchecked(
         )
     after, currency_fires = normalize_currency_numbers(after)
     fires.extend(currency_fires)
+    after, restart_fires = collapse_single_prefix_restarts(after)
+    fires.extend(restart_fires)
     return after, fires
 
 
@@ -5610,6 +5675,120 @@ def output_matches_expected_with_currency_format(after: str, expected: str) -> b
         return True
     normalized_expected, _ = normalize_currency_numbers(expected)
     return strict_text_key(after) == strict_text_key(normalized_expected)
+
+
+_WORD_FREQUENCY_LEXICON_CACHE: dict[str, dict[str, int]] = {}
+
+
+def load_word_frequency_lexicon(path: Path | None = None) -> dict[str, int]:
+    """Word -> frequency table shared with Mac (bundle) and Android (assets) runtimes."""
+    resolved = Path(path) if path else DEFAULT_WORD_FREQUENCY_LEXICON
+    key = str(resolved)
+    cached = _WORD_FREQUENCY_LEXICON_CACHE.get(key)
+    if cached is not None:
+        return cached
+    lexicon: dict[str, int] = {}
+    with resolved.open(encoding="utf-8") as handle:
+        for line in handle:
+            tab = line.find("\t")
+            if tab <= 0:
+                continue
+            try:
+                lexicon[line[:tab]] = int(line[tab + 1 :].strip())
+            except ValueError:
+                continue
+    _WORD_FREQUENCY_LEXICON_CACHE[key] = lexicon
+    return lexicon
+
+
+def default_word_frequency(word: str) -> int:
+    return load_word_frequency_lexicon().get(word, 0)
+
+
+def collapse_single_prefix_restarts(
+    text: str,
+    frequency: Callable[[str], int] | None = None,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Collapse the single-character speech restart A+AB -> AB (資資料 -> 資料).
+
+    The decision is lexical, not enumerated: AB (2-4 chars) must be a known word,
+    AA must not be a dominant reduplication (可可以 collapses because 可以 >> 可可;
+    天天氣 stays because 天氣 is not 20x 天天), AABB stays (時時刻刻), and the
+    previous character must not form a word with A (投資資料, 反應應該). Runs
+    after scoped policies so explicit family rules keep their own hit IDs.
+    Mirrors VocoAutoApplyModelService.swift / .kt collapseSinglePrefixRestarts.
+    """
+    lookup = frequency or default_word_frequency
+    chars = list(text)
+    fires: list[dict[str, Any]] = []
+    index = 0
+    while index + 2 < len(chars):
+        onset = chars[index]
+        if (
+            not is_cjk_character(onset)
+            or chars[index + 1] != onset
+            or not is_cjk_character(chars[index + 2])
+            or onset in SINGLE_PREFIX_RESTART_PROTECTED_ONSETS
+        ):
+            index += 1
+            continue
+        if index + 3 < len(chars) and chars[index + 2] == chars[index + 3]:
+            index += 1
+            continue
+        # A previous character that forms a word with the onset marks a real word
+        # boundary (投資|資料). A previous copy of the onset itself is just a longer
+        # run (可可可以) and is collapsed from the right.
+        previous_is_onset = index > 0 and chars[index - 1] == onset
+        if not previous_is_onset and index > 0 and is_cjk_character(chars[index - 1]) and lookup(chars[index - 1] + onset) > 0:
+            index += 1
+            continue
+        if (
+            not previous_is_onset
+            and index > 1
+            and is_cjk_character(chars[index - 2])
+            and is_cjk_character(chars[index - 1])
+            and lookup(chars[index - 2] + chars[index - 1] + onset) > 0
+        ):
+            index += 1
+            continue
+        best_frequency = 0
+        matched_length = 0
+        for length in range(2, SINGLE_PREFIX_RESTART_MAX_WORD_LENGTH + 1):
+            end = index + 1 + length
+            if end > len(chars):
+                break
+            continuation = chars[index + 2 : end]
+            if not all(is_cjk_character(char) for char in continuation):
+                break
+            word_frequency = lookup(onset + "".join(continuation))
+            if word_frequency >= SINGLE_PREFIX_RESTART_WORD_MIN_FREQUENCY:
+                matched_length = length
+            best_frequency = max(best_frequency, word_frequency)
+        if best_frequency < SINGLE_PREFIX_RESTART_WORD_MIN_FREQUENCY:
+            index += 1
+            continue
+        reduplication_frequency = lookup(onset + onset)
+        if (
+            reduplication_frequency >= SINGLE_PREFIX_RESTART_REDUPLICATION_MIN_FREQUENCY
+            and best_frequency < reduplication_frequency * SINGLE_PREFIX_RESTART_REDUPLICATION_DOMINANCE_RATIO
+        ):
+            index += 1
+            continue
+        source = "".join(chars[index : index + 1 + matched_length])
+        target = onset + "".join(chars[index + 2 : index + 1 + matched_length])
+        del chars[index + 1]
+        fires.append(
+            {
+                "policyId": SINGLE_PREFIX_RESTART_POLICY_ID,
+                "policyType": SINGLE_PREFIX_RESTART_POLICY_TYPE,
+                "autoApplyMode": "apply",
+                "sourcePattern": source,
+                "targetText": target,
+                "sourceSlices": SINGLE_PREFIX_RESTART_SOURCE_SLICES,
+            }
+        )
+        index = max(0, index - 1)
+    return "".join(chars), fires
 
 
 def normalize_currency_numbers(text: str) -> tuple[str, list[dict[str, Any]]]:
