@@ -489,6 +489,7 @@ private struct HistoryCardRow: View {
     let onFixWithAI: () -> Void
 
     @State private var selectedTab: TranscriptionTab = .original
+    @ObservedObject private var coverageStore = RowCorrectionCoverageStore.shared
 
     private var displayText: String {
         switch selectedTab {
@@ -522,6 +523,21 @@ private struct HistoryCardRow: View {
                     Text(transcription.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
+
+                    if let coverage = transcription.correctionCoverage {
+                        Label {
+                            Text(coverage.label.text)
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        } icon: {
+                            Image(systemName: coverage.badgeIcon)
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .foregroundStyle(coverage.label.tone.color)
+                        .labelStyle(.titleAndIcon)
+                        .help(coverage.policyIds.joined(separator: ", "))
+                    }
 
                     if let marking = transcription.correctionMarkingLabel {
                         Label {

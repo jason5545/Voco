@@ -12934,6 +12934,66 @@
           }
         }
       }
+    },
+    "Fixed by current rules": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現行規則已修正"
+          }
+        }
+      }
+    },
+    "Rule applied at transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄時已套用規則"
+          }
+        }
+      }
+    },
+    "Rule blocked by guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則被保護詞擋下"
+          }
+        }
+      }
+    },
+    "Suggest-only rule matches": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅有建議規則命中"
+          }
+        }
+      }
+    },
+    "Rule coverage": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則覆蓋"
+          }
+        }
+      }
+    },
+    "Covered policies": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命中規則"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

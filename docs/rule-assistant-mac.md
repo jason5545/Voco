@@ -61,6 +61,31 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
 - **不跟隨 redirect**：provider 與 MCP 都掛 `RuleAssistantNoRedirectDelegate`
   （`completionHandler(nil)`），有測試覆蓋。
 
+## 本機規則覆蓋（coverage）
+
+2026-09-10 加入。Worker 收據（`RowCorrectionMarkings`）綁的是 row 身分（platform + rowPk +
+recordId），從 Vocotype、claude.ai、Codex、Claude Code 修的規則永遠掛不到 Mac 的 row 上。
+coverage 不看身分：對每筆歷史的原始 ASR 文字（`rawTranscript`，沒有就 `text`）用本機已安裝的
+auto-apply model 跑一次 `evaluate`，直接算出「這筆現在會不會被規則改掉」。兩端各自本機重算，
+model 同步後自然一致，不需要任何跨端對應。
+
+- 落點：`VoiceInk/Services/RuleAssistant/RowCorrectionCoverage.swift`。
+  `RowCorrectionCoverageEvaluator.coverage(priorHitIds:evaluation:)` 是純函式；
+  `RowCorrectionCoverageStore.shared` 依 row id + 原文 + 轉錄時命中 ID 做快取，訂閱
+  `VocoAutoApplyModelService.$status`，model 一換就清快取並 bump `generation`，三個歷史 UI
+  都 `@ObservedObject` 它。
+- 狀態：`appliedAtTranscription`（灰，會改寫，但模型輸出已等於這筆存的 `normalizedTranscript`
+  或 `text`，或全部 policy 都在轉錄時的 `autoApplyPolicyHitIDs` 裡）、`fixedByCurrentRules`
+  （綠，會改寫且存的文字還是錯的，即「後來補的規則現在蓋到這筆」）、`blockedByGuard`（橘，規則命中但被保護詞擋下）、
+  `suggestOnly`（灰，只有 suggest policy 命中）。`runtime.currency-number-normalization`
+  不算 coverage。
+- 顯示：主視窗歷史卡片標題列與 `TranscriptionListItem` badge（排在 Worker 收據之前）、
+  info panel「Rule coverage」「Covered policies」兩列。Worker 收據保留當 provenance。
+- 限制：歷史沒有當時的 app/context hints，context 只帶原文，需要外部 context 的
+  context-locked 規則不會亮。auto-apply runtime 被使用者關掉時 `evaluate` 不改文字，
+  coverage 也會是空。
+- 測試：`VoiceInkTests/RowCorrectionCoverageTests.swift`。
+
 ## Panel 生命週期
 
 Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取消進行中的請求；

@@ -4,6 +4,7 @@ import SwiftUI
 /// Used in both the inline history side panel and the separate history window's metadata view.
 struct TranscriptionInfoPanel: View {
     let transcription: Transcription
+    @ObservedObject private var coverageStore = RowCorrectionCoverageStore.shared
 
     var body: some View {
         Form {
@@ -79,6 +80,20 @@ struct TranscriptionInfoPanel: View {
                     icon: "bolt.fill",
                     label: "Mode",
                     value: modeValue
+                )
+            }
+
+            if let coverage = transcription.correctionCoverage {
+                metadataRow(
+                    icon: coverage.badgeIcon,
+                    label: String(localized: "Rule coverage"),
+                    value: coverage.label.text
+                )
+                metadataRow(
+                    icon: "list.bullet",
+                    label: String(localized: "Covered policies"),
+                    value: coverage.policyIds.prefix(3).joined(separator: ", ")
+                        + (coverage.policyIds.count > 3 ? " +\(coverage.policyIds.count - 3)" : "")
                 )
             }
 

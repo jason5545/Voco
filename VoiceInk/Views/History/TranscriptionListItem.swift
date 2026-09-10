@@ -102,6 +102,10 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             badges.append(reviewBadge)
         }
 
+        if let coverageBadge = correctionCoverageBadge(for: transcription) {
+            badges.append(coverageBadge)
+        }
+
         if let markingBadge = correctionMarkingBadge(for: transcription) {
             badges.append(markingBadge)
         }
@@ -238,6 +242,19 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
         )
     }
 
+    /// Local rule coverage from the installed auto-apply model. Sits first among the
+    /// correction badges because it is the cross-client "is this fixed" signal.
+    private static func correctionCoverageBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
+        guard let coverage = transcription.correctionCoverage else { return nil }
+        let label = coverage.label
+        return TranscriptionAssistiveBadge(
+            id: "correction-coverage",
+            icon: coverage.badgeIcon,
+            title: label.text,
+            tone: label.tone.badgeTone
+        )
+    }
+
     /// Worker correction receipts cached on the row (sits before selection badges so
     /// the limit: 3 cap cannot push it out when a review badge is present).
     private static func correctionMarkingBadge(for transcription: Transcription) -> TranscriptionAssistiveBadge? {
@@ -348,13 +365,16 @@ extension RowCorrectionMarkingTone {
 }
 
 struct TranscriptionAssistiveBadgeRow: View {
-    private let badges: [TranscriptionAssistiveBadge]
+    private let transcription: Transcription
+    // Observed so coverage badges refresh when the local auto-apply model changes.
+    @ObservedObject private var coverageStore = RowCorrectionCoverageStore.shared
 
     init(transcription: Transcription) {
-        badges = TranscriptionAssistiveBadge.badges(for: transcription)
+        self.transcription = transcription
     }
 
     var body: some View {
+        let badges = TranscriptionAssistiveBadge.badges(for: transcription)
         if !badges.isEmpty {
             HStack(spacing: 6) {
                 ForEach(badges) { badge in
