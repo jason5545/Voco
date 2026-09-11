@@ -30,9 +30,37 @@ enum RuleAssistantPhase: Equatable {
 enum RuleAssistantTurnKind: Equatable {
     case manual
     case scan
-    case choice(broadSurfaces: Set<String>)
+    /// `candidateChosen` is true when at least one ticked option was a correction candidate: the
+    /// reply then owes the user a draft (or another question), never plain text.
+    case choice(broadSurfaces: Set<String>, candidateChosen: Bool = false)
 
     var isManual: Bool { self == .manual }
+}
+
+/// Why a JSON-less answer gets one follow-up request before it is shown as a dead end.
+enum RuleAssistantNudge: Equatable {
+    /// The turn had to end in a question (scan) or its last line promised options (「請勾選：」).
+    case question
+    /// The answer listed plan lines ([exact] / [context-locked] ...) but no draft JSON.
+    case draft
+    /// The user ticked a candidate and the reply carries neither a draft nor a question.
+    case choice
+
+    var prompt: String {
+        switch self {
+        case .question: return RuleAssistantSession.questionNudgePrompt
+        case .draft: return RuleAssistantSession.draftNudgePrompt
+        case .choice: return RuleAssistantSession.choiceNudgePrompt
+        }
+    }
+
+    var status: String {
+        switch self {
+        case .question: return String(localized: "The AI announced options without the question JSON; asking it to add them.")
+        case .draft: return String(localized: "The AI listed a rule plan without the draft JSON; asking it to add them.")
+        case .choice: return String(localized: "The AI answered the choice without a draft or question JSON; asking it to add one.")
+        }
+    }
 }
 
 struct RuleAssistantTurn: Equatable {
@@ -393,13 +421,14 @@ final class RuleAssistantSession: ObservableObject {
                     toolCalls: outcome.calls
                 ))
                 if outcome.calls.isEmpty {
-                    // The model sometimes announces a question (「請勾選：」) and stops without the JSON,
-                    // especially after tool rounds. Ask once for the JSON alone instead of showing a dead end.
-                    if !nudged, Self.needsQuestionNudge(answer: outcome.visibleAnswer, kind: kind) {
+                    // The model sometimes announces a question (「請勾選：」) or lists plan lines and stops
+                    // without the JSON, especially after tool rounds. Ask once for the JSON alone instead of
+                    // showing a dead end.
+                    if !nudged, let nudge = Self.missingJSONNudge(answer: outcome.visibleAnswer, kind: kind) {
                         nudged = true
                         promisedAnswer = outcome.visibleAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-                        status(String(localized: "The AI announced options without the question JSON; asking it to add them."))
-                        transaction.append(OpenCodeMessage(role: "user", content: Self.questionNudgePrompt))
+                        status(nudge.status)
+                        transaction.append(OpenCodeMessage(role: "user", content: nudge.prompt))
                         continue
                     }
                     try await finishTurn(answer: outcome.visibleAnswer, promisedAnswer: promisedAnswer, transaction: transaction, worker: worker, gen: gen)
@@ -536,7 +565,7 @@ final class RuleAssistantSession: ObservableObject {
         var display = String(localized: "Chose: \(displayParts.joined(separator: "、"))")
         if !note.isEmpty { display += "\n\(note)" }
         // A typed note is Jason's own statement: the turn counts as manual and the broad gate is off.
-        let kind: RuleAssistantTurnKind = note.isEmpty ? .choice(broadSurfaces: broadSurfaces) : .manual
+        let kind: RuleAssistantTurnKind = note.isEmpty ? .choice(broadSurfaces: broadSurfaces, candidateChosen: !scopes.isEmpty) : .manual
         pendingChoiceRestore = (question: question, selected: current.selectedOptionIds, scopes: current.optionScopes)
         markQuestionAnswered(question.id, selected: current.selectedOptionIds, scopes: scopes)
         await submitTurn(wire: wireLines.joined(separator: "\n"), display: display, kind: kind, restore: note.isEmpty ? nil : note)
@@ -809,16 +838,24 @@ final class RuleAssistantSession: ObservableObject {
         )
     }
 
-    /// A scan turn must end in a question (or drafts); any turn whose last line reads like
-    /// 「請勾選：」 promised one. Both get a single nudge before the answer is shown as is.
-    static func needsQuestionNudge(answer: String, kind: RuleAssistantTurnKind) -> Bool {
+    /// An answer without any draft or question JSON is a dead end in three shapes, each nudged once:
+    /// plan lines without their drafts, a scan (or a 「請勾選：」 tail) without its question, and a
+    /// candidate choice answered in plain text. Returns nil when the answer already carries JSON
+    /// or nothing was promised.
+    static func missingJSONNudge(answer: String, kind: RuleAssistantTurnKind) -> RuleAssistantNudge? {
         let located = RuleAssistantDraft.locateAllJSON(in: answer)
-        if RuleAssistantQuestion.parseFirst(located) != nil || !RuleAssistantDraft.parseAll(located).isEmpty { return false }
-        if case .scan = kind { return true }
+        if RuleAssistantQuestion.parseFirst(located) != nil || !RuleAssistantDraft.parseAll(located).isEmpty { return nil }
+        if answer.range(of: planLinePattern, options: .regularExpression) != nil { return .draft }
+        if case .scan = kind { return .question }
         let tail = String(answer.trimmingCharacters(in: .whitespacesAndNewlines).suffix(40))
-        if tail.hasSuffix("：") || tail.hasSuffix(":") { return true }
-        return tail.range(of: "(請|请)(勾選|勾选|選擇|选择|選|选)", options: .regularExpression) != nil
+        if tail.hasSuffix("：") || tail.hasSuffix(":") { return .question }
+        if tail.range(of: "(請|请)(勾選|勾选|選擇|选择|選|选)", options: .regularExpression) != nil { return .question }
+        if case .choice(_, let candidateChosen) = kind, candidateChosen { return .choice }
+        return nil
     }
+
+    /// A plan line as the system prompt defines it: 「[context-locked] <source> → <target>」 at the start of a line.
+    static let planLinePattern = "(?m)^[ \\t]*\\[(exact|broad|context-locked|family|tombstone|move|merge)\\]"
 
     private func finishTurn(
         answer: String,
@@ -1219,7 +1256,7 @@ final class RuleAssistantSession: ObservableObject {
             guard draft.isBroad || draft.isTransaction else { return nil }
             let source = draft.sourcePattern ?? draft.aliases.joined(separator: "\u{3001}")
             return String(localized: "Find-issues never creates broad rules or moves/merges families (\(draft.eventType): \(source) → \(draft.targetText ?? "")). Tick the candidate and choose “Any context”, or state yourself that the source is never valid and send again.")
-        case .choice(let broadSurfaces):
+        case .choice(let broadSurfaces, _):
             if draft.isTransaction {
                 return String(localized: "Moving or merging families needs your own words (\(draft.eventType)); it is not created from a choice.")
             }
@@ -1285,6 +1322,10 @@ final class RuleAssistantSession: ObservableObject {
     static let maxStatusLines = 30
 
     static let questionNudgePrompt = "你上一則說要讓使用者勾選，但沒有附 question JSON，App 沒有東西可以顯示。請只輸出那一個 question JSON（```json fence，欄位 id、prompt、multiSelect、options[{id,label,detail?,surface?,target?}]），不要再查工具，不要其他文字。"
+
+    static let draftNudgePrompt = "你上一則列了規則計畫行（[exact]／[context-locked] 這類），但沒有附 draft JSON，App 沒有卡片可以讓使用者確認。請只輸出那些 draft JSON（每個計畫行一個 ```json fence，欄位依類型：eventType、sourceText／sourcePattern、targetText、contextTokensAny、aliases、familyId、positiveExamples、negativeExamples），不要再查工具，不要其他文字。"
+
+    static let choiceNudgePrompt = "使用者已經勾選了要改的候選，但你上一則既沒有 draft JSON 也沒有 question JSON，App 沒有卡片可以顯示。規則已經決定就只輸出 draft JSON（每條規則一個 ```json fence）；還需要問就只輸出一個 question JSON。不要再查工具，不要其他文字。"
 
     static let scanPrompt = "使用者沒有說明原意，請找出可疑之處。看這筆各階段文字，把你覺得不合理、可能是辨識或標準化錯誤的地方全部列成一題多選 question 的候選，每個候選附 surface 與你猜的 target；可以用 load_nearby_records 與唯讀工具輔助，但不確定的就列成候選讓使用者勾，不要靠上下文硬猜。找不到問題就說明並附一題 question（選項：這筆沒錯／其實有錯，我來說）。"
 
@@ -1358,7 +1399,7 @@ final class RuleAssistantSession: ObservableObject {
            [merge] <fromFamilyId> → <toFamilyId>
         2. One or two sentences in Taiwanese Traditional Chinese explaining why this type.
         3. One JSON draft object per plan line, in the same order, each in its own ```json fence (at most 8). Fields: eventType, sourceText, targetText, sourcePattern, familyId, aliases, contextTokensAny, contextAliasesAny, policyId, fromFamilyId, toFamilyId, reason, disposition, positiveExamples, negativeExamples. Example objects use text, context, expectedText. Omit fields that do not apply. Do not include actor, rowPk, correctionSource, correctionRow, note, or makeAvailableNow; the App adds provenance itself.
-        The App shows every draft as its own card; the user confirms and publishes them one at a time inside the App, so never say a rule "will follow later"—emit all of them now.
+        The App shows every draft as its own card; the user confirms and publishes them one at a time inside the App, so never say a rule "will follow later"—emit all of them now. The plan lines alone show the user nothing: an answer that lists them without the JSON drafts is a dead end.
 
         If unsure, do not output a draft. Ask a question with options, e.g. prompt 「要改的是哪個 surface？」 with the candidates and 「都不對，再猜」.
         Answer in Taiwanese Traditional Chinese, briefly.

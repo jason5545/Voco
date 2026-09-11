@@ -950,10 +950,50 @@ struct RuleAssistantIntegrationTests {
         await session.submit("再看一次")
         #expect(FakeGoProvider.recorded.count == 3)
         #expect(session.state.pendingQuestion?.id == "q1")
-        #expect(RuleAssistantSession.needsQuestionNudge(answer: "好的：", kind: .manual))
-        #expect(RuleAssistantSession.needsQuestionNudge(answer: "請選擇一個", kind: .choice(broadSurfaces: [])))
-        #expect(!RuleAssistantSession.needsQuestionNudge(answer: "改好了。", kind: .manual))
-        #expect(!RuleAssistantSession.needsQuestionNudge(answer: questionJSON(options: candidateOptions), kind: .scan))
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "好的：", kind: .manual) == .question)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "請選擇一個", kind: .choice(broadSurfaces: [])) == .question)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "改好了。", kind: .manual) == nil)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: questionJSON(options: candidateOptions), kind: .scan) == nil)
+    }
+
+    @Test func choiceAnswerWithPlanLineButNoDraftIsNudgedOnce() async {
+        server.reset()
+        let locked = RuleAssistantTestJSON.string([
+            "eventType": "contextLockedRule",
+            "sourcePattern": "小振",
+            "targetText": "小鎮",
+            "contextTokensAny": ["家"],
+        ])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            // The model lists the plan and its reasoning, then stops without the draft (the exported 天線 case).
+            .stream([FakeGoProvider.chunk(content: "[context-locked] 小振 → 小鎮\n已確認沒有既有規則，用「家」鎖定語境。"), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: "```json\n" + locked + "\n```"), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setScope(.context, for: "a")
+        await session.submitChoice()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.drafts[0].draft.eventType == "contextLockedRule")
+        #expect(FakeGoProvider.recorded.count == 3)
+        // The nudge is a wire-only user message asking for the draft JSON alone.
+        #expect(lastUserMessage(2).contains("draft JSON"))
+        #expect(session.state.transcript.filter { $0.role == "user" }.count == 2)
+        // The plan and explanation stay visible above the draft card.
+        #expect(session.state.transcript.last?.text.hasPrefix("[context-locked] 小振 → 小鎮") == true)
+        #expect(session.state.toolStatus.contains { $0.contains("draft JSON") })
+        // A plan line is a draft promise in any turn; a candidate choice answered in prose is a dead end too;
+        // a non-candidate choice (這筆沒錯) may end in plain text; a bracket mid-sentence is not a plan line.
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "[exact] 小振 → 小鎮\n因為是地名。", kind: .manual) == .draft)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "我會做成語境限定規則。", kind: .choice(broadSurfaces: [], candidateChosen: true)) == .choice)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "好，這筆不動。", kind: .choice(broadSurfaces: [])) == nil)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "不建議 [broad] 這種寫法。", kind: .manual) == nil)
     }
 
     @Test func broadDraftGetsLexiconGuardsAndToggleRerunsTheCheck() async throws {
