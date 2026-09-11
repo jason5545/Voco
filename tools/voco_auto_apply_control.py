@@ -2708,6 +2708,7 @@ def compact_runtime_policy(policy: dict[str, Any]) -> dict[str, Any]:
     return compact_nonempty(
         {
             "policyId": str(policy.get("policyId") or ""),
+            "legacyPolicyIds": string_list(policy.get("legacyPolicyIds")),
             "autoApplyMode": policy.get("autoApplyMode"),
             "policyType": policy.get("policyType"),
             "sourcePattern": policy.get("sourcePattern"),
@@ -3119,6 +3120,8 @@ def compile_model(
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
     }
+    unmatched_policy_id_only_tombstones = policy_id_only_tombstones_unmatched(events, policies)
+    model["controlPlane"]["policyIdOnlyTombstonesUnmatched"] = unmatched_policy_id_only_tombstones
     runtime_index_repair = rebuild_runtime_index_fields(model)
     model["controlPlane"]["runtimeIndexRepair"] = runtime_index_repair
     report = {
@@ -3136,9 +3139,30 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "policyIdOnlyTombstonesUnmatched": unmatched_policy_id_only_tombstones,
         "runtimeIndexRepair": runtime_index_repair,
     }
     return model, report
+
+
+def policy_id_only_tombstones_unmatched(
+    events: list[dict[str, Any]], policies: list[dict[str, Any]]
+) -> list[str]:
+    """List policyId-only disableRule events that match no compiled policy."""
+    unmatched: list[str] = []
+    for event in events:
+        if str(event.get("action") or "") != "disableRule":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        tombstone = payload.get("tombstone") if isinstance(payload.get("tombstone"), dict) else {}
+        policy_id = str(tombstone.get("policyId") or "").strip()
+        if not policy_id or str(tombstone.get("sourcePattern") or "").strip() or str(tombstone.get("targetText") or "").strip():
+            continue
+        if not any(tombstone_matches_policy(tombstone, policy) for policy in policies):
+            event_id = str(event.get("eventId") or "").strip()
+            if event_id:
+                unmatched.append(event_id)
+    return sorted(set(unmatched))
 
 
 def select_incremental_control_events(
@@ -3259,6 +3283,7 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     aliases = compact_strings(payload.get("contextAliasesAny") or [])
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
+    lock_name = str(payload.get("lockName") or f"manual-context-lock:{short_digest(f'{source_pattern}->{target_text}', 10)}")
     policy_id_key = json.dumps(
         {
             "sourcePattern": source_pattern,
@@ -3268,13 +3293,16 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
             "regexOptions": source_contract.get("regexOptions"),
             "tokens": tokens,
             "aliases": aliases,
-            "lockName": payload.get("lockName"),
+            "lockName": lock_name,
         },
         ensure_ascii=False,
         sort_keys=True,
     )
+    policy_id = f"manual-context-{short_digest(policy_id_key, length=16)}"
+    legacy_policy_id = legacy_worker_policy_id(event)
     policy = {
-        "policyId": f"manual-context-{short_digest(policy_id_key, length=16)}",
+        "policyId": policy_id,
+        **({"legacyPolicyIds": [legacy_policy_id]} if legacy_policy_id and legacy_policy_id != policy_id else {}),
         "policyType": "scopedReplacement",
         "autoApplyMode": "apply",
         "decisionReason": "manual context-locked scoped replacement from control-plane evidence",
@@ -3283,7 +3311,7 @@ def context_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePattern": source_pattern,
         "targetText": target_text,
         **source_contract,
-        "lockName": payload.get("lockName") or "manual-context-lock",
+        "lockName": lock_name,
         "contextRequired": True,
         "contextTokensAny": tokens,
         "contextAliasesAny": aliases,
@@ -3333,6 +3361,7 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
     source_contract = compact_source_pattern_contract(payload)
     row_pk = payload.get("rowPk")
     evidence_rows = [int(row_pk)] if row_pk else []
+    rule_name = str(payload.get("ruleName") or f"manual-replacement:{short_digest(f'{source_pattern}->{target_text}', 10)}")
     policy_id_key = json.dumps(
         {
             "sourcePattern": source_pattern,
@@ -3340,14 +3369,17 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
             "sourcePatternType": source_contract.get("sourcePatternType"),
             "targetTemplate": source_contract.get("targetTemplate"),
             "regexOptions": source_contract.get("regexOptions"),
-            "ruleName": payload.get("ruleName"),
+            "ruleName": rule_name,
             "ruleType": "unlockedReplacement",
         },
         ensure_ascii=False,
         sort_keys=True,
     )
+    policy_id = f"manual-replacement-{short_digest(policy_id_key, length=16)}"
+    legacy_policy_id = legacy_worker_policy_id(event)
     policy = {
-        "policyId": f"manual-replacement-{short_digest(policy_id_key, length=16)}",
+        "policyId": policy_id,
+        **({"legacyPolicyIds": [legacy_policy_id]} if legacy_policy_id and legacy_policy_id != policy_id else {}),
         "policyType": "scopedReplacement",
         "autoApplyMode": "apply",
         "decisionReason": "manual unlocked scoped replacement from control-plane evidence",
@@ -3356,7 +3388,7 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         "sourcePattern": source_pattern,
         "targetText": target_text,
         **source_contract,
-        "lockName": payload.get("ruleName") or "manual-unlocked-replacement",
+        "lockName": rule_name,
         "contextRequired": False,
         "contextTokensAny": [],
         "contextAliasesAny": [],
@@ -3393,6 +3425,61 @@ def replacement_policy_from_event(event: dict[str, Any]) -> dict[str, Any]:
         policy["resultTransform"] = result_transform
     apply_policy_family_metadata(policy, payload, event)
     return policy
+
+
+def legacy_worker_policy_id(event: dict[str, Any]) -> str | None:
+    """Return the Worker policy id formula used before 2026-09-11."""
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    source_pattern = str(payload.get("sourcePattern") or "").strip()
+    target_text = str(payload.get("targetText") or "").strip()
+    if not source_pattern or not target_text:
+        return None
+    source_contract = compact_source_pattern_contract(payload)
+    source_pattern_type = str(source_contract.get("sourcePatternType") or "")
+    target_template = str(source_contract.get("targetTemplate") or "")
+    regex_options = compact_regex_options(source_contract.get("regexOptions") or [])
+    action = str(event.get("action") or "")
+    if action == "addContextLockedRule":
+        tokens = compact_strings(payload.get("contextTokensAny") or [])
+        aliases = compact_strings(payload.get("contextAliasesAny") or [])
+        if not tokens and not aliases:
+            return None
+        lock_name = str(payload.get("lockName") or f"manual-context-lock:{short_digest(f'{source_pattern}->{target_text}', 10)}")
+        key = json.dumps(
+            {
+                "aliases": aliases,
+                "lockName": lock_name,
+                "regexOptions": regex_options,
+                "ruleType": "contextLockedRule",
+                "sourcePattern": source_pattern,
+                "sourcePatternType": source_pattern_type,
+                "targetTemplate": target_template,
+                "targetText": target_text,
+                "tokens": tokens,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(", ", ": "),
+        )
+        return f"manual-context-{short_digest(key, length=16)}"
+    if action != "addReplacementRule":
+        return None
+    rule_name = str(payload.get("ruleName") or f"manual-replacement:{short_digest(f'{source_pattern}->{target_text}', 10)}")
+    key = json.dumps(
+        {
+            "regexOptions": regex_options,
+            "ruleName": rule_name,
+            "ruleType": "unlockedReplacement",
+            "sourcePattern": source_pattern,
+            "sourcePatternType": source_pattern_type,
+            "targetTemplate": target_template,
+            "targetText": target_text,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(", ", ": "),
+    )
+    return f"manual-replacement-{short_digest(key, length=16)}"
 
 
 def replacement_family_policies_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
@@ -3532,6 +3619,9 @@ def upsert_policy(policies: list[dict[str, Any]], new_policy: dict[str, Any], ev
             if event["eventId"] not in ids:
                 ids.append(event["eventId"])
             policy["controlEvidenceEventIds"] = ids
+            legacy_ids = sorted(set(string_list(policy.get("legacyPolicyIds")) + string_list(new_policy.get("legacyPolicyIds"))))
+            if legacy_ids:
+                policy["legacyPolicyIds"] = legacy_ids
             merge_policy_family_metadata(policy, new_policy)
             merge_policy_negative_source_guards(policy, new_policy)
             merge_policy_result_transform(policy, new_policy)
@@ -3713,7 +3803,7 @@ def tombstone_disposition(tombstone: dict[str, Any]) -> str:
 
 def tombstone_matches_policy(tombstone: dict[str, Any], policy: dict[str, Any]) -> bool:
     policy_id = tombstone.get("policyId")
-    if policy_id and policy.get("policyId") == policy_id:
+    if policy_id and (policy.get("policyId") == policy_id or policy_id in string_list(policy.get("legacyPolicyIds"))):
         return True
     source_pattern = tombstone.get("sourcePattern")
     target_text = tombstone.get("targetText")
@@ -3822,6 +3912,7 @@ def validate_model(
     failures.extend(manual_replacement_failures)
     family_metadata_failures = family_metadata_failures_for_model(model)
     failures.extend(family_metadata_failures)
+    unmatched_policy_id_only_tombstones = policy_id_only_tombstones_unmatched(events, model.get("policies") or [])
     count_report = policy_count_report(model, base_model)
     failures.extend(count_report["failures"])
     corpus_reports = []
@@ -3850,6 +3941,7 @@ def validate_model(
         "manualContextLockFailures": manual_context_failures,
         "manualReplacementFailures": manual_replacement_failures,
         "familyMetadataFailures": family_metadata_failures,
+        "policyIdOnlyTombstonesUnmatched": unmatched_policy_id_only_tombstones,
         "policyCounts": model.get("policyCounts") or {},
         "policyTypeCounts": model.get("policyTypeCounts") or {},
         "validationEventScope": validation_event_scope,

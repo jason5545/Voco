@@ -32,6 +32,15 @@ struct RuleAssistantIntegrationTests {
         ])
     }
 
+    private func tombstonePolicyOnlyDraft(policyId: String) -> String {
+        RuleAssistantTestJSON.string([
+            "eventType": "tombstone",
+            "policyId": policyId,
+            "disposition": "replaced",
+            "reason": "使用者確認這條規則應停用",
+        ])
+    }
+
     private func draftAnswer(_ drafts: [String]) -> String {
         "我建議：\n" + drafts.joined(separator: "\n")
     }
@@ -232,6 +241,14 @@ struct RuleAssistantIntegrationTests {
     @Test func tombstoneIsNotBlockedByThePolicyItRetires() async {
         server.reset()
         server.toolHandler = { name, args in
+            if name == "lookup_auto_apply_policy" {
+                return .result([
+                    "ok": true,
+                    "matchedPoliciesCount": 1,
+                    "returnedPoliciesCount": 1,
+                    "policies": [["policyId": args["policyId"] as? String ?? "", "sourcePattern": "考迪", "targetText": "口技", "policyType": "scopedReplacement", "autoApplyMode": "apply"]],
+                ])
+            }
             if name == "detect_duplicate_control_event" {
                 #expect(args["eventType"] as? String == "tombstone")
                 var duplicate = FakeMCPServer.duplicateNone
@@ -265,6 +282,14 @@ struct RuleAssistantIntegrationTests {
     @Test func duplicateTombstoneEventStillBlocksConfirm() async {
         server.reset()
         server.toolHandler = { name, args in
+            if name == "lookup_auto_apply_policy" {
+                return .result([
+                    "ok": true,
+                    "matchedPoliciesCount": 1,
+                    "returnedPoliciesCount": 1,
+                    "policies": [["policyId": args["policyId"] as? String ?? "", "sourcePattern": "考迪", "targetText": "口技", "policyType": "scopedReplacement", "autoApplyMode": "apply"]],
+                ])
+            }
             if name == "detect_duplicate_control_event" {
                 var duplicate = FakeMCPServer.duplicateNone
                 duplicate["alreadyApplied"] = true
@@ -286,6 +311,89 @@ struct RuleAssistantIntegrationTests {
         #expect(!session.state.canConfirm)
         await session.confirm()
         #expect(!server.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" })
+    }
+
+    @Test func tombstoneWithOnlyPolicyIdIsFilledFromLookup() async throws {
+        server.reset()
+        let policyId = "manual-replacement-61696a414cd4a601"
+        server.toolHandler = { name, args in
+            if name == "lookup_auto_apply_policy" {
+                return .result([
+                    "ok": true,
+                    "matchedPoliciesCount": 1,
+                    "returnedPoliciesCount": 1,
+                    "policies": [["policyId": policyId, "sourcePattern": "考迪", "targetText": "口技", "policyType": "scopedReplacement", "autoApplyMode": "apply"]],
+                ])
+            }
+            if name == "tombstone_auto_apply_rule" {
+                return .result(FakeMCPServer.writePublished(sha: String(repeating: "a", count: 64)))
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstonePolicyOnlyDraft(policyId: policyId)])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("停掉這條規則")
+        let lookup = try #require(server.toolCalls.first { $0.name == "lookup_auto_apply_policy" })
+        #expect(lookup.args["policyId"] as? String == policyId)
+        #expect(lookup.args["limit"] as? Int == 1)
+        #expect(server.toolCalls.filter { $0.name == "lookup_auto_apply_policy" }.count == 1)
+        #expect(session.state.drafts[0].draft.sourcePattern == "考迪")
+        #expect(session.state.drafts[0].draft.targetText == "口技")
+        #expect(session.state.canConfirm)
+        await session.confirm()
+        #expect(server.toolCalls.filter { $0.name == "lookup_auto_apply_policy" }.count == 1)
+        let write = try #require(server.toolCalls.first { $0.name == "tombstone_auto_apply_rule" })
+        #expect(write.args["policyId"] as? String == policyId)
+        #expect(write.args["sourcePattern"] as? String == "考迪")
+        #expect(write.args["targetText"] as? String == "口技")
+    }
+
+    @Test func tombstoneWithUnknownPolicyIdIsBlocked() async {
+        server.reset()
+        let policyId = "manual-replacement-does-not-exist"
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstonePolicyOnlyDraft(policyId: policyId)])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("停掉這條規則")
+        #expect(session.state.drafts[0].check?.blockedReason?.contains("找不到") == true)
+        #expect(!session.state.canConfirm)
+        await session.confirm()
+        #expect(!server.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" })
+    }
+
+    @Test func tombstonePolicyIdDisagreeingWithTextIsBlocked() async {
+        server.reset()
+        let policyId = "manual-replacement-61696a414cd4a601"
+        server.toolHandler = { name, args in
+            if name == "lookup_auto_apply_policy" {
+                return .result([
+                    "ok": true,
+                    "matchedPoliciesCount": 1,
+                    "returnedPoliciesCount": 1,
+                    "policies": [["policyId": policyId, "sourcePattern": "別的", "targetText": "規則", "policyType": "scopedReplacement", "autoApplyMode": "apply"]],
+                ])
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstoneDraft(policyId: policyId)])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("停掉考迪規則")
+        #expect(session.state.drafts[0].check?.blockedReason?.contains("不同規則") == true)
+        #expect(!session.state.canConfirm)
     }
 
     @Test func duplicateBlocksConfirm() async {

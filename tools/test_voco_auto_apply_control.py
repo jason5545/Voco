@@ -145,6 +145,105 @@ def fake_mcp_opener_factory(tool_bodies: dict[str, dict], calls: list[dict]):
 
 
 class VocoAutoApplyControlTests(unittest.TestCase):
+    def test_context_locked_policy_id_matches_worker_fixture(self):
+        event = {
+            "eventId": "evt-20260911T005922.863Z-be9180c35e-ec548723",
+            "createdAt": "2026-09-11T00:59:22.863Z",
+            "action": "addContextLockedRule",
+            "payload": {
+                "ruleType": "scopedReplacement",
+                "sourcePattern": "按按鈕",
+                "targetText": "按鈕",
+                "sourceText": "能不能再多一個按按鈕，或者是自動判斷？",
+                "contextTokensAny": ["一個"],
+                "contextAliasesAny": [],
+                "lockName": "manual-context-lock:bee8520651",
+            },
+        }
+        policy = control.context_policy_from_event(event)
+        self.assertEqual(policy["policyId"], "manual-context-50cd4890ba29bbd1")
+        self.assertEqual(policy["legacyPolicyIds"], ["manual-context-361c245be2f4e298"])
+
+    def test_replacement_policy_id_matches_worker_fixture(self):
+        event = {
+            "eventId": "evt-20260911T032156.768Z-b7e9b1aa77-2b3be955",
+            "createdAt": "2026-09-11T03:21:56.768Z",
+            "action": "addReplacementRule",
+            "payload": {
+                "ruleType": "unlockedReplacement",
+                "sourcePattern": "考迪",
+                "targetText": "口技",
+                "sourceText": "考迪",
+                "ruleName": "manual-replacement:2adb6fb53e",
+            },
+        }
+        policy = control.replacement_policy_from_event(event)
+        self.assertEqual(policy["policyId"], "manual-replacement-61696a414cd4a601")
+        self.assertEqual(policy["legacyPolicyIds"], ["manual-replacement-40ff6d15720178e4"])
+
+    def test_policy_id_only_tombstone_with_legacy_worker_id_retires_canonical_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            add_event = {
+                "schemaVersion": 1,
+                "eventId": "evt-20260911T005922.863Z-be9180c35e-ec548723",
+                "createdAt": "2026-09-11T00:59:22.863Z",
+                "actor": "test",
+                "source": "test",
+                "action": "addContextLockedRule",
+                "payload": {
+                    "ruleType": "scopedReplacement",
+                    "sourcePattern": "按按鈕",
+                    "targetText": "按鈕",
+                    "sourceText": "能不能再多一個按按鈕，或者是自動判斷？",
+                    "contextTokensAny": ["一個"],
+                    "contextAliasesAny": [],
+                    "lockName": "manual-context-lock:bee8520651",
+                },
+            }
+            tombstone_event = {
+                "schemaVersion": 1,
+                "eventId": "evt-20260911T011146.933Z-9f6c3d84cb-4ae63e26",
+                "createdAt": "2026-09-11T01:11:46.933Z",
+                "actor": "test",
+                "source": "test",
+                "action": "disableRule",
+                "payload": {"tombstone": {
+                    "policyId": "manual-context-361c245be2f4e298",
+                    "sourcePattern": None,
+                    "targetText": None,
+                    "reason": "legacy Worker id",
+                    "disposition": "replaced",
+                }},
+            }
+            control.append_event(evidence, add_event)
+            control.append_event(evidence, tombstone_event)
+            model, _report = control.compile_model(
+                control.load_model(base), control.load_events(evidence), base_model_path=base, evidence_store=evidence
+            )
+            policy = model["policies"][0]
+            self.assertEqual(policy["autoApplyMode"], "replaced")
+            self.assertEqual(policy["tombstone"]["eventId"], tombstone_event["eventId"])
+
+    def test_regex_policy_id_matches_worker_fixture(self):
+        event = {
+            "eventId": "evt-regex-fixture",
+            "createdAt": "2026-09-11T00:00:00Z",
+            "action": "addReplacementRule",
+            "payload": {
+                "ruleType": "unlockedReplacement",
+                "sourcePattern": "(foo)",
+                "targetText": "bar",
+                "sourcePatternType": "regex",
+                "targetTemplate": "BAR",
+                "regexOptions": ["caseInsensitive"],
+            },
+        }
+        self.assertEqual(control.replacement_policy_from_event(event)["policyId"], "manual-replacement-64c45fbd6a795957")
+
     def test_currency_chinese_numbers_normalize_only_inside_money_amounts(self):
         after, fires = control.replay_apply_policies_unchecked(
             "台幣一千二百元，美金五點二元，還有三百二十塊錢。",

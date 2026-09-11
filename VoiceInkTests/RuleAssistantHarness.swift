@@ -626,6 +626,13 @@ final class FakeMCPServer {
         "duplicateEvent": ["found": false, "count": 0],
     ]
 
+    static let lookupNone: [String: Any] = [
+        "ok": true,
+        "matchedPoliciesCount": 0,
+        "returnedPoliciesCount": 0,
+        "policies": [Any](),
+    ]
+
     static func writePublished(sha: String) -> [String: Any] {
         [
             "runtimeEffect": "applied",
@@ -646,6 +653,8 @@ final class FakeMCPServer {
             ])
         case "preview_auto_apply_control_event":
             return .result(previewOK)
+        case "lookup_auto_apply_policy":
+            return .result(lookupNone)
         case "detect_duplicate_control_event":
             return .result(duplicateNone)
         default:

@@ -622,6 +622,11 @@ final class RuleAssistantSession: ObservableObject {
             if !draft.isSafeForWrite() {
                 throw RuleAssistantFailure(String(localized: "This draft does not satisfy the safety field limits; please send again."))
             }
+            if draft.eventType == "tombstone" &&
+                (draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false ||
+                 draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false) {
+                throw RuleAssistantFailure(String(localized: "tombstone 缺 sourcePattern／targetText，不寫入。"))
+            }
             // Re-check the same draft at confirm time; the model's earlier answers are not trusted here.
             let recheck = try await checkDraft(worker: worker, draft: draft)
             try guardGeneration(gen)
@@ -951,11 +956,71 @@ final class RuleAssistantSession: ObservableObject {
         state.drafts = entries
         state.phase = .checking
         for entry in entries {
-            let check = try await checkDraft(worker: worker, draft: entry.draft)
+            var draft = entry.draft
+            do {
+                draft = try await resolveTombstoneIdentity(worker: worker, draft: draft)
+                if draft != entry.draft {
+                    updateEntry(nonce: entry.draft.nonce) { $0.draft = draft }
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                let reason = Self.message(of: error)
+                updateEntry(nonce: entry.draft.nonce) {
+                    $0.check = RuleAssistantDraftCheck(draftNonce: entry.draft.nonce, preview: nil, duplicate: nil, blockedReason: reason)
+                }
+                continue
+            }
+            let check = try await checkDraft(worker: worker, draft: draft)
             try guardGeneration(gen)
             updateEntry(nonce: entry.draft.nonce) { $0.check = check }
         }
         state.phase = .draftReady
+    }
+
+    /// Tombstones that carry a policyId must also carry the canonical text keys before they can be written.
+    /// The resolved keys remain on the draft for confirm's final safety guard and re-check.
+    private func resolveTombstoneIdentity(worker: RuleAssistantMCP, draft: RuleAssistantDraft) async throws -> RuleAssistantDraft {
+        guard draft.eventType == "tombstone",
+              let policyId = draft.policyId?.trimmingCharacters(in: .whitespacesAndNewlines), !policyId.isEmpty
+        else { return draft }
+
+        let lookup: [String: Any]
+        do {
+            lookup = try await worker.call("lookup_auto_apply_policy", args: ["policyId": policyId, "limit": 1])
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as McpToolError {
+            throw RuleAssistantFailure(String(localized: "Worker 查詢規則失敗：\(error.message)"))
+        } catch {
+            throw RuleAssistantFailure(String(localized: "Worker 查詢規則失敗：\(Self.message(of: error))"))
+        }
+        let policies = lookup.raDictArray("policies")
+        guard lookup.raInt64("matchedPoliciesCount") != 0,
+              let policy = policies.first,
+              let source = policy.raNonBlankString("sourcePattern")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let target = policy.raNonBlankString("targetText")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !source.isEmpty,
+              !target.isEmpty
+        else {
+            throw RuleAssistantFailure(String(localized: "Worker 找不到 policyId \(policyId) 對應的規則，無法補 sourcePattern／targetText；請改用 sourcePattern＋targetText 重新提出。"))
+        }
+
+        let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTarget = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftSource = draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let draftTarget = draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if (!draftSource.isEmpty && draftSource != normalizedSource) || (!draftTarget.isEmpty && draftTarget != normalizedTarget) {
+            throw RuleAssistantFailure(String(localized: "policyId 與 sourcePattern／targetText 指到不同規則，請確認後再提。"))
+        }
+        var resolved = draft
+        let wasMissing = draftSource.isEmpty || draftTarget.isEmpty
+        if draftSource.isEmpty { resolved.sourcePattern = normalizedSource }
+        if draftTarget.isEmpty { resolved.targetText = normalizedTarget }
+        if wasMissing {
+            status(String(localized: "已從 Worker 補上規則文字：\(normalizedSource) → \(normalizedTarget)"))
+        }
+        return resolved
     }
 
     // MARK: Automatic negative guards
@@ -1355,12 +1420,12 @@ final class RuleAssistantSession: ObservableObject {
         - If the source/target boundary is unclear, ask one short clarification and output no draft.
         - If the user says "X to Y", "X -> Y", "same logic", or clearly confirms a normalization, propose the draft directly.
         - You may use the read-only Worker tools (lookup_auto_apply_policy, list_auto_apply_families, detect_duplicate_control_event, preview_auto_apply_control_event, suggest_auto_apply_tombstone, get_auto_apply_reconcile_status, get_auto_apply_row_corrections) to check existing rules before proposing. Write tools are blocked for you; do not call them.
-        - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the reply scoped that candidate as 任何語境; use correction for the whole utterance (scope 只改這句) or contextLockedRule (scope 語境限定).
+        - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the reply scoped that candidate as 任何語境; use correction for the whole utterance (scope 只改這句) or contextLockedRule (scope 語境限定).
 
         Questions (instead of free-text clarification):
         - Whenever you would ask the user something, emit exactly one JSON object in its own ```json fence, for example:
           {"question": {"id": "q1", "prompt": "這筆哪些地方是錯的？", "multiSelect": true, "options": [{"id": "a", "label": "西賴 → CLI", "detail": "程式工具語境", "surface": "西賴", "target": "CLI"}, {"id": "b", "label": "這筆沒錯"}]}}
-          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. Exactly one option per suspected surface: never spread one candidate over several options by scope (只改這句／語境限定／任何語境) or by event type. The App shows the scope choice itself once a candidate is ticked, and the reply tells you the scope; options must differ in surface or target. The JSON must be inside the same answer as your explanation: never end with 「請勾選：」 or a promise and stop, and after your last tool result the final answer must still contain the JSON. The user types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets the user add a free-text note to their choice.
+          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. Exactly one option per suspected surface: never spread one candidate over several options by scope (只改這句／語境限定／任何語境) or by event type. The App shows the scope choice itself once a candidate is ticked, and the reply tells you the scope; options must differ in surface or target. The JSON must be inside the same answer as your explanation: never end with 「請勾選：」 or a promise and stop, and after your last tool result the final answer must still contain the JSON. The user types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. Way-out options (「這筆沒錯」, 「其實有錯，我來說」, 「都不對，再猜」 and the like) carry only id and label: no surface, no target, no placeholder text. A candidate's label is exactly its surface → target; do not list several targets in one label. The App also lets the user add a free-text note to their choice.
         - The App replies to a question as a user message in this shape:
           回覆問題 q1：<prompt>
           選擇：[a] 西賴 → CLI（範圍：只改這句）
@@ -1385,7 +1450,7 @@ final class RuleAssistantSession: ObservableObject {
         - "replacementRule" for broad phrase/term/number normalization only when the user has confirmed the source is never intended in their Voco input domain (sourcePattern -> targetText).
         - "contextLockedRule" when the correction is context-sensitive or could be valid elsewhere (sourcePattern -> targetText plus contextTokensAny / contextAliasesAny).
         - "replacementFamily" when multiple aliases should map to one target (familyId, aliases, targetText).
-        - "tombstone" when the user says an existing correction is wrong or should stop (policyId, or sourcePattern + targetText; plus reason and disposition "blocked" or "replaced").
+        - "tombstone" when the user says an existing correction is wrong or should stop: always include policyId AND sourcePattern + targetText (call lookup_auto_apply_policy with the policyId to fetch them); plus reason and disposition "blocked" or "replaced".
         - "moveAliasToFamily" when an alias already exists as a scoped replacement policy but belongs in another family (fields: policyId or sourcePattern, optional fromFamilyId, toFamilyId, optional targetText, reason). Use this instead of re-adding the alias: the Worker reports aliasesAlreadyPresentInOtherFamily / suggests move when an add would be a no-op.
         - "mergeReplacementFamilies" when every alias of one family should live in another (fields: fromFamilyId, toFamilyId, optional targetText, reason). Look up both families first with list_auto_apply_families.
         Both are Worker transactions (tombstone + addReplacementFamily in one publish); propose them only when the user explicitly asks to move or merge, never in auto-guess.
