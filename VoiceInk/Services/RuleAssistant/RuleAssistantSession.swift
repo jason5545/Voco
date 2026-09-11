@@ -1015,6 +1015,30 @@ final class RuleAssistantSession: ObservableObject {
         }
         if !state.answer.isEmpty { out.append("[assistant · streaming] \(state.answer)") }
         out.append("")
+        out.append("## UI state (what the card actually shows)")
+        out.append("- phase=\(state.phase) busyTurnKind=\(state.busyTurnKind.map { "\($0)" } ?? "nil") interruptible=\(state.isInterruptible) hasAutoScanned=\(state.hasAutoScanned) goKey=\(state.goKeyConfigured) syncKey=\(state.syncConfigured)")
+        out.append("- composer text: \(state.userText.isEmpty ? "(empty)" : state.userText)")
+        if let question = state.pendingQuestion {
+            out.append("- pending question \(question.id): interactive card, canSubmitChoice=\(state.canSubmitChoice), ticked=[\(state.selectedOptionIds.joined(separator: ", "))]")
+            for option in question.options {
+                let ticked = state.selectedOptionIds.contains(option.id)
+                var line = "  - [\(option.id)] \(ticked ? "☑" : "☐") \"\(option.label)\""
+                if option.isCandidate {
+                    line += ticked
+                        ? " scope picker shown → \((state.optionScopes[option.id] ?? .sentence).wireLabel)\(state.optionScopes[option.id] == nil ? " (default)" : "")"
+                        : " (candidate; scope picker appears when ticked)"
+                } else {
+                    line += " (plain option, no scope)"
+                }
+                out.append(line)
+            }
+        } else {
+            out.append("- no pending question (no interactive card)")
+        }
+        for (index, entry) in state.drafts.enumerated() {
+            out.append("- draft card \(index + 1): confirm button \(state.canConfirm(entry) ? "enabled" : "disabled"), consumed=\(entry.consumed), check=\(entry.check == nil ? "pending" : (entry.check?.ok == true ? "ok" : "blocked"))")
+        }
+        out.append("")
         if !state.drafts.isEmpty {
             out.append("## Drafts")
             for (index, entry) in state.drafts.enumerated() {
@@ -1181,7 +1205,7 @@ final class RuleAssistantSession: ObservableObject {
         Questions (instead of free-text clarification):
         - Whenever you would ask Jason something, emit exactly one JSON object in its own ```json fence, for example:
           {"question": {"id": "q1", "prompt": "這筆哪些地方是錯的？", "multiSelect": true, "options": [{"id": "a", "label": "西賴 → CLI", "detail": "程式工具語境", "surface": "西賴", "target": "CLI"}, {"id": "b", "label": "這筆沒錯"}]}}
-          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. The JSON must be inside the same answer as your explanation: never end with 「請勾選：」 or a promise and stop, and after your last tool result the final answer must still contain the JSON. Jason types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets Jason add a free-text note to his choice.
+          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. Exactly one option per suspected surface: never spread one candidate over several options by scope (只改這句／語境限定／任何語境) or by event type. The App shows the scope choice itself once a candidate is ticked, and the reply tells you the scope; options must differ in surface or target. The JSON must be inside the same answer as your explanation: never end with 「請勾選：」 or a promise and stop, and after your last tool result the final answer must still contain the JSON. Jason types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets Jason add a free-text note to his choice.
         - The App replies to a question as a user message in this shape:
           回覆問題 q1：<prompt>
           選擇：[a] 西賴 → CLI（範圍：只改這句）

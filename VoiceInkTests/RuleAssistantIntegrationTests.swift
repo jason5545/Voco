@@ -615,6 +615,24 @@ struct RuleAssistantIntegrationTests {
         providerMessages(index).last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
     }
 
+    @Test func reviewExportShowsPendingCardTicksAndScopes() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setScope(.broad, for: "a")
+        session.setUserText("補一句")
+        let export = session.exportForReview(client: "voco test")
+        #expect(export.contains("- pending question q1: interactive card, canSubmitChoice=true, ticked=[a]"))
+        #expect(export.contains("  - [a] ☑ \"小振 → 小鎮\" scope picker shown → 任何語境"))
+        #expect(export.contains("  - [b] ☐ \"去 → 趣\" (candidate; scope picker appears when ticked)"))
+        #expect(export.contains("  - [c] ☐ \"這筆沒錯\" (plain option, no scope)"))
+        #expect(export.contains("- composer text: 補一句"))
+    }
+
     @Test func scanQuestionIsParsedAndWaitsForChoice() async {
         server.reset()
         FakeGoProvider.reset(scripts: [
@@ -859,6 +877,9 @@ struct RuleAssistantIntegrationTests {
         #expect(export.contains("[system] (system prompt, "))
         #expect(!export.contains("You help Jason maintain"))
         #expect(export.contains("選擇：[a] 小振 → 小鎮（範圍：語境限定）"))
+        #expect(export.contains("## UI state (what the card actually shows)"))
+        #expect(export.contains("- no pending question (no interactive card)"))
+        #expect(export.contains("- draft card 1: confirm button enabled, consumed=false, check=ok"))
         #expect(export.contains("## For the reviewer (Claude Code / Codex)"))
         #expect(export.contains("RuleAssistantSession.kt"))
         #expect(!export.contains("test-go-key"))

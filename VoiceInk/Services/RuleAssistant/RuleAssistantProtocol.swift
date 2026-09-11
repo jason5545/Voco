@@ -294,6 +294,11 @@ struct RuleAssistantQuestion: Equatable {
             if (detail?.count ?? 0) > maxLabelChars || (surface?.count ?? 0) > maxLabelChars || (target?.count ?? 0) > maxLabelChars {
                 return nil
             }
+            // One option per suspected surface: the App asks the scope itself, so a second option with
+            // the same surface → target (e.g. one per scope) would only duplicate the scope picker.
+            if let surface, let target, options.contains(where: { $0.surface == surface && $0.target == target }) {
+                continue
+            }
             var resolvedId = id.map { String($0.prefix(32)) } ?? Self.defaultId(options.count)
             var suffix = 0
             while usedIds.contains(resolvedId) {

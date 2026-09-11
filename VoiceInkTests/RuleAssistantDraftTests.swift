@@ -113,6 +113,20 @@ struct RuleAssistantQuestionParseTests {
         #expect(RuleAssistantQuestion.parse(["prompt": long, "options": ["x"]]) == nil)
     }
 
+    @Test func optionsWithTheSameSurfaceAndTargetCollapseToOne() {
+        let parsed = RuleAssistantQuestion.parse([
+            "prompt": "?",
+            "options": [
+                ["id": "a", "label": "資料架 → 資料夾（只改這句）", "surface": "資料架", "target": "資料夾"],
+                ["id": "b", "label": "資料架 → 資料夾（語境限定）", "surface": "資料架", "target": "資料夾"],
+                ["id": "c", "label": "資料架 → 資料夾（任何語境）", "surface": "資料架", "target": "資料夾"],
+                ["id": "d", "label": "這筆沒錯"],
+                ["id": "e", "label": "資料架 → 資料庫", "surface": "資料架", "target": "資料庫"],
+            ],
+        ])
+        #expect(parsed?.options.map(\.id) == ["a", "d", "e"])
+    }
+
     @Test func optionsAreCappedAtEightAndDraftsIgnoreQuestions() {
         let options = (1...12).map { ["label": "選項 \($0)"] }
         let parsed = RuleAssistantQuestion.parse(["prompt": "?", "options": options])
