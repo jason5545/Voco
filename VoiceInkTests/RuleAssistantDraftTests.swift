@@ -364,3 +364,111 @@ struct RuleAssistantGuardSuggesterTests {
         #expect(off.negativeExamples[0].context == "模型說的")
     }
 }
+
+/// `runtimeReplay`: the record re-run through the runtime installed now, so the model can tell
+/// "the current runtime already fixes this" from "no rule covers this".
+@Suite(.serialized)
+struct RuleAssistantRuntimeReplayTests {
+    private static let replay = RuleAssistantRuntimeReplay(
+        inputText: "麥克積塊也是一個產產品名",
+        outputText: "麥克雞塊也是一個產品名",
+        fires: [
+            RuleAssistantRuntimeFire(
+                policyId: "manual-replacement-1ad7a8372aeedcbc",
+                policyType: "scopedReplacement",
+                sourcePattern: "麥克積塊",
+                targetText: "麥克雞塊"
+            ),
+            RuleAssistantRuntimeFire(
+                policyId: VocoAutoApplyModelService.singlePrefixRestartCollapsePolicyId,
+                policyType: VocoAutoApplyModelService.singlePrefixRestartCollapsePolicyType,
+                sourcePattern: "產產品",
+                targetText: "產品"
+            ),
+        ],
+        modelVersion: "2026-09-11-overlay"
+    )
+
+    private func context(replay: RuleAssistantRuntimeReplay?) -> RuleAssistantContext {
+        RuleAssistantContext(
+            rowPk: 24208,
+            timestampMs: 1_700_000_000_000,
+            text: "麥克積塊也是一個產產品名",
+            autoApplyModelVersion: "2026-09-09-overlay",
+            recordId: "11111111-2222-3333-4444-555555555555",
+            runtimeReplay: replay
+        )
+    }
+
+    @Test func recordJSONCarriesReplayOutputAndFires() {
+        let json = context(replay: Self.replay).toSafeJSON()
+        guard let replay = json["runtimeReplay"] as? [String: Any] else {
+            Issue.record("runtimeReplay missing from the record JSON")
+            return
+        }
+        #expect(replay["inputText"] as? String == "麥克積塊也是一個產產品名")
+        #expect(replay["outputText"] as? String == "麥克雞塊也是一個產品名")
+        #expect(replay["changed"] as? Bool == true)
+        #expect(replay["modelVersion"] as? String == "2026-09-11-overlay")
+        let fires = replay["fires"] as? [[String: Any]] ?? []
+        #expect(fires.count == 2)
+        #expect(fires.map { $0["sourcePattern"] as? String } == ["麥克積塊", "產產品"])
+        #expect(fires.map { $0["targetText"] as? String } == ["麥克雞塊", "產品"])
+        #expect(fires.map { $0["policyId"] as? String }.allSatisfy { $0?.isEmpty == false })
+        // The overlay version at transcription time stays separate from the replay's version.
+        #expect(json["autoApplyModelVersion"] as? String == "2026-09-09-overlay")
+        #expect(json["audioFileURL"] == nil)
+    }
+
+    @Test func unchangedReplayReportsNotChanged() {
+        let replay = RuleAssistantRuntimeReplay(inputText: "沒有規則命中", outputText: "沒有規則命中")
+        #expect(replay.changed == false)
+        let json = replay.toJSONObject()
+        #expect(json["changed"] as? Bool == false)
+        #expect((json["fires"] as? [[String: Any]])?.isEmpty == true)
+        #expect(json["modelVersion"] is NSNull)
+    }
+
+    @Test func recordJSONIsNullWhenTheRuntimeIsUnavailable() {
+        let json = context(replay: nil).toSafeJSON()
+        #expect(json["runtimeReplay"] is NSNull)
+        #expect(json["text"] as? String == "麥克積塊也是一個產產品名")
+    }
+
+    @Test func currentReplayIsNilWithoutALoadedModelAndDoesNotThrow() throws {
+        let service = VocoAutoApplyModelService(
+            modelURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("missing-auto-apply-\(UUID().uuidString).json")
+        )
+        #expect(service.status.isAvailable == false)
+        #expect(RuleAssistantRuntimeReplay.current(inputText: "麥克積塊", service: service) == nil)
+        #expect(RuleAssistantRuntimeReplay.current(inputText: nil, service: service) == nil)
+        #expect(RuleAssistantRuntimeReplay.current(inputText: "", service: service) == nil)
+    }
+
+    @Test func transcriptionInitReplaysNormalizedTranscriptAndIsInjectable() {
+        let transcription = Transcription(
+            text: "純文字",
+            duration: 0,
+            rawTranscript: "原始",
+            normalizedTranscript: "標準化後"
+        )
+        var seen: [String?] = []
+        let context = RuleAssistantContext(transcription: transcription, rowPk: 7) { input in
+            seen.append(input)
+            return RuleAssistantRuntimeReplay(inputText: input ?? "", outputText: "改過了")
+        }
+        // normalizedTranscript is what reaches the correction layer, so that is what gets replayed.
+        #expect(seen == ["標準化後"])
+        #expect(context.runtimeReplay?.outputText == "改過了")
+        #expect(context.runtimeReplay?.changed == true)
+
+        let plain = Transcription(text: "只有 text", duration: 0)
+        var plainSeen: [String?] = []
+        _ = RuleAssistantContext(transcription: plain, rowPk: 8) { input in
+            plainSeen.append(input)
+            return nil
+        }
+        #expect(plainSeen == ["只有 text"])
+    }
+}

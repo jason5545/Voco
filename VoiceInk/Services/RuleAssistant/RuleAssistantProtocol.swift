@@ -126,6 +126,85 @@ extension Dictionary where Key == String, Value == Any {
     }
 }
 
+// MARK: - Runtime replay
+
+/// One policy that fired while replaying the record through the runtime installed right now.
+struct RuleAssistantRuntimeFire: Equatable {
+    var policyId: String
+    var policyType: String
+    var sourcePattern: String
+    var targetText: String
+
+    func toJSONObject() -> [String: Any] {
+        [
+            "policyId": policyId,
+            "policyType": policyType,
+            "sourcePattern": sourcePattern,
+            "targetText": targetText,
+        ]
+    }
+}
+
+/// The record text re-run through the runtime that is installed *now*: the App's built-in runtime
+/// rules plus the currently installed Worker overlay. `autoApplyModelVersion` only says which
+/// overlay was live when the record was transcribed, so an old record cannot tell the model
+/// whether today's runtime already handles the surface. This can.
+struct RuleAssistantRuntimeReplay: Equatable {
+    var inputText: String
+    var outputText: String
+    var changed: Bool
+    var fires: [RuleAssistantRuntimeFire]
+    var modelVersion: String?
+
+    init(
+        inputText: String,
+        outputText: String,
+        fires: [RuleAssistantRuntimeFire] = [],
+        modelVersion: String? = nil
+    ) {
+        self.inputText = inputText
+        self.outputText = outputText
+        self.changed = inputText != outputText
+        self.fires = fires
+        self.modelVersion = modelVersion
+    }
+
+    func toJSONObject() -> [String: Any] {
+        var json: [String: Any] = [
+            "inputText": inputText,
+            "outputText": outputText,
+            "changed": changed,
+            "fires": fires.map { $0.toJSONObject() },
+        ]
+        json["modelVersion"] = modelVersion ?? NSNull()
+        return json
+    }
+
+    /// Replays `inputText` through the local auto-apply runtime. nil when there is nothing to
+    /// replay or no usable model is loaded; never throws, so a missing runtime just means the
+    /// model falls back to the Worker lookups.
+    static func current(
+        inputText: String?,
+        service: VocoAutoApplyModelService = .shared
+    ) -> RuleAssistantRuntimeReplay? {
+        guard let inputText, !inputText.isEmpty, service.isRuntimeEnabled else { return nil }
+        let evaluation = service.evaluate(inputText)
+        return RuleAssistantRuntimeReplay(
+            inputText: evaluation.inputText,
+            outputText: evaluation.outputText,
+            fires: evaluation.applied.map {
+                RuleAssistantRuntimeFire(
+                    policyId: $0.policyId,
+                    policyType: $0.policyType,
+                    sourcePattern: $0.sourcePattern,
+                    targetText: $0.targetText
+                )
+            },
+            modelVersion: evaluation.modelVersion ?? service.status.modelVersion
+        )
+    }
+}
+
 // MARK: - Context
 
 /// The selected transcription record, trimmed to what the model is allowed to see.
@@ -143,6 +222,8 @@ struct RuleAssistantContext: Equatable {
     var autoApplyModelVersion: String?
     var recordId: String?
     var correctionsJSON: String?
+    /// The same text re-run through the runtime installed now; nil when the runtime is unavailable.
+    var runtimeReplay: RuleAssistantRuntimeReplay?
 
     init(
         rowPk: Int64,
@@ -156,7 +237,8 @@ struct RuleAssistantContext: Equatable {
         transcriptionModelName: String? = nil,
         autoApplyModelVersion: String? = nil,
         recordId: String? = nil,
-        correctionsJSON: String? = nil
+        correctionsJSON: String? = nil,
+        runtimeReplay: RuleAssistantRuntimeReplay? = nil
     ) {
         self.rowPk = rowPk
         self.timestampMs = timestampMs
@@ -170,9 +252,16 @@ struct RuleAssistantContext: Equatable {
         self.autoApplyModelVersion = autoApplyModelVersion
         self.recordId = recordId
         self.correctionsJSON = correctionsJSON
+        self.runtimeReplay = runtimeReplay
     }
 
-    init(transcription: Transcription, rowPk: Int64) {
+    /// `runtimeReplay` is injectable so tests (and the neighbor loader, which must stay cheap and
+    /// small on the wire) can skip the real runtime.
+    init(
+        transcription: Transcription,
+        rowPk: Int64,
+        runtimeReplay: (String?) -> RuleAssistantRuntimeReplay? = { RuleAssistantRuntimeReplay.current(inputText: $0) }
+    ) {
         self.init(
             rowPk: rowPk,
             timestampMs: Int64((transcription.timestamp.timeIntervalSince1970 * 1000).rounded()),
@@ -185,7 +274,8 @@ struct RuleAssistantContext: Equatable {
             transcriptionModelName: transcription.transcriptionModelName ?? transcription.asrEngineID,
             autoApplyModelVersion: transcription.autoApplyModelVersion,
             recordId: transcription.id.uuidString,
-            correctionsJSON: transcription.correctionsJSON
+            correctionsJSON: transcription.correctionsJSON,
+            runtimeReplay: runtimeReplay(transcription.normalizedTranscript ?? transcription.text)
         )
     }
 
@@ -205,6 +295,7 @@ struct RuleAssistantContext: Equatable {
         json["transcriptionModelName"] = transcriptionModelName ?? NSNull()
         json["autoApplyModelVersion"] = autoApplyModelVersion ?? NSNull()
         json["recordId"] = recordId ?? NSNull()
+        json["runtimeReplay"] = runtimeReplay?.toJSONObject() ?? NSNull()
         json["correctionRow"] = correctionRow()
         json["corrections"] = RowCorrectionMarkings.parse(correctionsJSON).map { $0.toJSONObject() }
         return json

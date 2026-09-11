@@ -985,6 +985,56 @@ struct RuleAssistantIntegrationTests {
         providerMessages(index).last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
     }
 
+    @Test func reviewExportPrintsTheCurrentRuntimeReplay() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [])
+        let session = makeRuleAssistantSession(
+            server: server,
+            context: RuleAssistantContext(
+                rowPk: 24208,
+                timestampMs: 1_700_000_000_000,
+                text: "麥克積塊也是一個產產品名",
+                autoApplyModelVersion: "2026-09-09-overlay",
+                runtimeReplay: RuleAssistantRuntimeReplay(
+                    inputText: "麥克積塊也是一個產產品名",
+                    outputText: "麥克雞塊也是一個產品名",
+                    fires: [
+                        RuleAssistantRuntimeFire(
+                            policyId: "manual-replacement-1ad7a8372aeedcbc",
+                            policyType: "scopedReplacement",
+                            sourcePattern: "麥克積塊",
+                            targetText: "麥克雞塊"
+                        ),
+                        RuleAssistantRuntimeFire(
+                            policyId: "runtime.single-prefix-restart-collapse",
+                            policyType: "runtimeSpecial",
+                            sourcePattern: "產產品",
+                            targetText: "產品"
+                        ),
+                    ],
+                    modelVersion: "2026-09-11-overlay"
+                )
+            )
+        )
+        let export = session.exportForReview(client: "voco test")
+        #expect(export.contains("## Runtime replay (current runtime)"))
+        #expect(export.contains("- outputText: 麥克雞塊也是一個產品名"))
+        #expect(export.contains("- changed: true"))
+        #expect(export.contains("- model version: 2026-09-11-overlay"))
+        #expect(export.contains("- manual-replacement-1ad7a8372aeedcbc: 麥克積塊 → 麥克雞塊"))
+        #expect(export.contains("- runtime.single-prefix-restart-collapse: 產產品 → 產品"))
+        #expect(!export.contains("runtime replay: unavailable"))
+    }
+
+    @Test func reviewExportSaysUnavailableWithoutARuntimeReplay() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [])
+        let session = makeRuleAssistantSession(server: server)
+        let export = session.exportForReview(client: "voco test")
+        #expect(export.contains("- runtime replay: unavailable"))
+        #expect(!export.contains("## Runtime replay (current runtime)"))
+    }
+
     @Test func reviewExportShowsPendingCardTicksAndScopes() async {
         server.reset()
         FakeGoProvider.reset(scripts: [

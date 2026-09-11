@@ -1248,6 +1248,22 @@ final class RuleAssistantSession: ObservableObject {
             out.append("- corrections: \(RAJSON.serializeArray(markings.map { $0.toJSONObject() }))")
         }
         if state.neighborsShared > 0 { out.append("- nearby records shared with the model: \(state.neighborsShared)") }
+        if let replay = state.context.runtimeReplay {
+            out.append("")
+            out.append("## Runtime replay (current runtime)")
+            out.append("- outputText: \(replay.outputText)")
+            out.append("- changed: \(replay.changed)")
+            if let version = replay.modelVersion { out.append("- model version: \(version)") }
+            if replay.fires.isEmpty {
+                out.append("- no policy fired")
+            } else {
+                for fire in replay.fires {
+                    out.append("- \(fire.policyId): \(fire.sourcePattern) → \(fire.targetText)")
+                }
+            }
+        } else {
+            out.append("- runtime replay: unavailable")
+        }
         out.append("")
         out.append("## Conversation (as shown in the App)")
         for turn in state.transcript {
@@ -1453,7 +1469,7 @@ final class RuleAssistantSession: ObservableObject {
 
     static let choiceNudgePrompt = "使用者已經勾選了要改的候選，但你上一則既沒有 draft JSON 也沒有 question JSON，App 沒有卡片可以顯示。規則已經決定就只輸出 draft JSON（每條規則一個 ```json fence）；還需要問就只輸出一個 question JSON。不要再查工具，不要其他文字。"
 
-    static let scanPrompt = "使用者沒有說明原意，請找出可疑之處。看這筆各階段文字，把你覺得不合理、可能是辨識或標準化錯誤的地方全部列成一題多選 question 的候選，每個候選附 surface 與你猜的 target；可以用 load_nearby_records 與唯讀工具輔助，但不確定的就列成候選讓使用者勾，不要靠上下文硬猜。找不到問題就說明並附一題 question（選項：這筆沒錯／其實有錯，我來說）。"
+    static let scanPrompt = "使用者沒有說明原意，請找出可疑之處。看這筆各階段文字，把你覺得不合理、可能是辨識或標準化錯誤的地方全部列成一題多選 question 的候選，每個候選附 surface 與你猜的 target；可以用 load_nearby_records 與唯讀工具輔助，但不確定的就列成候選讓使用者勾，不要靠上下文硬猜。先看 runtimeReplay，已被 fires 命中或 outputText 已修好的地方不列為候選。找不到問題就說明並附一題 question（選項：這筆沒錯／其實有錯，我來說）。"
 
     static let systemPrompt = """
         You help the user maintain their private Voco/Vocotype ASR correction layer.
@@ -1466,6 +1482,8 @@ final class RuleAssistantSession: ObservableObject {
         - If the source/target boundary is unclear, ask one short clarification and output no draft.
         - If the user says "X to Y", "X -> Y", "same logic", or clearly confirms a normalization, propose the draft directly.
         - You may use the read-only Worker tools (lookup_auto_apply_policy, list_auto_apply_families, detect_duplicate_control_event, preview_auto_apply_control_event, suggest_auto_apply_tombstone, get_auto_apply_reconcile_status, get_auto_apply_row_corrections) to check existing rules before proposing. Write tools are blocked for you; do not call them.
+        - `lookup_auto_apply_policy` sourceText/sourcePattern is an exact match on the whole sourcePattern, never a substring search: look up the full suspected surface exactly as it appears (麥克積塊), not a fragment (積塊). A zero-hit lookup on a fragment proves nothing; it does not mean no rule covers the surface.
+        - `runtimeReplay` is the record text re-run through the current runtime (built-in rules plus the installed Worker overlay). Any surface already hit by `runtimeReplay.fires`, or already fixed in `runtimeReplay.outputText`, is covered: say so, never draft for it, never list it as a candidate. It is null when the runtime is unavailable; then fall back to lookups.
         - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the reply scoped that candidate as 任何語境; use correction for the whole utterance (scope 只改這句) or contextLockedRule (scope 語境限定).
 
         Questions (instead of free-text clarification):
@@ -1506,12 +1524,12 @@ final class RuleAssistantSession: ObservableObject {
         - Never invent a correction.
         - Never create broad replacements for common words that the user might intentionally use.
         - Never alter Voco action commands such as 全部刪除.
-        - Single-character speech restarts (A+AB such as 資資料, 可可以, 我我們, 綜綜上所述) are collapsed on every device by the runtime rule runtime.single-prefix-restart-collapse; never propose replacementRule, replacementFamily, moveAliasToFamily, or family tags for that shape, and never add them to speech-partial-restart-overlap. If the runtime rule missed one, propose a whole-utterance correction for this record only and say the runtime rule did not cover it.
+        - Single-character speech restarts (A+AB such as 資資料, 可可以, 我我們, 綜綜上所述) are collapsed on every device by the runtime rule runtime.single-prefix-restart-collapse; never propose replacementRule, replacementFamily, moveAliasToFamily, or family tags for that shape, and never add them to speech-partial-restart-overlap. An uncollapsed A+AB counts as a runtime miss only when `runtimeReplay.outputText` still contains it uncollapsed; then propose a whole-utterance correction for this record only and say the runtime rule did not cover it. If the replay already collapsed it, this is an older record and the current runtime already handles it: say that, do not draft, and do not list it as a question candidate.
         - The runtime rule deliberately skips protected onsets: numerals, structural particles (的得地了), the modal 要, kinship and onomatopoeia reduplications, and everyday monosyllabic verbs (吃, 說, 打, 按, 加 ...), because V+V+O such as 按按鈕 or 吃吃飯 is natural speech. An uncollapsed A+AB with such an onset is not a runtime miss; never say the runtime rule did not cover it. If the user confirms it is a restart, fold the adjacent classifier or prefix into a literal sourcePattern (一個按按鈕 → 一個按鈕), never a bare A+AB replacement.
         - contextTokensAny / contextAliasesAny on a contextLockedRule match anywhere in the utterance or its context, not adjacency: a lock on 一個 also fires on 我有一個問題，你先按按鈕. When the distinguishing cue is the word immediately before or after the surface, put that word into the literal sourcePattern (and targetText) as well, and keep the token in contextTokensAny.
         - For interrupted/self-repair speech, do not propose a rule unless the user confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when the user confirms it.
-        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan.
+        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. Each negative example's text must actually contain the sourcePattern inside a longer legitimate word or phrase, with expectedText identical to it; an example whose text equals its expectedText without containing the source proves nothing and must not be emitted. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan.
         - Do not ask for audio, file paths, or other history; only this record and this chat exist.
         - Do not print connector auth keys or URLs.
 

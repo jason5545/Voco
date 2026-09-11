@@ -126,7 +126,8 @@ final class RuleAssistantSessionRegistry: ObservableObject {
     private static func makeContexts(for rows: [Transcription], excluding recordId: UUID) -> [RuleAssistantContext] {
         rows.compactMap { row in
             guard row.id != recordId, let rowPk = row.sqliteRowPK else { return nil }
-            return RuleAssistantContext(transcription: row, rowPk: rowPk)
+            // Neighbors are context, not the record under review: no runtime replay on the wire.
+            return RuleAssistantContext(transcription: row, rowPk: rowPk, runtimeReplay: { _ in nil })
         }
     }
 

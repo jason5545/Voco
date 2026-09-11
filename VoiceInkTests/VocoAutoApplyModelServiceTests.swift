@@ -151,6 +151,12 @@ struct VocoAutoApplyModelServiceTests {
                 && $0.sourceSlices == ["runtimeSpecialPolicy"]
         })
 
+        // voco:row:24208 — the runtime collapses 產產品 even though the record predates the rule.
+        let record = service.evaluate("麥克積塊也是一個產產品名")
+        #expect(record.outputText == "麥克積塊也是一個產品名")
+        #expect(record.applied.map(\.sourcePattern) == ["產產品"])
+        #expect(record.applied.map(\.targetText) == ["產品"])
+
         // Three or more copies collapse to one; the leftover pair is re-checked.
         #expect(service.evaluate("就就就是這樣").outputText == "就是這樣")
         #expect(service.evaluate("他他他們的").outputText == "他們的")
@@ -182,7 +188,7 @@ struct VocoAutoApplyModelServiceTests {
         "綜上所述": 218, "綜上": 6, "就是": 9283, "成就": 3599, "他們": 197480,
         "時候": 63042, "時時": 1298, "天氣": 5314, "天天": 1855, "好吃": 2799, "好好": 2640,
         "謝謝": 2178, "的話": 5000, "要求": 8000, "吃飯": 6164, "問題": 111126, "問問": 1122,
-        "二八": 67, "媽媽": 9000, "這樣": 40000
+        "二八": 67, "媽媽": 9000, "這樣": 40000, "產品": 43000
     ]
 
     @Test func cjkBoundaryGuardedScopedReplacementDoesNotOverreachIntoContinuationWords() throws {

@@ -188,7 +188,8 @@ final class RowCorrectionMarkingRefresher: ObservableObject {
         else { return }
         let rows: [(transcription: Transcription, context: RuleAssistantContext)] = transcriptions.compactMap { transcription in
             guard let rowPk = transcription.sqliteRowPK else { return nil }
-            return (transcription, RuleAssistantContext(transcription: transcription, rowPk: rowPk))
+            // Only correctionRow identity is needed here; skip the runtime replay.
+            return (transcription, RuleAssistantContext(transcription: transcription, rowPk: rowPk, runtimeReplay: { _ in nil }))
         }
         guard !rows.isEmpty else { return }
         task?.cancel()

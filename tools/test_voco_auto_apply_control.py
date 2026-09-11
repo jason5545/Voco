@@ -341,7 +341,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             "綜上所述": 218, "綜上": 6, "就是": 9283, "成就": 3599, "他們": 197480,
             "時候": 63042, "時時": 1298, "天氣": 5314, "天天": 1855, "好吃": 2799, "好好": 2640,
             "謝謝": 2178, "的話": 5000, "要求": 8000, "吃飯": 6164, "問題": 111126, "問問": 1122,
-            "二八": 67, "媽媽": 9000, "這樣": 40000,
+            "二八": 67, "媽媽": 9000, "這樣": 40000, "產品": 43000,
         }
         lookup = lambda word: lexicon.get(word, 0)  # noqa: E731
 
@@ -354,6 +354,12 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(fire["policyType"], control.SINGLE_PREFIX_RESTART_POLICY_TYPE)
             self.assertEqual(fire["sourceSlices"], ["runtimeSpecialPolicy"])
             self.assertTrue(control.is_runtime_special_policy_fire(fire))
+
+        # voco:row:24208 — the runtime collapses 產產品 even though the record predates the rule.
+        record_after, record_fires = control.collapse_single_prefix_restarts("麥克積塊也是一個產產品名", lookup)
+        self.assertEqual(record_after, "麥克積塊也是一個產品名")
+        self.assertEqual([fire["sourcePattern"] for fire in record_fires], ["產產品"])
+        self.assertEqual([fire["targetText"] for fire in record_fires], ["產品"])
 
         self.assertEqual(control.collapse_single_prefix_restarts("就就就是這樣", lookup)[0], "就是這樣")
         self.assertEqual(control.collapse_single_prefix_restarts("他他他們的", lookup)[0], "他們的")
