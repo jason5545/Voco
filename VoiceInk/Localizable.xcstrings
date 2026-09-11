@@ -13294,6 +13294,56 @@
           }
         }
       }
+    },
+    "The tombstone has no sourcePattern/targetText; not writing it.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tombstone 缺 sourcePattern／targetText，不寫入。"
+          }
+        }
+      }
+    },
+    "Worker policy lookup failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 查詢規則失敗：%@"
+          }
+        }
+      }
+    },
+    "The Worker has no policy with policyId %@, so sourcePattern/targetText cannot be filled in; propose it again with sourcePattern + targetText.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 找不到 policyId %@ 對應的規則，無法補 sourcePattern／targetText；請改用 sourcePattern＋targetText 重新提出。"
+          }
+        }
+      }
+    },
+    "The policyId and sourcePattern/targetText point to different policies; check them and propose again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "policyId 與 sourcePattern／targetText 指到不同規則，請確認後再提。"
+          }
+        }
+      }
+    },
+    "Filled the policy text from the Worker: %@ → %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已從 Worker 補上規則文字：%1$@ → %2$@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

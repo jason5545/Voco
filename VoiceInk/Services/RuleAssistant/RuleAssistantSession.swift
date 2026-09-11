@@ -625,7 +625,7 @@ final class RuleAssistantSession: ObservableObject {
             if draft.eventType == "tombstone" &&
                 (draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false ||
                  draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false) {
-                throw RuleAssistantFailure(String(localized: "tombstone 缺 sourcePattern／targetText，不寫入。"))
+                throw RuleAssistantFailure(String(localized: "The tombstone has no sourcePattern/targetText; not writing it."))
             }
             // Re-check the same draft at confirm time; the model's earlier answers are not trusted here.
             let recheck = try await checkDraft(worker: worker, draft: draft)
@@ -991,9 +991,9 @@ final class RuleAssistantSession: ObservableObject {
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as McpToolError {
-            throw RuleAssistantFailure(String(localized: "Worker 查詢規則失敗：\(error.message)"))
+            throw RuleAssistantFailure(String(localized: "Worker policy lookup failed: \(error.message)"))
         } catch {
-            throw RuleAssistantFailure(String(localized: "Worker 查詢規則失敗：\(Self.message(of: error))"))
+            throw RuleAssistantFailure(String(localized: "Worker policy lookup failed: \(Self.message(of: error))"))
         }
         let policies = lookup.raDictArray("policies")
         guard lookup.raInt64("matchedPoliciesCount") != 0,
@@ -1003,7 +1003,7 @@ final class RuleAssistantSession: ObservableObject {
               !source.isEmpty,
               !target.isEmpty
         else {
-            throw RuleAssistantFailure(String(localized: "Worker 找不到 policyId \(policyId) 對應的規則，無法補 sourcePattern／targetText；請改用 sourcePattern＋targetText 重新提出。"))
+            throw RuleAssistantFailure(String(localized: "The Worker has no policy with policyId \(policyId), so sourcePattern/targetText cannot be filled in; propose it again with sourcePattern + targetText."))
         }
 
         let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1011,14 +1011,14 @@ final class RuleAssistantSession: ObservableObject {
         let draftSource = draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let draftTarget = draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if (!draftSource.isEmpty && draftSource != normalizedSource) || (!draftTarget.isEmpty && draftTarget != normalizedTarget) {
-            throw RuleAssistantFailure(String(localized: "policyId 與 sourcePattern／targetText 指到不同規則，請確認後再提。"))
+            throw RuleAssistantFailure(String(localized: "The policyId and sourcePattern/targetText point to different policies; check them and propose again."))
         }
         var resolved = draft
         let wasMissing = draftSource.isEmpty || draftTarget.isEmpty
         if draftSource.isEmpty { resolved.sourcePattern = normalizedSource }
         if draftTarget.isEmpty { resolved.targetText = normalizedTarget }
         if wasMissing {
-            status(String(localized: "已從 Worker 補上規則文字：\(normalizedSource) → \(normalizedTarget)"))
+            status(String(localized: "Filled the policy text from the Worker: \(normalizedSource) → \(normalizedTarget)"))
         }
         return resolved
     }

@@ -3055,6 +3055,9 @@ def compile_model(
     strip_runtime_index_fields(model)
     policies = [copy.deepcopy(policy) for policy in model.get("policies") or []]
     applied_events, event_scope = select_incremental_control_events(base_model, events, evidence_store)
+    # Historical policies were minted before legacyPolicyIds existed; attach them before any incremental
+    # tombstone runs so a policyId-only tombstone that names a legacy Worker id can still retire them.
+    legacy_policy_id_backfill_count = backfill_legacy_policy_ids(policies, events)
     overlay_policy_count = 0
     tombstone_count = 0
     family_tag_count = 0
@@ -3119,6 +3122,7 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "legacyPolicyIdBackfillCount": legacy_policy_id_backfill_count,
     }
     unmatched_policy_id_only_tombstones = policy_id_only_tombstones_unmatched(events, policies)
     model["controlPlane"]["policyIdOnlyTombstonesUnmatched"] = unmatched_policy_id_only_tombstones
@@ -3139,10 +3143,45 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "legacyPolicyIdBackfillCount": legacy_policy_id_backfill_count,
         "policyIdOnlyTombstonesUnmatched": unmatched_policy_id_only_tombstones,
         "runtimeIndexRepair": runtime_index_repair,
     }
     return model, report
+
+
+def backfill_legacy_policy_ids(policies: list[dict[str, Any]], events: list[dict[str, Any]]) -> int:
+    """Attach the pre-2026-09-11 Worker policy id to policies compiled before legacyPolicyIds existed.
+
+    Incremental compiles never re-mint policies that already live in the base
+    model, so the full event history is walked here and every manual context /
+    replacement policy gets its legacy id even when its add event is historical.
+    """
+    policies_by_id = {str(policy.get("policyId") or ""): policy for policy in policies}
+    changed = 0
+    for event in events:
+        action = str(event.get("action") or "")
+        if action not in {"addContextLockedRule", "addReplacementRule"}:
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        if action == "addReplacementRule" and str(payload.get("ruleType") or "") != "unlockedReplacement":
+            continue
+        try:
+            minted = context_policy_from_event(event) if action == "addContextLockedRule" else replacement_policy_from_event(event)
+        except (SystemExit, KeyError, TypeError, ValueError):
+            continue
+        legacy_ids = string_list(minted.get("legacyPolicyIds"))
+        if not legacy_ids:
+            continue
+        existing = policies_by_id.get(str(minted.get("policyId") or ""))
+        if existing is None:
+            continue
+        current = string_list(existing.get("legacyPolicyIds"))
+        merged = sorted(set(current + legacy_ids))
+        if merged != current:
+            existing["legacyPolicyIds"] = merged
+            changed += 1
+    return changed
 
 
 def policy_id_only_tombstones_unmatched(

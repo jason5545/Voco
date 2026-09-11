@@ -181,6 +181,64 @@ class VocoAutoApplyControlTests(unittest.TestCase):
         self.assertEqual(policy["policyId"], "manual-replacement-61696a414cd4a601")
         self.assertEqual(policy["legacyPolicyIds"], ["manual-replacement-40ff6d15720178e4"])
 
+    def test_incremental_compile_backfills_legacy_policy_ids_for_historical_policies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence.jsonl"
+            base = root / "base.json"
+            add_event = {
+                "schemaVersion": 1,
+                "eventId": "evt-20260911T032156.768Z-b7e9b1aa77-2b3be955",
+                "createdAt": "2026-09-11T03:21:56.768Z",
+                "actor": "test",
+                "source": "test",
+                "action": "addReplacementRule",
+                "payload": {
+                    "ruleType": "unlockedReplacement",
+                    "sourcePattern": "考迪",
+                    "targetText": "口技",
+                    "sourceText": "考迪",
+                    "ruleName": "manual-replacement:2adb6fb53e",
+                },
+            }
+            tombstone_event = {
+                "schemaVersion": 1,
+                "eventId": "evt-20260911T040000.000Z-legacy-tombstone",
+                "createdAt": "2026-09-11T04:00:00.000Z",
+                "actor": "test",
+                "source": "test",
+                "action": "disableRule",
+                "payload": {"tombstone": {
+                    "policyId": "manual-replacement-40ff6d15720178e4",
+                    "sourcePattern": None,
+                    "targetText": None,
+                    "reason": "legacy Worker id on a historical policy",
+                    "disposition": "replaced",
+                }},
+            }
+            # The base model already holds the policy exactly as an older compiler minted it: no legacyPolicyIds.
+            historical_policy = control.replacement_policy_from_event(add_event)
+            historical_policy.pop("legacyPolicyIds", None)
+            base_model = tiny_base_model()
+            base_model["policies"] = [historical_policy]
+            base_model["controlPlane"] = {"eventCount": 1, "evidenceStore": str(evidence)}
+            base.write_text(json.dumps(base_model), encoding="utf-8")
+            control.append_event(evidence, add_event)
+            control.append_event(evidence, tombstone_event)
+
+            model, report = control.compile_model(
+                control.load_model(base), control.load_events(evidence), base_model_path=base, evidence_store=evidence
+            )
+
+            self.assertEqual(report["compileScope"]["mode"], "incremental")
+            self.assertEqual(report["legacyPolicyIdBackfillCount"], 1)
+            policy = model["policies"][0]
+            self.assertEqual(policy["policyId"], "manual-replacement-61696a414cd4a601")
+            self.assertEqual(policy["legacyPolicyIds"], ["manual-replacement-40ff6d15720178e4"])
+            self.assertEqual(policy["autoApplyMode"], "replaced")
+            self.assertEqual(policy["tombstone"]["eventId"], tombstone_event["eventId"])
+            self.assertEqual(report["policyIdOnlyTombstonesUnmatched"], [])
+
     def test_policy_id_only_tombstone_with_legacy_worker_id_retires_canonical_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

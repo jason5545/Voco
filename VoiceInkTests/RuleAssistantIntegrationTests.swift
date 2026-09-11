@@ -364,7 +364,8 @@ struct RuleAssistantIntegrationTests {
         ])
         let session = makeRuleAssistantSession(server: server)
         await session.submit("停掉這條規則")
-        #expect(session.state.drafts[0].check?.blockedReason?.contains("找不到") == true)
+        // The reason is localized (the test host runs in the machine locale); the policyId appears in every language.
+        #expect(session.state.drafts[0].check?.blockedReason?.contains(policyId) == true)
         #expect(!session.state.canConfirm)
         await session.confirm()
         #expect(!server.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" })
@@ -392,7 +393,9 @@ struct RuleAssistantIntegrationTests {
         ])
         let session = makeRuleAssistantSession(server: server)
         await session.submit("停掉考迪規則")
-        #expect(session.state.drafts[0].check?.blockedReason?.contains("不同規則") == true)
+        // Localized reason; both languages name the disagreeing fields.
+        #expect(session.state.drafts[0].check?.blockedReason?.contains("policyId") == true)
+        #expect(session.state.drafts[0].check?.blockedReason?.contains("sourcePattern") == true)
         #expect(!session.state.canConfirm)
     }
 
