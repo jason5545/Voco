@@ -81,8 +81,15 @@ struct RuleAssistantPreview: Equatable {
     var unsupported: Int
     var reason: String?
     var baseModelSha256: String?
+    /// "policies-changed" / "metadata-only" / "none": what the Worker says this event does to the runtime.
+    var runtimeEffect: String?
+    var policiesAdded: Int
 
     var ok: Bool { wouldPublish && realtimeSupported && conflicts == 0 && unsupported == 0 }
+
+    /// The preview proved a new runtime policy appears. A duplicate hit on the same pattern (an existing
+    /// or already retired rule) then describes a different policy, so it must not gate the card away.
+    var addsRuntimePolicy: Bool { runtimeEffect == "policies-changed" || policiesAdded > 0 }
 
     init(json: [String: Any]) {
         wouldPublish = json.raBool("wouldPublish")
@@ -92,6 +99,8 @@ struct RuleAssistantPreview: Equatable {
         unsupported = json.raArray("unsupported")?.count ?? 0
         reason = json.raNonBlankString("reason")
         baseModelSha256 = json.raNonBlankString("baseModelSha256")
+        runtimeEffect = json.raNonBlankString("runtimeEffect")
+        policiesAdded = Int(json.raInt64("policiesAdded") ?? 0)
     }
 }
 
@@ -701,6 +710,10 @@ final class RuleAssistantSession: ObservableObject {
             state.publishedSha256 = publishedSha
             state.publishMessage = String(localized: "The Worker published \(publishedSha.prefix(12)); syncing the Mac model…")
             try await syncAndVerify(publishedSha: publishedSha, gen: gen)
+            // This publish moved the Worker head: a sibling card whose check ran against the old head (for
+            // example a rule that was blocked by the rule this one just retired) is now stale. Re-check every
+            // draft still waiting, so its button reflects the model the next confirm would actually write to.
+            await recheckWaitingDrafts(worker: worker, gen: gen, excluding: draft.nonce)
         } catch is CancellationError {
             return
         } catch {
@@ -708,6 +721,24 @@ final class RuleAssistantSession: ObservableObject {
             let message = Self.message(of: error)
             updateEntry(nonce: draft.nonce) { $0.outcome = message }
             state.phase = .failed(message)
+        }
+    }
+
+    /// Re-run the Worker check for every draft that is still waiting, after the head moved.
+    private func recheckWaitingDrafts(worker: RuleAssistantMCP, gen: Int64, excluding nonce: String) async {
+        let waiting = state.drafts.filter { !$0.consumed && $0.draft.nonce != nonce }
+        guard !waiting.isEmpty else { return }
+        for entry in waiting {
+            if gen != generation { return }
+            do {
+                let check = try await checkDraft(worker: worker, draft: entry.draft)
+                try guardGeneration(gen)
+                updateEntry(nonce: entry.draft.nonce) { $0.check = check }
+            } catch is CancellationError {
+                return
+            } catch {
+                status(String(localized: "Could not re-check the remaining draft (\(String(Self.message(of: error).prefix(100))))"))
+            }
         }
     }
 
@@ -867,7 +898,7 @@ final class RuleAssistantSession: ObservableObject {
     }
 
     /// A plan line as the system prompt defines it: 「[context-locked] <source> → <target>」 at the start of a line.
-    static let planLinePattern = "(?m)^[ \\t]*\\[(exact|broad|context-locked|family|tombstone|move|merge)\\]"
+    static let planLinePattern = "(?m)^[ \\t]*\\[(exact|broad|context-locked|family|tombstone|move|merge|replace)\\]"
 
     private func finishTurn(
         answer: String,
@@ -1141,6 +1172,18 @@ final class RuleAssistantSession: ObservableObject {
             } else {
                 blocked = nil
             }
+        } else if let duplicate, preview.addsRuntimePolicy {
+            // The Worker's duplicate check matches by source pattern, so an existing or retired rule for the
+            // same pattern shows up even when this draft adds a genuinely new runtime policy (a wider context
+            // lock, for example). The preview is the deterministic answer; only an identical saved event stops it.
+            if duplicate.duplicateEvents > 0 {
+                blocked = String(localized: "The Worker already has an identical event (\(duplicate.duplicateEvents)); not writing again.")
+            } else {
+                blocked = nil
+                if duplicate.alreadyApplied || duplicate.duplicatePolicies > 0 {
+                    status(String(localized: "The Worker duplicate check matched an existing or retired rule for the same pattern, but the preview confirms this adds a runtime policy; letting it through."))
+                }
+            }
         } else if let duplicate {
             if duplicate.alreadyApplied {
                 blocked = String(localized: "This rule is already applied in the current Worker model; no need to write it again.")
@@ -1337,9 +1380,12 @@ final class RuleAssistantSession: ObservableObject {
             let source = draft.sourcePattern ?? draft.aliases.joined(separator: "\u{3001}")
             return String(localized: "Find-issues never creates broad rules or moves/merges families (\(draft.eventType): \(source) → \(draft.targetText ?? "")). Tick the candidate and choose “Any context”, or state yourself that the source is never valid and send again.")
         case .choice(let broadSurfaces, _):
-            if draft.isTransaction {
+            if draft.isFamilyTransaction {
                 return String(localized: "Moving or merging families needs your own words (\(draft.eventType)); it is not created from a choice.")
             }
+            // Replacing a context lock stays inside the 語境限定 scope the user already picked: it retires the
+            // old lock and re-adds it with more tokens, so it needs no 任何語境 authorisation.
+            if draft.eventType == "replaceContextLockedRule" { return nil }
             guard draft.isBroad else { return nil }
             let surfaces: [String]
             if draft.eventType == "replacementFamily" {
@@ -1448,12 +1494,13 @@ final class RuleAssistantSession: ObservableObject {
         Rule type choice (eventType):
         - "correction" for exact whole-utterance corrections (sourceText -> targetText).
         - "replacementRule" for broad phrase/term/number normalization only when the user has confirmed the source is never intended in their Voco input domain (sourcePattern -> targetText).
-        - "contextLockedRule" when the correction is context-sensitive or could be valid elsewhere (sourcePattern -> targetText plus contextTokensAny / contextAliasesAny).
+        - "contextLockedRule" when the correction is context-sensitive or could be valid elsewhere (sourcePattern -> targetText plus contextTokensAny / contextAliasesAny); if a lock for the same source and target already exists, use replaceContextLockedRule instead, because adding a second lock only merges metadata and does not widen the tokens.
         - "replacementFamily" when multiple aliases should map to one target (familyId, aliases, targetText).
         - "tombstone" when the user says an existing correction is wrong or should stop: always include policyId AND sourcePattern + targetText (call lookup_auto_apply_policy with the policyId to fetch them); plus reason and disposition "blocked" or "replaced".
         - "moveAliasToFamily" when an alias already exists as a scoped replacement policy but belongs in another family (fields: policyId or sourcePattern, optional fromFamilyId, toFamilyId, optional targetText, reason). Use this instead of re-adding the alias: the Worker reports aliasesAlreadyPresentInOtherFamily / suggests move when an add would be a no-op.
         - "mergeReplacementFamilies" when every alias of one family should live in another (fields: fromFamilyId, toFamilyId, optional targetText, reason). Look up both families first with list_auto_apply_families.
         Both are Worker transactions (tombstone + addReplacementFamily in one publish); propose them only when the user explicitly asks to move or merge, never in auto-guess.
+        - "replaceContextLockedRule" when a contextLockedRule for the same sourcePattern and targetText already exists (lookup_auto_apply_policy shows it) and the user's new utterance needs more context tokens: fields policyId (the existing lock), sourceText, sourcePattern, targetText, contextTokensAny (the old tokens plus the new ones), contextAliasesAny, positiveExamples, negativeExamples (keep every negative example of the old lock and add new ones), reason. It is one Worker transaction (tombstone with disposition replaced + addContextLockedRule in one publish); never propose a separate tombstone card followed by a contextLockedRule card for this case.
 
         Safety rules:
         - Never invent a correction.
@@ -1477,9 +1524,10 @@ final class RuleAssistantSession: ObservableObject {
            [tombstone] <policyId or source → target>
            [move] <alias> → <toFamilyId>
            [merge] <fromFamilyId> → <toFamilyId>
+           [replace] <policyId> → <source> → <target>
         2. One or two sentences in Taiwanese Traditional Chinese explaining why this type.
         3. One JSON draft object per plan line, in the same order, each in its own ```json fence (at most 8). Fields: eventType, sourceText, targetText, sourcePattern, familyId, aliases, contextTokensAny, contextAliasesAny, policyId, fromFamilyId, toFamilyId, reason, disposition, positiveExamples, negativeExamples. Example objects use text, context, expectedText. Omit fields that do not apply. Do not include actor, rowPk, correctionSource, correctionRow, note, or makeAvailableNow; the App adds provenance itself.
-        The App shows every draft as its own card; the user confirms and publishes them one at a time inside the App, so never say a rule "will follow later"—emit all of them now. The plan lines alone show the user nothing: an answer that lists them without the JSON drafts is a dead end.
+        The App shows every draft as its own card; the user confirms and publishes them one at a time inside the App, so never say a rule "will follow later"—emit all of them now. The plan lines alone show the user nothing: an answer that lists them without the JSON drafts is a dead end. Each card is its own Worker publish; when a later card depends on an earlier one, say the order and never claim they publish together.
 
         If unsure, do not output a draft. Ask a question with options, e.g. prompt 「要改的是哪個 surface？」 with the candidates and 「都不對，再猜」.
         Answer in Taiwanese Traditional Chinese, briefly.

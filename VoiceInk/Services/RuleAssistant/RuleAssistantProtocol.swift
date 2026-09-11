@@ -21,10 +21,15 @@ enum RuleAssistantConstants {
         // Multi-event transactions (tombstone + addReplacementFamily) built by the Worker; Mac-reconcilable.
         "moveAliasToFamily": "move_auto_apply_alias_to_family",
         "mergeReplacementFamilies": "merge_auto_apply_replacement_families",
+        // Tombstone + addContextLockedRule in one Worker publish: widens an existing lock's tokens.
+        "replaceContextLockedRule": "replace_auto_apply_context_locked_rule",
     ]
 
     /// Event types the Worker's detect_duplicate_control_event does not accept; preview alone gates them.
-    static let transactionTypes: Set<String> = ["moveAliasToFamily", "mergeReplacementFamilies"]
+    static let transactionTypes: Set<String> = ["moveAliasToFamily", "mergeReplacementFamilies", "replaceContextLockedRule"]
+
+    /// Transactions that restructure families; these need the user's own words, never a choice reply.
+    static let familyTransactionTypes: Set<String> = ["moveAliasToFamily", "mergeReplacementFamilies"]
 
     /// Local (on-device) tool: the model may ask for the records around the selected one.
     static let nearbyTool = "load_nearby_records"
@@ -429,8 +434,11 @@ struct RuleAssistantDraft: Equatable {
 
     var isBroad: Bool { eventType == "replacementRule" || eventType == "replacementFamily" }
 
-    /// Restructures existing families; never something to guess without Jason saying so.
+    /// A Worker transaction (several control events in one publish); detect_duplicate does not take it.
     var isTransaction: Bool { RuleAssistantConstants.transactionTypes.contains(eventType) }
+
+    /// Restructures existing families; never something to guess without Jason saying so.
+    var isFamilyTransaction: Bool { RuleAssistantConstants.familyTransactionTypes.contains(eventType) }
 
     func writeToolName() -> String? {
         RuleAssistantConstants.writeTools[eventType]
@@ -478,6 +486,9 @@ struct RuleAssistantDraft: Equatable {
         case "mergeReplacementFamilies":
             return nonBlank(fromFamilyId) && nonBlank(toFamilyId)
                 && fromFamilyId!.trimmingCharacters(in: .whitespacesAndNewlines) != toFamilyId!.trimmingCharacters(in: .whitespacesAndNewlines)
+        case "replaceContextLockedRule":
+            return nonBlank(policyId) && nonBlank(sourcePattern) && nonBlank(targetText) && nonBlank(reason)
+                && (!contextTokensAny.isEmpty || !contextAliasesAny.isEmpty)
         default:
             return false
         }
@@ -558,6 +569,16 @@ struct RuleAssistantDraft: Equatable {
             args["toFamilyId"] = toFamilyId
             if let targetText { args["targetText"] = targetText }
             if let reason { args["reason"] = reason }
+            putExamples()
+            putNote()
+        case "replaceContextLockedRule":
+            args["policyId"] = policyId
+            args["sourcePattern"] = sourcePattern
+            args["targetText"] = targetText
+            if let sourceText { args["sourceText"] = sourceText }
+            if !contextTokensAny.isEmpty { args["contextTokensAny"] = contextTokensAny }
+            if !contextAliasesAny.isEmpty { args["contextAliasesAny"] = contextAliasesAny }
+            args["reason"] = reason
             putExamples()
             putNote()
         default:

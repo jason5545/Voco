@@ -503,6 +503,7 @@ private struct RuleAssistantSessionView: View {
         case "tombstone": return String(localized: "Retire rule")
         case "moveAliasToFamily": return String(localized: "Move alias to family")
         case "mergeReplacementFamilies": return String(localized: "Merge families")
+        case "replaceContextLockedRule": return String(localized: "Replace context lock")
         default: return eventType
         }
     }

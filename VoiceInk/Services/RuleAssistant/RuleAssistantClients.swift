@@ -353,6 +353,7 @@ final class WorkerMCPClient: RuleAssistantMCP {
         "add_auto_apply_correction", "add_auto_apply_context_locked_rule",
         "add_auto_apply_replacement_rule", "add_auto_apply_replacement_family", "tombstone_auto_apply_rule",
         "move_auto_apply_alias_to_family", "merge_auto_apply_replacement_families",
+        "replace_auto_apply_context_locked_rule",
     ]
 
     private let baseURL: URL

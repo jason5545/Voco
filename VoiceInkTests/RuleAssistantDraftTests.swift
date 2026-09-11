@@ -212,6 +212,30 @@ struct RuleAssistantDraftSafetyTests {
         #expect(!draft("mergeReplacementFamilies", from: "fam1", to: "fam1").isSafeForWrite())
     }
 
+    @Test func replaceContextLockNeedsPolicyIdAndTokens() {
+        #expect(draft("replaceContextLockedRule", target: "Mac", pattern: "麥克", contextTokens: ["硬體"], policyId: "manual-context-1", reason: "加語境").isSafeForWrite())
+        #expect(!draft("replaceContextLockedRule", target: "Mac", pattern: "麥克", contextTokens: ["硬體"], reason: "加語境").isSafeForWrite())
+        #expect(!draft("replaceContextLockedRule", target: "Mac", pattern: "麥克", policyId: "manual-context-1", reason: "加語境").isSafeForWrite())
+        #expect(!draft("replaceContextLockedRule", target: "Mac", pattern: "麥克", contextTokens: ["硬體"], policyId: "manual-context-1").isSafeForWrite())
+    }
+
+    @MainActor
+    @Test func replaceContextLockIsATransactionButNotAFamilyOne() {
+        let entry = draft("replaceContextLockedRule", target: "Mac", pattern: "麥克", contextTokens: ["硬體"], policyId: "manual-context-1", reason: "加語境")
+        #expect(entry.isTransaction)
+        #expect(!entry.isFamilyTransaction)
+        #expect(entry.writeToolName() == "replace_auto_apply_context_locked_rule")
+        // Allowed from a 語境限定 choice; auto-guess (scan) still refuses it.
+        #expect(RuleAssistantSession.gateReason(for: entry, kind: .choice(broadSurfaces: [], candidateChosen: true)) == nil)
+        #expect(RuleAssistantSession.gateReason(for: entry, kind: .scan) != nil)
+        #expect(RuleAssistantSession.gateReason(for: entry, kind: .manual) == nil)
+    }
+
+    @MainActor
+    @Test func replacePlanLineCountsAsAPlan() {
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "[replace] manual-context-1 → 麥克 → Mac", kind: .manual) == .draft)
+    }
+
     @Test func unknownTypeIsNeverSafe() {
         #expect(!draft("deleteEverything", source: "a", target: "b").isSafeForWrite())
     }

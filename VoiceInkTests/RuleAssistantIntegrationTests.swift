@@ -41,6 +41,29 @@ struct RuleAssistantIntegrationTests {
         ])
     }
 
+    private func contextLockedDraft(tokens: [String]) -> String {
+        RuleAssistantTestJSON.string([
+            "eventType": "contextLockedRule",
+            "sourceText": "我在麥克應該有接了一個硬體",
+            "sourcePattern": "麥克",
+            "targetText": "Mac",
+            "contextTokensAny": tokens,
+            "reason": "電腦語境",
+        ])
+    }
+
+    private func replaceContextLockedDraft(policyId: String) -> String {
+        RuleAssistantTestJSON.string([
+            "eventType": "replaceContextLockedRule",
+            "policyId": policyId,
+            "sourceText": "我在麥克應該有接了一個硬體",
+            "sourcePattern": "麥克",
+            "targetText": "Mac",
+            "contextTokensAny": ["bug", "電腦", "安卓", "系統", "硬體"],
+            "reason": "既有語境鎖要多收硬體",
+        ])
+    }
+
     private func draftAnswer(_ drafts: [String]) -> String {
         "我建議：\n" + drafts.joined(separator: "\n")
     }
@@ -399,9 +422,16 @@ struct RuleAssistantIntegrationTests {
         #expect(!session.state.canConfirm)
     }
 
+    /// A duplicate hit only blocks when the preview agrees nothing new reaches the runtime.
     @Test func duplicateBlocksConfirm() async {
         server.reset()
         server.toolHandler = { name, args in
+            if name == "preview_auto_apply_control_event" {
+                var preview = FakeMCPServer.previewOK
+                preview["runtimeEffect"] = "metadata-only"
+                preview["policiesAdded"] = 0
+                return .result(preview)
+            }
             if name == "detect_duplicate_control_event" {
                 var duplicate = FakeMCPServer.duplicateNone
                 duplicate["alreadyApplied"] = true
@@ -419,6 +449,163 @@ struct RuleAssistantIntegrationTests {
         await session.submit("把小振改成小鎮")
         #expect(session.state.drafts[0].check?.blockedReason != nil)
         #expect(!session.state.canConfirm)
+    }
+
+    /// The Worker matches duplicates by source pattern, so a widened context lock reports the existing (or
+    /// already retired) rule as alreadyApplied while the preview says a new runtime policy appears. The
+    /// preview wins; otherwise the card can never be confirmed.
+    @Test func duplicateDoesNotBlockWhenPreviewAddsAPolicy() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["alreadyApplied"] = true
+                duplicate["duplicatePolicy"] = ["found": true, "count": 1]
+                return .result(duplicate)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("我在麥克應該有接了一個硬體")
+        let entry = session.state.drafts[0]
+        #expect(entry.check?.preview?.runtimeEffect == "policies-changed")
+        #expect(entry.check?.ok == true)
+        #expect(entry.check?.blockedReason == nil)
+        #expect(session.state.canConfirm(entry))
+    }
+
+    /// An identical saved event still blocks even when the preview would add a policy.
+    @Test func duplicateEventBlocksEvenWhenPreviewAddsAPolicy() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["duplicateEvent"] = ["found": true, "count": 1, "events": [["eventId": "evt-old"]]]
+                return .result(duplicate)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("我在麥克應該有接了一個硬體")
+        #expect(session.state.drafts[0].check?.blockedReason != nil)
+        #expect(!session.state.canConfirm)
+    }
+
+    /// Two cards where the second only becomes writable after the first publishes: the App must re-check
+    /// the waiting card itself, otherwise its button stays grey against a stale head.
+    @Test func siblingDraftIsRecheckedAfterTheFirstCardPublishes() async {
+        server.reset()
+        let policyId = "manual-context-110d9c830ea3a4f5"
+        server.toolHandler = { name, args in
+            switch name {
+            case "lookup_auto_apply_policy":
+                return .result([
+                    "ok": true,
+                    "matchedPoliciesCount": 1,
+                    "returnedPoliciesCount": 1,
+                    "policies": [["policyId": policyId, "sourcePattern": "麥克", "targetText": "Mac", "policyType": "scopedReplacement", "autoApplyMode": "apply"]],
+                ])
+            case "detect_duplicate_control_event":
+                let retired = FakeMCPServer.shared.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" }
+                var duplicate = FakeMCPServer.duplicateNone
+                if args["eventType"] as? String == "contextLockedRule", !retired {
+                    duplicate["duplicatePolicy"] = ["found": true, "count": 1]
+                    duplicate["alreadyApplied"] = true
+                }
+                return .result(duplicate)
+            case "preview_auto_apply_control_event":
+                let retired = FakeMCPServer.shared.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" }
+                var preview = FakeMCPServer.previewOK
+                if args["eventType"] as? String == "contextLockedRule", !retired {
+                    preview["runtimeEffect"] = "metadata-only"
+                    preview["policiesAdded"] = 0
+                }
+                return .result(preview)
+            case "tombstone_auto_apply_rule":
+                return .result(FakeMCPServer.writePublished(sha: String(repeating: "a", count: 64)))
+            default:
+                return FakeMCPServer.defaultToolHandler(name, args)
+            }
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([
+                    RuleAssistantTestJSON.string([
+                        "eventType": "tombstone",
+                        "policyId": policyId,
+                        "sourcePattern": "麥克",
+                        "targetText": "Mac",
+                        "disposition": "replaced",
+                        "reason": "要換成語境更寬的鎖",
+                    ]),
+                    contextLockedDraft(tokens: ["bug", "電腦", "安卓", "系統", "硬體"]),
+                ])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("把麥克的語境鎖換成多帶硬體的版本")
+        #expect(session.state.drafts.count == 2)
+        // Before the tombstone is published, the second card is gated by the rule it replaces.
+        #expect(session.state.drafts[1].check?.blockedReason != nil)
+        #expect(!session.state.canConfirm(session.state.drafts[1]))
+
+        await session.confirm(nonce: session.state.drafts[0].draft.nonce)
+        #expect(session.state.drafts[0].consumed)
+        // The publish moved the head, so the waiting card was re-checked without another turn.
+        #expect(session.state.drafts[1].check?.blockedReason == nil)
+        #expect(session.state.canConfirm(session.state.drafts[1]))
+    }
+
+    /// replaceContextLockedRule is a Worker transaction: one write tool, no duplicate check.
+    @Test func replaceContextLockedRuleWritesTheTransactionTool() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "replace_auto_apply_context_locked_rule" {
+                return .result(FakeMCPServer.writePublished(sha: String(repeating: "a", count: 64)))
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: "[replace] manual-context-110d9c830ea3a4f5 → 麥克 → Mac\n"
+                    + replaceContextLockedDraft(policyId: "manual-context-110d9c830ea3a4f5")),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("把麥克的語境鎖加上硬體")
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        let entry = session.state.drafts[0]
+        #expect(entry.draft.eventType == "replaceContextLockedRule")
+        #expect(entry.draft.policyId == "manual-context-110d9c830ea3a4f5")
+        #expect(entry.draft.contextTokensAny.contains("硬體"))
+        #expect(entry.check?.blockedReason == nil)
+        #expect(entry.check?.duplicate == nil)
+        #expect(!server.toolCalls.contains { $0.name == "detect_duplicate_control_event" })
+
+        await session.confirm()
+        let write = server.toolCalls.first { $0.name == "replace_auto_apply_context_locked_rule" }
+        #expect(write != nil)
+        #expect(write?.args["policyId"] as? String == "manual-context-110d9c830ea3a4f5")
+        #expect(write?.args["targetText"] as? String == "Mac")
+        #expect((write?.args["contextTokensAny"] as? [String])?.contains("硬體") == true)
+        #expect(session.state.drafts[0].consumed)
     }
 
     // MARK: Worker errors go back to the model

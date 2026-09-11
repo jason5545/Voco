@@ -596,7 +596,7 @@ final class FakeMCPServer {
         "add_auto_apply_correction", "add_auto_apply_context_locked_rule",
         "add_auto_apply_replacement_rule", "add_auto_apply_replacement_family",
         "tombstone_auto_apply_rule", "move_auto_apply_alias_to_family",
-        "merge_auto_apply_replacement_families",
+        "merge_auto_apply_replacement_families", "replace_auto_apply_context_locked_rule",
     ]
 
     static let defaultTools: [[String: Any]] = {
@@ -618,6 +618,8 @@ final class FakeMCPServer {
         "skipped": [Any](),
         "unsupported": [Any](),
         "baseModelSha256": String(repeating: "b", count: 64),
+        "runtimeEffect": "policies-changed",
+        "policiesAdded": 1,
     ]
 
     static let duplicateNone: [String: Any] = [
