@@ -370,6 +370,8 @@ final class RuleAssistantSession: ObservableObject {
                 role: "user",
                 content: buildUserPrompt(context: state.context, instruction: clean, first: history.isEmpty)
             ))
+            var nudged = false
+            var promisedAnswer = ""
             for _ in 0..<Self.maxRounds {
                 state.phase = .thinking
                 let outcome = try await streamRound(provider: provider, messages: transaction, tools: tools, gen: gen)
@@ -381,7 +383,16 @@ final class RuleAssistantSession: ObservableObject {
                     toolCalls: outcome.calls
                 ))
                 if outcome.calls.isEmpty {
-                    try await finishTurn(answer: outcome.visibleAnswer, transaction: transaction, worker: worker, gen: gen)
+                    // The model sometimes announces a question (「請勾選：」) and stops without the JSON,
+                    // especially after tool rounds. Ask once for the JSON alone instead of showing a dead end.
+                    if !nudged, Self.needsQuestionNudge(answer: outcome.visibleAnswer, kind: kind) {
+                        nudged = true
+                        promisedAnswer = outcome.visibleAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+                        status(String(localized: "The AI announced options without the question JSON; asking it to add them."))
+                        transaction.append(OpenCodeMessage(role: "user", content: Self.questionNudgePrompt))
+                        continue
+                    }
+                    try await finishTurn(answer: outcome.visibleAnswer, promisedAnswer: promisedAnswer, transaction: transaction, worker: worker, gen: gen)
                     return
                 }
                 for call in outcome.calls {
@@ -783,8 +794,20 @@ final class RuleAssistantSession: ObservableObject {
         )
     }
 
+    /// A scan turn must end in a question (or drafts); any turn whose last line reads like
+    /// 「請勾選：」 promised one. Both get a single nudge before the answer is shown as is.
+    static func needsQuestionNudge(answer: String, kind: RuleAssistantTurnKind) -> Bool {
+        let located = RuleAssistantDraft.locateAllJSON(in: answer)
+        if RuleAssistantQuestion.parseFirst(located) != nil || !RuleAssistantDraft.parseAll(located).isEmpty { return false }
+        if case .scan = kind { return true }
+        let tail = String(answer.trimmingCharacters(in: .whitespacesAndNewlines).suffix(40))
+        if tail.hasSuffix("：") || tail.hasSuffix(":") { return true }
+        return tail.range(of: "(請|请)(勾選|勾选|選擇|选择|選|选)", options: .regularExpression) != nil
+    }
+
     private func finishTurn(
         answer: String,
+        promisedAnswer: String = "",
         transaction: [OpenCodeMessage],
         worker: RuleAssistantMCP,
         gen: Int64
@@ -804,6 +827,10 @@ final class RuleAssistantSession: ObservableObject {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             display = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // After a nudge the model usually returns the JSON alone; keep its earlier explanation visible.
+        if !promisedAnswer.isEmpty {
+            display = display.isEmpty ? promisedAnswer : promisedAnswer + "\n" + display
         }
         // Commit the wire history only for a normally completed turn.
         history = transaction
@@ -1134,6 +1161,8 @@ final class RuleAssistantSession: ObservableObject {
     static let maxToolResultChars = 60_000
     static let maxStatusLines = 30
 
+    static let questionNudgePrompt = "你上一則說要讓使用者勾選，但沒有附 question JSON，App 沒有東西可以顯示。請只輸出那一個 question JSON（```json fence，欄位 id、prompt、multiSelect、options[{id,label,detail?,surface?,target?}]），不要再查工具，不要其他文字。"
+
     static let scanPrompt = "使用者沒有說明原意，請找出可疑之處。看這筆各階段文字，把你覺得不合理、可能是辨識或標準化錯誤的地方全部列成一題多選 question 的候選，每個候選附 surface 與你猜的 target；可以用 load_nearby_records 與唯讀工具輔助，但不確定的就列成候選讓使用者勾，不要靠上下文硬猜。找不到問題就說明並附一題 question（選項：這筆沒錯／其實有錯，我來說）。"
 
     static let systemPrompt = """
@@ -1152,7 +1181,7 @@ final class RuleAssistantSession: ObservableObject {
         Questions (instead of free-text clarification):
         - Whenever you would ask Jason something, emit exactly one JSON object in its own ```json fence, for example:
           {"question": {"id": "q1", "prompt": "這筆哪些地方是錯的？", "multiSelect": true, "options": [{"id": "a", "label": "西賴 → CLI", "detail": "程式工具語境", "surface": "西賴", "target": "CLI"}, {"id": "b", "label": "這筆沒錯"}]}}
-          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. Jason types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets Jason add a free-text note to his choice.
+          Fields: id, prompt (short), multiSelect (true for candidate lists, false for yes/no), options (1–8; each needs id and label; add surface and target when the option is a correction candidate; detail is optional). At most one question per answer. The JSON must be inside the same answer as your explanation: never end with 「請勾選：」 or a promise and stop, and after your last tool result the final answer must still contain the JSON. Jason types with one finger, so prefer options over free text and always offer a way out such as 「都不對，再猜」 or 「這筆沒錯」. The App also lets Jason add a free-text note to his choice.
         - The App replies to a question as a user message in this shape:
           回覆問題 q1：<prompt>
           選擇：[a] 西賴 → CLI（範圍：只改這句）

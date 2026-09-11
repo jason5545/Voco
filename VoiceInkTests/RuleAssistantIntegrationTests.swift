@@ -867,10 +867,64 @@ struct RuleAssistantIntegrationTests {
         #expect(session.state.toolStatus.last?.isEmpty == false)
     }
 
+    @Test func scanAnswerWithoutQuestionIsNudgedOnceAndKeepsExplanation() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "無現有規則。請勾選："), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: "```json\n" + questionJSON(options: candidateOptions) + "\n```"), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        #expect(session.state.phase == .idle)
+        #expect(session.state.pendingQuestion?.id == "q1")
+        #expect(FakeGoProvider.recorded.count == 2)
+        // The nudge is a wire-only user message asking for the JSON alone.
+        let nudge = lastUserMessage(1)
+        #expect(nudge.contains("question JSON"))
+        #expect(session.state.transcript.filter { $0.role == "user" }.count == 1)
+        // The model's earlier explanation stays visible above the card.
+        #expect(session.state.transcript.last?.text == "無現有規則。請勾選：")
+        #expect(session.state.toolStatus.contains { $0.contains("question JSON") })
+    }
+
+    @Test func scanAnswerStillWithoutQuestionAfterNudgeIsShownAsIs() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "看不出問題。"), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: "真的沒有。"), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        #expect(session.state.phase == .idle)
+        #expect(session.state.pendingQuestion == nil)
+        #expect(FakeGoProvider.recorded.count == 2)
+        #expect(session.state.transcript.last?.text == "看不出問題。\n真的沒有。")
+    }
+
+    @Test func manualPlainAnswerIsNotNudgedUnlessItPromisesOptions() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "這筆沒有錯。"), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: "候選如下，請勾選："), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("這句對嗎")
+        #expect(FakeGoProvider.recorded.count == 1)
+        #expect(session.state.pendingQuestion == nil)
+        await session.submit("再看一次")
+        #expect(FakeGoProvider.recorded.count == 3)
+        #expect(session.state.pendingQuestion?.id == "q1")
+        #expect(RuleAssistantSession.needsQuestionNudge(answer: "好的：", kind: .manual))
+        #expect(RuleAssistantSession.needsQuestionNudge(answer: "請選擇一個", kind: .choice(broadSurfaces: [])))
+        #expect(!RuleAssistantSession.needsQuestionNudge(answer: "改好了。", kind: .manual))
+        #expect(!RuleAssistantSession.needsQuestionNudge(answer: questionJSON(options: candidateOptions), kind: .scan))
+    }
+
     @Test func autoScanRunsOnceAndOnlyOnFreshConfiguredSession() async {
         server.reset()
         FakeGoProvider.reset(scripts: [
-            .stream([FakeGoProvider.chunk(content: "沒有問題。"), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: "沒有問題。" + questionJSON(options: [["label": "這筆沒錯"], ["label": "其實有錯，我來說"]])), FakeGoProvider.chunk(finish: "stop")]),
         ])
         let session = makeRuleAssistantSession(server: server)
         // Not configured: nothing happens.

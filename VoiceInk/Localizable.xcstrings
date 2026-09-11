@@ -13244,6 +13244,16 @@
           }
         }
       }
+    },
+    "The AI announced options without the question JSON; asking it to add them.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 說要讓你勾選卻沒附 question JSON，請它補上。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
