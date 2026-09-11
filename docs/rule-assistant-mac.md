@@ -93,6 +93,38 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   manual、失敗還原題目、壞題目當純文字、題目與草稿同回合、自動掃描只跑一次、掃描中打字與取消、
   手動回合打字被忽略但停止會還原。
 
+## 找問題之後的四項修正（2026-09-11，同日實機回饋）
+
+用「複製給 reviewer」匯出的對話逐一診斷後修的，Android 同步。
+
+- **複製給 reviewer**：草稿卡「Confirm & Publish」旁與底部按鈕列各一個按鈕，一鍵把整段對話放進
+  `NSPasteboard`（Android 是 `ClipboardManager`）：客戶端標示（`voco 版本 · macOS 版本`）、紀錄各階段、
+  每回合文字與題目勾選、草稿與 Worker preview／查重結果、wire history（工具呼叫、截 800 字的結果、
+  thinking 截 1500 字、system prompt 只寫字數）、「UI state」段（每個選項 ☑／☐、範圍選擇有沒有顯示與
+  值、`canSubmitChoice`、輸入框內容、每張草稿卡確認鈕狀態）、給 Claude Code／Codex 的說明（判斷該改
+  prompt、App 邏輯還是 Worker；兩端 prompt 必須一致）。`RuleAssistantSession.exportForReview(client:)`，
+  純函式 `reviewExport` 可測。不含 key、音檔。
+- **模型停在「請勾選：」不吐 question JSON**（glm-5.3-flash 多輪工具後常見）：`needsQuestionNudge`
+  在 scan 回合沒 question 也沒草稿、或任何回合結尾像「請勾選：」「請選擇」時，自動再送一則 wire-only
+  的 `questionNudgePrompt`（只輸出 question JSON、不查工具），最多一次；催促訊息不進 transcript，
+  模型先前的說明文字保留在卡片上方。Prompt 明講 JSON 必須與說明同一則回答。
+- **範圍被展開成選項**（同一候選出三個選項：只改這句／語境限定／任何語境，跟 App 的範圍選擇重複）：
+  prompt 規定一個可疑處一個選項；`RuleAssistantQuestion.parse` 對相同 surface＋target 的選項只留第一個。
+- **廣域規則自動反例**：literal 廣域規則是 `text.contains`＋整句 `replacingOccurrences`，沒有邊界，
+  「資料架 → 資料夾」會把「資料架構」改成「資料夾構」。`RuleAssistantGuardSuggester`（`RuleAssistantProtocol.swift`）
+  把來源每個 head＋tail 切法的 tail 當 prefix 查 `word_freq.tsv`（`VocoWordFrequencyLexicon.words(withPrefix:)`，
+  排序陣列二分搜尋，首次建索引），組成更長的詞（資料＋架構），頻率 ≥ 100、最多 6 個，經
+  `RuleAssistantSessionRegistry` 注入 session（`guardSuggester`）。replacementRule／replacementFamily
+  草稿出來時自動當 `negativeExamples` 塞進草稿（總數不超過 `isSafeForWrite` 的 10），preview／查重
+  都用帶反例的版本；草稿卡顯示「自動保護更長的詞」開關（`setAutoGuards`），關掉會拿掉自動反例並重跑
+  Worker 檢查，模型自己寫的反例（有 context）不動。選擇題卡上候選一選「任何語境」就預覽會保護哪些詞
+  （`optionGuardPreviews`）。Prompt 另要求模型補語意上的反例。Worker 端對同一條規則再送 add 帶
+  negativeExamples 是 metadata-only 合併，不需要 tombstone。
+- **稱呼**：system prompt 與匯出說明段一律用 the user，不用人名。
+- 測試：`RuleAssistantGuardSuggesterTests`（每個切點、頻率排序、上限 6、非 CJK／單字不產生、
+  `withAutoGuards` 只增刪自動反例）；`RuleAssistantIntegrationTests` 加匯出內容與 UI state、催促一次
+  與催促後仍無題目、手動回合不催、廣域草稿自動反例與開關重跑檢查、任何語境預覽。
+
 ## 本機規則覆蓋（coverage）
 
 2026-09-10 加入。Worker 收據（`RowCorrectionMarkings`）綁的是 row 身分（platform + rowPk +
@@ -150,6 +182,11 @@ Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取�
   （真 Go + 真 client，Worker 仍為假）。
 
 注意：app 的測試主機以系統語言（zh-Hant）執行，測試斷言不可依賴英文訊息原文。
+
+## 驗收結果（2026-09-11）
+
+- `xcodebuild test -only-testing:VoiceInkTests/RuleAssistantIntegrationTests ... RuleAssistantGuardSuggesterTests`：
+  **55 tests、3 suites，全部通過**。Release build 成功、`ditto` 部署、Voco 正常啟動。
 
 ## 驗收結果（2026-09-10）
 
