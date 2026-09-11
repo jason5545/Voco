@@ -822,6 +822,51 @@ struct RuleAssistantIntegrationTests {
         #expect(session.state.canSubmitChoice)
     }
 
+    @Test func reviewExportCarriesRecordTurnsChoicesDraftsAndWire() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(reasoning: "先看一下"),
+                FakeGoProvider.chunk(toolCalls: [
+                    FakeGoProvider.toolCallFragment(index: 0, id: "call_1", name: "lookup_auto_apply_policy", arguments: "{\"sourceText\":\"小振\"}"),
+                ]),
+                FakeGoProvider.chunk(finish: "tool_calls"),
+            ]),
+            .stream([FakeGoProvider.chunk(content: "可疑處如下。\n" + questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我們去小振家", "我們去小鎮家")])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setScope(.context, for: "a")
+        await session.submitChoice()
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        let export = session.exportForReview(client: "voco test · macOS", date: Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(export.hasPrefix("# Voco rule assistant · turn export for review\nclient: voco test · macOS\nmodel: glm-5.3-flash\nrecord: voco:row:42"))
+        #expect(export.contains("- rawTranscript: 我們去小振家"))
+        #expect(export.contains("question q1 (multi): 這筆哪些地方是錯的？"))
+        #expect(export.contains("- [a] 小振 → 小鎮 {小振 → 小鎮} · 地名 ✓ chosen (語境限定)"))
+        #expect(export.contains("- [c] 這筆沒錯\n"))
+        #expect(export.contains("1. correction: 我們去小振家 → 我們去小鎮家"))
+        #expect(export.contains("check: preview wouldPublish=true"))
+        #expect(export.contains("worker args: "))
+        #expect(export.contains("[assistant · reasoning] 先看一下"))
+        #expect(export.contains("[assistant → tool] lookup_auto_apply_policy({\"sourceText\":\"小振\"}) id=call_1"))
+        #expect(export.contains("[tool call_1] "))
+        #expect(export.contains("[system] (system prompt, "))
+        #expect(!export.contains("You help Jason maintain"))
+        #expect(export.contains("選擇：[a] 小振 → 小鎮（範圍：語境限定）"))
+        #expect(export.contains("## For the reviewer (Claude Code / Codex)"))
+        #expect(export.contains("RuleAssistantSession.kt"))
+        #expect(!export.contains("test-go-key"))
+        #expect(!export.contains("test-sync-key"))
+        session.noteCopiedForReview()
+        #expect(session.state.toolStatus.last?.isEmpty == false)
+    }
+
     @Test func autoScanRunsOnceAndOnlyOnFreshConfiguredSession() async {
         server.reset()
         FakeGoProvider.reset(scripts: [

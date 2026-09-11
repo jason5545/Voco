@@ -451,18 +451,22 @@ private struct RuleAssistantSessionView: View {
                     .foregroundColor(.secondary)
             }
 
-            if entry.consumed {
-                Label("Sent", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(AppTheme.Status.positive)
-            } else {
-                Button(action: { confirm(entry) }) {
-                    Text("Confirm & Publish")
-                        .font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 10) {
+                if entry.consumed {
+                    Label("Sent", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(AppTheme.Status.positive)
+                } else {
+                    Button(action: { confirm(entry) }) {
+                        Text("Confirm & Publish")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!state.canConfirm(entry))
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!state.canConfirm(entry))
-
+                copyForReviewButton
+            }
+            if !entry.consumed {
                 Text("Confirming re-runs the preview and duplicate check before writing.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
@@ -760,10 +764,32 @@ private struct RuleAssistantSessionView: View {
                     .help("The AI lists the places it suspects; tick the ones that are wrong.")
                 }
                 Spacer()
+                if !state.transcript.isEmpty {
+                    copyForReviewButton
+                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    // MARK: Review export
+
+    /// Copies the whole conversation, with a client marker and a note for Claude Code / Codex,
+    /// so Jason can paste it into a review session without retyping anything.
+    private var copyForReviewButton: some View {
+        Button {
+            let client = "voco \(RuleAssistantConstants.appVersion) · macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+            let text = session.exportForReview(client: client)
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            session.noteCopiedForReview()
+        } label: {
+            Label("Copy for review", systemImage: "doc.on.clipboard")
+                .font(.system(size: 12, weight: .medium))
+        }
+        .help("Copies this whole conversation (record, replies, choices, drafts, Worker checks, tool calls) with a note for Claude Code or Codex.")
     }
 
     // MARK: Actions

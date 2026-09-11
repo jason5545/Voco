@@ -922,6 +922,142 @@ final class RuleAssistantSession: ObservableObject {
         )
     }
 
+    // MARK: Review export
+
+    /// Status line after the export was put on the clipboard.
+    func noteCopiedForReview() {
+        status(String(localized: "Copied the conversation for review."))
+    }
+
+    /// The whole conversation as text for Claude Code / Codex to review: record, every turn with
+    /// questions and choices, drafts with Worker checks, the wire history (tool calls and truncated
+    /// results), and a note telling the reviewer what to look at. Never includes keys or audio.
+    func exportForReview(client: String, date: Date = Date()) -> String {
+        Self.reviewExport(state: state, history: history, client: client, date: date)
+    }
+
+    static func reviewExport(state: RuleAssistantUIState, history: [OpenCodeMessage], client: String, date: Date) -> String {
+        var out: [String] = []
+        let stamp = ISO8601DateFormatter().string(from: date)
+        out.append("# Voco rule assistant · turn export for review")
+        out.append("client: \(client)")
+        out.append("model: \(RuleAssistantConstants.model)")
+        out.append("record: \(state.context.sourceNote())" + (state.context.recordId.map { " · recordId \($0)" } ?? ""))
+        out.append("exported: \(stamp)")
+        out.append("phase: \(state.phase)")
+        if let version = state.context.autoApplyModelVersion { out.append("auto-apply model: \(version)") }
+        out.append("")
+        out.append("## Record (what the model saw)")
+        let record: [(String, String?)] = [
+            ("rawTranscript", state.context.rawTranscript),
+            ("text", state.context.text),
+            ("normalizedTranscript", state.context.normalizedTranscript),
+            ("enhancedText", state.context.enhancedText),
+            ("selectedCandidate", state.context.selectedCandidate),
+            ("finalPastedText", state.context.finalPastedText),
+            ("transcriptionModel", state.context.transcriptionModelName),
+        ]
+        for (label, value) in record {
+            if let value, !value.isEmpty { out.append("- \(label): \(value)") }
+        }
+        let markings = RowCorrectionMarkings.parse(state.context.correctionsJSON)
+        if !markings.isEmpty {
+            out.append("- corrections: \(RAJSON.serializeArray(markings.map { $0.toJSONObject() }))")
+        }
+        if state.neighborsShared > 0 { out.append("- nearby records shared with the model: \(state.neighborsShared)") }
+        out.append("")
+        out.append("## Conversation (as shown in the App)")
+        for turn in state.transcript {
+            out.append("[\(turn.role)] \(turn.text)")
+            if let question = turn.question {
+                out.append("  question \(question.id) (\(question.multiSelect ? "multi" : "single")): \(question.prompt)")
+                for option in question.options {
+                    var line = "    - [\(option.id)] \(option.label)"
+                    if let surface = option.surface, let target = option.target { line += " {\(surface) → \(target)}" }
+                    if let detail = option.detail { line += " · \(detail)" }
+                    if turn.answeredOptionIds.contains(option.id) {
+                        line += " ✓ chosen"
+                        if let scope = turn.answeredScopes[option.id] { line += " (\(scope.wireLabel))" }
+                    }
+                    out.append(line)
+                }
+                if turn.answeredOptionIds.isEmpty, state.pendingQuestion?.id == question.id {
+                    out.append("    (still unanswered; currently ticked: \(state.selectedOptionIds.joined(separator: ", ")))")
+                }
+            }
+        }
+        if !state.answer.isEmpty { out.append("[assistant · streaming] \(state.answer)") }
+        out.append("")
+        if !state.drafts.isEmpty {
+            out.append("## Drafts")
+            for (index, entry) in state.drafts.enumerated() {
+                let draft = entry.draft
+                var head = "\(index + 1). \(draft.eventType)"
+                if let source = draft.sourceText ?? draft.sourcePattern { head += ": \(source)" }
+                if !draft.aliases.isEmpty { head += " [\(draft.aliases.joined(separator: "、"))]" }
+                if let target = draft.targetText { head += " → \(target)" }
+                out.append(head)
+                if let check = entry.check {
+                    var line = "   check:"
+                    if let preview = check.preview {
+                        line += " preview wouldPublish=\(preview.wouldPublish) conflicts=\(preview.conflicts) skipped=\(preview.skipped) unsupported=\(preview.unsupported)"
+                        if let reason = preview.reason { line += " reason=\(reason)" }
+                    }
+                    if let duplicate = check.duplicate {
+                        line += " · duplicate found=\(duplicate.found) applied=\(duplicate.alreadyApplied) policies=\(duplicate.duplicatePolicies) events=\(duplicate.duplicateEvents)"
+                    }
+                    if let blocked = check.blockedReason { line += " · BLOCKED: \(blocked)" }
+                    out.append(line)
+                } else {
+                    out.append("   check: not run")
+                }
+                out.append("   consumed=\(entry.consumed)" + (entry.publishedSha256.map { " publishedSha=\($0.prefix(12))" } ?? "") + (entry.outcome.map { " outcome=\($0)" } ?? ""))
+                out.append("   worker args: \(RAJSON.serialize(draft.toPreviewArguments(context: state.context)))")
+            }
+            out.append("")
+        }
+        if let message = state.publishMessage { out.append("publish: \(message)"); out.append("") }
+        if !state.toolStatus.isEmpty {
+            out.append("## App status lines")
+            for line in state.toolStatus { out.append("- \(line)") }
+            out.append("")
+        }
+        out.append("## Wire history (what actually went to the model; system prompt omitted, long fields truncated)")
+        for message in history {
+            switch message.role {
+            case "system":
+                out.append("[system] (system prompt, \(message.content?.count ?? 0) chars; see RuleAssistantSession systemPrompt)")
+            case "tool":
+                out.append("[tool \(message.toolCallId ?? "?")] \(Self.truncate(message.content ?? "", 800))")
+            case "assistant":
+                if let reasoning = message.reasoningContent, !reasoning.isEmpty {
+                    out.append("[assistant · reasoning] \(Self.truncate(reasoning, 1500))")
+                }
+                if let content = message.content, !content.isEmpty { out.append("[assistant] \(content)") }
+                for call in message.toolCalls {
+                    let function = call.raDict("function")
+                    out.append("[assistant → tool] \(function?.raString("name") ?? "?")(\(Self.truncate(function?.raString("arguments") ?? "", 300))) id=\(call.raString("id") ?? "?")")
+                }
+            default:
+                out.append("[\(message.role)] \(Self.truncate(message.content ?? "", 1500))")
+            }
+        }
+        out.append("")
+        out.append("## For the reviewer (Claude Code / Codex)")
+        out.append("""
+            Jason exported this rule-assistant conversation from the App because something in it looked wrong or worth improving. Judge the model's behaviour against the App's rules: did it find the right candidates, ask with a proper question JSON instead of free text, choose the right event type for the scope Jason picked (只改這句 → correction, 語境限定 → contextLockedRule, 任何語境 → replacementRule/replacementFamily), avoid inventing targets, and respect the correction markings and the broad-rule gate? Then decide where the fix belongs:
+            - Prompt: `systemPrompt` / `scanPrompt` in VoiceInk/Services/RuleAssistant/RuleAssistantSession.swift (Mac) and `SYSTEM_PROMPT` / `SCAN_PROMPT` in app/src/main/java/com/vocotype/ruleassistant/RuleAssistantSession.kt (Android). The two must stay identical apart from platform words.
+            - App logic: question/draft parsing in RuleAssistantProtocol.swift / .kt, the turn-kind gate `gateReason`, the choice reply format in `submitChoice`, or the panel/screen UI.
+            - Worker: preview / duplicate / write results above come from the Worker MCP; a wrong check result is a Worker issue, not a prompt issue.
+            Reply with concrete suggestions, or make the change directly on both platforms and run the RuleAssistant test suites.
+            """)
+        return out.joined(separator: "\n")
+    }
+
+    private static func truncate(_ text: String, _ limit: Int) -> String {
+        text.count <= limit ? text : String(text.prefix(limit)) + "… (\(text.count) chars)"
+    }
+
     /// Broad rules need Jason's explicit statement that the source is never intended. A guess is not
     /// that, and neither is ticking a candidate, unless he scoped that candidate as "any context".
     /// Family moves/merges are never proposed without him asking in his own words.
