@@ -375,6 +375,12 @@ private struct RuleAssistantSessionView: View {
                 Text("Any context creates a broad rule: the source will be replaced everywhere.")
                     .font(.footnote)
                     .foregroundColor(AppTheme.Status.warningStrong)
+                if interactive, let guards = state.optionGuardPreviews[option.id], !guards.isEmpty {
+                    Text("Will auto-protect longer words: \(guards.joined(separator: "\u{3001}"))")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(.leading, 22)

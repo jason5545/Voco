@@ -135,6 +135,8 @@ struct RuleAssistantUIState: Equatable {
     var pendingQuestion: RuleAssistantQuestion?
     var selectedOptionIds: [String] = []
     var optionScopes: [String: RuleAssistantScope] = [:]
+    /// Longer lexicon words that would be auto-protected for a candidate scoped as "any context" (preview only).
+    var optionGuardPreviews: [String: [String]] = [:]
     /// Set once the panel triggered the automatic find-issues turn, so reopening never rescans.
     var hasAutoScanned = false
     /// Kind of the turn currently in flight (nil when idle).
@@ -346,6 +348,7 @@ final class RuleAssistantSession: ObservableObject {
         state.pendingQuestion = nil
         state.selectedOptionIds = []
         state.optionScopes = [:]
+        state.optionGuardPreviews = [:]
         state.transcript.append(RuleAssistantTurn(role: "user", text: display))
         var transaction = history
         do {
@@ -496,8 +499,13 @@ final class RuleAssistantSession: ObservableObject {
     }
 
     func setScope(_ scope: RuleAssistantScope, for optionId: String) {
-        guard state.pendingQuestion?.options.contains(where: { $0.id == optionId }) == true, !state.phase.isBusy else { return }
+        guard let option = state.pendingQuestion?.options.first(where: { $0.id == optionId }), !state.phase.isBusy else { return }
         state.optionScopes[optionId] = scope
+        if scope == .broad, let surface = option.surface {
+            state.optionGuardPreviews[optionId] = guardSuggester(surface)
+        } else {
+            state.optionGuardPreviews[optionId] = nil
+        }
     }
 
     /// Send the selected options (plus any note in the composer) as the reply to the pending question.
@@ -859,6 +867,7 @@ final class RuleAssistantSession: ObservableObject {
             state.pendingQuestion = question
             state.selectedOptionIds = []
             state.optionScopes = [:]
+            state.optionGuardPreviews = [:]
         }
         if proposed.isEmpty {
             state.phase = .idle

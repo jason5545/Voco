@@ -716,6 +716,20 @@ struct RuleAssistantIntegrationTests {
         #expect(userTurn?.text.contains("小振 → 小鎮") == true)
     }
 
+    @Test func anyContextScopePreviewsLexiconGuardsOnTheQuestionCard() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server, guardSuggester: { $0 == "小振" ? ["小振動"] : [] })
+        await session.submitScan()
+        session.toggleOption("a")
+        session.setScope(.broad, for: "a")
+        #expect(session.state.optionGuardPreviews["a"] == ["小振動"])
+        session.setScope(.context, for: "a")
+        #expect(session.state.optionGuardPreviews["a"] == nil)
+    }
+
     @Test func choiceScopedAnyContextAllowsMatchingBroadDraftOnly() async {
         server.reset()
         let broadA = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "小振", "targetText": "小鎮"])
