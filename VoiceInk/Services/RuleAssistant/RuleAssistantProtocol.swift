@@ -327,6 +327,52 @@ struct RuleAssistantQuestion: Equatable {
     }
 }
 
+// MARK: - Automatic negative guards for broad rules
+
+/// A literal broad rule replaces every occurrence of its source, including inside longer words
+/// (資料架 → 資料夾 would turn 資料架構 into 資料夾構). This derives those longer words from the
+/// word-frequency lexicon so the App can add them as negative examples before the user confirms:
+/// for every split A+B of the source, lexicon words starting with B give A+word; words starting
+/// with the whole source count too. Deterministic, no model judgement involved.
+enum RuleAssistantGuardSuggester {
+    static let minFrequency = 100
+    static let maxGuards = 6
+    static let lookupLimit = 20
+
+    static func guards(
+        for source: String,
+        lexicon: (_ prefix: String) -> [(word: String, frequency: Int)]
+    ) -> [String] {
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let characters = Array(trimmed)
+        guard characters.count >= 2, characters.allSatisfy(isCJK) else { return [] }
+        var scored: [String: Int] = [:]
+        for split in 0..<characters.count {
+            let head = String(characters[..<split])
+            let tail = String(characters[split...])
+            for hit in lexicon(tail) where hit.word != tail {
+                let candidate = head + hit.word
+                guard candidate != trimmed else { continue }
+                scored[candidate] = max(scored[candidate] ?? 0, hit.frequency)
+            }
+        }
+        return scored
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .prefix(maxGuards)
+            .map { $0.key }
+    }
+
+    private static func isCJK(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first else { return false }
+        switch scalar.value {
+        case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - Drafts
 
 struct RuleAssistantExample: Equatable {

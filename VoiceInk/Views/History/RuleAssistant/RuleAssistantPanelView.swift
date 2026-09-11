@@ -439,6 +439,10 @@ private struct RuleAssistantSessionView: View {
 
             draftFields(entry.draft)
 
+            if !entry.autoGuards.isEmpty {
+                autoGuardsSection(entry)
+            }
+
             Divider()
 
             checkSection(entry.check)
@@ -523,6 +527,32 @@ private struct RuleAssistantSessionView: View {
         }
         if !draft.negativeExamples.isEmpty {
             examplesSection("Negative examples", draft.negativeExamples)
+        }
+    }
+
+    /// Longer lexicon words that contain the broad source; on by default, off re-runs the Worker check.
+    private func autoGuardsSection(_ entry: RuleAssistantDraftEntry) -> some View {
+        let binding = Binding<Bool>(
+            get: { entry.autoGuardsEnabled },
+            set: { enabled in run { await session.setAutoGuards(nonce: entry.draft.nonce, enabled: enabled) } }
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: binding) {
+                Text("Protect longer words automatically")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(entry.consumed || state.phase.isBusy)
+            Text(entry.autoGuards.joined(separator: "\u{3001}"))
+                .font(.system(size: 11))
+                .foregroundColor(entry.autoGuardsEnabled ? .primary : .secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("A broad rule also fires inside longer words; these lexicon words are added as negative examples so the rule skips any sentence containing them.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

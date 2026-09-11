@@ -297,3 +297,46 @@ struct RuleAssistantDraftArgumentsTests {
         #expect(positives?[0]["expectedText"] as? String == "釋出訓練")
     }
 }
+
+
+@MainActor
+@Suite(.serialized)
+struct RuleAssistantGuardSuggesterTests {
+    private func lexicon(_ prefix: String) -> [(word: String, frequency: Int)] {
+        switch prefix {
+        case "架": return [("架設", 860), ("架子", 848), ("架構", 630), ("架上", 308)]
+        case "資料架": return [("資料架構圖", 120)]
+        default: return []
+        }
+    }
+
+    @Test func longerWordsComeFromEverySplitMostFrequentFirst() {
+        let guards = RuleAssistantGuardSuggester.guards(for: "資料架", lexicon: lexicon)
+        #expect(guards == ["資料架設", "資料架子", "資料架構", "資料架上", "資料架構圖"])
+    }
+
+    @Test func capsAtSixAndSkipsNonCjkOrSingleCharacterSources() {
+        let many = RuleAssistantGuardSuggester.guards(for: "資料架") { prefix in
+            prefix == "架" ? (1...10).map { ("架\($0)", 1000 - $0) } : []
+        }
+        #expect(many.count == RuleAssistantGuardSuggester.maxGuards)
+        #expect(RuleAssistantGuardSuggester.guards(for: "modelarena", lexicon: lexicon).isEmpty)
+        #expect(RuleAssistantGuardSuggester.guards(for: "架", lexicon: lexicon).isEmpty)
+        #expect(RuleAssistantGuardSuggester.guards(for: "西賴 CLI", lexicon: lexicon).isEmpty)
+    }
+
+    @Test func withAutoGuardsAddsAndRemovesOnlyTheAutomaticOnes() {
+        let draft = RuleAssistantDraft(
+            eventType: "replacementRule", targetText: "資料夾", sourcePattern: "資料架",
+            negativeExamples: [RuleAssistantExample(text: "資料架構", context: "模型說的", expectedText: "資料架構")]
+        )
+        let on = RuleAssistantSession.withAutoGuards(draft, guards: ["資料架構", "資料架設"], enabled: true)
+        let onTexts: [String] = on.negativeExamples.map { $0.text }
+        #expect(onTexts == ["資料架構", "資料架設"])
+        let off = RuleAssistantSession.withAutoGuards(on, guards: ["資料架構", "資料架設"], enabled: false)
+        // The model-authored example (with context) survives; the automatic ones go.
+        let offTexts: [String] = off.negativeExamples.map { $0.text }
+        #expect(offTexts == ["資料架構"])
+        #expect(off.negativeExamples[0].context == "模型說的")
+    }
+}

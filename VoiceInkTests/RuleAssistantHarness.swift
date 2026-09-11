@@ -673,6 +673,7 @@ func makeRuleAssistantSession(
         installedSha256: String(repeating: "a", count: 64)
     ),
     neighbors: [RuleAssistantContext] = [],
+    guardSuggester: @escaping (String) -> [String] = { _ in [] },
     onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in }
 ) -> RuleAssistantSession {
     RuleAssistantSession(
@@ -683,6 +684,7 @@ func makeRuleAssistantSession(
         neighborLoader: { before, after in
             Array(neighbors.prefix(before + after))
         },
-        onCorrections: onCorrections
+        onCorrections: onCorrections,
+        guardSuggester: guardSuggester
     )
 }

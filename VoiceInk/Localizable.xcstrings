@@ -13254,6 +13254,36 @@
           }
         }
       }
+    },
+    "Added negative examples for longer words: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已為更長的詞加入反例：%@"
+          }
+        }
+      }
+    },
+    "Protect longer words automatically": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動保護更長的詞"
+          }
+        }
+      }
+    },
+    "A broad rule also fires inside longer words; these lexicon words are added as negative examples so the rule skips any sentence containing them.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "廣域規則也會在更長的詞裡面觸發；這些詞典裡的詞會當反例加入，整句含有它們時規則就不套用。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

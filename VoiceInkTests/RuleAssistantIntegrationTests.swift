@@ -942,6 +942,48 @@ struct RuleAssistantIntegrationTests {
         #expect(!RuleAssistantSession.needsQuestionNudge(answer: questionJSON(options: candidateOptions), kind: .scan))
     }
 
+    @Test func broadDraftGetsLexiconGuardsAndToggleRerunsTheCheck() async throws {
+        server.reset()
+        let broad = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "資料架", "targetText": "資料夾"])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server, guardSuggester: { $0 == "資料架" ? ["資料架構", "資料架設"] : [] })
+        await session.submit("資料架永遠是資料夾，整批換")
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        let entry = try #require(session.state.drafts.first)
+        #expect(entry.autoGuards == ["資料架構", "資料架設"])
+        #expect(entry.autoGuardsEnabled)
+        #expect(entry.draft.negativeExamples.map(\.text) == ["資料架構", "資料架設"])
+        #expect(entry.check?.ok == true)
+        let previews = server.toolCalls.filter { $0.name == "preview_auto_apply_control_event" }
+        #expect(previews.count == 1)
+        let negatives = previews.first?.args["negativeExamples"] as? [[String: Any]] ?? []
+        #expect(negatives.map { $0["text"] as? String } == ["資料架構", "資料架設"])
+        #expect(session.state.toolStatus.contains { $0.contains("資料架構") })
+        #expect(session.exportForReview(client: "t").contains("auto negative guards (on): 資料架構、資料架設"))
+        // Turning the guards off edits the draft and re-runs the Worker check on the bare rule.
+        await session.setAutoGuards(nonce: entry.draft.nonce, enabled: false)
+        let toggled = try #require(session.state.drafts.first)
+        #expect(!toggled.autoGuardsEnabled)
+        #expect(toggled.draft.negativeExamples.isEmpty)
+        #expect(toggled.check?.draftNonce == entry.draft.nonce)
+        #expect(session.state.phase == .draftReady)
+        let previewsAfter = server.toolCalls.filter { $0.name == "preview_auto_apply_control_event" }
+        #expect(previewsAfter.count == 2)
+        #expect((previewsAfter.last?.args["negativeExamples"] as? [[String: Any]])?.isEmpty ?? true)
+        #expect(session.exportForReview(client: "t").contains("auto negative guards (off)"))
+        // Exact corrections never get guards.
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: draftAnswer([correctionDraft("資料架在那", "資料夾在那")])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        await session.submit("只改這句")
+        #expect(session.state.drafts.first?.autoGuards.isEmpty == true)
+    }
+
     @Test func autoScanRunsOnceAndOnlyOnFreshConfiguredSession() async {
         server.reset()
         FakeGoProvider.reset(scripts: [

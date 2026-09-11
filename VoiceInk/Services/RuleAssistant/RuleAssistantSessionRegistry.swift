@@ -58,6 +58,15 @@ final class RuleAssistantSessionRegistry: ObservableObject {
             onCorrections: { [weak modelContext] _, json in
                 guard let modelContext else { return }
                 Self.writeCorrections(json, recordId: recordId, modelContext: modelContext)
+            },
+            guardSuggester: { source in
+                RuleAssistantGuardSuggester.guards(for: source) { prefix in
+                    VocoWordFrequencyLexicon.shared.words(
+                        withPrefix: prefix,
+                        minFrequency: RuleAssistantGuardSuggester.minFrequency,
+                        limit: RuleAssistantGuardSuggester.lookupLimit
+                    )
+                }
             }
         )
         self.session = session

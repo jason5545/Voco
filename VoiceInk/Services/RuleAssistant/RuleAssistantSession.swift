@@ -110,6 +110,9 @@ struct RuleAssistantDraftEntry: Equatable {
     var publishedSha256: String?
     /// Short per-draft result shown on its card (published / why it stopped).
     var outcome: String?
+    /// Longer lexicon words containing a broad rule's source, added as negative examples by the App.
+    var autoGuards: [String] = []
+    var autoGuardsEnabled = true
 }
 
 struct RuleAssistantUIState: Equatable {
@@ -219,6 +222,8 @@ final class RuleAssistantSession: ObservableObject {
     /// Loads records around the selected row (before, after), text fields only.
     private let neighborLoader: (_ before: Int, _ after: Int) -> [RuleAssistantContext]
     private let onCorrections: (RuleAssistantContext, String) -> Void
+    /// Longer lexicon words containing a broad source (see RuleAssistantGuardSuggester); empty in tests without a lexicon.
+    private let guardSuggester: (String) -> [String]
 
     private var provider: RuleAssistantProvider?
     private var mcp: RuleAssistantMCP?
@@ -238,7 +243,8 @@ final class RuleAssistantSession: ObservableObject {
         mcpFactory: @escaping () -> RuleAssistantMCP?,
         syncNow: @escaping () async -> RuleAssistantSyncResult,
         neighborLoader: @escaping (_ before: Int, _ after: Int) -> [RuleAssistantContext] = { _, _ in [] },
-        onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in }
+        onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in },
+        guardSuggester: @escaping (String) -> [String] = { _ in [] }
     ) {
         state = RuleAssistantUIState(context: context)
         self.providerFactory = providerFactory
@@ -246,6 +252,7 @@ final class RuleAssistantSession: ObservableObject {
         self.syncNow = syncNow
         self.neighborLoader = neighborLoader
         self.onCorrections = onCorrections
+        self.guardSuggester = guardSuggester
     }
 
     func setConfig(goKeyConfigured: Bool, syncConfigured: Bool) {
@@ -878,14 +885,94 @@ final class RuleAssistantSession: ObservableObject {
             state.phase = question != nil ? .idle : .failed(rejected.first ?? String(localized: "No confirmable draft."))
             return
         }
-        state.drafts = accepted.map { RuleAssistantDraftEntry(draft: $0) }
+        let entries = accepted.map { draft -> RuleAssistantDraftEntry in
+            var entry = RuleAssistantDraftEntry(draft: draft)
+            let guards = Self.autoGuards(for: draft, suggester: guardSuggester)
+            if !guards.isEmpty {
+                entry.autoGuards = guards
+                entry.draft = Self.withAutoGuards(draft, guards: guards, enabled: true)
+                status(String(localized: "Added negative examples for longer words: \(guards.joined(separator: "\u{3001}"))"))
+            }
+            return entry
+        }
+        state.drafts = entries
         state.phase = .checking
-        for draft in accepted {
-            let check = try await checkDraft(worker: worker, draft: draft)
+        for entry in entries {
+            let check = try await checkDraft(worker: worker, draft: entry.draft)
             try guardGeneration(gen)
-            updateEntry(nonce: draft.nonce) { $0.check = check }
+            updateEntry(nonce: entry.draft.nonce) { $0.check = check }
         }
         state.phase = .draftReady
+    }
+
+    // MARK: Automatic negative guards
+
+    /// Longer lexicon words that contain a broad draft's source(s), deduplicated, at most 8.
+    static func autoGuards(for draft: RuleAssistantDraft, suggester: (String) -> [String]) -> [String] {
+        guard draft.isBroad else { return [] }
+        let sources: [String]
+        if draft.eventType == "replacementFamily" {
+            sources = draft.aliases
+        } else {
+            sources = [draft.sourcePattern ?? ""]
+        }
+        var seen = Set<String>()
+        var guards: [String] = []
+        for source in sources where !source.isEmpty {
+            for word in suggester(source) where !seen.contains(word) {
+                seen.insert(word)
+                guards.append(word)
+            }
+        }
+        return Array(guards.prefix(8))
+    }
+
+    /// The draft with the automatic guards present (enabled) or removed (disabled); model-authored examples stay.
+    static func withAutoGuards(_ draft: RuleAssistantDraft, guards: [String], enabled: Bool) -> RuleAssistantDraft {
+        var updated = draft
+        let guardSet = Set(guards)
+        updated.negativeExamples.removeAll { guardSet.contains($0.text) && $0.context.isEmpty }
+        if enabled {
+            let existing = Set(updated.negativeExamples.map(\.text))
+            // isSafeForWrite allows at most 10 negative examples; never push the draft past it.
+            for word in guards where !existing.contains(word) && updated.negativeExamples.count < 10 {
+                updated.negativeExamples.append(RuleAssistantExample(text: word, context: "", expectedText: word))
+            }
+        }
+        return updated
+    }
+
+    /// Turn the automatic guards of one draft on or off; the Worker check re-runs on the edited draft.
+    func setAutoGuards(nonce: String, enabled: Bool) async {
+        let current = state
+        guard !current.phase.isBusy,
+              let entry = current.drafts.first(where: { $0.draft.nonce == nonce }),
+              !entry.consumed, !entry.autoGuards.isEmpty, entry.autoGuardsEnabled != enabled
+        else { return }
+        let gen = generation
+        let updated = Self.withAutoGuards(entry.draft, guards: entry.autoGuards, enabled: enabled)
+        updateEntry(nonce: nonce) {
+            $0.draft = updated
+            $0.autoGuardsEnabled = enabled
+            $0.check = nil
+        }
+        if mcp == nil { mcp = mcpFactory() }
+        guard let worker = mcp else {
+            updateEntry(nonce: nonce) { $0.check = RuleAssistantDraftCheck(draftNonce: nonce, preview: nil, duplicate: nil, blockedReason: String(localized: "The Worker sync key is not configured on this Mac.")) }
+            return
+        }
+        state.phase = .checking
+        do {
+            let check = try await checkDraft(worker: worker, draft: updated)
+            try guardGeneration(gen)
+            updateEntry(nonce: nonce) { $0.check = check }
+            state.phase = .draftReady
+        } catch is CancellationError {
+        } catch {
+            if gen != generation { return }
+            updateEntry(nonce: nonce) { $0.check = RuleAssistantDraftCheck(draftNonce: nonce, preview: nil, duplicate: nil, blockedReason: Self.message(of: error)) }
+            state.phase = .draftReady
+        }
     }
 
     /// Preview and duplicate-check the exact draft; Worker tool failures are reported as a blocked
@@ -1061,6 +1148,9 @@ final class RuleAssistantSession: ObservableObject {
                     out.append(line)
                 } else {
                     out.append("   check: not run")
+                }
+                if !entry.autoGuards.isEmpty {
+                    out.append("   auto negative guards (\(entry.autoGuardsEnabled ? "on" : "off")): \(entry.autoGuards.joined(separator: "\u{3001}"))")
                 }
                 out.append("   consumed=\(entry.consumed)" + (entry.publishedSha256.map { " publishedSha=\($0.prefix(12))" } ?? "") + (entry.outcome.map { " outcome=\($0)" } ?? ""))
                 out.append("   worker args: \(RAJSON.serialize(draft.toPreviewArguments(context: state.context)))")
@@ -1242,6 +1332,7 @@ final class RuleAssistantSession: ObservableObject {
         - Single-character speech restarts (A+AB such as 資資料, 可可以, 我我們, 綜綜上所述) are collapsed on every device by the runtime rule runtime.single-prefix-restart-collapse; never propose replacementRule, replacementFamily, moveAliasToFamily, or family tags for that shape, and never add them to speech-partial-restart-overlap. If the runtime rule missed one, propose a whole-utterance correction for this record only and say the runtime rule did not cover it.
         - For interrupted/self-repair speech, do not propose a rule unless Jason confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when Jason confirms it.
+        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan.
         - Do not ask for audio, file paths, or other history; only this record and this chat exist.
         - Do not print connector auth keys or URLs.
 

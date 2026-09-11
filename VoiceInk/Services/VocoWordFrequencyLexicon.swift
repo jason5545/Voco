@@ -26,6 +26,42 @@ final class VocoWordFrequencyLexicon: @unchecked Sendable {
         loadedTable()[word] ?? 0
     }
 
+    /// Lexicon words that start with `prefix` (longer than it), most frequent first.
+    /// Binary search over a lazily built sorted word list, so repeated lookups are cheap.
+    func words(withPrefix prefix: String, minFrequency: Int, limit: Int) -> [(word: String, frequency: Int)] {
+        guard !prefix.isEmpty, limit > 0 else { return [] }
+        let table = loadedTable()
+        let sorted = sortedWords()
+        var low = 0
+        var high = sorted.count
+        while low < high {
+            let mid = (low + high) / 2
+            if sorted[mid] < prefix { low = mid + 1 } else { high = mid }
+        }
+        var hits: [(word: String, frequency: Int)] = []
+        var index = low
+        while index < sorted.count, sorted[index].hasPrefix(prefix) {
+            let word = sorted[index]
+            if word.count > prefix.count, let frequency = table[word], frequency >= minFrequency {
+                hits.append((word, frequency))
+            }
+            index += 1
+        }
+        hits.sort { $0.frequency == $1.frequency ? $0.word < $1.word : $0.frequency > $1.frequency }
+        return Array(hits.prefix(limit))
+    }
+
+    private var sortedWordsCache: [String]?
+
+    private func sortedWords() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let sortedWordsCache { return sortedWordsCache }
+        let words = (table ?? [:]).keys.sorted()
+        sortedWordsCache = words
+        return words
+    }
+
     private func loadedTable() -> [String: Int] {
         lock.lock()
         defer { lock.unlock() }
