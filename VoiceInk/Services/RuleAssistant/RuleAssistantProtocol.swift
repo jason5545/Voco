@@ -294,6 +294,19 @@ struct RuleAssistantQuestion: Equatable {
             if (detail?.count ?? 0) > maxLabelChars || (surface?.count ?? 0) > maxLabelChars || (target?.count ?? 0) > maxLabelChars {
                 return nil
             }
+            // Way-out/placeholder options are plain options even when the model attaches
+            // misleading candidate fields. Demote them before candidate de-duplication.
+            if let candidateTarget = target {
+                let trimmedTarget = candidateTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+                let wrappedInParentheses = (trimmedTarget.hasPrefix("（") && trimmedTarget.hasSuffix("）"))
+                    || (trimmedTarget.hasPrefix("(") && trimmedTarget.hasSuffix(")"))
+                let isPlaceholder = trimmedTarget.contains("請")
+                    && (trimmedTarget.contains("說明") || trimmedTarget.contains("補充"))
+                if wrappedInParentheses || (surface.map { trimmedTarget == $0 } ?? false) || isPlaceholder {
+                    surface = nil
+                    target = nil
+                }
+            }
             // One option per suspected surface: the App asks the scope itself, so a second option with
             // the same surface → target (e.g. one per scope) would only duplicate the scope picker.
             if let surface, let target, options.contains(where: { $0.surface == surface && $0.target == target }) {

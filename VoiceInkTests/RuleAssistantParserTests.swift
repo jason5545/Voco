@@ -3,6 +3,43 @@ import Testing
 @testable import Voco
 
 @Suite(.serialized)
+struct RuleAssistantQuestionCandidateParsingTests {
+    @Test func exportedFindIssuesQuestionDemotesWayOutCandidates() {
+        let parsed = RuleAssistantQuestion.parse([
+            "question": [
+                "id": "q1",
+                "prompt": "這筆哪些地方是錯的？",
+                "multiSelect": true,
+                "options": [
+                    ["id": "a", "label": "再做", "surface": "時坐", "target": "再做"],
+                    ["id": "b", "label": "時再坐", "surface": "時坐", "target": "時再坐"],
+                    ["id": "c", "label": "先", "surface": "時坐", "target": "先"],
+                    ["id": "d", "label": "整句都不是，我來說", "surface": "整句", "target": "（請在補充裡說明原句）"],
+                    ["id": "e", "label": "這筆沒錯"],
+                ],
+            ] as [String: Any],
+        ])
+
+        #expect(parsed?.options.count == 5)
+        #expect(parsed?.options.map(\.id) == ["a", "b", "c", "d", "e"])
+        #expect(parsed?.options.prefix(3).allSatisfy(\.isCandidate) == true)
+        #expect(parsed?.options.dropFirst(3).allSatisfy { !$0.isCandidate && $0.surface == nil && $0.target == nil } == true)
+    }
+
+    @Test func targetEqualToSurfaceIsDemotedToPlainOption() {
+        let parsed = RuleAssistantQuestion.parse([
+            "prompt": "?",
+            "options": [["id": "a", "label": "原字", "surface": "原字", "target": " 原字 "]],
+        ])
+
+        #expect(parsed?.options.count == 1)
+        #expect(parsed?.options[0].isCandidate == false)
+        #expect(parsed?.options[0].surface == nil)
+        #expect(parsed?.options[0].target == nil)
+    }
+}
+
+@Suite(.serialized)
 struct RuleAssistantSseParserTests {
     private func collect(_ chunks: [String], finish: Bool = true) throws -> [SseEvent] {
         var events: [SseEvent] = []
