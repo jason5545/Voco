@@ -21,6 +21,17 @@ struct RuleAssistantIntegrationTests {
         ])
     }
 
+    private func tombstoneDraft(policyId: String) -> String {
+        RuleAssistantTestJSON.string([
+            "eventType": "tombstone",
+            "policyId": policyId,
+            "sourcePattern": "考迪",
+            "targetText": "口技",
+            "disposition": "replaced",
+            "reason": "使用者說實際是「口吃」",
+        ])
+    }
+
     private func draftAnswer(_ drafts: [String]) -> String {
         "我建議：\n" + drafts.joined(separator: "\n")
     }
@@ -214,6 +225,67 @@ struct RuleAssistantIntegrationTests {
         // Confirm is gated: nothing was written, phase unchanged.
         #expect(!server.toolCalls.contains { $0.name == "add_auto_apply_correction" })
         #expect(session.state.phase == .draftReady)
+    }
+
+    /// The Worker's duplicate check answers a tombstone with the policy it retires (alreadyApplied=true,
+    /// duplicatePolicy=1): that is the rule the user wants gone, not a reason to block (2026/9/11 export).
+    @Test func tombstoneIsNotBlockedByThePolicyItRetires() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                #expect(args["eventType"] as? String == "tombstone")
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["alreadyApplied"] = true
+                duplicate["duplicatePolicy"] = ["found": true, "count": 1, "matches": [["policyId": "manual-replacement-40ff6d15720178e4"]]]
+                return .result(duplicate)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstoneDraft(policyId: "manual-replacement-40ff6d15720178e4")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("考迪 → 口技 這條規則是錯的，停掉")
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        let entry = session.state.drafts[0]
+        #expect(entry.draft.eventType == "tombstone")
+        #expect(entry.check?.blockedReason == nil)
+        #expect(session.state.canConfirm(entry))
+        await session.confirm()
+        #expect(server.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" })
+        #expect(session.state.drafts[0].consumed)
+    }
+
+    @Test func duplicateTombstoneEventStillBlocksConfirm() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["alreadyApplied"] = true
+                duplicate["duplicatePolicy"] = ["found": true, "count": 1]
+                duplicate["duplicateEvent"] = ["found": true, "count": 1, "events": [["eventId": "evt-old-tombstone"]]]
+                return .result(duplicate)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstoneDraft(policyId: "manual-replacement-40ff6d15720178e4")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("停掉 考迪 → 口技")
+        #expect(session.state.drafts[0].check?.blockedReason != nil)
+        #expect(!session.state.canConfirm)
+        await session.confirm()
+        #expect(!server.toolCalls.contains { $0.name == "tombstone_auto_apply_rule" })
     }
 
     @Test func duplicateBlocksConfirm() async {

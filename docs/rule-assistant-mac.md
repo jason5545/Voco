@@ -125,6 +125,24 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   `withAutoGuards` 只增刪自動反例）；`RuleAssistantIntegrationTests` 加匯出內容與 UI state、催促一次
   與催促後仍無題目、手動回合不催、廣域草稿自動反例與開關重跑檢查、任何語境預覽。
 
+## tombstone 查重語意（2026-09-11，實機匯出）
+
+- 症狀：使用者說「考迪 → 口技」其實是「口吃」，模型正確開了 tombstone＋correction 兩張草稿，
+  但 tombstone 卡被 App 擋成「目前 Worker 模型已套用這條規則，不需要再寫入」，確認鈕停用，
+  規則停不掉。
+- 原因：Worker 的 `detect_duplicate_control_event` 對 disableRule 回的 `duplicatePolicy` 與
+  `alreadyApplied` 描述的是「要停掉的那條規則」（它存在、而且來自 overlay），不是「同樣的
+  tombstone 已寫過」；只有 `duplicateEvent`（shape key 含 action）才代表重複的 tombstone。
+  `checkDraft` 原本對所有事件一律用 `alreadyApplied` 擋寫，對 tombstone 剛好相反。
+- 修法（App 端，Worker 不動）：`RuleAssistantDuplicate.alreadyWritten(eventType:)`，tombstone
+  只看 `duplicateEvents > 0`，其他事件維持 `found`。`checkDraft` 的 tombstone 分支只在有相同事件時
+  擋；已停掉的規則由 preview 的 `wouldPublish=false` 擋。寫入回應遺失時的「查到就標記已消耗」
+  也改用同一個判斷，避免 tombstone 在規則尚未移除時被誤判為已寫入。
+- 測試：`RuleAssistantIntegrationTests` 加 `tombstoneIsNotBlockedByThePolicyItRetires`
+  （alreadyApplied=true＋duplicatePolicy=1 仍可確認並呼叫 `tombstone_auto_apply_rule`）與
+  `duplicateTombstoneEventStillBlocksConfirm`。Android 同步（`RuleAssistantSession.kt`、
+  `RuleAssistantHttpIntegrationTest`）。
+
 ## 本機規則覆蓋（coverage）
 
 2026-09-10 加入。Worker 收據（`RowCorrectionMarkings`）綁的是 row 身分（platform + rowPk +

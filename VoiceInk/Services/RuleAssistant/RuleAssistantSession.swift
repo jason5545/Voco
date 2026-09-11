@@ -103,6 +103,13 @@ struct RuleAssistantDuplicate: Equatable {
 
     var found: Bool { alreadyApplied || duplicatePolicies > 0 || duplicateEvents > 0 }
 
+    /// Whether the Worker already holds this exact event. For add events any match counts. For a
+    /// tombstone the Worker's duplicatePolicy / alreadyApplied describe the rule being retired (it has
+    /// to exist for the tombstone to do anything), so only an identical tombstone event counts.
+    func alreadyWritten(eventType: String) -> Bool {
+        eventType == "tombstone" ? duplicateEvents > 0 : found
+    }
+
     init(json: [String: Any]) {
         alreadyApplied = json.raBool("alreadyApplied")
         if let policy = json.raDict("duplicatePolicy") {
@@ -653,7 +660,7 @@ final class RuleAssistantSession: ObservableObject {
                 }
                 let after = try? await worker.call("detect_duplicate_control_event", args: previewArgs)
                 let duplicate = after.map { RuleAssistantDuplicate(json: $0) }
-                if duplicate?.found == true {
+                if duplicate?.alreadyWritten(eventType: draft.eventType) == true {
                     updateEntry(nonce: draft.nonce) { $0.consumed = true }
                     throw RuleAssistantFailure(String(localized: "The Worker write response was lost, but the duplicate check shows the rule already exists; it was not resent. Use Resync Mac model shortly to confirm the Mac model."))
                 }
@@ -1061,6 +1068,14 @@ final class RuleAssistantSession: ObservableObject {
             blocked = String(localized: "Conflicts with existing rules (\(preview.conflicts)): \(preview.reason ?? String(localized: "Retire the conflicting rule or narrow the scope first"))")
         } else if !preview.wouldPublish {
             blocked = String(localized: "The Worker preview says this would not change the model: \(preview.reason ?? "")")
+        } else if let duplicate, draft.eventType == "tombstone" {
+            // The policy match is the rule this tombstone retires, not a duplicate; a second identical
+            // tombstone event is the only thing to refuse (an already retired rule fails preview above).
+            if duplicate.duplicateEvents > 0 {
+                blocked = String(localized: "The Worker already has an identical event (\(duplicate.duplicateEvents)); not writing again.")
+            } else {
+                blocked = nil
+            }
         } else if let duplicate {
             if duplicate.alreadyApplied {
                 blocked = String(localized: "This rule is already applied in the current Worker model; no need to write it again.")
