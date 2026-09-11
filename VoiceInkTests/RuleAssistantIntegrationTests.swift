@@ -889,7 +889,7 @@ struct RuleAssistantIntegrationTests {
         #expect(export.contains("[assistant → tool] lookup_auto_apply_policy({\"sourceText\":\"小振\"}) id=call_1"))
         #expect(export.contains("[tool call_1] "))
         #expect(export.contains("[system] (system prompt, "))
-        #expect(!export.contains("You help Jason maintain"))
+        #expect(!export.contains("You help the user maintain"))
         #expect(export.contains("選擇：[a] 小振 → 小鎮（範圍：語境限定）"))
         #expect(export.contains("## UI state (what the card actually shows)"))
         #expect(export.contains("- no pending question (no interactive card)"))
