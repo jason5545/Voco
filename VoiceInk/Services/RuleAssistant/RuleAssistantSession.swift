@@ -1140,7 +1140,7 @@ final class RuleAssistantSession: ObservableObject {
             for (index, entry) in state.drafts.enumerated() {
                 let draft = entry.draft
                 var head = "\(index + 1). \(draft.eventType)"
-                if let source = draft.sourceText ?? draft.sourcePattern { head += ": \(source)" }
+                if let source = draft.sourcePattern ?? draft.sourceText { head += ": \(source)" }
                 if !draft.aliases.isEmpty { head += " [\(draft.aliases.joined(separator: "、"))]" }
                 if let target = draft.targetText { head += " → \(target)" }
                 out.append(head)
@@ -1339,6 +1339,8 @@ final class RuleAssistantSession: ObservableObject {
         - Never create broad replacements for common words that the user might intentionally use.
         - Never alter Voco action commands such as 全部刪除.
         - Single-character speech restarts (A+AB such as 資資料, 可可以, 我我們, 綜綜上所述) are collapsed on every device by the runtime rule runtime.single-prefix-restart-collapse; never propose replacementRule, replacementFamily, moveAliasToFamily, or family tags for that shape, and never add them to speech-partial-restart-overlap. If the runtime rule missed one, propose a whole-utterance correction for this record only and say the runtime rule did not cover it.
+        - The runtime rule deliberately skips protected onsets: numerals, structural particles (的得地了), the modal 要, kinship and onomatopoeia reduplications, and everyday monosyllabic verbs (吃, 說, 打, 按, 加 ...), because V+V+O such as 按按鈕 or 吃吃飯 is natural speech. An uncollapsed A+AB with such an onset is not a runtime miss; never say the runtime rule did not cover it. If the user confirms it is a restart, fold the adjacent classifier or prefix into a literal sourcePattern (一個按按鈕 → 一個按鈕), never a bare A+AB replacement.
+        - contextTokensAny / contextAliasesAny on a contextLockedRule match anywhere in the utterance or its context, not adjacency: a lock on 一個 also fires on 我有一個問題，你先按按鈕. When the distinguishing cue is the word immediately before or after the surface, put that word into the literal sourcePattern (and targetText) as well, and keep the token in contextTokensAny.
         - For interrupted/self-repair speech, do not propose a rule unless the user confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when the user confirms it.
         - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan.
