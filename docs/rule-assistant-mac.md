@@ -125,6 +125,27 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   `withAutoGuards` 只增刪自動反例）；`RuleAssistantIntegrationTests` 加匯出內容與 UI state、催促一次
   與催促後仍無題目、手動回合不催、廣域草稿自動反例與開關重跑檢查、任何語境預覽。
 
+## 已修好就停（2026-09-11）
+
+- 新規則：find-issues 回合先看 `runtimeReplay`。`changed` 為 true（`fires` 不為空）就直接回
+  「看起來現行規則已經修好了」，列出每個 fire 的 sourcePattern → targetText，附一題只有兩個
+  way-out 選項（「好，不用改」／「還有別的錯，我來說」）的 question，然後停手：不再找其他可疑處、
+  不查工具、不出草稿。`changed` 為 false 或 `runtimeReplay` 為 null 才跑原本的整筆掃描。
+- 為什麼：`runtimeReplay` 剛加進來時（c48ddec7）prompt 寫的是「已被 fires 命中或 outputText
+  已修好的地方不列為候選」。那等於叫模型把修好的部分排除掉、繼續在剩下的文字裡找，找不到也要
+  擠出候選，結果是 overthink：一筆現行規則已經完全修好的紀錄，模型還會硬湊出不成立的可疑處。
+- 為什麼一定附 question：`RuleAssistantSession.missingJSONNudge` 對 scan 回合沒 question 也沒
+  草稿會再送一次 `questionNudgePrompt`。回答裡不帶 question JSON 就會多繞一輪模型呼叫，使用者也
+  多等一次。所以 scanPrompt 與 system prompt 都明講要附那一題。
+- 使用者要補別的需求，走輸入框或補充欄，那一則當成一般說明處理（Core behavior 的 `runtimeReplay`
+  條目也補了這句：說明指到 replay 已經命中的 surface 時，直接說現行 runtime 已修好、不出草稿）。
+- 兩端字串一致（`RuleAssistantSession.scanPrompt` / `SCAN_PROMPT`、`systemPrompt` / `SYSTEM_PROMPT`），
+  只差平台詞。
+- 測試：`RuleAssistantIntegrationTests.scanStopsWhenTheRuntimeReplayAlreadyFixedTheRecord`
+  （provider 只收到一次請求、沒有草稿、pendingQuestion 兩個選項且都沒有 surface／target、
+  phase 回 idle、transcript 不含 JSON，另外斷言兩份 prompt 含新句子）；Android 同名測試在
+  `RuleAssistantHttpIntegrationTest`。
+
 ## tombstone 查重語意（2026-09-11，實機匯出）
 
 - 症狀：使用者說「考迪 → 口技」其實是「口吃」，模型正確開了 tombstone＋correction 兩張草稿，

@@ -1082,6 +1082,69 @@ struct RuleAssistantIntegrationTests {
         #expect(lastUserMessage(0).contains("請找出可疑之處"))
     }
 
+    @Test func scanStopsWhenTheRuntimeReplayAlreadyFixedTheRecord() async {
+        server.reset()
+        let wayOut = questionJSON(
+            id: "q1",
+            multiSelect: false,
+            options: [
+                ["id": "a", "label": "好，不用改"],
+                ["id": "b", "label": "還有別的錯，我來說"],
+            ]
+        )
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: "看起來現行規則已經修好了：麥克積塊 → 麥克雞塊\n```json\n" + wayOut + "\n```"),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(
+            server: server,
+            context: RuleAssistantContext(
+                rowPk: 24208,
+                timestampMs: 1_700_000_000_000,
+                rawTranscript: "麥克積塊也是一個產品名",
+                text: "麥克積塊也是一個產品名",
+                autoApplyModelVersion: "2026-09-11-overlay",
+                runtimeReplay: RuleAssistantRuntimeReplay(
+                    inputText: "麥克積塊也是一個產品名",
+                    outputText: "麥克雞塊也是一個產品名",
+                    fires: [
+                        RuleAssistantRuntimeFire(
+                            policyId: "manual-replacement-1ad7a8372aeedcbc",
+                            policyType: "scopedReplacement",
+                            sourcePattern: "麥克積塊",
+                            targetText: "麥克雞塊"
+                        ),
+                    ],
+                    modelVersion: "2026-09-11-overlay"
+                )
+            )
+        )
+        await session.submitScan()
+        // One round only: the answer already carries the question, so no questionNudge follows.
+        #expect(FakeGoProvider.recorded.count == 1)
+        #expect(session.state.drafts.isEmpty)
+        #expect(session.state.phase == .idle)
+        let question = session.state.pendingQuestion
+        #expect(question?.id == "q1")
+        #expect(question?.multiSelect == false)
+        #expect(question?.options.map(\.id) == ["a", "b"])
+        #expect(question?.options.allSatisfy { $0.surface == nil && $0.target == nil } == true)
+        #expect(question?.options.allSatisfy { !$0.isCandidate } == true)
+        let assistant = session.state.transcript.last
+        #expect(assistant?.role == "assistant")
+        #expect(assistant?.text == "看起來現行規則已經修好了：麥克積塊 → 麥克雞塊")
+        #expect(assistant?.text.contains("json") == false)
+        #expect(assistant?.question?.id == "q1")
+        // The App loads the row's corrections itself; the model looked nothing up.
+        #expect(server.toolCalls.allSatisfy { $0.name == "get_auto_apply_row_corrections" })
+        // The prompts carry the already-fixed stop rule.
+        #expect(RuleAssistantSession.scanPrompt.contains("changed 為 true"))
+        #expect(RuleAssistantSession.scanPrompt.contains("好，不用改"))
+        #expect(RuleAssistantSession.systemPrompt.contains("treat it as already fixed"))
+    }
+
     @Test func choiceReplyCarriesSelectionsAndBlocksUnscopedBroadDraft() async {
         server.reset()
         let broad = RuleAssistantTestJSON.string([
