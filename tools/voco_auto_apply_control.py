@@ -64,6 +64,7 @@ WORKER_CONTROL_WRITE_TOOLS = {
     "addReplacementRule": "add_auto_apply_replacement_rule",
     "addReplacementFamily": "add_auto_apply_replacement_family",
     "disableRule": "tombstone_auto_apply_rule",
+    "deleteFamily": "delete_auto_apply_family",
 }
 WORKER_CONTROL_EVENT_TYPES = {
     "addCorrection": "correction",
@@ -71,6 +72,7 @@ WORKER_CONTROL_EVENT_TYPES = {
     "addReplacementRule": "replacementRule",
     "addReplacementFamily": "replacementFamily",
     "disableRule": "tombstone",
+    "deleteFamily": "deleteFamily",
 }
 RUNTIME_INDEX_FIELD_KEYS = (
     "modelFormat",
@@ -564,6 +566,12 @@ def parse_args() -> argparse.Namespace:
     disable.add_argument("--disposition", choices=["blocked", "replaced"], default="replaced")
     add_cloud_control_args(disable)
 
+    delete_family = subparsers.add_parser("deleteFamily")
+    delete_family.add_argument("--family-id", required=True)
+    delete_family.add_argument("--reason", required=True)
+    delete_family.add_argument("--note")
+    add_cloud_control_args(delete_family)
+
     list_evidence = subparsers.add_parser("listEvidence")
     list_evidence.add_argument("--limit", type=int, default=20)
 
@@ -752,6 +760,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any] | None:
         return inspect_policy_family(args.model.expanduser(), args.family_id)
     if args.command == "disableRule":
         return handle_control_event_command(args, disable_rule_event(args))
+    if args.command == "deleteFamily":
+        return handle_control_event_command(args, delete_family_event(args))
     if args.command == "listEvidence":
         evidence_store = evidence_store_path_from_args(args)
         events = load_events(evidence_store)
@@ -1413,6 +1423,19 @@ def disable_rule_event(args: argparse.Namespace) -> dict[str, Any]:
     return make_event(args.actor, "disableRule", payload)
 
 
+def delete_family_event(args: argparse.Namespace) -> dict[str, Any]:
+    family_id = str(args.family_id).strip()
+    validate_family_id(family_id)
+    reason = str(args.reason or "").strip()
+    if not reason:
+        raise SystemExit("deleteFamily requires --reason")
+    payload: dict[str, Any] = {"familyId": family_id, "reason": reason}
+    note = str(args.note or "").strip()
+    if note:
+        payload["note"] = note
+    return make_event(args.actor, "deleteFamily", payload)
+
+
 def make_event(actor: str, action: str, payload: dict[str, Any]) -> dict[str, Any]:
     created_at = now_iso()
     digest = short_digest(json.dumps(payload, ensure_ascii=False, sort_keys=True) + created_at)
@@ -1538,6 +1561,10 @@ def worker_control_tool_arguments(event: dict[str, Any], *, include_event_type: 
         copy_present(tombstone, args, ["policyId", "sourcePattern", "targetText", "reason", "disposition"])
         return args
 
+    if action == "deleteFamily":
+        copy_present(payload, args, ["familyId", "reason", "note"])
+        return args
+
     raise SystemExit(f"Unsupported Worker control action: {action}")
 
 
@@ -1579,6 +1606,7 @@ def is_reconcilable_worker_control_event(event: dict[str, Any]) -> bool:
             "addReplacementRule",
             "addReplacementFamily",
             "disableRule",
+            "deleteFamily",
         }
         and isinstance(event.get("payload"), dict)
         and bool(str(event.get("eventId") or "").strip())
@@ -3062,6 +3090,8 @@ def compile_model(
     tombstone_count = 0
     family_tag_count = 0
     family_tag_misses: list[dict[str, Any]] = []
+    family_delete_count = 0
+    family_delete_misses: list[dict[str, Any]] = []
 
     for event in applied_events:
         action = str(event.get("action") or "")
@@ -3086,6 +3116,11 @@ def compile_model(
         elif action in {"disableRule", "addHallucination"}:
             tombstone = payload.get("tombstone") if isinstance(payload.get("tombstone"), dict) else {}
             tombstone_count += tombstone_matching_policies(policies, tombstone, event)
+        elif action == "deleteFamily":
+            delete_result = delete_family_purge(policies, payload, event)
+            family_delete_count += int(delete_result["purgedPolicyCount"])
+            if delete_result["activePolicyCount"] or not delete_result["purgedPolicyCount"]:
+                family_delete_misses.append(delete_result)
 
     model["policies"] = policies
     model["policyCounts"] = dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in policies))
@@ -3122,6 +3157,9 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "familyDeleteCount": family_delete_count,
+        "familyDeleteMissCount": len(family_delete_misses),
+        "familyDeleteMisses": family_delete_misses,
         "legacyPolicyIdBackfillCount": legacy_policy_id_backfill_count,
     }
     unmatched_policy_id_only_tombstones = policy_id_only_tombstones_unmatched(events, policies)
@@ -3143,6 +3181,9 @@ def compile_model(
         "familyTagCount": family_tag_count,
         "familyTagMissCount": len(family_tag_misses),
         "familyTagMisses": family_tag_misses,
+        "familyDeleteCount": family_delete_count,
+        "familyDeleteMissCount": len(family_delete_misses),
+        "familyDeleteMisses": family_delete_misses,
         "legacyPolicyIdBackfillCount": legacy_policy_id_backfill_count,
         "policyIdOnlyTombstonesUnmatched": unmatched_policy_id_only_tombstones,
         "runtimeIndexRepair": runtime_index_repair,
@@ -3771,6 +3812,52 @@ def family_selector_matches_policy(payload: dict[str, Any], policy: dict[str, An
     return False
 
 
+def delete_family_purge(
+    policies: list[dict[str, Any]],
+    payload: dict[str, Any],
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    """Delete an emptied replacement family from the canonical policy table.
+
+    Only retired policies (tombstoned or non-apply) tagged with the family are purged, so a family
+    that still has an active alias is never deleted; the surviving active count is reported so the
+    compile log can flag the miss. controlPlaneFamilies is recomputed from the surviving policies
+    afterwards, so a fully purged family drops out of the summary on its own.
+    """
+    family_id = str(payload.get("familyId") or "").strip()
+    if not family_id:
+        return {
+            "eventId": event.get("eventId"),
+            "familyId": None,
+            "purgedPolicyCount": 0,
+            "purgedPolicyIds": [],
+            "activePolicyCount": 0,
+            "activePolicyIds": [],
+        }
+    purged_policy_ids: list[str] = []
+    active_policy_ids: list[str] = []
+    kept: list[dict[str, Any]] = []
+    for policy in policies:
+        if str(policy.get("familyId") or "").strip() != family_id:
+            kept.append(policy)
+            continue
+        retired = isinstance(policy.get("tombstone"), dict) or str(policy.get("autoApplyMode") or "") != "apply"
+        if retired:
+            purged_policy_ids.append(str(policy.get("policyId") or ""))
+        else:
+            active_policy_ids.append(str(policy.get("policyId") or ""))
+            kept.append(policy)
+    policies[:] = kept
+    return {
+        "eventId": event.get("eventId"),
+        "familyId": family_id,
+        "purgedPolicyCount": len(purged_policy_ids),
+        "purgedPolicyIds": sorted(policy_id for policy_id in purged_policy_ids if policy_id),
+        "activePolicyCount": len(active_policy_ids),
+        "activePolicyIds": sorted(policy_id for policy_id in active_policy_ids if policy_id),
+    }
+
+
 def policy_family_summary(policies: list[dict[str, Any]]) -> dict[str, Any]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for policy in policies:
@@ -3791,9 +3878,16 @@ def summarize_policy_family(family_id: str, policies: list[dict[str, Any]]) -> d
         set(str(policy.get("targetText") or policy.get("target") or "") for policy in policies if str(policy.get("targetText") or policy.get("target") or "").strip())
     )
     policy_ids = sorted(str(policy.get("policyId") or "") for policy in policies if str(policy.get("policyId") or "").strip())
+    active_policy_count = sum(
+        1
+        for policy in policies
+        if str(policy.get("autoApplyMode") or "") == "apply" and not isinstance(policy.get("tombstone"), dict)
+    )
     return {
         "familyId": family_id,
         "policyCount": len(policies),
+        "activePolicyCount": active_policy_count,
+        "isEmpty": active_policy_count == 0,
         "autoApplyModeCounts": dict(Counter(str(policy.get("autoApplyMode") or "unknown") for policy in policies)),
         "policyTypeCounts": dict(Counter(str(policy.get("policyType") or "unknown") for policy in policies)),
         "familyRoleCounts": dict(Counter(str(policy.get("familyRole") or "unknown") for policy in policies)),
@@ -4185,6 +4279,20 @@ def family_metadata_failures_for_model(model: dict[str, Any]) -> list[dict[str, 
                 "passed": False,
             }
         )
+    for miss in control_plane.get("familyDeleteMisses") or []:
+        # Only a delete blocked by surviving active aliases is a failure; an idempotent
+        # re-delete that finds nothing left to purge is benign and must not block a release.
+        if int(miss.get("activePolicyCount") or 0) > 0:
+            failures.append(
+                {
+                    "kind": "familyDeleteBlockedByActivePolicies",
+                    "eventId": miss.get("eventId"),
+                    "familyId": miss.get("familyId"),
+                    "activePolicyCount": miss.get("activePolicyCount"),
+                    "activePolicyIds": miss.get("activePolicyIds") or [],
+                    "passed": False,
+                }
+            )
     for policy in model.get("policies") or []:
         family_id = str(policy.get("familyId") or "").strip()
         if family_id and not FAMILY_ID_RE.match(family_id):
@@ -4206,7 +4314,8 @@ def policy_count_report(model: dict[str, Any], base_model: dict[str, Any] | None
     base_total = len(base_model.get("policies") or [])
     new_total = len(model.get("policies") or [])
     tombstones = int(((model.get("controlPlane") or {}).get("tombstoneCount") or 0))
-    if new_total < base_total and tombstones == 0:
+    family_deletes = int(((model.get("controlPlane") or {}).get("familyDeleteCount") or 0))
+    if new_total < base_total and tombstones == 0 and family_deletes == 0:
         failures.append(
             {
                 "kind": "policyCountRegression",
@@ -4219,6 +4328,7 @@ def policy_count_report(model: dict[str, Any], base_model: dict[str, Any] | None
         "baseTotalPolicies": base_total,
         "newTotalPolicies": new_total,
         "tombstoneCount": tombstones,
+        "familyDeleteCount": family_deletes,
         "failures": failures,
     }
 

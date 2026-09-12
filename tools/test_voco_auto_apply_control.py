@@ -1401,6 +1401,129 @@ class VocoAutoApplyControlTests(unittest.TestCase):
             self.assertEqual(control.replay_apply_policies("LISA", "", model["policies"])[0], "LiSA")
             self.assertEqual(control.replay_apply_policies("麗紗", "", model["policies"])[0], "LiSA")
 
+    def test_delete_family_purges_emptied_family_and_blocks_active_delete(self):
+        def family_event() -> dict:
+            return control.replacement_family_event(
+                Namespace(
+                    actor="test",
+                    family_id="lisa-orthography",
+                    target_text="LiSA",
+                    alias=["lisa", "LISA", "麗紗"],
+                    rule_name_prefix=None,
+                    allow_strict_equivalent_alias=True,
+                    row_pk=14759,
+                    positive=[],
+                    negative=[],
+                    note="LiSA casing and kanji aliases.",
+                )
+            )
+
+        def delete_event(reason: str) -> dict:
+            return control.delete_family_event(
+                Namespace(actor="test", family_id="lisa-orthography", reason=reason, note=None)
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / "base.json"
+            base.write_text(json.dumps(tiny_base_model()), encoding="utf-8")
+            model_path = root / "compiled/full-db.auto-apply-model.json"
+
+            # 1. Retire every alias, then delete the emptied family: it is fully purged and stays valid.
+            evidence = root / "evidence.jsonl"
+            control.append_event(evidence, family_event())
+            first_model, _report = control.compile_model(
+                control.load_model(base),
+                control.load_events(evidence),
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            family_policy_ids = sorted(
+                str(policy["policyId"])
+                for policy in first_model["policies"]
+                if str(policy.get("familyId") or "") == "lisa-orthography"
+            )
+            self.assertEqual(len(family_policy_ids), 3)
+            for policy_id in family_policy_ids:
+                control.append_event(
+                    evidence,
+                    control.disable_rule_event(
+                        Namespace(
+                            actor="test",
+                            policy_id=policy_id,
+                            source_pattern=None,
+                            target_text=None,
+                            reason="moved out of lisa-orthography",
+                            disposition="replaced",
+                        )
+                    ),
+                )
+            control.append_event(evidence, delete_event("family emptied"))
+            events = control.load_events(evidence)
+            model, report = control.compile_model(
+                control.load_model(base),
+                events,
+                base_model_path=base,
+                evidence_store=evidence,
+            )
+            control.write_model(model_path, model)
+            validation = control.validate_model(
+                model,
+                events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            self.assertEqual(report["familyDeleteCount"], 3)
+            self.assertEqual(report["familyDeleteMissCount"], 0)
+            self.assertNotIn("lisa-orthography", model.get("controlPlaneFamilies") or {})
+            self.assertFalse(
+                any(str(policy.get("familyId") or "") == "lisa-orthography" for policy in model["policies"])
+            )
+            self.assertTrue(validation["ready"])
+
+            # 2. Deleting a family that still has active aliases is refused and fails validation.
+            blocked_evidence = root / "blocked.jsonl"
+            control.append_event(blocked_evidence, family_event())
+            control.append_event(blocked_evidence, delete_event("not emptied first"))
+            blocked_events = control.load_events(blocked_evidence)
+            blocked_model, blocked_report = control.compile_model(
+                control.load_model(base),
+                blocked_events,
+                base_model_path=base,
+                evidence_store=blocked_evidence,
+            )
+            blocked_validation = control.validate_model(
+                blocked_model,
+                blocked_events,
+                model_path=model_path,
+                base_model=control.load_model(base),
+                replaylab_root=root / "missing-replaylab",
+                current_corpus_dir=root / "missing-current",
+                reraw_corpus_dir=root / "missing-reraw",
+                skip_corpus_replay=True,
+                skip_raw_input_replay=True,
+            )
+            self.assertEqual(blocked_report["familyDeleteCount"], 0)
+            self.assertEqual(blocked_report["familyDeleteMissCount"], 1)
+            self.assertEqual(
+                sum(
+                    1
+                    for policy in blocked_model["policies"]
+                    if str(policy.get("familyId") or "") == "lisa-orthography"
+                ),
+                3,
+            )
+            self.assertFalse(blocked_validation["ready"])
+            self.assertIn(
+                "familyDeleteBlockedByActivePolicies",
+                [failure["kind"] for failure in blocked_validation["familyMetadataFailures"]],
+            )
+
     def test_migrate_pct_seed_families_compile_as_boundary_guarded_replacement_families(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
