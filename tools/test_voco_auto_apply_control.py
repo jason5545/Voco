@@ -145,6 +145,35 @@ def fake_mcp_opener_factory(tool_bodies: dict[str, dict], calls: list[dict]):
 
 
 class VocoAutoApplyControlTests(unittest.TestCase):
+    def test_literal_replacement_adds_cjk_boundary_spaces_without_over_spacing(self):
+        self.assertEqual(
+            "整個 Mac 鍵盤就會",
+            control.replace_policy_source("整個麥克鍵盤就會", "麥克鍵盤", "Mac 鍵盤"),
+        )
+        self.assertEqual(
+            "取代成 Gemini，你",
+            control.replace_policy_source("取代成居民，你", "居民", "Gemini"),
+        )
+        self.assertEqual(
+            "取代成 Gemini 你好",
+            control.replace_policy_source("取代成居民你好", "居民", "Gemini"),
+        )
+        self.assertEqual(
+            "輸入 prompt 文字",
+            control.replace_policy_source("輸入提示文字", "提示", " prompt "),
+        )
+        self.assertEqual(
+            "這是正字。",
+            control.replace_policy_source("這是錯字。", "錯字", "正字"),
+        )
+        self.assertEqual(
+            "取代成 Gemini 你好",
+            control.replace_policy_source_for_policy(
+                "取代成居民你好",
+                {"sourcePattern": "居民", "targetText": "Gemini", "sourcePatternType": "regex"},
+            ),
+        )
+
     def test_context_locked_policy_id_matches_worker_fixture(self):
         event = {
             "eventId": "evt-20260911T005922.863Z-be9180c35e-ec548723",
@@ -1639,7 +1668,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                 negative=[],
                 positive_text="如果A三五零的話，有貨機就好了。",
                 positive_context="",
-                expected_text="如果A350的話，有貨機就好了。",
+                expected_text="如果 A350 的話，有貨機就好了。",
                 negative_text=None,
                 negative_context="",
                 note=None,
@@ -1658,7 +1687,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
                     {
                         "rowPk": 11646,
                         "rawOpenCC": "你剛才提到A三二零，那是不是說A三五零就沒有這個東西了？",
-                        "cleanedText": "你剛才提到A三二零，那是不是說A三五零就沒有這個東西了？",
+                        "cleanedText": "你剛才提到A三二零，那是不是說 A350 就沒有這個東西了？",
                         "requiresReview": False,
                         "riskFlags": [],
                         "context": {"before": []},
@@ -1683,7 +1712,7 @@ class VocoAutoApplyControlTests(unittest.TestCase):
 
             self.assertTrue(validation["ready"])
             cleaned = validation["corpusReplay"][0]["cleanedReplay"]
-            self.assertEqual(cleaned["acceptedManualCorpusChanges"], 1)
+            self.assertEqual(cleaned["acceptedManualCorpusChanges"], 0)
             self.assertEqual(cleaned["unexpectedChanges"], 0)
 
     def test_inherited_baseline_policy_fire_is_suppressed_from_raw_replay_failures(self):

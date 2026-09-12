@@ -1424,9 +1424,16 @@ final class RuleAssistantSession: ObservableObject {
                 let targetDescription = draft.targetText ?? ""
                 return String(localized: "範圍變更回合的 sourcePattern 必須是原句中的錯誤片段（sourcePattern=\(patternDescription)，targetText=\(targetDescription)）。")
             }
-            let applied = sourceText.replacingOccurrences(of: rawPattern, with: rawTarget).trimmingCharacters(in: .whitespacesAndNewlines)
+            let applied = VocoAutoApplyModelService.applyLiteralReplacement(
+                rawPattern,
+                with: rawTarget,
+                in: sourceText
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
             let expected = targetText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard applied == expected else {
+                if Self.onlyCJKLatinBoundarySpacingDifference(applied, expected) {
+                    return String(localized: "套回原句不等於修正後；差別只在中英之間的空格，不要用加長 sourcePattern 處理。")
+                }
                 return String(localized: "套回原句不等於修正後：sourcePattern=\(rawPattern)，targetText=\(rawTarget)，套用結果=\(applied)，修正後=\(expected)。")
             }
             if scope == .context {
@@ -1437,6 +1444,42 @@ final class RuleAssistantSession: ObservableObject {
             }
             return nil
         }
+    }
+
+    private static func onlyCJKLatinBoundarySpacingDifference(_ lhs: String, _ rhs: String) -> Bool {
+        guard lhs.replacingOccurrences(of: " ", with: "") == rhs.replacingOccurrences(of: " ", with: "") else { return false }
+        return [lhs, rhs].allSatisfy { value in
+            let characters = Array(value)
+            for index in characters.indices where characters[index] == " " {
+                guard index > characters.startIndex,
+                      index < characters.index(before: characters.endIndex)
+                else { return false }
+                let left = characters[characters.index(before: index)]
+                let right = characters[characters.index(after: index)]
+                let leftHan = Self.isHanCharacterForSpacing(left)
+                let rightHan = Self.isHanCharacterForSpacing(right)
+                let leftASCII = Self.isASCIIAlphaNumericForSpacing(left)
+                let rightASCII = Self.isASCIIAlphaNumericForSpacing(right)
+                guard (leftHan && rightASCII) || (leftASCII && rightHan) else { return false }
+            }
+            return true
+        }
+    }
+
+    private static func isHanCharacterForSpacing(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1,
+              let value = character.unicodeScalars.first?.value
+        else { return false }
+        return (0x3400...0x4DBF).contains(value)
+            || (0x4E00...0x9FFF).contains(value)
+            || (0x20000...0x3134F).contains(value)
+    }
+
+    private static func isASCIIAlphaNumericForSpacing(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1,
+              let value = character.unicodeScalars.first?.value
+        else { return false }
+        return (48...57).contains(value) || (65...90).contains(value) || (97...122).contains(value)
     }
 
     private func updateEntry(nonce: String, transform: (inout RuleAssistantDraftEntry) -> Void) {
@@ -1507,6 +1550,8 @@ final class RuleAssistantSession: ObservableObject {
         - If the user says "X to Y", "X -> Y", "same logic", or clearly confirms a normalization, propose the draft directly.
         - You may use the read-only Worker tools (lookup_auto_apply_policy, list_auto_apply_families, detect_duplicate_control_event, preview_auto_apply_control_event, suggest_auto_apply_tombstone, get_auto_apply_reconcile_status, get_auto_apply_row_corrections) to check existing rules before proposing. Write tools are blocked for you; do not call them.
         - `lookup_auto_apply_policy` sourceText/sourcePattern is an exact match on the whole sourcePattern, never a substring search: look up the full suspected surface exactly as it appears (麥克積塊), not a fragment (積塊). A zero-hit lookup on a fragment proves nothing; it does not mean no rule covers the surface.
+        - When a full-surface lookup returns zero rows, also look up each possible shorter fragment inside the surface once (for example, 麥克鍵盤 also requires a lookup for 麥克), because existing context locks often use a short sourcePattern. If one hits, explain its contextTokensAny and prefer replaceContextLockedRule to add tokens instead of opening a new broad rule.
+        - If targetText contains English, spacing between Chinese and Latin characters is supplied by the runtime; do not lengthen sourcePattern just to add spaces.
         - `runtimeReplay` is the record text re-run through the current runtime (built-in rules plus the installed Worker overlay). Any surface already hit by `runtimeReplay.fires`, or already fixed in `runtimeReplay.outputText`, is covered: say so, never draft for it, never list it as a candidate. It is null when the runtime is unavailable; then fall back to lookups. When the user's explanation points at a surface the replay already fires on, answer that the current runtime already fixes it (name the fire), output no draft, and tell them they can describe any further change in the input box.
         - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Before anything else look at `runtimeReplay`: when `changed` is true (`fires` is not empty), the current runtime already rewrites this record, so treat it as already fixed. Reply in one or two sentences that it looks already fixed, list each fire as sourcePattern → targetText, and ask one question whose options are only the way-outs 「好，不用改」 and 「還有別的錯，我來說」. Do not scan the rest of the record for further candidates, do not call any tool, and do not draft; if the user wants something else they will say so in the input box or the note, and that reply is handled as a normal explanation. Only when `changed` is false, or `runtimeReplay` is null, run the scan: Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the message is a 範圍變更 to 任何語境 or the user said in his own words that the source is never intended; use correction for the whole utterance or contextLockedRule.
 

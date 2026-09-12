@@ -259,6 +259,18 @@ struct RuleAssistantDraftSafetyTests {
         #expect(RuleAssistantSession.gateReason(for: family, kind: .rescope(scope: .broad, sourceText: source, targetText: target))?.contains("只接受 replacementRule") == true)
         let correction = draft("correction", source: source, target: target)
         #expect(RuleAssistantSession.gateReason(for: correction, kind: .rescope(scope: .broad, sourceText: source, targetText: target)) == nil)
+
+        let latinSource = "整個麥克鍵盤就會泛油光"
+        let latinTarget = "整個 Mac 鍵盤就會泛油光"
+        let latin = draft("replacementRule", target: "Mac 鍵盤", pattern: "麥克鍵盤")
+        #expect(RuleAssistantSession.gateReason(for: latin, kind: .rescope(scope: .broad, sourceText: latinSource, targetText: latinTarget)) == nil)
+        let missingBoundarySpace = draft("replacementRule", target: "Mac 鍵盤", pattern: "麥克鍵盤")
+        #expect(
+            RuleAssistantSession.gateReason(
+                for: missingBoundarySpace,
+                kind: .rescope(scope: .broad, sourceText: latinSource, targetText: "整個Mac 鍵盤就會泛油光")
+            )?.contains("差別只在中英之間的空格") == true
+        )
     }
 
     @MainActor

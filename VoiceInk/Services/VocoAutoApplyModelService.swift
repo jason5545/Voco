@@ -1321,13 +1321,56 @@ final class VocoAutoApplyModelService: ObservableObject {
         sourceBoundaryMode: String? = nil
     ) -> Bool {
         guard !source.isEmpty else { return false }
-        if containsASCIIToken(source) {
-            return rangeForASCIIBoundedSource(source, in: text) != nil
+        if Self.containsASCIIToken(source) {
+            return Self.rangeForASCIIBoundedSource(source, in: text) != nil
         }
         if sourceBoundaryMode == Self.cjkUnsafeContinuationBoundaryMode {
-            return rangeForCJKUnsafeContinuationBoundedSource(source, in: text) != nil
+            return Self.rangeForCJKUnsafeContinuationBoundedSource(source, in: text) != nil
         }
         return text.contains(source)
+    }
+
+    /// Apply one literal replacement using the same boundary-spacing behavior as the
+    /// production runtime. RuleAssistant uses this entry point for its rescope gate so
+    /// the gate cannot drift from the text that will actually be applied.
+    static func applyLiteralReplacement(
+        _ source: String,
+        with target: String,
+        in text: String,
+        sourceBoundaryMode: String? = nil
+    ) -> String {
+        guard !source.isEmpty else { return text }
+        if Self.containsASCIIToken(source) {
+            var result = text
+            var searchStart = result.startIndex
+            while let range = Self.rangeForASCIIBoundedSource(source, in: result, startingAt: searchStart) {
+                let replacement = Self.targetWithCJKBoundarySpacing(target, in: result, replacing: range)
+                let replacementStartOffset = result.distance(from: result.startIndex, to: range.lowerBound)
+                result.replaceSubrange(range, with: replacement)
+                searchStart = result.index(result.startIndex, offsetBy: replacementStartOffset + replacement.count)
+            }
+            return result
+        }
+        if sourceBoundaryMode == cjkUnsafeContinuationBoundaryMode {
+            var result = text
+            var searchStart = result.startIndex
+            while let range = Self.rangeForCJKUnsafeContinuationBoundedSource(source, in: result, startingAt: searchStart) {
+                let replacement = Self.targetWithCJKBoundarySpacing(target, in: result, replacing: range)
+                let replacementStartOffset = result.distance(from: result.startIndex, to: range.lowerBound)
+                result.replaceSubrange(range, with: replacement)
+                searchStart = result.index(result.startIndex, offsetBy: replacementStartOffset + replacement.count)
+            }
+            return result
+        }
+        var result = text
+        var searchStart = result.startIndex
+        while let range = result.range(of: source, options: [], range: searchStart..<result.endIndex) {
+            let replacement = Self.targetWithCJKBoundarySpacing(target, in: result, replacing: range)
+            let replacementStartOffset = result.distance(from: result.startIndex, to: range.lowerBound)
+            result.replaceSubrange(range, with: replacement)
+            searchStart = result.index(result.startIndex, offsetBy: replacementStartOffset + replacement.count)
+        }
+        return result
     }
 
     private func replace(
@@ -1336,21 +1379,12 @@ final class VocoAutoApplyModelService: ObservableObject {
         in text: String,
         sourceBoundaryMode: String? = nil
     ) -> String {
-        if containsASCIIToken(source) {
-            var result = text
-            while let range = rangeForASCIIBoundedSource(source, in: result) {
-                result.replaceSubrange(range, with: target)
-            }
-            return result
-        }
-        if sourceBoundaryMode == Self.cjkUnsafeContinuationBoundaryMode {
-            var result = text
-            while let range = rangeForCJKUnsafeContinuationBoundedSource(source, in: result) {
-                result.replaceSubrange(range, with: target)
-            }
-            return result
-        }
-        return text.replacingOccurrences(of: source, with: target)
+        Self.applyLiteralReplacement(
+            source,
+            with: target,
+            in: text,
+            sourceBoundaryMode: sourceBoundaryMode
+        )
     }
 
     private func replace(policy: VocoAutoApplyPolicy, in text: String) -> String? {
@@ -1365,7 +1399,12 @@ final class VocoAutoApplyModelService: ObservableObject {
             let matches = regex.matches(in: text, options: [], range: range)
             for match in matches.reversed() {
                 guard let outputRange = Range(match.range, in: result) else { continue }
-                result.replaceSubrange(outputRange, with: expandRegexTemplate(template, match: match, text: text))
+                let replacement = Self.targetWithCJKBoundarySpacing(
+                    expandRegexTemplate(template, match: match, text: text),
+                    in: result,
+                    replacing: outputRange
+                )
+                result.replaceSubrange(outputRange, with: replacement)
             }
             return result
         }
@@ -1523,20 +1562,28 @@ final class VocoAutoApplyModelService: ObservableObject {
         return String(last)
     }
 
-    private func rangeForASCIIBoundedSource(_ source: String, in text: String) -> Range<String.Index>? {
-        var searchStart = text.startIndex
+    private static func rangeForASCIIBoundedSource(
+        _ source: String,
+        in text: String,
+        startingAt initialSearchStart: String.Index? = nil
+    ) -> Range<String.Index>? {
+        var searchStart = initialSearchStart ?? text.startIndex
         while searchStart <= text.endIndex,
               let range = text.range(of: source, options: [], range: searchStart..<text.endIndex) {
-            let beforeOK = range.lowerBound == text.startIndex || !isASCIIWordCharacter(text[text.index(before: range.lowerBound)])
-            let afterOK = range.upperBound == text.endIndex || !isASCIIWordCharacter(text[range.upperBound])
+            let beforeOK = range.lowerBound == text.startIndex || !Self.isASCIIWordCharacter(text[text.index(before: range.lowerBound)])
+            let afterOK = range.upperBound == text.endIndex || !Self.isASCIIWordCharacter(text[range.upperBound])
             if beforeOK && afterOK { return range }
             searchStart = range.upperBound
         }
         return nil
     }
 
-    private func rangeForCJKUnsafeContinuationBoundedSource(_ source: String, in text: String) -> Range<String.Index>? {
-        var searchStart = text.startIndex
+    private static func rangeForCJKUnsafeContinuationBoundedSource(
+        _ source: String,
+        in text: String,
+        startingAt initialSearchStart: String.Index? = nil
+    ) -> Range<String.Index>? {
+        var searchStart = initialSearchStart ?? text.startIndex
         while searchStart <= text.endIndex,
               let range = text.range(of: source, options: [], range: searchStart..<text.endIndex) {
             if !shouldSkipCJKUnsafeContinuationMatch(source: source, upperBound: range.upperBound, in: text) {
@@ -1547,7 +1594,7 @@ final class VocoAutoApplyModelService: ObservableObject {
         return nil
     }
 
-    private func shouldSkipCJKUnsafeContinuationMatch(
+    private static func shouldSkipCJKUnsafeContinuationMatch(
         source: String,
         upperBound: String.Index,
         in text: String
@@ -1559,12 +1606,12 @@ final class VocoAutoApplyModelService: ObservableObject {
         return Self.unsafeCJKContinuationAfterPairSource.contains(text[upperBound])
     }
 
-    private func containsASCIIToken(_ text: String) -> Bool {
+    private static func containsASCIIToken(_ text: String) -> Bool {
         let range = NSRange(location: 0, length: text.utf16.count)
         return Self.asciiTokenRegex.firstMatch(in: text, options: [], range: range) != nil
     }
 
-    private func isASCIIWordCharacter(_ character: Character) -> Bool {
+    private static func isASCIIWordCharacter(_ character: Character) -> Bool {
         guard character.unicodeScalars.count == 1,
               let scalar = character.unicodeScalars.first
         else { return false }
@@ -1574,15 +1621,37 @@ final class VocoAutoApplyModelService: ObservableObject {
             (97...122).contains(scalar.value)
     }
 
-    private static func isCJKCharacter(_ character: Character) -> Bool {
-        character.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0x20000...0x2A6DF:
-                return true
-            default:
-                return false
-            }
+    private static func isASCIIAlphaNumeric(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1,
+              let value = character.unicodeScalars.first?.value
+        else { return false }
+        return (48...57).contains(value) || (65...90).contains(value) || (97...122).contains(value)
+    }
+
+    private static func targetWithCJKBoundarySpacing(
+        _ target: String,
+        in text: String,
+        replacing range: Range<String.Index>
+    ) -> String {
+        guard !target.isEmpty else { return target }
+        var result = target
+        if let first = target.first,
+           isASCIIAlphaNumeric(first),
+           range.lowerBound != text.startIndex,
+           isHanCharacter(text[text.index(before: range.lowerBound)]) {
+            result = " " + result
         }
+        if let last = target.last,
+           isASCIIAlphaNumeric(last),
+           range.upperBound != text.endIndex,
+           isHanCharacter(text[range.upperBound]) {
+            result += " "
+        }
+        return result
+    }
+
+    private static func isCJKCharacter(_ character: Character) -> Bool {
+        isHanCharacter(character)
     }
 
     private func tokenHits(in text: String, tokens: [String]) -> [String] {
@@ -1640,8 +1709,8 @@ final class VocoAutoApplyModelService: ObservableObject {
         var searchStart = text.startIndex
         while searchStart <= text.endIndex,
               let range = text.range(of: token, options: [], range: searchStart..<text.endIndex) {
-            let beforeOK = range.lowerBound == text.startIndex || !isASCIIWordCharacter(text[text.index(before: range.lowerBound)])
-            let afterOK = range.upperBound == text.endIndex || !isASCIIWordCharacter(text[range.upperBound])
+            let beforeOK = range.lowerBound == text.startIndex || !Self.isASCIIWordCharacter(text[text.index(before: range.lowerBound)])
+            let afterOK = range.upperBound == text.endIndex || !Self.isASCIIWordCharacter(text[range.upperBound])
             if beforeOK && afterOK { return true }
             searchStart = range.upperBound
         }
@@ -1671,7 +1740,7 @@ final class VocoAutoApplyModelService: ObservableObject {
     }
 
     func containsAsciiTokenPublic(_ text: String) -> Bool {
-        containsASCIIToken(text)
+        Self.containsASCIIToken(text)
     }
 
     private func normalizeCurrencyNumbers(in text: String) -> (outputText: String, applied: [VocoAutoApplyPolicyFire]) {
@@ -1822,12 +1891,12 @@ final class VocoAutoApplyModelService: ObservableObject {
         return (String(chars), fires)
     }
 
-    /// Han ideograph test shared with the Python and Kotlin runtimes (Unified + Ext A + Ext B).
+    /// Han ideograph test shared with the Python and Kotlin runtimes (Unified + Ext A + Extensions B–F).
     private static func isHanCharacter(_ character: Character) -> Bool {
         guard let value = character.unicodeScalars.first?.value, character.unicodeScalars.count == 1 else { return false }
         return (0x4E00...0x9FFF).contains(value)
             || (0x3400...0x4DBF).contains(value)
-            || (0x20000...0x2A6DF).contains(value)
+            || (0x20000...0x3134F).contains(value)
     }
 
     private func normalizedChineseCurrencyAmount(_ amount: String) -> String? {

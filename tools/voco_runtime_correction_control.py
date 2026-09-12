@@ -529,10 +529,44 @@ def evaluate_runtime_case(
     candidate = sorted(eligible, key=lambda item: item["score"], reverse=True)[0]
     if candidate["source"] not in post_rule_text:
         return {"chosenAction": "noop", "fallbackReason": "candidate-source-not-found", "finalText": post_rule_text}
-    final_text = post_rule_text.replace(candidate["source"], candidate["target"])
+    final_text = replace_literal_with_cjk_boundary_spacing(
+        post_rule_text, candidate["source"], candidate["target"]
+    )
     if final_text == post_rule_text:
         return {"chosenAction": "noop", "fallbackReason": "candidate-does-not-change-output", "finalText": post_rule_text}
     return {"chosenAction": "apply", "fallbackReason": "", "finalText": final_text}
+
+
+def replace_literal_with_cjk_boundary_spacing(text: str, source: str, target: str) -> str:
+    """Mirror the production literal replacement's CJK/ASCII boundary spacing."""
+    if not source:
+        return text
+    result = text
+    search_start = 0
+    while True:
+        start = result.find(source, search_start)
+        if start < 0:
+            return result
+        end = start + len(source)
+        replacement = target
+        if is_ascii_alphanumeric(target[:1]) and start > 0 and is_han_character(result[start - 1]):
+            replacement = " " + replacement
+        if is_ascii_alphanumeric(target[-1:]) and end < len(result) and is_han_character(result[end]):
+            replacement += " "
+        result = result[:start] + replacement + result[end:]
+        search_start = start + len(replacement)
+
+
+def is_ascii_alphanumeric(value: str) -> bool:
+    return len(value) == 1 and value.isascii() and value.isalnum()
+
+
+def is_han_character(value: str) -> bool:
+    return len(value) == 1 and (
+        0x4E00 <= ord(value) <= 0x9FFF
+        or 0x3400 <= ord(value) <= 0x4DBF
+        or 0x20000 <= ord(value) <= 0x3134F
+    )
 
 
 def required_string(case: dict[str, Any], field: str, case_id: str) -> str:

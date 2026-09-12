@@ -3,6 +3,44 @@ import Testing
 @testable import Voco
 
 struct VocoAutoApplyModelServiceTests {
+    @Test func literalReplacementAddsCJKBoundarySpacesWithoutOverSpacing() {
+        #expect(
+            VocoAutoApplyModelService.applyLiteralReplacement(
+                "麥克鍵盤",
+                with: "Mac 鍵盤",
+                in: "整個麥克鍵盤就會"
+            ) == "整個 Mac 鍵盤就會"
+        )
+        #expect(
+            VocoAutoApplyModelService.applyLiteralReplacement(
+                "居民",
+                with: "Gemini",
+                in: "取代成居民，你"
+            ) == "取代成 Gemini，你"
+        )
+        #expect(
+            VocoAutoApplyModelService.applyLiteralReplacement(
+                "居民",
+                with: "Gemini",
+                in: "取代成居民你好"
+            ) == "取代成 Gemini 你好"
+        )
+        #expect(
+            VocoAutoApplyModelService.applyLiteralReplacement(
+                "提示",
+                with: " prompt ",
+                in: "輸入提示文字"
+            ) == "輸入 prompt 文字"
+        )
+        #expect(
+            VocoAutoApplyModelService.applyLiteralReplacement(
+                "錯字",
+                with: "正字",
+                in: "這是錯字。"
+            ) == "這是正字。"
+        )
+    }
+
     @Test func missingModelIsUnavailableAndSettingsToggleIsOffDisabled() throws {
         let service = VocoAutoApplyModelService(
             modelURL: try temporaryDirectory().appendingPathComponent("fixture.auto-apply.json"),
@@ -331,6 +369,7 @@ struct VocoAutoApplyModelServiceTests {
         #expect(service.status.isAvailable == true)
         #expect(result.outputText == "v12 已經好了。")
         #expect(result.applied.map(\.policyId) == ["regex-version-number"])
+        #expect(service.evaluate("請看版本 12已經好了。").outputText == "請看 v12 已經好了。")
     }
 
     @Test func indexedRuntimeV2RegexTemplateFunctionsNormalizeDirectIdentityLikeToken() throws {
@@ -524,7 +563,7 @@ struct VocoAutoApplyModelServiceTests {
             service.evaluate(
                 "然後我那個reaper只能是repo，r e p o。",
                 context: repositoryContext
-            ).outputText == "然後我那個repo只能是repo，r e p o。"
+            ).outputText == "然後我那個 repo 只能是repo，r e p o。"
         )
         #expect(service.evaluate("這是一個 reaper 音訊工具。").outputText == "這是一個 reaper 音訊工具。")
 
@@ -533,7 +572,7 @@ struct VocoAutoApplyModelServiceTests {
             service.evaluate(
                 "目前我的初步構想是跑在 Load Fail的Workers，然後由D One來去做處理。",
                 context: cloudflareContext
-            ).outputText == "目前我的初步構想是跑在 Cloudflare的Workers，然後由D1來去做處理。"
+            ).outputText == "目前我的初步構想是跑在 Cloudflare 的Workers，然後由 D1 來去做處理。"
         )
     }
 

@@ -6366,21 +6366,38 @@ def replace_policy_source(
 ) -> str:
     if contains_ascii_token(source):
         result = text
+        search_start = 0
         while True:
-            match = range_for_ascii_bounded_source(source, result)
+            match = range_for_ascii_bounded_source(source, result, search_start)
             if not match:
                 return result
             start, end = match
-            result = result[:start] + target + result[end:]
+            replacement = target_with_cjk_boundary_spacing(target, result, start, end)
+            result = result[:start] + replacement + result[end:]
+            search_start = start + len(replacement)
     if source_boundary_mode == CJK_UNSAFE_CONTINUATION_BOUNDARY_MODE:
         result = text
+        search_start = 0
         while True:
-            match = range_for_cjk_unsafe_continuation_bounded_source(source, result)
+            match = range_for_cjk_unsafe_continuation_bounded_source(source, result, search_start)
             if not match:
                 return result
             start, end = match
-            result = result[:start] + target + result[end:]
-    return text.replace(source, target)
+            replacement = target_with_cjk_boundary_spacing(target, result, start, end)
+            result = result[:start] + replacement + result[end:]
+            search_start = start + len(replacement)
+    if not source:
+        return text
+    result = text
+    search_start = 0
+    while True:
+        start = result.find(source, search_start)
+        if start < 0:
+            return result
+        end = start + len(source)
+        replacement = target_with_cjk_boundary_spacing(target, result, start, end)
+        result = result[:start] + replacement + result[end:]
+        search_start = start + len(replacement)
 
 
 def replace_policy_source_for_policy(text: str, policy: dict[str, Any]) -> str:
@@ -6393,7 +6410,12 @@ def replace_policy_source_for_policy(text: str, policy: dict[str, Any]) -> str:
         if not regex:
             return text
         template = policy_target_template(policy) or target
-        return regex.sub(lambda match: expand_regex_replacement(match, template), text)
+        return regex.sub(
+            lambda match: target_with_cjk_boundary_spacing(
+                expand_regex_replacement(match, template), text, match.start(), match.end()
+            ),
+            text,
+        )
     return replace_policy_source(
         text,
         source,
@@ -6486,8 +6508,8 @@ def normalize_single_digit_token(value: str) -> str:
     return normalized
 
 
-def range_for_ascii_bounded_source(source: str, text: str) -> tuple[int, int] | None:
-    start = 0
+def range_for_ascii_bounded_source(source: str, text: str, search_start: int = 0) -> tuple[int, int] | None:
+    start = search_start
     while True:
         index = text.find(source, start)
         if index < 0:
@@ -6500,8 +6522,8 @@ def range_for_ascii_bounded_source(source: str, text: str) -> tuple[int, int] | 
         start = end
 
 
-def range_for_cjk_unsafe_continuation_bounded_source(source: str, text: str) -> tuple[int, int] | None:
-    start = 0
+def range_for_cjk_unsafe_continuation_bounded_source(source: str, text: str, search_start: int = 0) -> tuple[int, int] | None:
+    start = search_start
     while True:
         index = text.find(source, start)
         if index < 0:
@@ -6526,17 +6548,39 @@ def is_ascii_word_character(value: str) -> bool:
     return value == "_" or value.isascii() and value.isalnum()
 
 
+def is_ascii_alphanumeric(value: str) -> bool:
+    return len(value) == 1 and value.isascii() and value.isalnum()
+
+
 def is_all_cjk(value: str) -> bool:
     return bool(value) and all(is_cjk_character(char) for char in value)
 
 
 def is_cjk_character(value: str) -> bool:
-    return any(
-        0x4E00 <= ord(char) <= 0x9FFF or
-        0x3400 <= ord(char) <= 0x4DBF or
-        0x20000 <= ord(char) <= 0x2A6DF
-        for char in value
+    return len(value) == 1 and (
+        0x4E00 <= ord(value) <= 0x9FFF
+        or 0x3400 <= ord(value) <= 0x4DBF
+        or 0x20000 <= ord(value) <= 0x3134F
     )
+
+
+def target_with_cjk_boundary_spacing(target: str, text: str, start: int, end: int) -> str:
+    if not target:
+        return target
+    result = target
+    if (
+        is_ascii_alphanumeric(target[0])
+        and start > 0
+        and is_cjk_character(text[start - 1])
+    ):
+        result = " " + result
+    if (
+        is_ascii_alphanumeric(target[-1])
+        and end < len(text)
+        and is_cjk_character(text[end])
+    ):
+        result += " "
+    return result
 
 
 def token_hits(text: str, tokens: Iterable[str]) -> list[str]:
@@ -6712,7 +6756,7 @@ def parse_negative_examples(values: Iterable[str]) -> list[dict[str, Any]]:
 
 
 def replace_text(text: str, source: str, target: str) -> str:
-    return text.replace(source, target)
+    return replace_policy_source(text, source, target)
 
 
 def compact_strings(values: Iterable[Any]) -> list[str]:
