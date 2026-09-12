@@ -1035,7 +1035,7 @@ struct RuleAssistantIntegrationTests {
         #expect(!export.contains("## Runtime replay (current runtime)"))
     }
 
-    @Test func reviewExportShowsPendingCardTicksAndScopes() async {
+    @Test func reviewExportShowsPendingCardTicksWithoutScopes() async {
         server.reset()
         FakeGoProvider.reset(scripts: [
             .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
@@ -1043,13 +1043,12 @@ struct RuleAssistantIntegrationTests {
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
         session.toggleOption("a")
-        session.setScope(.broad, for: "a")
         session.setUserText("補一句")
         let export = session.exportForReview(client: "voco test")
         #expect(export.contains("- pending question q1: interactive card, canSubmitChoice=true, ticked=[a]"))
-        #expect(export.contains("  - [a] ☑ \"小振 → 小鎮\" scope picker shown → 任何語境"))
-        #expect(export.contains("  - [b] ☐ \"去 → 趣\" (candidate; scope picker appears when ticked)"))
-        #expect(export.contains("  - [c] ☐ \"這筆沒錯\" (plain option, no scope)"))
+        #expect(export.contains("  - [a] ☑ \"小振 → 小鎮\" (candidate)"))
+        #expect(export.contains("  - [b] ☐ \"去 → 趣\" (candidate)"))
+        #expect(export.contains("  - [c] ☐ \"這筆沒錯\" (plain option)"))
         #expect(export.contains("- composer text: 補一句"))
     }
 
@@ -1171,7 +1170,6 @@ struct RuleAssistantIntegrationTests {
         session.toggleOption("c")
         session.toggleOption("b")
         #expect(session.state.selectedOptionIds == ["a", "b"])
-        session.setScope(.context, for: "b")
         await session.submitChoice()
         guard case .draftReady = session.state.phase else {
             Issue.record("expected draftReady, got \(session.state.phase)")
@@ -1184,36 +1182,21 @@ struct RuleAssistantIntegrationTests {
         // Wire reply shape.
         let reply = lastUserMessage(1)
         #expect(reply.contains("回覆問題 q1：這筆哪些地方是錯的？"))
-        #expect(reply.contains("選擇：[a] 小振 → 小鎮（範圍：只改這句）"))
-        #expect(reply.contains("選擇：[b] 去 → 趣（範圍：語境限定）"))
+        #expect(reply.contains("選擇：[a] 小振 → 小鎮"))
+        #expect(reply.contains("選擇：[b] 去 → 趣"))
         #expect(reply.contains("補充：無"))
         #expect(!reply.contains("[c]"))
         // Question is consumed and marked answered on its turn.
         #expect(session.state.pendingQuestion == nil)
         let questionTurn = session.state.transcript.first { $0.question != nil }
         #expect(questionTurn?.answeredOptionIds == ["a", "b"])
-        #expect(questionTurn?.answeredScopes["b"] == .context)
         // The user turn shows a readable summary, not the wire text.
         let userTurn = session.state.transcript.last { $0.role == "user" }
         #expect(userTurn?.text.contains("回覆問題") == false)
         #expect(userTurn?.text.contains("小振 → 小鎮") == true)
     }
 
-    @Test func anyContextScopePreviewsLexiconGuardsOnTheQuestionCard() async {
-        server.reset()
-        FakeGoProvider.reset(scripts: [
-            .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
-        ])
-        let session = makeRuleAssistantSession(server: server, guardSuggester: { $0 == "小振" ? ["小振動"] : [] })
-        await session.submitScan()
-        session.toggleOption("a")
-        session.setScope(.broad, for: "a")
-        #expect(session.state.optionGuardPreviews["a"] == ["小振動"])
-        session.setScope(.context, for: "a")
-        #expect(session.state.optionGuardPreviews["a"] == nil)
-    }
-
-    @Test func choiceScopedAnyContextAllowsMatchingBroadDraftOnly() async {
+    @Test func choiceNeverAllowsBroadDrafts() async {
         server.reset()
         let broadA = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "小振", "targetText": "小鎮"])
         let broadB = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "去", "targetText": "趣"])
@@ -1225,14 +1208,13 @@ struct RuleAssistantIntegrationTests {
         await session.submitScan()
         session.toggleOption("a")
         session.toggleOption("b")
-        session.setScope(.broad, for: "a")
         await session.submitChoice()
-        guard case .draftReady = session.state.phase else {
-            Issue.record("expected draftReady, got \(session.state.phase)")
+        guard case .failed = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
             return
         }
-        #expect(session.state.drafts.map { $0.draft.sourcePattern } == ["小振"])
-        #expect(lastUserMessage(1).contains("[a] 小振 → 小鎮（範圍：任何語境）"))
+        #expect(session.state.drafts.isEmpty)
+        #expect(lastUserMessage(1).contains("[a] 小振 → 小鎮"))
     }
 
     @Test func choiceWithTypedNoteCountsAsJasonsOwnWords() async {
@@ -1259,6 +1241,45 @@ struct RuleAssistantIntegrationTests {
         #expect(session.state.userText.isEmpty)
     }
 
+    @Test func rescopeCorrectionToAnyContextSendsDedicatedWireTurn() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: correctionDraft("我要用 C 和 A 工具", "我要用 CLI 工具")), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "C 和 A", "targetText": "CLI"])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server, context: RuleAssistantContext(rowPk: 42, timestampMs: 1_700_000_000_000, rawTranscript: "我要用 C 和 A 工具", text: "我要用 C 和 A 工具"))
+        await session.submit("這裡是 CLI，不是 C 和 A")
+        let original = try? #require(session.state.drafts.first)
+        guard let original else { return }
+        await session.rescope(nonce: original.draft.nonce, scope: .broad)
+        #expect(session.state.phase == .draftReady)
+        #expect(session.state.drafts.first?.draft.eventType == "replacementRule")
+        let messages = FakeGoProvider.recorded[1].body["messages"] as? [[String: Any]] ?? []
+        let rescopeMessage = messages.last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
+        #expect(rescopeMessage.hasPrefix("範圍變更：任何語境"))
+        #expect(rescopeMessage.contains("原句：我要用 C 和 A 工具"))
+        #expect(session.state.drafts.count == 1)
+    }
+
+    @Test func failedRescopeRestoresTheCorrectionDraft() async {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: correctionDraft("我要用 C 和 A 工具", "我要用 CLI 工具")), FakeGoProvider.chunk(finish: "stop")]),
+            .httpError(500),
+        ])
+        let session = makeRuleAssistantSession(server: server, context: RuleAssistantContext(rowPk: 42, timestampMs: 1_700_000_000_000, rawTranscript: "我要用 C 和 A 工具", text: "我要用 C 和 A 工具"))
+        await session.submit("這裡是 CLI，不是 C 和 A")
+        let original = try? #require(session.state.drafts.first)
+        guard let original else { return }
+        await session.rescope(nonce: original.draft.nonce, scope: .context)
+        guard case .failed = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.drafts.first?.draft.nonce == original.draft.nonce)
+    }
+
     @Test func failedChoiceReplyRestoresTheQuestion() async {
         server.reset()
         FakeGoProvider.reset(scripts: [
@@ -1268,7 +1289,6 @@ struct RuleAssistantIntegrationTests {
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
         session.toggleOption("a")
-        session.setScope(.context, for: "a")
         await session.submitChoice()
         guard case .failed = session.state.phase else {
             Issue.record("expected failed, got \(session.state.phase)")
@@ -1276,7 +1296,6 @@ struct RuleAssistantIntegrationTests {
         }
         #expect(session.state.pendingQuestion?.id == "q1")
         #expect(session.state.selectedOptionIds == ["a"])
-        #expect(session.state.optionScopes["a"] == .context)
         #expect(session.state.transcript.first { $0.question != nil }?.answeredOptionIds.isEmpty == true)
         #expect(session.state.transcript.last?.role == "assistant")
         // The wire reply never lands in the composer; only a typed note would.
@@ -1353,7 +1372,6 @@ struct RuleAssistantIntegrationTests {
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
         session.toggleOption("a")
-        session.setScope(.context, for: "a")
         await session.submitChoice()
         guard case .draftReady = session.state.phase else {
             Issue.record("expected draftReady, got \(session.state.phase)")
@@ -1363,7 +1381,7 @@ struct RuleAssistantIntegrationTests {
         #expect(export.hasPrefix("# Voco rule assistant · turn export for review\nclient: voco test · macOS\nmodel: glm-5.3-flash\nrecord: voco:row:42"))
         #expect(export.contains("- rawTranscript: 我們去小振家"))
         #expect(export.contains("question q1 (multi): 這筆哪些地方是錯的？"))
-        #expect(export.contains("- [a] 小振 → 小鎮 {小振 → 小鎮} · 地名 ✓ chosen (語境限定)"))
+        #expect(export.contains("- [a] 小振 → 小鎮 {小振 → 小鎮} · 地名 ✓ chosen"))
         #expect(export.contains("- [c] 這筆沒錯\n"))
         #expect(export.contains("1. correction: 我們去小振家 → 我們去小鎮家"))
         #expect(export.contains("check: preview wouldPublish=true"))
@@ -1373,10 +1391,10 @@ struct RuleAssistantIntegrationTests {
         #expect(export.contains("[tool call_1] "))
         #expect(export.contains("[system] (system prompt, "))
         #expect(!export.contains("You help the user maintain"))
-        #expect(export.contains("選擇：[a] 小振 → 小鎮（範圍：語境限定）"))
+        #expect(export.contains("選擇：[a] 小振 → 小鎮"))
         #expect(export.contains("## UI state (what the card actually shows)"))
         #expect(export.contains("- no pending question (no interactive card)"))
-        #expect(export.contains("- draft card 1: confirm button enabled, consumed=false, check=ok"))
+        #expect(export.contains("- draft card 1: confirm button enabled, consumed=false, check=ok, scope control=shown"))
         #expect(export.contains("## For the reviewer (Claude Code / Codex)"))
         #expect(export.contains("RuleAssistantSession.kt"))
         #expect(!export.contains("test-go-key"))
@@ -1434,7 +1452,8 @@ struct RuleAssistantIntegrationTests {
         #expect(FakeGoProvider.recorded.count == 3)
         #expect(session.state.pendingQuestion?.id == "q1")
         #expect(RuleAssistantSession.missingJSONNudge(answer: "好的：", kind: .manual) == .question)
-        #expect(RuleAssistantSession.missingJSONNudge(answer: "請選擇一個", kind: .choice(broadSurfaces: [])) == .question)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "請選擇一個", kind: .choice()) == .question)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "正在處理範圍", kind: .rescope(scope: .broad, sourceText: "錯句", targetText: "正句")) == .choice)
         #expect(RuleAssistantSession.missingJSONNudge(answer: "改好了。", kind: .manual) == nil)
         #expect(RuleAssistantSession.missingJSONNudge(answer: questionJSON(options: candidateOptions), kind: .scan) == nil)
     }
@@ -1456,7 +1475,6 @@ struct RuleAssistantIntegrationTests {
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
         session.toggleOption("a")
-        session.setScope(.context, for: "a")
         await session.submitChoice()
         guard case .draftReady = session.state.phase else {
             Issue.record("expected draftReady, got \(session.state.phase)")
@@ -1474,8 +1492,8 @@ struct RuleAssistantIntegrationTests {
         // A plan line is a draft promise in any turn; a candidate choice answered in prose is a dead end too;
         // a non-candidate choice (這筆沒錯) may end in plain text; a bracket mid-sentence is not a plan line.
         #expect(RuleAssistantSession.missingJSONNudge(answer: "[exact] 小振 → 小鎮\n因為是地名。", kind: .manual) == .draft)
-        #expect(RuleAssistantSession.missingJSONNudge(answer: "我會做成語境限定規則。", kind: .choice(broadSurfaces: [], candidateChosen: true)) == .choice)
-        #expect(RuleAssistantSession.missingJSONNudge(answer: "好，這筆不動。", kind: .choice(broadSurfaces: [])) == nil)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "我會做成語境限定規則。", kind: .choice(candidateChosen: true)) == .choice)
+        #expect(RuleAssistantSession.missingJSONNudge(answer: "好，這筆不動。", kind: .choice()) == nil)
         #expect(RuleAssistantSession.missingJSONNudge(answer: "不建議 [broad] 這種寫法。", kind: .manual) == nil)
     }
 

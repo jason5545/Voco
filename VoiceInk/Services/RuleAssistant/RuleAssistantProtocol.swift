@@ -314,8 +314,8 @@ struct RuleAssistantContext: Equatable {
 
 // MARK: - Questions
 
-/// Where a confirmed candidate should apply. Chosen by the user on the question card, never by
-/// the model; only `broad` lifts the App-side gate against replacementRule / replacementFamily.
+/// Where a confirmed correction should apply. The user widens it on the correction draft card,
+/// never by answering the model's question.
 enum RuleAssistantScope: String, CaseIterable, Equatable {
     case sentence
     case context
@@ -403,8 +403,8 @@ struct RuleAssistantQuestion: Equatable {
                     target = nil
                 }
             }
-            // One option per suspected surface: the App asks the scope itself, so a second option with
-            // the same surface → target (e.g. one per scope) would only duplicate the scope picker.
+            // One option per suspected surface: scope is chosen on the draft card, so a second option with
+            // the same surface → target (e.g. one per scope) would only duplicate the candidate.
             if let surface, let target, options.contains(where: { $0.surface == surface && $0.target == target }) {
                 continue
             }

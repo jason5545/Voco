@@ -275,9 +275,6 @@ private struct RuleAssistantSessionView: View {
                 let isSelected = selected.contains(option.id)
                 VStack(alignment: .leading, spacing: 6) {
                     optionButton(option, index: index, isSelected: isSelected, interactive: interactive)
-                    if isSelected, option.isCandidate {
-                        scopePicker(for: option, turn: turn, interactive: interactive)
-                    }
                 }
             }
 
@@ -352,40 +349,6 @@ private struct RuleAssistantSessionView: View {
         }
     }
 
-    private func scopePicker(for option: RuleAssistantQuestionOption, turn: RuleAssistantTurn, interactive: Bool) -> some View {
-        let binding = Binding<RuleAssistantScope>(
-            get: {
-                interactive
-                    ? (state.optionScopes[option.id] ?? .sentence)
-                    : (turn.answeredScopes[option.id] ?? .sentence)
-            },
-            set: { session.setScope($0, for: option.id) }
-        )
-        return VStack(alignment: .leading, spacing: 4) {
-            Picker("Scope", selection: binding) {
-                Text("This sentence only").tag(RuleAssistantScope.sentence)
-                Text("Context-locked").tag(RuleAssistantScope.context)
-                Text("Any context").tag(RuleAssistantScope.broad)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .disabled(!interactive)
-            if binding.wrappedValue == .broad {
-                Text("Any context creates a broad rule: the source will be replaced everywhere.")
-                    .font(.footnote)
-                    .foregroundColor(AppTheme.Status.warningStrong)
-                if interactive, let guards = state.optionGuardPreviews[option.id], !guards.isEmpty {
-                    Text("Will auto-protect longer words: \(guards.joined(separator: "\u{3001}"))")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(.leading, 22)
-    }
-
     // MARK: Tool status
 
     @ViewBuilder
@@ -449,6 +412,10 @@ private struct RuleAssistantSessionView: View {
                 autoGuardsSection(entry)
             }
 
+            if entry.draft.eventType == "correction", !entry.consumed, !state.phase.isBusy {
+                scopeControl(entry)
+            }
+
             Divider()
 
             checkSection(entry.check)
@@ -491,6 +458,28 @@ private struct RuleAssistantSessionView: View {
                     RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
                         .strokeBorder(AppTheme.Border.tint, lineWidth: 1)
                 }
+        }
+    }
+
+    private func scopeControl(_ entry: RuleAssistantDraftEntry) -> some View {
+        let binding = Binding<RuleAssistantScope>(
+            get: { .sentence },
+            set: { scope in
+                guard scope != .sentence else { return }
+                run { await session.rescope(nonce: entry.draft.nonce, scope: scope) }
+            }
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Scope")
+                .font(.system(size: 11, weight: .semibold))
+            Picker("Scope", selection: binding) {
+                Text("This sentence only").tag(RuleAssistantScope.sentence)
+                Text("Context-locked").tag(RuleAssistantScope.context)
+                Text("Any context").tag(RuleAssistantScope.broad)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
         }
     }
 

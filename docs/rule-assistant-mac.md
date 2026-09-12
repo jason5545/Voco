@@ -70,8 +70,8 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   `{"question": {id, prompt, multiSelect, options[{id, label, detail?, surface?, target?}]}}`
   JSON（與草稿同一套 `locateAllJSON` 找到，一回合最多一題，多的忽略；欄位不合法就整題丟掉、
   當純文字顯示）。App 渲染成選項按鈕（多選勾、單選圓點，⌘1 到 ⌘9 切換），有 `surface`＋`target`
-  的候選被勾選後出現範圍 segmented：只改這句／語境限定／任何語境。按「送出選擇」把選擇組成固定
-  格式的使用者訊息回給模型（`回覆問題 q1：…／選擇：[a] …（範圍：只改這句）／補充：無`），
+  的候選只顯示候選本身。按「送出選擇」把選擇組成固定格式的使用者訊息回給模型
+  （`回覆問題 q1：…／選擇：[a] …／補充：無`），
   transcript 顯示的是可讀摘要（「選了：…」），wire 才是完整格式。輸入框的文字會當「補充」一起送。
   答過的題變唯讀並標「已回答」；回覆失敗或被停止時題目與勾選狀態放回去（`pendingChoiceRestore`）。
 - **找問題模式** `submitScan()` 取代 `submitAutoGuess()`：固定指令要模型把可疑處列成一題多選
@@ -81,17 +81,18 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   仍可打字（`isInterruptible`：只有 scan 回合的 loadingTools／thinking 可被打斷），送出就取消掃描
   改送手動說明；停止時掃描指令不會回填到輸入框，placeholder 回合會從 transcript 移除。
 - **broad 閘門留在 App 端**（`RuleAssistantSession.gateReason`）：回合分 `manual`／`scan`／
-  `choice(broadSurfaces)`。scan 回合拒絕 replacementRule／replacementFamily／transaction；
-  choice 回合拒絕 transaction，broad 只在使用者對該候選選了「任何語境」時放行
-  （replacementRule 比對 `sourcePattern`，replacementFamily 要求所有 `aliases` 都被授權）；
-  有打字補充的 choice 視為 manual（Jason 親自說明）。只有被拒的草稿但同回合有題目時，phase 保持
-  idle 讓使用者能作答，不進 failed。
+  `choice`／`rescope`。scan 回合維持自動找問題不建立 broad 或 family transaction；choice 永不放行
+  broad，候選選擇只會建立 correction（有打字補充的 choice 視為 manual）。correction 草稿卡預設
+  「只改這句」，使用者改成「任何語境」或「語境限定」時送出 rescope 回合；App 以
+  sourcePattern／targetText 套回原句後必須精確等於修正後的內容，且語境 token 必須真的出現在原句，才放行
+  replacementRule／contextLockedRule。rescope 回合不接受 replacementFamily、transaction 等其他類型；
+  失敗時原 correction 草稿放回卡片。
 - 模型維持 `glm-5.3-flash`：model-arena 五輪把它定位在 Opus 5 級，沒有換模型的理由；候選品質要看
   實機使用。
 - 測試：`RuleAssistantQuestionParseTests`（解析、預設 id、去重、fail-closed、上限 8、與草稿互不干擾）、
-  `RuleAssistantIntegrationTests` 新增 scan 出題、選擇回覆格式與閘門、任何語境放行、補充視為
-  manual、失敗還原題目、壞題目當純文字、題目與草稿同回合、自動掃描只跑一次、掃描中打字與取消、
-  手動回合打字被忽略但停止會還原。
+  `RuleAssistantDraftTests` 覆蓋 rescope 的套回檢查、類型與 token gate；`RuleAssistantIntegrationTests`
+  覆蓋 scan 出題、選擇回覆格式與閘門、rescope 成功／失敗還原、補充視為 manual、壞題目當純文字、
+  題目與草稿同回合、自動掃描只跑一次、掃描中打字與取消、手動回合打字被忽略但停止會還原。
 
 ## 找問題之後的四項修正（2026-09-11，同日實機回饋）
 
@@ -100,16 +101,17 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
 - **複製給 reviewer**：草稿卡「Confirm & Publish」旁與底部按鈕列各一個按鈕，一鍵把整段對話放進
   `NSPasteboard`（Android 是 `ClipboardManager`）：客戶端標示（`voco 版本 · macOS 版本`）、紀錄各階段、
   每回合文字與題目勾選、草稿與 Worker preview／查重結果、wire history（工具呼叫、截 800 字的結果、
-  thinking 截 1500 字、system prompt 只寫字數）、「UI state」段（每個選項 ☑／☐、範圍選擇有沒有顯示與
-  值、`canSubmitChoice`、輸入框內容、每張草稿卡確認鈕狀態）、給 Claude Code／Codex 的說明（判斷該改
+  thinking 截 1500 字、system prompt 只寫字數）、「UI state」段（每個選項 ☑／☐、草稿卡 scope control
+  是否顯示、`canSubmitChoice`、輸入框內容、每張草稿卡確認鈕狀態）、給 Claude Code／Codex 的說明（判斷該改
   prompt、App 邏輯還是 Worker；兩端 prompt 必須一致）。`RuleAssistantSession.exportForReview(client:)`，
   純函式 `reviewExport` 可測。不含 key、音檔。
 - **模型停在「請勾選：」不吐 question JSON**（glm-5.3-flash 多輪工具後常見）：`needsQuestionNudge`
   在 scan 回合沒 question 也沒草稿、或任何回合結尾像「請勾選：」「請選擇」時，自動再送一則 wire-only
   的 `questionNudgePrompt`（只輸出 question JSON、不查工具），最多一次；催促訊息不進 transcript，
   模型先前的說明文字保留在卡片上方。Prompt 明講 JSON 必須與說明同一則回答。
-- **範圍被展開成選項**（同一候選出三個選項：只改這句／語境限定／任何語境，跟 App 的範圍選擇重複）：
-  prompt 規定一個可疑處一個選項；`RuleAssistantQuestion.parse` 對相同 surface＋target 的選項只留第一個。
+- **範圍改在草稿卡**：prompt 規定一個可疑處一個選項，不再把範圍拆成候選；correction 草稿卡提供
+  「只改這句／語境限定／任何語境」，後兩者送出 rescope 回合。`RuleAssistantQuestion.parse` 對相同
+  surface＋target 的選項只留第一個。
 - **廣域規則自動反例**：literal 廣域規則是 `text.contains`＋整句 `replacingOccurrences`，沒有邊界，
   「資料架 → 資料夾」會把「資料架構」改成「資料夾構」。`RuleAssistantGuardSuggester`（`RuleAssistantProtocol.swift`）
   把來源每個 head＋tail 切法的 tail 當 prefix 查 `word_freq.tsv`（`VocoWordFrequencyLexicon.words(withPrefix:)`，
@@ -117,8 +119,7 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   `RuleAssistantSessionRegistry` 注入 session（`guardSuggester`）。replacementRule／replacementFamily
   草稿出來時自動當 `negativeExamples` 塞進草稿（總數不超過 `isSafeForWrite` 的 10），preview／查重
   都用帶反例的版本；草稿卡顯示「自動保護更長的詞」開關（`setAutoGuards`），關掉會拿掉自動反例並重跑
-  Worker 檢查，模型自己寫的反例（有 context）不動。選擇題卡上候選一選「任何語境」就預覽會保護哪些詞
-  （`optionGuardPreviews`）。Prompt 另要求模型補語意上的反例。Worker 端對同一條規則再送 add 帶
+  Worker 檢查，模型自己寫的反例（有 context）不動。Prompt 另要求模型補語意上的反例。Worker 端對同一條規則再送 add 帶
   negativeExamples 是 metadata-only 合併，不需要 tombstone。
 - **稱呼**：system prompt 與匯出說明段一律用 the user，不用人名。
 - 測試：`RuleAssistantGuardSuggesterTests`（每個切點、頻率排序、上限 6、非 CJK／單字不產生、

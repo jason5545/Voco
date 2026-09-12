@@ -226,7 +226,7 @@ struct RuleAssistantDraftSafetyTests {
         #expect(!entry.isFamilyTransaction)
         #expect(entry.writeToolName() == "replace_auto_apply_context_locked_rule")
         // Allowed from a 語境限定 choice; auto-guess (scan) still refuses it.
-        #expect(RuleAssistantSession.gateReason(for: entry, kind: .choice(broadSurfaces: [], candidateChosen: true)) == nil)
+        #expect(RuleAssistantSession.gateReason(for: entry, kind: .choice(candidateChosen: true)) == nil)
         #expect(RuleAssistantSession.gateReason(for: entry, kind: .scan) != nil)
         #expect(RuleAssistantSession.gateReason(for: entry, kind: .manual) == nil)
     }
@@ -243,6 +243,46 @@ struct RuleAssistantDraftSafetyTests {
     @Test func oversizedFieldsAreRefused() {
         let huge = String(repeating: "好", count: 2_001)
         #expect(!draft("correction", source: huge, target: "b").isSafeForWrite())
+    }
+
+    @MainActor
+    @Test func rescopeGateRequiresExactSubstitutionAndScopeType() {
+        let source = "但是你的思維另有說。"
+        let target = "但是你的思維鏈有說。"
+        let broad = draft("replacementRule", target: "思維鏈有說", pattern: "思維另有說")
+        #expect(RuleAssistantSession.gateReason(for: broad, kind: .rescope(scope: .broad, sourceText: source, targetText: target)) == nil)
+        let shorter = draft("replacementRule", target: "思維鏈有", pattern: "思維另有")
+        #expect(RuleAssistantSession.gateReason(for: shorter, kind: .rescope(scope: .broad, sourceText: source, targetText: target)) == nil)
+        let wrong = draft("replacementRule", target: "思維鏈", pattern: "思維")
+        #expect(RuleAssistantSession.gateReason(for: wrong, kind: .rescope(scope: .broad, sourceText: source, targetText: target))?.contains("套回原句") == true)
+        let family = draft("replacementFamily", target: "思維鏈有說", familyId: "f1", aliases: ["思維另有說"])
+        #expect(RuleAssistantSession.gateReason(for: family, kind: .rescope(scope: .broad, sourceText: source, targetText: target))?.contains("只接受 replacementRule") == true)
+        let correction = draft("correction", source: source, target: target)
+        #expect(RuleAssistantSession.gateReason(for: correction, kind: .rescope(scope: .broad, sourceText: source, targetText: target)) == nil)
+    }
+
+    @MainActor
+    @Test func contextRescopeGateRequiresTokensInSource() {
+        let source = "但是你的思維另有說。"
+        let target = "但是你的思維鏈有說。"
+        let locked = draft("contextLockedRule", target: "思維鏈有說", pattern: "思維另有說", contextTokens: ["思維", "有說"])
+        #expect(RuleAssistantSession.gateReason(for: locked, kind: .rescope(scope: .context, sourceText: source, targetText: target)) == nil)
+        let missing = draft("contextLockedRule", target: "思維鏈有說", pattern: "思維另有說", contextTokens: ["不存在"])
+        #expect(RuleAssistantSession.gateReason(for: missing, kind: .rescope(scope: .context, sourceText: source, targetText: target))?.contains("不存在") == true)
+        let broad = draft("replacementRule", target: "思維鏈有說", pattern: "思維另有說")
+        #expect(RuleAssistantSession.gateReason(for: broad, kind: .rescope(scope: .context, sourceText: source, targetText: target))?.contains("只接受 contextLockedRule") == true)
+    }
+
+    @MainActor
+    @Test func choiceNeverAuthorisesBroadButKeepsContextLockAndManualScanRules() {
+        let broad = draft("replacementRule", target: "小鎮", pattern: "小振")
+        let choiceReason = RuleAssistantSession.gateReason(for: broad, kind: .choice(candidateChosen: true))
+        #expect(choiceReason?.contains("草稿卡") == true)
+        let locked = draft("contextLockedRule", target: "小鎮", pattern: "小振", contextTokens: ["家"])
+        #expect(RuleAssistantSession.gateReason(for: locked, kind: .choice(candidateChosen: true)) == nil)
+        #expect(RuleAssistantSession.gateReason(for: broad, kind: .manual) == nil)
+        #expect(RuleAssistantSession.gateReason(for: broad, kind: .scan) != nil)
+        #expect(RuleAssistantSession.gateReason(for: locked, kind: .scan) == nil)
     }
 }
 

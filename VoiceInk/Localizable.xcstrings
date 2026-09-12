@@ -13145,6 +13145,26 @@
         }
       }
     },
+    "Change scope to Any context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把範圍改為任何語境"
+          }
+        }
+      }
+    },
+    "Change scope to Context-locked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把範圍改為語境限定"
+          }
+        }
+      }
+    },
     "Any context creates a broad rule: the source will be replaced everywhere.": {
       "localizations": {
         "zh-Hant": {
