@@ -243,20 +243,25 @@ struct RuleAssistantIntegrationTests {
                 FakeGoProvider.chunk(content: draftAnswer([correctionDraft("小振", "小鎮")])),
                 FakeGoProvider.chunk(finish: "stop"),
             ]),
+            // The App sends the conflict back once; the model repeats the same draft, so the retry stops.
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("小振", "小鎮")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
         ])
         let session = makeRuleAssistantSession(server: server)
         await session.submit("把小振改成小鎮")
-        guard case .draftReady = session.state.phase else {
-            Issue.record("expected draftReady, got \(session.state.phase)")
+        guard case .failed(let message) = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
             return
         }
+        #expect(message.contains("模型重出相同草稿"))
         let entry = session.state.drafts[0]
         #expect(entry.check?.blockedReason != nil)
         #expect(!session.state.canConfirm(entry))
         await session.confirm()
-        // Confirm is gated: nothing was written, phase unchanged.
+        // Confirm is gated: nothing was written.
         #expect(!server.toolCalls.contains { $0.name == "add_auto_apply_correction" })
-        #expect(session.state.phase == .draftReady)
     }
 
     /// The Worker's duplicate check answers a tombstone with the policy it retires (alreadyApplied=true,
@@ -323,6 +328,11 @@ struct RuleAssistantIntegrationTests {
             return FakeMCPServer.defaultToolHandler(name, args)
         }
         FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([tombstoneDraft(policyId: "manual-replacement-40ff6d15720178e4")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+            // The App sends the duplicate back once; the model repeats the same draft, so the retry stops.
             .stream([
                 FakeGoProvider.chunk(content: draftAnswer([tombstoneDraft(policyId: "manual-replacement-40ff6d15720178e4")])),
                 FakeGoProvider.chunk(finish: "stop"),
@@ -492,6 +502,11 @@ struct RuleAssistantIntegrationTests {
             return FakeMCPServer.defaultToolHandler(name, args)
         }
         FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+            // The App sends the duplicate back once; the model repeats the same draft, so the retry stops.
             .stream([
                 FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
                 FakeGoProvider.chunk(finish: "stop"),
@@ -946,6 +961,11 @@ struct RuleAssistantIntegrationTests {
                 FakeGoProvider.chunk(content: draftAnswer([broad])),
                 FakeGoProvider.chunk(finish: "stop"),
             ]),
+            // The App sends the gate reason back once; the model repeats the same draft, so the retry stops.
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([broad])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
         ])
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
@@ -1202,6 +1222,8 @@ struct RuleAssistantIntegrationTests {
         let broadB = RuleAssistantTestJSON.string(["eventType": "replacementRule", "sourcePattern": "去", "targetText": "趣"])
         FakeGoProvider.reset(scripts: [
             .stream([FakeGoProvider.chunk(content: questionJSON(options: candidateOptions)), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broadA, broadB])), FakeGoProvider.chunk(finish: "stop")]),
+            // The App sends the gate reason back once; the model repeats the same drafts, so the retry stops.
             .stream([FakeGoProvider.chunk(content: draftAnswer([broadA, broadB])), FakeGoProvider.chunk(finish: "stop")]),
         ])
         let session = makeRuleAssistantSession(server: server)
@@ -1764,6 +1786,152 @@ struct RuleAssistantIntegrationTests {
         }
         // No request ever left the client.
         #expect(FakeGoProvider.recorded.isEmpty)
+    }
+
+    // MARK: Retired rules and automatic gate feedback
+
+    /// Record voco:row:24701: the Worker points at the very add event its tombstone retired. duplicatePolicy is
+    /// empty, retiredPolicy is not, and the preview adds a policy — the card must stay confirmable.
+    @Test func duplicateEventDoesNotBlockWhenOnlyARetiredPolicyMatched() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["retiredPolicy"] = ["found": true, "count": 1]
+                duplicate["duplicateEvent"] = ["found": true, "count": 1, "events": [["eventId": "evt-old"]]]
+                return .result(duplicate)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("我在麥克應該有接了一個硬體")
+        let entry = session.state.drafts[0]
+        #expect(entry.check?.duplicate?.retiredPolicies == 1)
+        #expect(entry.check?.blockedReason == nil)
+        #expect(session.state.canConfirm(entry))
+    }
+
+    /// The App-side gate refused the only draft: the reason goes back to the model by itself, and the corrected
+    /// draft from the next round becomes the card. Jason never copies a message into the note field.
+    @Test func gateRejectionIsSentBackToTheModelAutomatically() async {
+        server.reset()
+        let broad = RuleAssistantTestJSON.string([
+            "eventType": "replacementRule",
+            "sourcePattern": "小振",
+            "targetText": "小鎮",
+            "reason": "測試",
+        ])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我們去小振家", "我們去小鎮家")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        #expect(session.state.phase == .draftReady)
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.drafts[0].draft.eventType == "correction")
+        // The follow-up is an App turn, not a user turn, and carries the refusal reason on the wire.
+        #expect(session.state.transcript.contains { $0.role == "app" && $0.text.hasPrefix(RuleAssistantSession.gateFeedbackPrefix) })
+        let followUp = providerMessages(1).last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
+        #expect(followUp.hasPrefix(RuleAssistantSession.gateFeedbackPrefix))
+        #expect(followUp.contains("Find-issues never creates broad rules") || followUp.contains("找問題不會建立廣泛規則"))
+    }
+
+    /// The model answers the automatic follow-up with the same draft: stop instead of looping.
+    @Test func repeatedRejectedDraftStopsTheAutomaticRetry() async {
+        server.reset()
+        let broad = RuleAssistantTestJSON.string([
+            "eventType": "replacementRule",
+            "sourcePattern": "小振",
+            "targetText": "小鎮",
+            "reason": "測試",
+        ])
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+            .stream([FakeGoProvider.chunk(content: draftAnswer([broad])), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submitScan()
+        guard case .failed(let message) = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
+            return
+        }
+        #expect(message.contains("模型重出相同草稿"))
+        // Exactly one automatic follow-up was sent before it stopped.
+        #expect(FakeGoProvider.recorded.count == 2)
+    }
+
+    /// A Worker block the model can act on (conflicting rule) also goes back automatically.
+    @Test func workerConflictBlockIsSentBackToTheModelAutomatically() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "preview_auto_apply_control_event",
+               (args["eventType"] as? String) == "contextLockedRule" {
+                var preview = FakeMCPServer.previewOK
+                preview["conflicts"] = [["policyId": "manual-context-1"]]
+                preview["reason"] = "conflicts with manual-context-1"
+                return .result(preview)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([contextLockedDraft(tokens: ["bug", "電腦", "硬體"])])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我在麥克應該有接了一個硬體", "我在 Mac 應該有接了一個硬體")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("我在麥克應該有接了一個硬體")
+        #expect(session.state.phase == .draftReady)
+        #expect(session.state.drafts.count == 1)
+        #expect(session.state.drafts[0].draft.eventType == "correction")
+        let followUp = providerMessages(1).last { $0["role"] as? String == "user" }?["content"] as? String ?? ""
+        #expect(followUp.hasPrefix(RuleAssistantSession.gateFeedbackPrefix))
+        #expect(followUp.contains("與現有規則衝突") || followUp.contains("Conflicts with existing rules"))
+    }
+
+    /// An already-applied rule is a dead end, not something the model can fix: it must not be resent.
+    @Test func alreadyAppliedBlockIsNotSentBackToTheModel() async {
+        server.reset()
+        server.toolHandler = { name, args in
+            if name == "detect_duplicate_control_event" {
+                var duplicate = FakeMCPServer.duplicateNone
+                duplicate["alreadyApplied"] = true
+                return .result(duplicate)
+            }
+            if name == "preview_auto_apply_control_event" {
+                var preview = FakeMCPServer.previewOK
+                preview["runtimeEffect"] = "metadata-only"
+                preview["policiesAdded"] = 0
+                return .result(preview)
+            }
+            return FakeMCPServer.defaultToolHandler(name, args)
+        }
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("我們去小振家", "我們去小鎮家")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("這裡是小鎮")
+        #expect(session.state.drafts[0].check?.retryable == false)
+        #expect(session.state.drafts[0].check?.blockedReason != nil)
+        #expect(FakeGoProvider.recorded.count == 1)
     }
 
     @Test func non200ProviderStatusIsTransportError() async {

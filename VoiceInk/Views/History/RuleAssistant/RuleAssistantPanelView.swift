@@ -188,6 +188,8 @@ private struct RuleAssistantSessionView: View {
                 ForEach(Array(state.transcript.enumerated()), id: \.offset) { _, turn in
                     if turn.role == "user" {
                         userBubble(turn.text)
+                    } else if turn.role == "app" {
+                        appBubble(turn.text)
                     } else {
                         assistantBubble(turn.text)
                         if let question = turn.question {
@@ -233,6 +235,34 @@ private struct RuleAssistantSessionView: View {
                                 .strokeBorder(AppTheme.Border.subtle, lineWidth: 1)
                         }
                 }
+        }
+    }
+
+    /// A turn the App itself sent to the model (the gate / Worker check reasons). Labelled so the
+    /// conversation still shows which words are Jason's.
+    private func appBubble(_ text: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("App 檢查")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
+                    .fill(AppTheme.Surface.subtle)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
+                            .strokeBorder(AppTheme.Border.subtle, lineWidth: 1)
+                    }
+            }
+            Spacer(minLength: 40)
         }
     }
 

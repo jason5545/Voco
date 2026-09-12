@@ -106,16 +106,24 @@ struct RuleAssistantPreview: Equatable {
 struct RuleAssistantDuplicate: Equatable {
     var alreadyApplied: Bool
     var duplicatePolicies: Int
+    /// Policies with the same source/target that a tombstone already retired; they no longer apply at runtime.
+    var retiredPolicies: Int
     var duplicateEvents: Int
     var suggestedNextAction: String?
 
     var found: Bool { alreadyApplied || duplicatePolicies > 0 || duplicateEvents > 0 }
 
+    /// Only a retired rule matches: the same source/target exists in the model but a tombstone took it out,
+    /// so re-adding it really does create a runtime policy and the old saved event is not a duplicate of it.
+    var onlyRetiredPolicyMatched: Bool { !alreadyApplied && duplicatePolicies == 0 && retiredPolicies > 0 }
+
     /// Whether the Worker already holds this exact event. For add events any match counts. For a
     /// tombstone the Worker's duplicatePolicy / alreadyApplied describe the rule being retired (it has
     /// to exist for the tombstone to do anything), so only an identical tombstone event counts.
+    /// A match that only describes a retired rule never proves the lost write landed.
     func alreadyWritten(eventType: String) -> Bool {
-        eventType == "tombstone" ? duplicateEvents > 0 : found
+        if onlyRetiredPolicyMatched { return false }
+        return eventType == "tombstone" ? duplicateEvents > 0 : found
     }
 
     init(json: [String: Any]) {
@@ -124,6 +132,11 @@ struct RuleAssistantDuplicate: Equatable {
             duplicatePolicies = policy.raBool("found") ? max(1, Int(policy.raInt64("count") ?? 0)) : 0
         } else {
             duplicatePolicies = 0
+        }
+        if let retired = json.raDict("retiredPolicy") {
+            retiredPolicies = retired.raBool("found") ? max(1, Int(retired.raInt64("count") ?? 0)) : 0
+        } else {
+            retiredPolicies = 0
         }
         if let event = json.raDict("duplicateEvent") {
             duplicateEvents = event.raBool("found") ? max(1, Int(event.raInt64("count") ?? 0)) : 0
@@ -140,6 +153,10 @@ struct RuleAssistantDraftCheck: Equatable {
     var preview: RuleAssistantPreview?
     var duplicate: RuleAssistantDuplicate?
     var blockedReason: String?
+    /// True when the model could plausibly fix this block itself (conflict, duplicate, unsupported type), so
+    /// the App sends the reason back instead of leaving Jason to copy it into the note field. A transport
+    /// failure, an already-applied rule, or a no-op preview is never retried.
+    var retryable = false
 
     var ok: Bool { blockedReason == nil }
 }
@@ -266,6 +283,11 @@ final class RuleAssistantSession: ObservableObject {
     private let onCorrections: (RuleAssistantContext, String) -> Void
     /// Longer lexicon words containing a broad source (see RuleAssistantGuardSuggester); empty in tests without a lexicon.
     private let guardSuggester: (String) -> [String]
+    /// Text re-run through the runtime installed right now; injectable so tests need no model on disk.
+    private let runtimeReplayer: (String?) -> RuleAssistantRuntimeReplay?
+    /// Re-reads the installed model before a replay. The Mac runtime only picks a new file up through its
+    /// debounced file watcher, so a replay taken right after a publish would still describe the old model.
+    private let runtimeReloader: () -> Void
 
     private var provider: RuleAssistantProvider?
     private var mcp: RuleAssistantMCP?
@@ -280,6 +302,12 @@ final class RuleAssistantSession: ObservableObject {
     /// Correction draft to put back when a scope-change reply fails or is cancelled.
     private var pendingRescopeRestore: RuleAssistantDraftEntry?
     private var turnKind: RuleAssistantTurnKind = .manual
+    /// A publish changed the installed model and the recomputed replay has not reached the model yet.
+    private var runtimeReplayIsFresh = false
+    /// Automatic follow-up rounds spent on the current user action (reset by every submit).
+    private var autoRetries = 0
+    /// Gate keys of drafts already refused in this user action; the same draft again stops the retry loop.
+    private var blockedDraftKeys: Set<String> = []
 
     init(
         context: RuleAssistantContext,
@@ -288,7 +316,9 @@ final class RuleAssistantSession: ObservableObject {
         syncNow: @escaping () async -> RuleAssistantSyncResult,
         neighborLoader: @escaping (_ before: Int, _ after: Int) -> [RuleAssistantContext] = { _, _ in [] },
         onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in },
-        guardSuggester: @escaping (String) -> [String] = { _ in [] }
+        guardSuggester: @escaping (String) -> [String] = { _ in [] },
+        runtimeReplayer: @escaping (String?) -> RuleAssistantRuntimeReplay? = { RuleAssistantRuntimeReplay.current(inputText: $0) },
+        runtimeReloader: @escaping () -> Void = { VocoAutoApplyModelService.shared.reload() }
     ) {
         state = RuleAssistantUIState(context: context)
         self.providerFactory = providerFactory
@@ -297,6 +327,8 @@ final class RuleAssistantSession: ObservableObject {
         self.neighborLoader = neighborLoader
         self.onCorrections = onCorrections
         self.guardSuggester = guardSuggester
+        self.runtimeReplayer = runtimeReplayer
+        self.runtimeReloader = runtimeReloader
     }
 
     func setConfig(goKeyConfigured: Bool, syncConfigured: Bool) {
@@ -391,6 +423,8 @@ final class RuleAssistantSession: ObservableObject {
         state.publishMessage = nil
         state.pendingQuestion = nil
         state.selectedOptionIds = []
+        autoRetries = 0
+        blockedDraftKeys = []
         state.transcript.append(RuleAssistantTurn(role: "user", text: display))
         var transaction = history
         do {
@@ -448,8 +482,17 @@ final class RuleAssistantSession: ObservableObject {
                         transaction.append(OpenCodeMessage(role: "user", content: nudge.prompt))
                         continue
                     }
-                    try await finishTurn(answer: outcome.visibleAnswer, promisedAnswer: promisedAnswer, transaction: transaction, worker: worker, gen: gen)
-                    return
+                    let retry = try await finishTurn(answer: outcome.visibleAnswer, promisedAnswer: promisedAnswer, transaction: transaction, worker: worker, gen: gen)
+                    try guardGeneration(gen)
+                    guard let retry else { return }
+                    // The App speaks for itself here: shown as an App turn, printed as [app] in the export,
+                    // and sent with the same turn kind so the gate keeps applying.
+                    state.transcript.append(RuleAssistantTurn(role: "app", text: retry))
+                    // The refused cards stay visible with their reason until the next answer replaces them.
+                    transaction = history
+                    transaction.append(OpenCodeMessage(role: "user", content: retry))
+                    promisedAnswer = ""
+                    continue
                 }
                 for call in outcome.calls {
                     guard let function = call.raDict("function"),
@@ -813,6 +856,19 @@ final class RuleAssistantSession: ObservableObject {
         }
         state.phase = .published
         state.publishMessage = String(localized: "The Worker published and the Mac model is in sync (SHA \(publishedSha.prefix(12))). The canonical ReplayLab merge is handled separately.")
+        refreshRuntimeReplay()
+    }
+
+    /// The installed model changed, so the record's runtimeReplay is stale. Recompute it and mark it so the
+    /// next turn tells the model what the current rules already fix (otherwise it keeps drafting for a span a
+    /// card published one minute ago already handles).
+    private func refreshRuntimeReplay() {
+        runtimeReloader()
+        guard let replay = runtimeReplayer(state.context.normalizedTranscript ?? state.context.text) else { return }
+        guard replay != state.context.runtimeReplay else { return }
+        state.context.runtimeReplay = replay
+        runtimeReplayIsFresh = true
+        status(String(localized: "Re-ran this record through the updated runtime: \(replay.fires.count) rule(s) fire now."))
     }
 
     // MARK: Internals
@@ -913,13 +969,15 @@ final class RuleAssistantSession: ObservableObject {
     /// A plan line as the system prompt defines it: 「[context-locked] <source> → <target>」 at the start of a line.
     static let planLinePattern = "(?m)^[ \\t]*\\[(exact|broad|context-locked|family|tombstone|move|merge|replace)\\]"
 
+    /// Commit one completed answer. Returns the wire text of an automatic follow-up turn when the App-side
+    /// gate or the Worker check refused every draft and the model can still fix it; nil when the turn is done.
     private func finishTurn(
         answer: String,
         promisedAnswer: String = "",
         transaction: [OpenCodeMessage],
         worker: RuleAssistantMCP,
         gen: Int64
-    ) async throws {
+    ) async throws -> String? {
         let located = RuleAssistantDraft.locateAllJSON(in: answer)
         let proposed = RuleAssistantDraft.parseAll(located)
         let question = RuleAssistantQuestion.parseFirst(located)
@@ -963,16 +1021,21 @@ final class RuleAssistantSession: ObservableObject {
         }
         if proposed.isEmpty {
             state.phase = .idle
-            return
+            return nil
         }
         var rejected: [String] = []
         let kind = turnKind
+        // A scope change is judged against 原句 and against 原句 after the rules that are already live.
+        var runtimeBaseline: String?
+        if case .rescope(_, let rescopeSource, _) = kind {
+            runtimeBaseline = runtimeReplayer(rescopeSource)?.outputText
+        }
         let accepted = proposed.filter { draft in
             if !draft.isSafeForWrite() {
                 rejected.append(String(localized: "The AI proposed a draft with incomplete or unsafe fields (\(draft.eventType)); it was not listed for confirmation. Add more detail and send again."))
                 return false
             }
-            if let reason = Self.gateReason(for: draft, kind: kind) {
+            if let reason = Self.gateReason(for: draft, kind: kind, runtimeBaseline: runtimeBaseline) {
                 rejected.append(reason)
                 return false
             }
@@ -983,8 +1046,12 @@ final class RuleAssistantSession: ObservableObject {
         }
         guard !accepted.isEmpty else {
             // A question alongside only-rejected drafts still deserves an answer; keep the turn usable.
-            state.phase = question != nil ? .idle : .failed(rejected.first ?? String(localized: "No confirmable draft."))
-            return
+            if question != nil {
+                state.phase = .idle
+                return nil
+            }
+            if let retry = autoRetryPrompt(reasons: rejected, blocked: proposed) { return retry }
+            return nil
         }
         let entries = accepted.map { draft -> RuleAssistantDraftEntry in
             var entry = RuleAssistantDraftEntry(draft: draft)
@@ -1018,7 +1085,52 @@ final class RuleAssistantSession: ObservableObject {
             try guardGeneration(gen)
             updateEntry(nonce: entry.draft.nonce) { $0.check = check }
         }
-        state.phase = .draftReady
+        // Every card the Worker refused for a reason the model can act on goes back to the model once,
+        // so Jason does not have to copy the block message into the note field.
+        let checkedDrafts = state.drafts
+        if question == nil, !checkedDrafts.isEmpty,
+           checkedDrafts.allSatisfy({ $0.check?.retryable == true }),
+           let retry = autoRetryPrompt(
+               reasons: checkedDrafts.compactMap { $0.check?.blockedReason },
+               blocked: checkedDrafts.map { $0.draft }
+           ) {
+            return retry
+        }
+        if case .failed = state.phase {} else { state.phase = .draftReady }
+        return nil
+    }
+
+    /// The gate or the Worker refused every draft: send the reasons back to the model as an App turn instead
+    /// of leaving Jason to retype them. Returns nil (and sets the failed phase) when the retry budget is
+    /// spent or the model just re-sent a draft that was already refused in this user action.
+    private func autoRetryPrompt(reasons: [String], blocked: [RuleAssistantDraft]) -> String? {
+        let first = reasons.first ?? String(localized: "No confirmable draft.")
+        let keys = Set(blocked.map(Self.draftGateKey))
+        if !keys.isEmpty, keys.isSubset(of: blockedDraftKeys) {
+            state.phase = .failed(String(localized: "\(first)（已自動重試 \(autoRetries) 次，模型重出相同草稿）"))
+            return nil
+        }
+        blockedDraftKeys.formUnion(keys)
+        guard autoRetries < Self.maxAutoRetries else {
+            state.phase = .failed(String(localized: "\(first)（已自動重試 \(autoRetries) 次仍未通過檢查）"))
+            return nil
+        }
+        autoRetries += 1
+        status(String(localized: "Sent the check result back to the AI (attempt \(autoRetries)/\(Self.maxAutoRetries))"))
+        let lines = reasons.map { "- \($0)" }.joined(separator: "\n")
+        return "\(Self.gateFeedbackPrefix)：\n\(lines)\n請依這些理由重新出草稿，不要問範圍、不要重複同一份草稿。"
+    }
+
+    /// Identity of a draft for the retry loop: the same rule proposed again, whatever its wording.
+    static func draftGateKey(_ draft: RuleAssistantDraft) -> String {
+        [
+            draft.eventType,
+            draft.sourcePattern ?? draft.sourceText ?? "",
+            draft.targetText ?? "",
+            draft.contextTokensAny.sorted().joined(separator: "\u{1}"),
+            draft.aliases.sorted().joined(separator: "\u{1}"),
+            draft.policyId ?? ""
+        ].joined(separator: "|")
     }
 
     /// Tombstones that carry a policyId must also carry the canonical text keys before they can be written.
@@ -1170,9 +1282,13 @@ final class RuleAssistantSession: ObservableObject {
             }
         }
         let blocked: String?
+        // Blocks the model can act on itself (pick another event type, tombstone first, narrow the scope).
+        var retryable = false
         if !preview.realtimeSupported {
+            retryable = true
             blocked = String(localized: "The Worker cannot publish this event type in realtime (unsupported=\(preview.unsupported), skipped=\(preview.skipped)): \(preview.reason ?? "")")
         } else if preview.conflicts > 0 {
+            retryable = true
             blocked = String(localized: "Conflicts with existing rules (\(preview.conflicts)): \(preview.reason ?? String(localized: "Retire the conflicting rule or narrow the scope first"))")
         } else if !preview.wouldPublish {
             blocked = String(localized: "The Worker preview says this would not change the model: \(preview.reason ?? "")")
@@ -1180,6 +1296,7 @@ final class RuleAssistantSession: ObservableObject {
             // The policy match is the rule this tombstone retires, not a duplicate; a second identical
             // tombstone event is the only thing to refuse (an already retired rule fails preview above).
             if duplicate.duplicateEvents > 0 {
+                retryable = true
                 blocked = String(localized: "The Worker already has an identical event (\(duplicate.duplicateEvents)); not writing again.")
             } else {
                 blocked = nil
@@ -1188,11 +1305,19 @@ final class RuleAssistantSession: ObservableObject {
             // The Worker's duplicate check matches by source pattern, so an existing or retired rule for the
             // same pattern shows up even when this draft adds a genuinely new runtime policy (a wider context
             // lock, for example). The preview is the deterministic answer; only an identical saved event stops it.
-            if duplicate.duplicateEvents > 0 {
+            //
+            // Except when the only policy match is a retired one: the saved event the Worker points at is the
+            // very add that tombstone took out (record voco:row:24701), so blocking on it makes the rule
+            // impossible to re-send. Newer Workers already drop those events from duplicateEvent; this keeps
+            // an older Worker from wedging the card too.
+            if duplicate.duplicateEvents > 0 && !duplicate.onlyRetiredPolicyMatched {
+                retryable = true
                 blocked = String(localized: "The Worker already has an identical event (\(duplicate.duplicateEvents)); not writing again.")
             } else {
                 blocked = nil
-                if duplicate.alreadyApplied || duplicate.duplicatePolicies > 0 {
+                if duplicate.duplicateEvents > 0 && duplicate.onlyRetiredPolicyMatched {
+                    status(String(localized: "The Worker's matching event belongs to a rule a tombstone already retired, and the preview confirms this adds a runtime policy; letting it through."))
+                } else if duplicate.alreadyApplied || duplicate.duplicatePolicies > 0 {
                     status(String(localized: "The Worker duplicate check matched an existing or retired rule for the same pattern, but the preview confirms this adds a runtime policy; letting it through."))
                 }
             }
@@ -1200,8 +1325,10 @@ final class RuleAssistantSession: ObservableObject {
             if duplicate.alreadyApplied {
                 blocked = String(localized: "This rule is already applied in the current Worker model; no need to write it again.")
             } else if duplicate.duplicateEvents > 0 {
+                retryable = true
                 blocked = String(localized: "The Worker already has an identical event (\(duplicate.duplicateEvents)); not writing again.")
             } else if duplicate.duplicatePolicies > 0 {
+                retryable = true
                 blocked = String(localized: "An existing policy already covers this (\(duplicate.duplicatePolicies)): \(duplicate.suggestedNextAction ?? String(localized: "Check whether the old rule should be retired first"))")
             } else {
                 blocked = nil
@@ -1213,7 +1340,8 @@ final class RuleAssistantSession: ObservableObject {
             draftNonce: draft.nonce,
             preview: preview,
             duplicate: duplicate,
-            blockedReason: blocked
+            blockedReason: blocked,
+            retryable: blocked != nil && retryable
         )
     }
 
@@ -1333,7 +1461,7 @@ final class RuleAssistantSession: ObservableObject {
                         if let reason = preview.reason { line += " reason=\(reason)" }
                     }
                     if let duplicate = check.duplicate {
-                        line += " · duplicate found=\(duplicate.found) applied=\(duplicate.alreadyApplied) policies=\(duplicate.duplicatePolicies) events=\(duplicate.duplicateEvents)"
+                        line += " · duplicate found=\(duplicate.found) applied=\(duplicate.alreadyApplied) policies=\(duplicate.duplicatePolicies) retired=\(duplicate.retiredPolicies) events=\(duplicate.duplicateEvents)"
                     }
                     if let blocked = check.blockedReason { line += " · BLOCKED: \(blocked)" }
                     out.append(line)
@@ -1379,7 +1507,7 @@ final class RuleAssistantSession: ObservableObject {
         out.append("""
             The user exported this rule-assistant conversation from the App because something in it looked wrong or worth improving. Judge the model's behaviour against the App's rules: did it find the right candidates, ask with a proper question JSON instead of free text, draft correction for a choice, honor a rescope turn only when its replacement reproduces the supplied sentence, avoid inventing targets, and respect the correction markings and the App-side gate? Then decide where the fix belongs:
             - Prompt: `systemPrompt` / `scanPrompt` in VoiceInk/Services/RuleAssistant/RuleAssistantSession.swift (Mac) and `SYSTEM_PROMPT` / `SCAN_PROMPT` in app/src/main/java/com/vocotype/ruleassistant/RuleAssistantSession.kt (Android). The two must stay identical apart from platform words.
-            - App logic: question/draft parsing in RuleAssistantProtocol.swift / .kt, the turn-kind gate `gateReason`, the choice reply format in `submitChoice`, or the panel/screen UI.
+            - App logic: question/draft parsing in RuleAssistantProtocol.swift / .kt, the turn-kind gate `gateReason`, the choice reply format in `submitChoice`, or the panel/screen UI. A `[app]` turn is the App's own automatic follow-up carrying the gate / Worker refusal reasons, not something Jason typed.
             - Worker: preview / duplicate / write results above come from the Worker MCP; a wrong check result is a Worker issue, not a prompt issue.
             Reply with concrete suggestions, or make the change directly on both platforms and run the RuleAssistant test suites.
             """)
@@ -1390,8 +1518,13 @@ final class RuleAssistantSession: ObservableObject {
         text.count <= limit ? text : String(text.prefix(limit)) + "… (\(text.count) chars)"
     }
 
-    /// Apply the App-side authorization for each kind of user turn.
-    static func gateReason(for draft: RuleAssistantDraft, kind: RuleAssistantTurnKind) -> String? {
+    /// Apply the App-side authorization for each kind of user turn. `runtimeBaseline` is 原句 re-run through
+    /// the runtime installed now; a scope change may legitimately only cover what the live rules leave behind.
+    static func gateReason(
+        for draft: RuleAssistantDraft,
+        kind: RuleAssistantTurnKind,
+        runtimeBaseline: String? = nil
+    ) -> String? {
         switch kind {
         case .manual:
             return nil
@@ -1416,24 +1549,35 @@ final class RuleAssistantSession: ObservableObject {
             guard draft.eventType == expectedType else {
                 return String(localized: "範圍變更回合只接受 \(expectedType)，收到 \(draft.eventType)。")
             }
+            // Two bases count as 原句: the sentence as recognised, and the same sentence after the rules that
+            // are already live. Part of 修正後 may already be produced by a rule published earlier in this
+            // conversation, and then only the remaining wrong span belongs in this draft.
+            var bases = [sourceText]
+            if let runtimeBaseline = runtimeBaseline?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !runtimeBaseline.isEmpty, runtimeBaseline != sourceText {
+                bases.append(runtimeBaseline)
+            }
             guard let rawPattern = draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines), !rawPattern.isEmpty,
                   let rawTarget = draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTarget.isEmpty,
-                  sourceText.contains(rawPattern)
+                  bases.contains(where: { $0.contains(rawPattern) })
             else {
                 let patternDescription = draft.sourcePattern ?? ""
                 let targetDescription = draft.targetText ?? ""
                 return String(localized: "範圍變更回合的 sourcePattern 必須是原句中的錯誤片段（sourcePattern=\(patternDescription)，targetText=\(targetDescription)）。")
             }
-            let applied = VocoAutoApplyModelService.applyLiteralReplacement(
-                rawPattern,
-                with: rawTarget,
-                in: sourceText
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
             let expected = targetText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard applied == expected else {
-                if Self.onlyCJKLatinBoundarySpacingDifference(applied, expected) {
-                    return String(localized: "套回原句不等於修正後；差別只在中英之間的空格，不要用加長 sourcePattern 處理。")
+            let results = bases.map { base in
+                VocoAutoApplyModelService.applyLiteralReplacement(
+                    rawPattern,
+                    with: rawTarget,
+                    in: base
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard results.contains(expected) else {
+                if results.contains(where: { Self.onlyCJKLatinBoundarySpacingDifference($0, expected) }) {
+                    return String(localized: "套回原句後只差中英之間的空格：targetText 只放正確的英文片段本身，sourcePattern 只放對應的錯誤片段，不要把周圍的中文一起放進來。")
                 }
+                let applied = results.first ?? ""
                 return String(localized: "套回原句不等於修正後：sourcePattern=\(rawPattern)，targetText=\(rawTarget)，套用結果=\(applied)，修正後=\(expected)。")
             }
             if scope == .context {
@@ -1509,7 +1653,12 @@ final class RuleAssistantSession: ObservableObject {
             return "選取紀錄（只限此筆）：\(RAJSON.serialize(context.toSafeJSON()))\n使用者說明：\(instruction)"
         }
         let markings = RAJSON.serializeArray(RowCorrectionMarkings.parse(state.context.correctionsJSON).map { $0.toJSONObject() })
-        return "此筆修正標記（Worker 狀態）：\(markings)\n使用者補充：\(instruction)"
+        var replayLine = ""
+        if runtimeReplayIsFresh, let replay = state.context.runtimeReplay {
+            runtimeReplayIsFresh = false
+            replayLine = "此筆現行 runtime 重放（剛發佈的規則已納入）：\(RAJSON.serialize(replay.toJSONObject()))\n"
+        }
+        return "\(replayLine)此筆修正標記（Worker 狀態）：\(markings)\n使用者補充：\(instruction)"
     }
 
     static func message(of error: Error) -> String {
@@ -1525,7 +1674,11 @@ final class RuleAssistantSession: ObservableObject {
 
     // MARK: Constants
 
-    static let maxRounds = 6
+    static let maxRounds = 8
+    /// Automatic gate-feedback rounds per user action; after these the card fails and waits for Jason.
+    static let maxAutoRetries = 2
+    /// Wire prefix of an App-authored turn carrying the gate/Worker refusal reasons (see the system prompt).
+    static let gateFeedbackPrefix = "App 檢查未通過"
     static let maxTextChars = 120_000
     static let maxToolResultChars = 60_000
     static let maxStatusLines = 30
@@ -1554,6 +1707,7 @@ final class RuleAssistantSession: ObservableObject {
         - If targetText contains English, spacing between Chinese and Latin characters is supplied by the runtime; do not lengthen sourcePattern just to add spaces.
         - `runtimeReplay` is the record text re-run through the current runtime (built-in rules plus the installed Worker overlay). Any surface already hit by `runtimeReplay.fires`, or already fixed in `runtimeReplay.outputText`, is covered: say so, never draft for it, never list it as a candidate. It is null when the runtime is unavailable; then fall back to lookups. When the user's explanation points at a surface the replay already fires on, answer that the current runtime already fixes it (name the fire), output no draft, and tell them they can describe any further change in the input box.
         - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Before anything else look at `runtimeReplay`: when `changed` is true (`fires` is not empty), the current runtime already rewrites this record, so treat it as already fixed. Reply in one or two sentences that it looks already fixed, list each fire as sourcePattern → targetText, and ask one question whose options are only the way-outs 「好，不用改」 and 「還有別的錯，我來說」. Do not scan the rest of the record for further candidates, do not call any tool, and do not draft; if the user wants something else they will say so in the input box or the note, and that reply is handled as a normal explanation. Only when `changed` is false, or `runtimeReplay` is null, run the scan: Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the message is a 範圍變更 to 任何語境 or the user said in his own words that the source is never intended; use correction for the whole utterance or contextLockedRule.
+        - A user message that starts with 「App 檢查未通過」 is written by the App, not by the user: it lists the reasons the App-side gate or the Worker check refused your drafts. Fix the draft for every reason listed and output the corrected draft JSON again. Never argue with it, never ask about scope, and never re-send the same draft unchanged; when no draft can satisfy the reasons, ask one question with options instead.
 
         Questions (instead of free-text clarification):
         - Whenever you would ask the user something, emit exactly one JSON object in its own ```json fence, for example:
@@ -1564,7 +1718,7 @@ final class RuleAssistantSession: ObservableObject {
               選擇：[a] 西賴 → CLI
           選擇：[b] ...
           補充：<the user's note, or 無>
-              A chosen candidate always means a correction for the whole utterance (scope 只改這句); draft it. The user widens the scope on the draft card, never by answering you; when he does, the App sends a message starting with 「範圍變更：任何語境」 or 「範圍變更：語境限定」 followed by 原句 and 修正後. 任何語境 → exactly one replacementRule whose sourcePattern is the shortest wrong span inside 原句 and whose targetText, substituted into 原句, reproduces 修正後 exactly; add positiveExamples (原句 → 修正後) and negativeExamples. 語境限定 → exactly one contextLockedRule under the same substitution rule, contextTokensAny taken from 原句, or one token-choice question if unsure. In a 範圍變更 message never propose replacementFamily, tombstone or any other type, and never ask about scope again. A 「再猜」-style choice means your target was wrong: offer new candidates as another question, never a draft.
+              A chosen candidate always means a correction for the whole utterance (scope 只改這句); draft it. The user widens the scope on the draft card, never by answering you; when he does, the App sends a message starting with 「範圍變更：任何語境」 or 「範圍變更：語境限定」 followed by 原句 and 修正後. 任何語境 → exactly one replacementRule whose sourcePattern is the shortest wrong span inside 原句 and whose targetText, substituted into 原句, reproduces 修正後 exactly; add positiveExamples (原句 → 修正後) and negativeExamples. 語境限定 → exactly one contextLockedRule under the same substitution rule, contextTokensAny taken from 原句, or one token-choice question if unsure. In a 範圍變更 message never propose replacementFamily, tombstone or any other type, and never ask about scope again. When part of 修正後 is already produced by this record's correction markings or by a rule that `runtimeReplay.fires` lists, write one rule for the remaining wrong span only, and say in your explanation which part an existing rule already handles. Even when the user already changed an earlier draft card to 任何語境, a candidate chosen in a later question still starts as a correction for the whole utterance; the scope stays his decision on the card. A 「再猜」-style choice means your target was wrong: offer new candidates as another question, never a draft.
 
         Chinese script handling:
         - Voco/Vocotype has its own Chinese normalization pipeline: OpenCC conversion runs before the correction layer. Simplified-to-Traditional conversion belongs to that pipeline, not correction rules.
@@ -1598,7 +1752,7 @@ final class RuleAssistantSession: ObservableObject {
         - contextTokensAny / contextAliasesAny on a contextLockedRule match anywhere in the utterance or its context, not adjacency: a lock on 一個 also fires on 我有一個問題，你先按按鈕. When the distinguishing cue is the word immediately before or after the surface, put that word into the literal sourcePattern (and targetText) as well, and keep the token in contextTokensAny.
         - For interrupted/self-repair speech, do not propose a rule unless the user confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when the user confirms it.
-        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. Each negative example's text must actually contain the sourcePattern inside a longer legitimate word or phrase, with expectedText identical to it; an example whose text equals its expectedText without containing the source proves nothing and must not be emitted. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan.
+        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. Each negative example's text must actually contain the sourcePattern inside a longer legitimate word or phrase, with expectedText identical to it; an example whose text equals its expectedText without containing the source proves nothing and must not be emitted. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan. Never use as a negativeExample a fragment you yourself listed as a wrong surface in a candidate, or that this record shows is a misrecognition: a negative example may only be a word or phrase that really exists and that the user really says. If the only way to make the substitution check pass is to guard a fragment you suspect is wrong, do not force the negative example: ask a question about that fragment instead.
         - Do not ask for audio, file paths, or other history; only this record and this chat exist.
         - Do not print connector auth keys or URLs.
 

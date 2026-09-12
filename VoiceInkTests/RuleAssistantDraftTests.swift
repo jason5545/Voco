@@ -269,8 +269,56 @@ struct RuleAssistantDraftSafetyTests {
             RuleAssistantSession.gateReason(
                 for: missingBoundarySpace,
                 kind: .rescope(scope: .broad, sourceText: latinSource, targetText: "整個Mac 鍵盤就會泛油光")
-            )?.contains("差別只在中英之間的空格") == true
+            )?.contains("套回原句後只差中英之間的空格") == true
         )
+        // The message has to tell the model what to change, not just that it is wrong.
+        let spacingReason = RuleAssistantSession.gateReason(
+            for: missingBoundarySpace,
+            kind: .rescope(scope: .broad, sourceText: latinSource, targetText: "整個Mac 鍵盤就會泛油光")
+        )
+        #expect(spacingReason?.contains("targetText 只放正確的英文片段本身") == true)
+        #expect(spacingReason?.contains("不要把周圍的中文一起放進來") == true)
+    }
+
+    /// Record voco:row:24701: an earlier card already published 託登斯寫的 → Codex寫的, so the rescoped rule only
+    /// owns the remaining span. Against 原句 alone the substitution never reproduces 修正後; against 原句 after
+    /// the live runtime it does, and the gate must let it through.
+    @MainActor
+    @Test func rescopeGateAcceptsARuleThatOnlyCoversWhatTheLiveRuntimeLeftBehind() {
+        let source = "你還是要給託登斯特朗，因為這個是託登斯寫的。"
+        let target = "你還是要給 Codex 一個 prompt，因為這個是 Codex 寫的。"
+        let afterRuntime = "你還是要給託登斯特朗，因為這個是 Codex 寫的。"
+        let rule = draft("replacementRule", target: "Codex 一個 prompt", pattern: "託登斯特朗")
+        let withoutRuntime = RuleAssistantSession.gateReason(
+            for: rule,
+            kind: .rescope(scope: .broad, sourceText: source, targetText: target)
+        )
+        #expect(withoutRuntime?.contains("套回原句不等於修正後") == true)
+        #expect(
+            RuleAssistantSession.gateReason(
+                for: rule,
+                kind: .rescope(scope: .broad, sourceText: source, targetText: target),
+                runtimeBaseline: afterRuntime
+            ) == nil
+        )
+        // A runtime baseline never waves through a rule that reproduces neither sentence.
+        let wrong = draft("replacementRule", target: "Codex", pattern: "託登斯特朗")
+        #expect(
+            RuleAssistantSession.gateReason(
+                for: wrong,
+                kind: .rescope(scope: .broad, sourceText: source, targetText: target),
+                runtimeBaseline: afterRuntime
+            ) != nil
+        )
+    }
+
+    @MainActor
+    @Test func draftGateKeyIgnoresWordingButSeparatesRules() {
+        let first = draft("replacementRule", target: "Codex", pattern: "託登斯")
+        let sameRule = draft("replacementRule", source: "另一句原句", target: "Codex", pattern: "託登斯")
+        let other = draft("replacementRule", target: "Codex 一個 prompt", pattern: "託登斯特朗")
+        #expect(RuleAssistantSession.draftGateKey(first) == RuleAssistantSession.draftGateKey(sameRule))
+        #expect(RuleAssistantSession.draftGateKey(first) != RuleAssistantSession.draftGateKey(other))
     }
 
     @MainActor

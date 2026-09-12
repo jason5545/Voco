@@ -684,6 +684,8 @@ func makeRuleAssistantSession(
         installedSha256: String(repeating: "a", count: 64)
     ),
     neighbors: [RuleAssistantContext] = [],
+    /// No local model in tests: the session must behave exactly as it does when the runtime is unavailable.
+    runtimeReplayer: @escaping (String?) -> RuleAssistantRuntimeReplay? = { _ in nil },
     guardSuggester: @escaping (String) -> [String] = { _ in [] },
     onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in }
 ) -> RuleAssistantSession {
@@ -696,6 +698,8 @@ func makeRuleAssistantSession(
             Array(neighbors.prefix(before + after))
         },
         onCorrections: onCorrections,
-        guardSuggester: guardSuggester
+        guardSuggester: guardSuggester,
+        runtimeReplayer: runtimeReplayer,
+        runtimeReloader: {}
     )
 }
