@@ -227,7 +227,7 @@ Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取�
 ## 驗收結果（2026-09-11）
 
 - `xcodebuild test -only-testing:VoiceInkTests/RuleAssistantIntegrationTests ... RuleAssistantGuardSuggesterTests`：
-  **55 tests、3 suites，全部通過**。Release build 成功、`ditto` 部署、Voco 正常啟動。
+  **55 tests、3 suites，全部通過**。Release build 成功、`ditto` 部署到 `/Applications/Voco.app`（唯一部署目標，見 `AGENTS.md`）、Voco 正常啟動。
 
 ## 驗收結果（2026-09-10）
 
