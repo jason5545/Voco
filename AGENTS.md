@@ -50,6 +50,11 @@ open /Applications/Voco.app
 - `systemPrompt` / `scanPrompt`（`VoiceInk/Services/RuleAssistant/RuleAssistantSession.swift`）與 Android Vocotype 的 `SYSTEM_PROMPT` / `SCAN_PROMPT`（`app/src/main/java/com/vocotype/ruleassistant/RuleAssistantSession.kt`）除平台字眼外必須逐字一致；改一邊就要改另一邊並各自跑測試。
 - Worker（`VocoReplayLab/workers/auto-apply-sync`）改動後用 `npm test` 驗證、`npm run deploy` 部署。
 
+## ASR context bias / 常駐詞（pinned hotwords）
+
+- 常駐詞本機檔：`~/Library/Application Support/com.jasonchien.Voco/Qwen3ASRContextBias/pinned-terms.json`（schema `vocotype.qwen3-asr.pinned-hotwords.v1`，≤8 詞、單詞 2–40 字元、boost 可選 (0,16]、未知欄位容忍、壞檔忽略；不進 HF artifact——個資）。第一趟 decode 即帶常駐詞；只有 context/baseline 再選出「不在常駐詞內」的新詞才重跑第二趟（`Qwen3ContextHotwordBias.mergedTerms` / `needsSecondPass` 純函式）；`Qwen3ASRContextBiasStore.isEnabled` false 時常駐詞一併關閉。
+- 完整設計、選詞規則、詞形/token script 注意事項（繁簡詞形 tokenize 完全不同，兩種都要放）、boost 非線性風險（裝置實測 6 安全、12 漏首 token、16 自激迴圈）、以及 Android step-loop bias 接線細節：見 Vocotype repo `docs/asr-decoder-architecture.md` 的 2026-09-13 條。Jason 兩台裝置自 2026-09-13 起都裝有常駐詞（住家地址，boost 6）。
+
 ## Fork 獨有功能（合併 upstream 時必須保留）
 
 - Edit Mode：`EditModeCacheService`、`VoiceCommandService`、`enhanceForEditMode()`；`AIEnhancementService` 的 `systemMessageOverride` / `userMessageOverride` 參數是 edit mode 需要的。

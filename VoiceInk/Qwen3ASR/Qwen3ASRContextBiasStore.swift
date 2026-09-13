@@ -46,6 +46,82 @@ struct Qwen3ASRContextBiasStatus: Equatable, Sendable {
     }
 }
 
+struct Qwen3ASRPinnedHotwords: Equatable, Sendable {
+    static let supportedSchema = "vocotype.qwen3-asr.pinned-hotwords.v1"
+    static let maxTermCount = 8
+    static let minTermLength = 2
+    static let maxTermLength = 40
+
+    let terms: [String]
+    let boost: Float?
+
+    static func decode(from data: Data) throws -> Qwen3ASRPinnedHotwords {
+        let artifact: PinnedArtifact
+        do {
+            artifact = try JSONDecoder().decode(PinnedArtifact.self, from: data)
+        } catch {
+            throw Qwen3ASRPinnedHotwordsError.invalidJSON(error.localizedDescription)
+        }
+
+        guard artifact.schema == supportedSchema else {
+            throw Qwen3ASRPinnedHotwordsError.unsupportedSchema(artifact.schema)
+        }
+
+        var seenTerms = Set<String>()
+        let terms = artifact.terms.compactMap { rawTerm -> String? in
+            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty, seenTerms.insert(term).inserted else { return nil }
+            return term
+        }
+        guard !terms.isEmpty else {
+            throw Qwen3ASRPinnedHotwordsError.emptyTerms
+        }
+        guard terms.count <= maxTermCount else {
+            throw Qwen3ASRPinnedHotwordsError.tooManyTerms(terms.count)
+        }
+        for term in terms where term.count < minTermLength || term.count > maxTermLength {
+            throw Qwen3ASRPinnedHotwordsError.invalidTermLength(term)
+        }
+
+        var boost: Float?
+        if let rawBoost = artifact.boost {
+            let value = Float(rawBoost)
+            guard value.isFinite, value > 0, value <= 16 else {
+                throw Qwen3ASRPinnedHotwordsError.invalidBoost(value)
+            }
+            boost = value
+        }
+
+        return Qwen3ASRPinnedHotwords(terms: terms, boost: boost)
+    }
+}
+
+enum Qwen3ASRPinnedHotwordsError: LocalizedError, Equatable {
+    case invalidJSON(String)
+    case unsupportedSchema(String)
+    case emptyTerms
+    case tooManyTerms(Int)
+    case invalidTermLength(String)
+    case invalidBoost(Float)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidJSON(let reason):
+            return "Invalid pinned hotwords JSON: \(reason)"
+        case .unsupportedSchema(let schema):
+            return "Unsupported pinned hotwords schema: \(schema)"
+        case .emptyTerms:
+            return "Pinned hotwords terms are empty"
+        case .tooManyTerms(let count):
+            return "Pinned hotwords exceed the limit: \(count)"
+        case .invalidTermLength(let term):
+            return "Pinned hotword term length is out of range: \(term)"
+        case .invalidBoost(let boost):
+            return "Pinned hotwords boost is out of range: \(boost)"
+        }
+    }
+}
+
 enum Qwen3ASRContextBiasDownloadOutcome: Equatable, Sendable {
     case installed
     case alreadyCurrent
@@ -114,14 +190,17 @@ final class Qwen3ASRContextBiasStore: ObservableObject {
         string: "https://huggingface.co/jason5545/vocotype-qwen3-asr-adapter-int4/resolve/main/runtime/context-hotword-bias-20260705/context-hotword-bias-20260705.json"
     )!
     nonisolated static let profileFileName = "context-hotword-bias.json"
+    nonisolated static let pinnedHotwordsFileName = "pinned-terms.json"
 
     @Published private(set) var status: Qwen3ASRContextBiasStatus
     @Published private(set) var isDownloading = false
+    @Published private(set) var pinnedHotwords: Qwen3ASRPinnedHotwords?
 
     private let fileURL: URL
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "Qwen3ContextBias")
     private var cachedOverride: (modifiedAt: Date, size: Int, profile: Qwen3ASRContextBiasProfile)?
+    private var cachedPinned: (modifiedAt: Date, size: Int, pinned: Qwen3ASRPinnedHotwords?)?
 
     nonisolated static let builtinProfile = Qwen3ASRContextBiasProfile(
         sourceKind: .builtin,
@@ -173,6 +252,10 @@ final class Qwen3ASRContextBiasStore: ObservableObject {
         defaultProfileDirectory.appendingPathComponent(profileFileName)
     }
 
+    nonisolated static var defaultPinnedHotwordsURL: URL {
+        defaultProfileDirectory.appendingPathComponent(pinnedHotwordsFileName)
+    }
+
     var isEnabled: Bool {
         if defaults.object(forKey: Self.enabledKey) == nil {
             return true
@@ -189,7 +272,17 @@ final class Qwen3ASRContextBiasStore: ObservableObject {
         readOverrideProfile() ?? Self.builtinProfile
     }
 
+    private var pinnedHotwordsFileURL: URL {
+        fileURL.deletingLastPathComponent()
+            .appendingPathComponent(Self.pinnedHotwordsFileName)
+    }
+
+    func activePinnedHotwords() -> Qwen3ASRPinnedHotwords? {
+        readPinnedHotwords()
+    }
+
     func reload() {
+        pinnedHotwords = readPinnedHotwords()
         status = Self.makeStatus(
             from: activeProfile(),
             fileURL: fileURL,
@@ -277,6 +370,33 @@ final class Qwen3ASRContextBiasStore: ObservableObject {
         }
     }
 
+    private func readPinnedHotwords() -> Qwen3ASRPinnedHotwords? {
+        let url = pinnedHotwordsFileURL
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        guard let modifiedAt = attributes?[.modificationDate] as? Date,
+              let size = attributes?[.size] as? NSNumber,
+              size.intValue > 0 else {
+            cachedPinned = nil
+            return nil
+        }
+        if let cachedPinned,
+           cachedPinned.modifiedAt == modifiedAt,
+           cachedPinned.size == size.intValue {
+            return cachedPinned.pinned
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let pinned = try Qwen3ASRPinnedHotwords.decode(from: data)
+            cachedPinned = (modifiedAt, size.intValue, pinned)
+            return pinned
+        } catch {
+            logger.warning("Invalid pinned hotwords file: \(error.localizedDescription, privacy: .public)")
+            cachedPinned = (modifiedAt, size.intValue, nil)
+            return nil
+        }
+    }
+
     private func recordOutcome(_ outcome: Qwen3ASRContextBiasDownloadOutcome) {
         defaults.set(outcome.rawValue, forKey: "Qwen3ASRContextBiasLastOutcome")
         defaults.set(outcome.message, forKey: "Qwen3ASRContextBiasLastMessage")
@@ -358,6 +478,27 @@ final class Qwen3ASRContextBiasStore: ObservableObject {
 }
 
 enum Qwen3ContextHotwordBias {
+    static func mergedTerms(
+        pinned: [String],
+        contextSelected: [String],
+        maxTermsPerDecode: Int
+    ) -> [String] {
+        var merged = pinned
+        var seen = Set(pinned)
+        var contextBudget = max(0, maxTermsPerDecode - pinned.count)
+        for term in contextSelected where contextBudget > 0 {
+            guard seen.insert(term).inserted else { continue }
+            merged.append(term)
+            contextBudget -= 1
+        }
+        return merged
+    }
+
+    static func needsSecondPass(pinned: [String], contextSelected: [String]) -> Bool {
+        let pinnedSet = Set(pinned)
+        return contextSelected.contains { !pinnedSet.contains($0) }
+    }
+
     static func selectedTerms(
         profile: Qwen3ASRContextBiasProfile,
         baselineTranscript: String,
@@ -444,6 +585,12 @@ enum Qwen3ContextHotwordBias {
         }
         return tokens
     }
+}
+
+private struct PinnedArtifact: Decodable {
+    let schema: String
+    let terms: [String]
+    let boost: Double?
 }
 
 private struct RemoteArtifact: Decodable {

@@ -220,8 +220,22 @@ class Qwen3TranscriptionService: TranscriptionService {
         logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")
 
         var activeDecodingOptions = Qwen3DecodingOptions()
-        var result = try await engine.transcribe(samples: audioSamples, language: selectedLanguage, prompt: prompt)
-        if let biasOptions = await contextBiasOptions(forBaselineTranscript: result.text, prompt: prompt) {
+        let pinnedContext = await pinnedBiasContext()
+        if let pinnedContext {
+            logger.info("Qwen3-ASR pinned hotword bias terms=\(pinnedContext.options.hotwordBiasTerms.joined(separator: ","), privacy: .public) boost=\(pinnedContext.options.hotwordBiasBoost, privacy: .public)")
+            activeDecodingOptions = pinnedContext.options
+        }
+        var result = try await engine.transcribe(
+            samples: audioSamples,
+            language: selectedLanguage,
+            prompt: prompt,
+            decodingOptions: activeDecodingOptions
+        )
+        if let biasOptions = await contextBiasOptions(
+            forBaselineTranscript: result.text,
+            prompt: prompt,
+            pinned: pinnedContext?.pinned
+        ) {
             logger.info("Qwen3-ASR context hotword bias retry terms=\(biasOptions.hotwordBiasTerms.joined(separator: ","), privacy: .public) boost=\(biasOptions.hotwordBiasBoost, privacy: .public)")
             activeDecodingOptions = biasOptions
             result = try await engine.transcribe(
@@ -348,22 +362,53 @@ class Qwen3TranscriptionService: TranscriptionService {
         return try readWAVSamples(from: url)
     }
 
+    private struct PinnedBiasContext {
+        let pinned: Qwen3ASRPinnedHotwords
+        let options: Qwen3DecodingOptions
+    }
+
     @MainActor
-    private func contextBiasOptions(forBaselineTranscript baseline: String, prompt: String?) -> Qwen3DecodingOptions? {
+    private func pinnedBiasContext() -> PinnedBiasContext? {
+        let store = Qwen3ASRContextBiasStore.shared
+        guard store.isEnabled, let pinned = store.activePinnedHotwords() else { return nil }
+        let profile = store.activeProfile()
+        let options = Qwen3DecodingOptions(
+            hotwordBiasTerms: pinned.terms,
+            hotwordBiasBoost: pinned.boost ?? (store.boostOverride ?? profile.boost),
+            repeatNgramSize: profile.repeatNgramSize,
+            repeatNgramMaxCount: profile.repeatNgramMaxCount
+        )
+        return PinnedBiasContext(pinned: pinned, options: options)
+    }
+
+    @MainActor
+    private func contextBiasOptions(
+        forBaselineTranscript baseline: String,
+        prompt: String?,
+        pinned: Qwen3ASRPinnedHotwords?
+    ) -> Qwen3DecodingOptions? {
         let store = Qwen3ASRContextBiasStore.shared
         guard store.isEnabled else { return nil }
         let profile = store.activeProfile()
         let recent = ChinesePostProcessingService.shared.contextMemory.getRecent(count: 5)
-        let terms = Qwen3ContextHotwordBias.selectedTerms(
+        let selected = Qwen3ContextHotwordBias.selectedTerms(
             profile: profile,
             baselineTranscript: baseline,
             prompt: prompt,
             recentTranscriptions: recent
         )
-        guard !terms.isEmpty else { return nil }
+        let pinnedTerms = pinned?.terms ?? []
+        guard Qwen3ContextHotwordBias.needsSecondPass(pinned: pinnedTerms, contextSelected: selected) else {
+            return nil
+        }
+        let merged = Qwen3ContextHotwordBias.mergedTerms(
+            pinned: pinnedTerms,
+            contextSelected: selected,
+            maxTermsPerDecode: profile.maxTermsPerDecode
+        )
         return Qwen3DecodingOptions(
-            hotwordBiasTerms: terms,
-            hotwordBiasBoost: store.boostOverride ?? profile.boost,
+            hotwordBiasTerms: merged,
+            hotwordBiasBoost: pinned?.boost ?? (store.boostOverride ?? profile.boost),
             repeatNgramSize: profile.repeatNgramSize,
             repeatNgramMaxCount: profile.repeatNgramMaxCount
         )

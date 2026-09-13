@@ -73,6 +73,11 @@ struct ASRContextBiasSettingsView: View {
         return "\(repeatNgramSize)/\(repeatNgramMaxCount)"
     }
 
+    private var pinnedLabel: String {
+        guard let pinned = store.pinnedHotwords, !pinned.terms.isEmpty else { return "-" }
+        return "\(pinned.terms.count) · \(pinned.terms.joined(separator: ", "))"
+    }
+
     private var shortSHA: String {
         guard let sha = status.sha256, !sha.isEmpty else { return "-" }
         return String(sha.prefix(12))
@@ -130,6 +135,7 @@ struct ASRContextBiasSettingsView: View {
             LabeledContent("Source", value: sourceLabel)
             LabeledContent("Artifact", value: status.artifactId ?? "-")
             LabeledContent("Terms", value: "\(status.termCount)")
+            LabeledContent("Pinned", value: pinnedLabel)
             LabeledContent("Boost", value: boostLabel)
             LabeledContent("Guard", value: guardLabel)
             LabeledContent("SHA", value: shortSHA)
