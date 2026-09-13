@@ -304,7 +304,11 @@ private struct RuleAssistantSessionView: View {
             ForEach(Array(question.options.enumerated()), id: \.element.id) { index, option in
                 let isSelected = selected.contains(option.id)
                 VStack(alignment: .leading, spacing: 6) {
-                    optionButton(option, index: index, isSelected: isSelected, interactive: interactive)
+                    optionButton(option, index: index, isSelected: isSelected, interactive: interactive,
+                                 scope: interactive ? state.selectedOptionScopes[option.id] : turn.answeredOptionScopes[option.id])
+                    if let hint = state.optionScopeHints[option.id], option.isCandidate {
+                        Text(hint).font(.footnote).foregroundColor(.secondary)
+                    }
                 }
             }
 
@@ -338,7 +342,7 @@ private struct RuleAssistantSessionView: View {
         }
     }
 
-    private func optionButton(_ option: RuleAssistantQuestionOption, index: Int, isSelected: Bool, interactive: Bool) -> some View {
+    private func optionButton(_ option: RuleAssistantQuestionOption, index: Int, isSelected: Bool, interactive: Bool, scope: RuleAssistantScope?) -> some View {
         let button = Button {
             session.toggleOption(option.id)
         } label: {
@@ -370,11 +374,30 @@ private struct RuleAssistantSessionView: View {
         .buttonStyle(.plain)
         .disabled(!interactive)
 
+        let scopePicker = Group {
+            if option.isCandidate, let scope {
+                Picker("範圍", selection: Binding(
+                    get: { scope },
+                    set: { session.setOptionScope(option.id, scope: $0) }
+                )) {
+                    ForEach(RuleAssistantScope.allCases, id: \.self) { item in
+                        Text(item.wireLabel).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.small)
+                .disabled(!interactive || !isSelected)
+            }
+        }
+
         return Group {
-            if index < 9, interactive {
-                button.keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
-            } else {
-                button
+            VStack(alignment: .leading, spacing: 5) {
+                if index < 9, interactive {
+                    button.keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                } else {
+                    button
+                }
+                scopePicker
             }
         }
     }

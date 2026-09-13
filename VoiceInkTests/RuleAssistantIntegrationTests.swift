@@ -1497,6 +1497,7 @@ struct RuleAssistantIntegrationTests {
         let session = makeRuleAssistantSession(server: server)
         await session.submitScan()
         session.toggleOption("a")
+        session.setOptionScope("a", scope: .context)
         await session.submitChoice()
         guard case .draftReady = session.state.phase else {
             Issue.record("expected draftReady, got \(session.state.phase)")

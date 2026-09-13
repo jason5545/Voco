@@ -427,21 +427,19 @@ struct RuleAssistantDraftArgumentsTests {
 @Suite(.serialized)
 struct RuleAssistantGuardSuggesterTests {
     private func lexicon(_ prefix: String) -> [(word: String, frequency: Int)] {
-        switch prefix {
-        case "架": return [("架設", 860), ("架子", 848), ("架構", 630), ("架上", 308)]
-        case "資料架": return [("資料架構圖", 120)]
-        default: return []
-        }
+        let table: [(String, Int)] = [("資料架構", 900), ("資料架設", 860), ("資料架子", 848), ("資料架構圖", 120), ("架", 500)]
+        return table.filter { $0.0 != prefix && $0.0.contains(prefix) }.map { (word: $0.0, frequency: $0.1) }
     }
 
-    @Test func longerWordsComeFromEverySplitMostFrequentFirst() {
+    @Test func longerWordsMustExistInLexicon() {
         let guards = RuleAssistantGuardSuggester.guards(for: "資料架", lexicon: lexicon)
-        #expect(guards == ["資料架設", "資料架子", "資料架構", "資料架上", "資料架構圖"])
+        #expect(guards == ["資料架構", "資料架設", "資料架子", "資料架構圖"])
+        #expect(RuleAssistantGuardSuggester.guards(for: "摩多阿瑞納", lexicon: lexicon).isEmpty)
     }
 
     @Test func capsAtSixAndSkipsNonCjkOrSingleCharacterSources() {
         let many = RuleAssistantGuardSuggester.guards(for: "資料架") { prefix in
-            prefix == "架" ? (1...10).map { ("架\($0)", 1000 - $0) } : []
+            prefix == "資料架" ? (1...10).map { ("資料架\($0)", 1000 - $0) } : []
         }
         #expect(many.count == RuleAssistantGuardSuggester.maxGuards)
         #expect(RuleAssistantGuardSuggester.guards(for: "modelarena", lexicon: lexicon).isEmpty)
@@ -462,6 +460,16 @@ struct RuleAssistantGuardSuggesterTests {
         let offTexts: [String] = off.negativeExamples.map { $0.text }
         #expect(offTexts == ["資料架構"])
         #expect(off.negativeExamples[0].context == "模型說的")
+    }
+
+    @Test func choiceGateRequiresTheSelectedCandidateScopeAndPair() {
+        let draft = RuleAssistantDraft(eventType: "replacementRule", targetText: "資料夾", sourcePattern: "資料架")
+        let broad = RuleAssistantChoiceCandidate(surface: "資料架", target: "資料夾", scope: .broad)
+        #expect(RuleAssistantSession.gateReason(for: draft, kind: .choice(candidateChosen: true, candidates: [broad])) == nil)
+        let sentence = RuleAssistantChoiceCandidate(surface: "資料架", target: "資料夾", scope: .sentence)
+        #expect(RuleAssistantSession.gateReason(for: draft, kind: .choice(candidateChosen: true, candidates: [sentence]))?.contains("勾選時已選") == true)
+        let wrong = RuleAssistantChoiceCandidate(surface: "資料夾", target: "資料架", scope: .broad)
+        #expect(RuleAssistantSession.gateReason(for: draft, kind: .choice(candidateChosen: true, candidates: [wrong])) != nil)
     }
 }
 

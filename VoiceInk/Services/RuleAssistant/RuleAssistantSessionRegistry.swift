@@ -60,13 +60,22 @@ final class RuleAssistantSessionRegistry: ObservableObject {
                 Self.writeCorrections(json, recordId: recordId, modelContext: modelContext)
             },
             guardSuggester: { source in
-                RuleAssistantGuardSuggester.guards(for: source) { prefix in
+                RuleAssistantGuardSuggester.guards(for: source) { source in
                     VocoWordFrequencyLexicon.shared.words(
-                        withPrefix: prefix,
+                        containing: source,
                         minFrequency: RuleAssistantGuardSuggester.minFrequency,
                         limit: RuleAssistantGuardSuggester.lookupLimit
                     )
                 }
+            },
+            lexiconProbe: { source in
+                let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+                let lexicon = VocoWordFrequencyLexicon.shared
+                return lexicon.frequency(of: trimmed) == 0 && lexicon.words(
+                    containing: trimmed,
+                    minFrequency: RuleAssistantGuardSuggester.minFrequency,
+                    limit: RuleAssistantGuardSuggester.lookupLimit
+                ).isEmpty
             }
         )
         self.session = session

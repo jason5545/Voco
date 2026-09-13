@@ -81,8 +81,8 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   仍可打字（`isInterruptible`：只有 scan 回合的 loadingTools／thinking 可被打斷），送出就取消掃描
   改送手動說明；停止時掃描指令不會回填到輸入框，placeholder 回合會從 transcript 移除。
 - **broad 閘門留在 App 端**（`RuleAssistantSession.gateReason`）：回合分 `manual`／`scan`／
-  `choice`／`rescope`。scan 回合維持自動找問題不建立 broad 或 family transaction；choice 永不放行
-  broad，候選選擇只會建立 correction（有打字補充的 choice 視為 manual）。correction 草稿卡預設
+  `choice`／`rescope`。scan 回合維持自動找問題不建立 broad 或 family transaction；choice 只有在候選行明確
+  選了「任何語境」且 source／target 完全相符時才放行 replacementRule，語境限定同理；其他選擇只會建立 correction（有打字補充的 choice 視為 manual）。correction 草稿卡預設
   「只改這句」，使用者改成「任何語境」或「語境限定」時送出 rescope 回合；App 以
   sourcePattern／targetText 套回原句後必須精確等於修正後的內容，且語境 token 必須真的出現在原句，才放行
   replacementRule／contextLockedRule。rescope 回合不接受 replacementFamily、transaction 等其他類型；
@@ -109,14 +109,15 @@ Mac Voco 的落點與差異記錄。行為對齊 Android 版；本文件只記�
   在 scan 回合沒 question 也沒草稿、或任何回合結尾像「請勾選：」「請選擇」時，自動再送一則 wire-only
   的 `questionNudgePrompt`（只輸出 question JSON、不查工具），最多一次；催促訊息不進 transcript，
   模型先前的說明文字保留在卡片上方。Prompt 明講 JSON 必須與說明同一則回答。
-- **範圍改在草稿卡**：prompt 規定一個可疑處一個選項，不再把範圍拆成候選；correction 草稿卡提供
-  「只改這句／語境限定／任何語境」，後兩者送出 rescope 回合。`RuleAssistantQuestion.parse` 對相同
-  surface＋target 的選項只留第一個。
-- **廣域規則自動反例**：literal 廣域規則是 `text.contains`＋整句 `replacingOccurrences`，沒有邊界，
-  「資料架 → 資料夾」會把「資料架構」改成「資料夾構」。`RuleAssistantGuardSuggester`（`RuleAssistantProtocol.swift`）
-  把來源每個 head＋tail 切法的 tail 當 prefix 查 `word_freq.tsv`（`VocoWordFrequencyLexicon.words(withPrefix:)`，
-  排序陣列二分搜尋，首次建索引），組成更長的詞（資料＋架構），頻率 ≥ 100、最多 6 個，經
-  `RuleAssistantSessionRegistry` 注入 session（`guardSuggester`）。replacementRule／replacementFamily
+- **題目卡範圍**：每個候選旁直接顯示「只改這句／語境限定／任何語境」segmented control；詞庫查無
+  且沒有包含詞時預設「任何語境」並提示原因，其他候選預設「只改這句」。wire 與 transcript 都帶範圍，
+  choice gate 只放行與勾選的 surface／target／scope 完全一致的 replacementRule 或 contextLockedRule。
+  prompt 規定一個可疑處一個選項；correction 草稿卡仍提供三段範圍控制，後兩者送出 rescope 回合。
+  `RuleAssistantQuestion.parse` 對相同 surface＋target 的選項只留第一個。
+- **廣域規則自動反例**：literal 廣域規則是 `text.contains`＋整句 `replacingOccurrences`，沒有邊界。
+  `RuleAssistantGuardSuggester`（`RuleAssistantProtocol.swift`）改用
+  `VocoWordFrequencyLexicon.words(containing:minFrequency:limit:)` 線性掃描既有 table，只採用詞庫裡真的
+  包含完整 source 的詞，頻率 ≥ 100、最多 6 個，經 `RuleAssistantSessionRegistry` 注入 session。replacementRule／replacementFamily
   草稿出來時自動當 `negativeExamples` 塞進草稿（總數不超過 `isSafeForWrite` 的 10），preview／查重
   都用帶反例的版本；草稿卡顯示「自動保護更長的詞」開關（`setAutoGuards`），關掉會拿掉自動反例並重跑
   Worker 檢查，模型自己寫的反例（有 context）不動。Prompt 另要求模型補語意上的反例。Worker 端對同一條規則再送 add 帶
@@ -240,3 +241,9 @@ Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取�
 - Live 測試未跑（本機無 `VOCO_GO_KEY`）；fake 整合測試不能視為端到端真實驗證。
 - 真實 Worker 的 tools/list 若缺 `get_auto_apply_row_corrections`，標記刷新會安靜略過
   （設計如此）。
+
+## #38–#41 驗收（2026-09-13）
+
+- #38：`words(containing:minFrequency:limit:)` 只回傳詞庫中真的包含完整 source 的條目；GuardSuggester 不再做 head＋tail 黏合。
+- #39／#40：Mac 與 Android 的 prompt 新增空 `negativeExamples` 規則及題目卡範圍 wire；候選 scope、預設 broad、choice gate 與匯出狀態同步。
+- #41：模型呼叫 preview／查重工具時，App 補上 `actor=voco-rule-assistant`、`correctionSource=voco` 與目前 `correctionRow`（已有值不覆蓋）。Worker preview／查重另回報 `actorSource`；本次採用這個防禦性欄位方案，未改 SSE session 狀態。

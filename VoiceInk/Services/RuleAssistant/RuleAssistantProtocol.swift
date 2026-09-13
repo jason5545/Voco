@@ -310,6 +310,12 @@ struct RuleAssistantContext: Equatable {
     func sourceNote() -> String {
         "voco:row:\(rowPk)"
     }
+
+    var combinedText: String {
+        [rawTranscript, text, normalizedTranscript, enhancedText, selectedCandidate, finalPastedText]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
 }
 
 // MARK: - Questions
@@ -340,6 +346,12 @@ struct RuleAssistantQuestionOption: Equatable {
     var target: String?
 
     var isCandidate: Bool { surface != nil && target != nil }
+}
+
+struct RuleAssistantChoiceCandidate: Equatable {
+    var surface: String
+    var target: String
+    var scope: RuleAssistantScope
 }
 
 /// A structured question the model asks instead of free text. The App renders the options as
@@ -439,10 +451,9 @@ struct RuleAssistantQuestion: Equatable {
 // MARK: - Automatic negative guards for broad rules
 
 /// A literal broad rule replaces every occurrence of its source, including inside longer words
-/// (資料架 → 資料夾 would turn 資料架構 into 資料夾構). This derives those longer words from the
-/// word-frequency lexicon so the App can add them as negative examples before the user confirms:
-/// for every split A+B of the source, lexicon words starting with B give A+word; words starting
-/// with the whole source count too. Deterministic, no model judgement involved.
+/// (資料架 → 資料夾 would turn 資料架構 into 資料夾構). This derives longer words that actually
+/// contain the source from the word-frequency lexicon so the App can add them as negative examples.
+/// Deterministic, no model judgement involved.
 enum RuleAssistantGuardSuggester {
     static let minFrequency = 100
     static let maxGuards = 6
@@ -450,25 +461,16 @@ enum RuleAssistantGuardSuggester {
 
     static func guards(
         for source: String,
-        lexicon: (_ prefix: String) -> [(word: String, frequency: Int)]
+        lexicon: (_ source: String) -> [(word: String, frequency: Int)]
     ) -> [String] {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         let characters = Array(trimmed)
         guard characters.count >= 2, characters.allSatisfy(isCJK) else { return [] }
-        var scored: [String: Int] = [:]
-        for split in 0..<characters.count {
-            let head = String(characters[..<split])
-            let tail = String(characters[split...])
-            for hit in lexicon(tail) where hit.word != tail {
-                let candidate = head + hit.word
-                guard candidate != trimmed else { continue }
-                scored[candidate] = max(scored[candidate] ?? 0, hit.frequency)
-            }
-        }
-        return scored
-            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+        return lexicon(trimmed)
+            .filter { $0.word != trimmed && $0.word.contains(trimmed) && $0.frequency >= minFrequency }
+            .sorted { $0.frequency == $1.frequency ? $0.word < $1.word : $0.frequency > $1.frequency }
             .prefix(maxGuards)
-            .map { $0.key }
+            .map { $0.word }
     }
 
     private static func isCJK(_ character: Character) -> Bool {

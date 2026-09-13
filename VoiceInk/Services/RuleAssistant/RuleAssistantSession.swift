@@ -31,7 +31,7 @@ enum RuleAssistantTurnKind: Equatable {
     case scan
     /// `candidateChosen` is true when at least one ticked option was a correction candidate: the
     /// reply then owes the user a draft (or another question), never plain text.
-    case choice(candidateChosen: Bool = false)
+    case choice(candidateChosen: Bool = false, candidates: [RuleAssistantChoiceCandidate] = [])
     case rescope(scope: RuleAssistantScope, sourceText: String, targetText: String)
 
     var isManual: Bool { self == .manual }
@@ -70,6 +70,7 @@ struct RuleAssistantTurn: Equatable {
     var question: RuleAssistantQuestion? = nil
     /// Filled in once the question was answered; the card then renders read-only.
     var answeredOptionIds: [String] = []
+    var answeredOptionScopes: [String: RuleAssistantScope] = [:]
 }
 
 struct RuleAssistantPreview: Equatable {
@@ -194,6 +195,8 @@ struct RuleAssistantUIState: Equatable {
     /// Question from the latest answer that still waits for the user's choice.
     var pendingQuestion: RuleAssistantQuestion?
     var selectedOptionIds: [String] = []
+    var selectedOptionScopes: [String: RuleAssistantScope] = [:]
+    var optionScopeHints: [String: String] = [:]
     /// Set once the panel triggered the automatic find-issues turn, so reopening never rescans.
     var hasAutoScanned = false
     /// Kind of the turn currently in flight (nil when idle).
@@ -283,6 +286,8 @@ final class RuleAssistantSession: ObservableObject {
     private let onCorrections: (RuleAssistantContext, String) -> Void
     /// Longer lexicon words containing a broad source (see RuleAssistantGuardSuggester); empty in tests without a lexicon.
     private let guardSuggester: (String) -> [String]
+    /// Returns true when a candidate surface is absent from the lexicon and has no known longer word.
+    private let lexiconProbe: (String) -> Bool
     /// Text re-run through the runtime installed right now; injectable so tests need no model on disk.
     private let runtimeReplayer: (String?) -> RuleAssistantRuntimeReplay?
     /// Re-reads the installed model before a replay. The Mac runtime only picks a new file up through its
@@ -298,7 +303,7 @@ final class RuleAssistantSession: ObservableObject {
     /// The user turn in flight: wire text sent to the model, display text shown in the transcript, kind.
     private var pendingTurn: (wire: String, display: String, kind: RuleAssistantTurnKind, restore: String?)?
     /// Question state to put back when a choice reply fails or is cancelled.
-    private var pendingChoiceRestore: (question: RuleAssistantQuestion, selected: [String])?
+    private var pendingChoiceRestore: (question: RuleAssistantQuestion, selected: [String], scopes: [String: RuleAssistantScope])?
     /// Correction draft to put back when a scope-change reply fails or is cancelled.
     private var pendingRescopeRestore: RuleAssistantDraftEntry?
     private var turnKind: RuleAssistantTurnKind = .manual
@@ -317,6 +322,7 @@ final class RuleAssistantSession: ObservableObject {
         neighborLoader: @escaping (_ before: Int, _ after: Int) -> [RuleAssistantContext] = { _, _ in [] },
         onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in },
         guardSuggester: @escaping (String) -> [String] = { _ in [] },
+        lexiconProbe: @escaping (String) -> Bool = { _ in false },
         runtimeReplayer: @escaping (String?) -> RuleAssistantRuntimeReplay? = { RuleAssistantRuntimeReplay.current(inputText: $0) },
         runtimeReloader: @escaping () -> Void = { VocoAutoApplyModelService.shared.reload() }
     ) {
@@ -327,6 +333,7 @@ final class RuleAssistantSession: ObservableObject {
         self.neighborLoader = neighborLoader
         self.onCorrections = onCorrections
         self.guardSuggester = guardSuggester
+        self.lexiconProbe = lexiconProbe
         self.runtimeReplayer = runtimeReplayer
         self.runtimeReloader = runtimeReloader
     }
@@ -423,6 +430,8 @@ final class RuleAssistantSession: ObservableObject {
         state.publishMessage = nil
         state.pendingQuestion = nil
         state.selectedOptionIds = []
+        state.selectedOptionScopes = [:]
+        state.optionScopeHints = [:]
         autoRetries = 0
         blockedDraftKeys = []
         state.transcript.append(RuleAssistantTurn(role: "user", text: display))
@@ -512,7 +521,7 @@ final class RuleAssistantSession: ObservableObject {
                     } else {
                         status(String(localized: "Querying \(name)"))
                         do {
-                            let body = try await worker.call(name, args: args)
+                            let body = try await worker.call(name, args: enrichedModelToolArguments(name: name, args: args))
                             result = RAJSON.serialize(body)
                         } catch let toolError as McpToolError {
                             status(String(localized: "\(name) reported an error: \(toolError.message)"))
@@ -551,6 +560,15 @@ final class RuleAssistantSession: ObservableObject {
         }
     }
 
+    private func enrichedModelToolArguments(name: String, args: [String: Any]) -> [String: Any] {
+        guard name == "preview_auto_apply_control_event" || name == "detect_duplicate_control_event" else { return args }
+        var enriched = args
+        if enriched.raNonBlankString("actor") == nil { enriched["actor"] = RuleAssistantConstants.mcpClientName }
+        if enriched.raNonBlankString("correctionSource") == nil { enriched["correctionSource"] = "voco" }
+        if enriched["correctionRow"] == nil || enriched["correctionRow"] is NSNull { enriched["correctionRow"] = state.context.correctionRow() }
+        return enriched
+    }
+
     /// Find-issues mode: no explanation from the user. The model lists the places it suspects as
     /// options on a question card; the user picks instead of typing.
     func submitScan() async {
@@ -587,6 +605,37 @@ final class RuleAssistantSession: ObservableObject {
         } else {
             state.selectedOptionIds = [optionId]
         }
+        if let option = question.options.first(where: { $0.id == optionId }), option.isCandidate,
+           state.selectedOptionScopes[optionId] == nil {
+            state.selectedOptionScopes[optionId] = defaultScope(for: option)
+        }
+    }
+
+    private func defaultScope(for option: RuleAssistantQuestionOption) -> RuleAssistantScope {
+        guard let surface = option.surface?.trimmingCharacters(in: .whitespacesAndNewlines),
+              surface.count >= 2,
+              surface.allSatisfy(Self.isCJKCharacter),
+              lexiconProbe(surface)
+        else { return .sentence }
+        return .broad
+    }
+
+    private static func isCJKCharacter(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first else { return false }
+        switch scalar.value {
+        case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func setOptionScope(_ optionId: String, scope: RuleAssistantScope) {
+        guard let question = state.pendingQuestion,
+              question.options.contains(where: { $0.id == optionId && $0.isCandidate }),
+              state.selectedOptionIds.contains(optionId), !state.phase.isBusy
+        else { return }
+        state.selectedOptionScopes[optionId] = scope
     }
 
     /// Send the selected options (plus any note in the composer) as the reply to the pending question.
@@ -598,18 +647,24 @@ final class RuleAssistantSession: ObservableObject {
         let note = current.userText.trimmingCharacters(in: .whitespacesAndNewlines)
         var wireLines = ["回覆問題 \(question.id)：\(question.prompt)"]
         var displayParts: [String] = []
+        var candidates: [RuleAssistantChoiceCandidate] = []
         for option in chosen {
-            let line = "[\(option.id)] \(option.label)"
+            let scope = current.selectedOptionScopes[option.id] ?? defaultScope(for: option)
+            let scopeText = option.isCandidate ? "（範圍：\(scope.wireLabel)）" : ""
+            let line = "[\(option.id)] \(option.label)\(scopeText)"
             wireLines.append("選擇：\(line)")
-            displayParts.append(option.label)
+            displayParts.append(option.isCandidate ? "\(option.label)（\(scope.wireLabel)）" : option.label)
+            if let surface = option.surface, let target = option.target {
+                candidates.append(RuleAssistantChoiceCandidate(surface: surface, target: target, scope: scope))
+            }
         }
         wireLines.append("補充：\(note.isEmpty ? "無" : note)")
         var display = String(localized: "Chose: \(displayParts.joined(separator: "、"))")
         if !note.isEmpty { display += "\n\(note)" }
         // A typed note is Jason's own statement: the turn counts as manual and the broad gate is off.
-        let kind: RuleAssistantTurnKind = note.isEmpty ? .choice(candidateChosen: chosen.contains(where: { $0.isCandidate })) : .manual
-        pendingChoiceRestore = (question: question, selected: current.selectedOptionIds)
-        markQuestionAnswered(question.id, selected: current.selectedOptionIds)
+        let kind: RuleAssistantTurnKind = note.isEmpty ? .choice(candidateChosen: !candidates.isEmpty, candidates: candidates) : .manual
+        pendingChoiceRestore = (question: question, selected: current.selectedOptionIds, scopes: current.selectedOptionScopes)
+        markQuestionAnswered(question.id, selected: current.selectedOptionIds, scopes: current.selectedOptionScopes)
         await submitTurn(wire: wireLines.joined(separator: "\n"), display: display, kind: kind, restore: note.isEmpty ? nil : note)
     }
 
@@ -637,9 +692,10 @@ final class RuleAssistantSession: ObservableObject {
         await submitTurn(wire: wire, display: display, kind: .rescope(scope: scope, sourceText: sourceText, targetText: targetText), restore: nil)
     }
 
-    private func markQuestionAnswered(_ questionId: String, selected: [String]) {
+    private func markQuestionAnswered(_ questionId: String, selected: [String], scopes: [String: RuleAssistantScope]) {
         guard let index = state.transcript.lastIndex(where: { $0.role == "assistant" && $0.question?.id == questionId }) else { return }
         state.transcript[index].answeredOptionIds = selected
+        state.transcript[index].answeredOptionScopes = scopes
     }
 
     /// A failed or cancelled choice reply puts the question back so the user can answer again.
@@ -648,6 +704,7 @@ final class RuleAssistantSession: ObservableObject {
         pendingChoiceRestore = nil
         state.pendingQuestion = restore.question
         state.selectedOptionIds = restore.selected
+        state.selectedOptionScopes = restore.scopes
         if let index = state.transcript.lastIndex(where: { $0.role == "assistant" && $0.question?.id == restore.question.id }) {
             state.transcript[index].answeredOptionIds = []
         }
@@ -962,7 +1019,7 @@ final class RuleAssistantSession: ObservableObject {
         let tail = String(answer.trimmingCharacters(in: .whitespacesAndNewlines).suffix(40))
         if tail.hasSuffix("：") || tail.hasSuffix(":") { return .question }
         if tail.range(of: "(請|请)(勾選|勾选|選擇|选择|選|选)", options: .regularExpression) != nil { return .question }
-        if case .choice(let candidateChosen) = kind, candidateChosen { return .choice }
+        if case .choice(let candidateChosen, _) = kind, candidateChosen { return .choice }
         return nil
     }
 
@@ -1018,6 +1075,15 @@ final class RuleAssistantSession: ObservableObject {
         if let question {
             state.pendingQuestion = question
             state.selectedOptionIds = []
+            var scopes: [String: RuleAssistantScope] = [:]
+            var hints: [String: String] = [:]
+            for option in question.options where option.isCandidate {
+                let scope = defaultScope(for: option)
+                scopes[option.id] = scope
+                if scope == .broad { hints[option.id] = "詞庫查無，建議任何語境" }
+            }
+            state.selectedOptionScopes = scopes
+            state.optionScopeHints = hints
         }
         if proposed.isEmpty {
             state.phase = .idle
@@ -1035,7 +1101,7 @@ final class RuleAssistantSession: ObservableObject {
                 rejected.append(String(localized: "The AI proposed a draft with incomplete or unsafe fields (\(draft.eventType)); it was not listed for confirmation. Add more detail and send again."))
                 return false
             }
-            if let reason = Self.gateReason(for: draft, kind: kind, runtimeBaseline: runtimeBaseline) {
+            if let reason = Self.gateReason(for: draft, kind: kind, runtimeBaseline: runtimeBaseline, recordText: state.context.combinedText) {
                 rejected.append(reason)
                 return false
             }
@@ -1415,7 +1481,8 @@ final class RuleAssistantSession: ObservableObject {
                     if let surface = option.surface, let target = option.target { line += " {\(surface) → \(target)}" }
                     if let detail = option.detail { line += " · \(detail)" }
                     if turn.answeredOptionIds.contains(option.id) {
-                        line += " ✓ chosen"
+                        if let scope = turn.answeredOptionScopes[option.id], option.isCandidate { line += " ✓ chosen scope=\(scope.wireLabel)" }
+                        else { line += " ✓ chosen" }
                     }
                     out.append(line)
                 }
@@ -1435,6 +1502,8 @@ final class RuleAssistantSession: ObservableObject {
                 let ticked = state.selectedOptionIds.contains(option.id)
                 var line = "  - [\(option.id)] \(ticked ? "☑" : "☐") \"\(option.label)\""
                 line += option.isCandidate ? " (candidate)" : " (plain option)"
+                if let scope = state.selectedOptionScopes[option.id], option.isCandidate { line += " scope=\(scope.wireLabel)" }
+                if let hint = state.optionScopeHints[option.id] { line += " · \(hint)" }
                 out.append(line)
             }
         } else {
@@ -1523,7 +1592,8 @@ final class RuleAssistantSession: ObservableObject {
     static func gateReason(
         for draft: RuleAssistantDraft,
         kind: RuleAssistantTurnKind,
-        runtimeBaseline: String? = nil
+        runtimeBaseline: String? = nil,
+        recordText: String? = nil
     ) -> String? {
         switch kind {
         case .manual:
@@ -1532,17 +1602,40 @@ final class RuleAssistantSession: ObservableObject {
             guard draft.isBroad || draft.isTransaction else { return nil }
             let source = draft.sourcePattern ?? draft.aliases.joined(separator: "\u{3001}")
             return String(localized: "Find-issues never creates broad rules or moves/merges families (\(draft.eventType): \(source) → \(draft.targetText ?? "")). Tick the candidate first and change the correction draft's scope on its card, or state yourself that the source is never valid and send again.")
-        case .choice:
+        case .choice(let candidateChosen, let candidates):
             if draft.isFamilyTransaction {
                 return String(localized: "Moving or merging families needs your own words (\(draft.eventType)); it is not created from a choice.")
             }
             // Replacing a context lock is already a context-scoped transaction; it retires the old lock and
             // re-adds it with more tokens, so it needs no broad authorisation.
             if draft.eventType == "replaceContextLockedRule" { return nil }
+            if draft.eventType == "contextLockedRule" {
+                if candidates.isEmpty { return nil }
+                let source = draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let target = draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard let candidate = candidates.first(where: { $0.scope == .context && $0.surface.trimmingCharacters(in: .whitespacesAndNewlines) == source && $0.target.trimmingCharacters(in: .whitespacesAndNewlines) == target }) else {
+                    return String(localized: "語境限定規則只會為勾選時已選「語境限定」的候選建立（sourcePattern=\(source)，targetText=\(target)）。")
+                }
+                let text = recordText ?? ""
+                let missing = draft.contextTokensAny.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && !text.contains($0) }
+                if !missing.isEmpty {
+                    return String(localized: "context token 不在紀錄文字裡：\(missing.joined(separator: "、"))。")
+                }
+                _ = candidate
+                return nil
+            }
             guard draft.isBroad else { return nil }
-            let source = draft.sourcePattern ?? draft.aliases.joined(separator: "、")
-            let sourceDescription = source.isEmpty ? "" : "（\(source)）"
-            return String(localized: "廣泛規則不會從勾選建立；請先確認 correction 草稿，再在草稿卡把範圍改成「任何語境」，或自己說明來源在任何語境都不合法後再送。\(sourceDescription)")
+            guard candidateChosen else { return String(localized: "廣泛規則不會從勾選建立；請先在候選旁選擇範圍。") }
+            if draft.eventType == "replacementRule" {
+                let source = draft.sourcePattern?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let target = draft.targetText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard let candidate = candidates.first(where: { $0.scope == .broad && $0.surface.trimmingCharacters(in: .whitespacesAndNewlines) == source && $0.target.trimmingCharacters(in: .whitespacesAndNewlines) == target }) else {
+                    return String(localized: "廣泛規則只會為勾選時已選「任何語境」的候選建立（sourcePattern=\(source)，targetText=\(target)）。")
+                }
+                _ = candidate
+                return nil
+            }
+            return String(localized: "廣泛規則不會從勾選建立；replacementFamily／family transaction 仍需要你親自說明。")
         case .rescope(let scope, let sourceText, let targetText):
             if draft.eventType == "correction" { return nil }
             let expectedType = scope == .broad ? "replacementRule" : "contextLockedRule"
@@ -1706,7 +1799,7 @@ final class RuleAssistantSession: ObservableObject {
         - When a full-surface lookup returns zero rows, also look up each possible shorter fragment inside the surface once (for example, 麥克鍵盤 also requires a lookup for 麥克), because existing context locks often use a short sourcePattern. If one hits, explain its contextTokensAny and prefer replaceContextLockedRule to add tokens instead of opening a new broad rule.
         - If targetText contains English, spacing between Chinese and Latin characters is supplied by the runtime; do not lengthen sourcePattern just to add spaces.
         - `runtimeReplay` is the record text re-run through the current runtime (built-in rules plus the installed Worker overlay). Any surface already hit by `runtimeReplay.fires`, or already fixed in `runtimeReplay.outputText`, is covered: say so, never draft for it, never list it as a candidate. It is null when the runtime is unavailable; then fall back to lookups. When the user's explanation points at a surface the replay already fires on, answer that the current runtime already fixes it (name the fire), output no draft, and tell them they can describe any further change in the input box.
-        - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Before anything else look at `runtimeReplay`: when `changed` is true (`fires` is not empty), the current runtime already rewrites this record, so treat it as already fixed. Reply in one or two sentences that it looks already fixed, list each fire as sourcePattern → targetText, and ask one question whose options are only the way-outs 「好，不用改」 and 「還有別的錯，我來說」. Do not scan the rest of the record for further candidates, do not call any tool, and do not draft; if the user wants something else they will say so in the input box or the note, and that reply is handled as a normal explanation. Only when `changed` is false, or `runtimeReplay` is null, run the scan: Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the message is a 範圍變更 to 任何語境 or the user said in his own words that the source is never intended; use correction for the whole utterance or contextLockedRule.
+        - Find-issues mode (the App sends 「使用者沒有說明原意，請找出可疑之處」): the user gave no explanation. Before anything else look at `runtimeReplay`: when `changed` is true (`fires` is not empty), the current runtime already rewrites this record, so treat it as already fixed. Reply in one or two sentences that it looks already fixed, list each fire as sourcePattern → targetText, and ask one question whose options are only the way-outs 「好，不用改」 and 「還有別的錯，我來說」. Do not scan the rest of the record for further candidates, do not call any tool, and do not draft; if the user wants something else they will say so in the input box or the note, and that reply is handled as a normal explanation. Only when `changed` is false, or `runtimeReplay` is null, run the scan: Read every stage of the record; you may call load_nearby_records (up to 5 records before and 5 after on this Mac) and the read-only Worker tools to help, but do not rely on them to remove doubt. List every place you suspect is a recognition or normalization error as a candidate option in one question (see Questions below), each with the wrong surface and your best guess of the intended text. Recognition errors are almost always phonetic: for each suspect span, first look for a word with the same or nearly the same pronunciation (same pinyin ignoring tones, or one syllable off) that makes the sentence read naturally with the nearby records, and offer that as the first candidate. A target that is not phonetically close to the surface needs a reason in its detail; without one, leave it out. Never rewrite a span into unrelated words just to make the sentence grammatical. When you are certain about a candidate you may also emit its draft in the same answer. If you find nothing, say so briefly and ask a question with the options 「這筆沒錯」 and 「其實有錯，我來說」. Never guess a target that the record, the nearby records, or the user's words do not support. In find-issues mode and in replies to your questions never propose replacementRule or replacementFamily unless the message is a 範圍變更 to 任何語境, the user said in his own words that the source is never intended, or the option line carries 範圍：任何語境; use correction for the whole utterance or contextLockedRule.
         - A user message that starts with 「App 檢查未通過」 is written by the App, not by the user: it lists the reasons the App-side gate or the Worker check refused your drafts. Fix the draft for every reason listed and output the corrected draft JSON again. Never argue with it, never ask about scope, and never re-send the same draft unchanged; when no draft can satisfy the reasons, ask one question with options instead.
 
         Questions (instead of free-text clarification):
@@ -1718,7 +1811,7 @@ final class RuleAssistantSession: ObservableObject {
               選擇：[a] 西賴 → CLI
           選擇：[b] ...
           補充：<the user's note, or 無>
-              A chosen candidate always means a correction for the whole utterance (scope 只改這句); draft it. The user widens the scope on the draft card, never by answering you; when he does, the App sends a message starting with 「範圍變更：任何語境」 or 「範圍變更：語境限定」 followed by 原句 and 修正後. 任何語境 → exactly one replacementRule whose sourcePattern is the shortest wrong span inside 原句 and whose targetText, substituted into 原句, reproduces 修正後 exactly; add positiveExamples (原句 → 修正後) and negativeExamples. 語境限定 → exactly one contextLockedRule under the same substitution rule, contextTokensAny taken from 原句, or one token-choice question if unsure. In a 範圍變更 message never propose replacementFamily, tombstone or any other type, and never ask about scope again. When part of 修正後 is already produced by this record's correction markings or by a rule that `runtimeReplay.fires` lists, write one rule for the remaining wrong span only, and say in your explanation which part an existing rule already handles. Even when the user already changed an earlier draft card to 任何語境, a candidate chosen in a later question still starts as a correction for the whole utterance; the scope stays his decision on the card. A 「再猜」-style choice means your target was wrong: offer new candidates as another question, never a draft.
+              A chosen candidate starts as a correction for the whole utterance (scope 只改這句). The App may include a scope on each candidate line: 只改這句 → output correction; 任何語境 → directly output exactly one replacementRule whose sourcePattern is that option's surface and targetText is that option's target, with positiveExamples (原句 → 修正後) and optional negativeExamples; 語境限定 → directly output exactly one contextLockedRule with contextTokensAny from 原句, or one token-choice question if unsure. The App still lets the user change scope on the draft card and sends 範圍變更 as a backup. In a 範圍變更 message never propose replacementFamily, tombstone or any other type, and never ask about scope again. When part of 修正後 is already produced by this record's correction markings or by a rule that `runtimeReplay.fires` lists, write one rule for the remaining wrong span only, and say in your explanation which part an existing rule already handles. Even when the user already changed an earlier draft card to 任何語境, a candidate chosen in a later question still starts as a correction for the whole utterance; the scope stays his decision on the card. A 「再猜」-style choice means your target was wrong: offer new candidates as another question, never a draft.
 
         Chinese script handling:
         - Voco/Vocotype has its own Chinese normalization pipeline: OpenCC conversion runs before the correction layer. Simplified-to-Traditional conversion belongs to that pipeline, not correction rules.
@@ -1752,9 +1845,12 @@ final class RuleAssistantSession: ObservableObject {
         - contextTokensAny / contextAliasesAny on a contextLockedRule match anywhere in the utterance or its context, not adjacency: a lock on 一個 also fires on 我有一個問題，你先按按鈕. When the distinguishing cue is the word immediately before or after the surface, put that word into the literal sourcePattern (and targetText) as well, and keep the token in contextTokensAny.
         - For interrupted/self-repair speech, do not propose a rule unless the user confirms the intended final text.
         - For number normalization like 二零二六 -> 2026, broad replacement is allowed when the user confirms it.
-        - Every replacementRule / replacementFamily draft must carry negativeExamples (text = the longer word or phrase, expectedText identical) for legitimate words or phrases that contain the source, because a literal rule also fires inside them: 資料架 → 資料夾 must list 資料架構. Each negative example's text must actually contain the sourcePattern inside a longer legitimate word or phrase, with expectedText identical to it; an example whose text equals its expectedText without containing the source proves nothing and must not be emitted. The App adds lexicon-derived longer words itself; you add the ones you know from meaning (compounds, names, fixed phrases) and mention them in the plan. Never use as a negativeExample a fragment you yourself listed as a wrong surface in a candidate, or that this record shows is a misrecognition: a negative example may only be a word or phrase that really exists and that the user really says. If the only way to make the substitution check pass is to guard a fragment you suspect is wrong, do not force the negative example: ask a question about that fragment instead.
+        - When you know legitimate containing words that the user really says (compounds, names, fixed expressions), list them as negativeExamples (text = the longer word or phrase, expectedText identical). If you do not know any, use an empty array `[]` and say in one sentence that there are no known legitimate containing words and the App will supplement them from its lexicon. Never invent or use Simplified Chinese to fill the list. Every negative example must contain sourcePattern inside a longer legitimate word or phrase, with expectedText identical; never use a suspected wrong surface as a guard. The App adds lexicon-derived longer words itself.
         - Do not ask for audio, file paths, or other history; only this record and this chat exist.
         - Do not print connector auth keys or URLs.
+
+        - Negative examples are optional: list only legitimate containing words you actually know the user says (compound words, names, fixed expressions). When none is known, set `negativeExamples` to `[]` and say in one sentence 「沒有已知的合法包含詞，交由 App 詞庫補」. Never invent a word or use Simplified Chinese to fill the array; the App supplements longer lexicon words itself. A negative example must contain sourcePattern and have expectedText identical.
+        - A question candidate line may carry `（範圍：只改這句／語境限定／任何語境）`. 只改這句 means output a correction for the full utterance; 任何語境 means directly output one replacementRule whose sourcePattern and targetText exactly match that candidate's surface and target, with positiveExamples and optional negativeExamples; 語境限定 means directly output one contextLockedRule using contextTokensAny from 原句 (or ask one token-choice question). Scope is chosen by the App, never guessed by you, and the user can still change it on the draft card via 範圍變更.
 
         Output format when you propose a rule:
         1. List the plan first, one line per rule:

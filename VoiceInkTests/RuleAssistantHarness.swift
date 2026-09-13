@@ -687,6 +687,7 @@ func makeRuleAssistantSession(
     /// No local model in tests: the session must behave exactly as it does when the runtime is unavailable.
     runtimeReplayer: @escaping (String?) -> RuleAssistantRuntimeReplay? = { _ in nil },
     guardSuggester: @escaping (String) -> [String] = { _ in [] },
+    lexiconProbe: @escaping (String) -> Bool = { _ in false },
     onCorrections: @escaping (RuleAssistantContext, String) -> Void = { _, _ in }
 ) -> RuleAssistantSession {
     RuleAssistantSession(
@@ -699,6 +700,7 @@ func makeRuleAssistantSession(
         },
         onCorrections: onCorrections,
         guardSuggester: guardSuggester,
+        lexiconProbe: lexiconProbe,
         runtimeReplayer: runtimeReplayer,
         runtimeReloader: {}
     )

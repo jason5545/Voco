@@ -51,6 +51,20 @@ final class VocoWordFrequencyLexicon: @unchecked Sendable {
         return Array(hits.prefix(limit))
     }
 
+    /// Lexicon words that contain `needle` as a longer word, most frequent first.
+    /// This intentionally scans the already-loaded table: guard lookups happen once per draft.
+    func words(containing needle: String, minFrequency: Int, limit: Int) -> [(word: String, frequency: Int)] {
+        guard !needle.isEmpty, limit > 0 else { return [] }
+        let table = loadedTable()
+        var hits: [(word: String, frequency: Int)] = []
+        hits.reserveCapacity(min(limit, 20))
+        for (word, frequency) in table where word != needle && word.contains(needle) && frequency >= minFrequency {
+            hits.append((word, frequency))
+        }
+        hits.sort { $0.frequency == $1.frequency ? $0.word < $1.word : $0.frequency > $1.frequency }
+        return Array(hits.prefix(limit))
+    }
+
     private var sortedWordsCache: [String]?
 
     private func sortedWords() -> [String] {
