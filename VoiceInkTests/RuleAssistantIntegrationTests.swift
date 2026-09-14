@@ -120,7 +120,11 @@ struct RuleAssistantIntegrationTests {
             Issue.record("expected draftReady, got \(session.state.phase)")
             return
         }
-        #expect(session.state.toolStatus.contains { $0.contains("safety length") })
+        // Assert the localized line itself: the app test host runs in zh-Hant, so an assertion on the
+        // English source text would fail (AGENTS.md: 測試斷言不可依賴英文訊息原文).
+        #expect(session.state.toolStatus.contains(
+            String(localized: "The provider stream ran past the safety length limit; reading stopped, so this round may be incomplete.")
+        ))
         // The cut text is clamped on the wire, so the next request cannot inherit the runaway.
         FakeGoProvider.reset(scripts: [
             .stream([FakeGoProvider.chunk(content: "好"), FakeGoProvider.chunk(finish: "stop")]),
@@ -962,7 +966,9 @@ struct RuleAssistantIntegrationTests {
             Issue.record("expected failed, got \(session.state.phase)")
             return
         }
-        #expect(message.contains("incomplete"))
+        #expect(message.hasPrefix(
+            String(localized: "The tool calls were incomplete; none of this round was executed: \("")")
+        ))
         #expect(!server.toolCalls.contains { $0.name == "lookup_auto_apply_policy" })
     }
 
@@ -1583,7 +1589,9 @@ struct RuleAssistantIntegrationTests {
         #expect(session.state.transcript.filter { $0.role == "user" }.count == 2)
         // The plan and explanation stay visible above the draft card.
         #expect(session.state.transcript.last?.text.hasPrefix("[context-locked] 小振 → 小鎮") == true)
-        #expect(session.state.toolStatus.contains { $0.contains("draft JSON") })
+        #expect(session.state.toolStatus.contains(
+            String(localized: "The AI listed a rule plan without the draft JSON; asking it to add them.")
+        ))
         // A plan line is a draft promise in any turn; a candidate choice answered in prose is a dead end too;
         // a non-candidate choice (這筆沒錯) may end in plain text; a bracket mid-sentence is not a plan line.
         #expect(RuleAssistantSession.missingJSONNudge(answer: "[exact] 小振 → 小鎮\n因為是地名。", kind: .manual) == .draft)

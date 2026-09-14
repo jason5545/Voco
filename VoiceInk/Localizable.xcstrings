@@ -13364,6 +13364,396 @@
           }
         }
       }
+    },
+    "The two models this assistant has been run against.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個助手實際跑過的兩個模型。"
+          }
+        }
+      }
+    },
+    "Go usage · %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go 額度 · %@"
+          }
+        }
+      }
+    },
+    "Go usage: not read yet": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go 額度：尚未讀取"
+          }
+        }
+      }
+    },
+    "Go usage: set the OpenCode Go API key first": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go 額度：請先設定 OpenCode Go API 金鑰"
+          }
+        }
+      }
+    },
+    "Read the Go usage windows again": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新讀取 Go 額度"
+          }
+        }
+      }
+    },
+    "⌘%lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘%lld"
+          }
+        }
+      }
+    },
+    "Replace context lock": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取代語境鎖定"
+          }
+        }
+      }
+    },
+    "An existing policy already covers this (%lld): %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有規則涵蓋這個（%1$lld 條）：%2$@"
+          }
+        }
+      }
+    },
+    "Could not re-check the remaining draft (%@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法重新檢查剩下的草稿（%@）"
+          }
+        }
+      }
+    },
+    "Find-issues never creates broad rules or moves/merges families (%@: %@ → %@). Tick the candidate first and change the correction draft's scope on its card, or state yourself that the source is never valid and send again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找問題不會建立廣泛規則，也不會搬移或合併群組（%1$@：%2$@ → %3$@）。請先勾選候選，再到修正草稿的卡片上改範圍；或自己說明這個來源永遠不正確，再重新送出。"
+          }
+        }
+      }
+    },
+    "Re-ran this record through the updated runtime: %lld rule(s) fire now.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已用更新後的 runtime 重跑這筆紀錄：現在有 %lld 條規則會觸發。"
+          }
+        }
+      }
+    },
+    "Sent the check result back to the AI (attempt %lld/%lld)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已把檢查結果送回 AI（第 %1$lld／%2$lld 次）"
+          }
+        }
+      }
+    },
+    "The AI answered the choice without a draft or question JSON; asking it to add one.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 回覆了勾選結果，但沒附草稿或 question JSON，請它補上。"
+          }
+        }
+      }
+    },
+    "The AI listed a rule plan without the draft JSON; asking it to add them.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 列出了規則計畫，但沒附草稿 JSON，請它補上。"
+          }
+        }
+      }
+    },
+    "The Worker duplicate check matched an existing or retired rule for the same pattern, but the preview confirms this adds a runtime policy; letting it through.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 查重比對到同一個模式的既有或已退場規則，但預覽確認這會新增一條 runtime 規則，所以放行。"
+          }
+        }
+      }
+    },
+    "The Worker's matching event belongs to a rule a tombstone already retired, and the preview confirms this adds a runtime policy; letting it through.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 比對到的事件屬於已被 tombstone 停用的規則，且預覽確認這會新增一條 runtime 規則，所以放行。"
+          }
+        }
+      }
+    },
+    "The provider stream ran past the safety length limit; reading stopped, so this round may be incomplete.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提供者串流超過安全長度上限，已停止讀取，這一輪可能不完整。"
+          }
+        }
+      }
+    },
+    "The tool calls were incomplete; none of this round was executed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工具呼叫不完整，這一輪沒有執行任何內容：%@"
+          }
+        }
+      }
+    },
+    "Worker warnings: %lld — %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worker 警告 %1$lld 則：%2$@"
+          }
+        }
+      }
+    },
+    "ASR Context Bias": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ASR 語境偏置"
+          }
+        }
+      }
+    },
+    "Artifact": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "產出物"
+          }
+        }
+      }
+    },
+    "Boost": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boost"
+          }
+        }
+      }
+    },
+    "Guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重複防護"
+          }
+        }
+      }
+    },
+    "Pinned": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常駐詞"
+          }
+        }
+      }
+    },
+    "SHA": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SHA"
+          }
+        }
+      }
+    },
+    "Reload profile": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新載入設定檔"
+          }
+        }
+      }
+    },
+    "Sync remote profile": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步遠端設定檔"
+          }
+        }
+      }
+    },
+    "Remote latest matches local": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遠端與本機一致"
+          }
+        }
+      }
+    },
+    "Remote latest differs from local": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遠端與本機不同"
+          }
+        }
+      }
+    },
+    "Sync remote model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步遠端模型"
+          }
+        }
+      }
+    },
+    "Remote status not checked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未檢查遠端狀態"
+          }
+        }
+      }
+    },
+    "Remote model is up to date": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遠端模型已是最新"
+          }
+        }
+      }
+    },
+    "Remote model installed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安裝遠端模型"
+          }
+        }
+      }
+    },
+    "Model schema unsupported": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 schema 不支援"
+          }
+        }
+      }
+    },
+    "Model schema unsupported, using previous version": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 schema 不支援，沿用上一個版本"
+          }
+        }
+      }
+    },
+    "Model reload failed, using previous version": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型重新載入失敗，沿用上一個版本"
+          }
+        }
+      }
+    },
+    "Remote sync unavailable, keeping local model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法遠端同步，沿用本機模型"
+          }
+        }
+      }
+    },
+    "Remote sync key missing, keeping local model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少遠端同步金鑰，沿用本機模型"
+          }
+        }
+      }
+    },
+    "Runtime correction model not detected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到 runtime 修正模型"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
