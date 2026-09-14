@@ -9,6 +9,12 @@
 - UI 字串一律用「Voco」；class name、UserDefaults key、URL、bundle ID、migration 服務、log 訊息維持 VoiceInk 不動。
 - 記憶系統一律走 MCP memory-connect（`search_memory` / `save_memory`），不用內建記憶檔。
 
+## 專案定位（永久原則）
+
+- Voco 是 Jason 的個人輔具，**永遠不做商用**（never for commercial use）：不賣、不授權、不包進任何商品。
+- Jason 的聲音、Jason 的 adapter、Jason 的轉錄資料，**只有 Jason 本人能用**。本 repo 是 public fork，個人語音資料／adapter／datastore／pinned terms 一律不進 git，只存在本機與 Jason 的 private repo。
+- 授權評估以「Jason 個人非商用」為前提：qwen-research 這類非商用授權的模型／元件在本專案**可用**，不需要 Apache／MIT 才能採用。授權仍要查證並記錄，但不得用「非商用授權不能進 production」當否決理由——這裡的 production 就是 Jason 本人的日常使用，沒有其他使用者。
+
 ## 建置與測試
 
 ```bash
