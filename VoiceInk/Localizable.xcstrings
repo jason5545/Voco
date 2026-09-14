@@ -13754,6 +13754,756 @@
           }
         }
       }
+    },
+    "%@ API Key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ API 金鑰"
+          }
+        }
+      }
+    },
+    "%lld file%@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個檔案"
+          }
+        }
+      }
+    },
+    "%lld selected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選取 %lld"
+          }
+        }
+      }
+    },
+    "Add %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增 %@"
+          }
+        }
+      }
+    },
+    "Add a custom fine-tuned whisper model to use with Voco. Select the downloaded .bin file.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增自訂微調的 Whisper 模型供 Voco 使用。請選擇已下載的 .bin 檔案。"
+          }
+        }
+      }
+    },
+    "Add a trailing space after pasted transcription output.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在貼上的轉錄輸出後加上一個空格。"
+          }
+        }
+      }
+    },
+    "Add app or website...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增 App 或網站⋯"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete '%@'? This action cannot be undone.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除「%@」嗎？此動作無法復原。"
+          }
+        }
+      }
+    },
+    "Assign a unique keyboard shortcut to instantly activate this mode and start recording.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指派專屬的鍵盤快速鍵，立即啟用這個模式並開始錄音。"
+          }
+        }
+      }
+    },
+    "Automatically remove configured filler words like 'uh', 'um', or 'hmm' from transcriptions. If no filler words are configured, this cleanup is skipped.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動從轉錄中移除已設定的填充詞，例如「uh」、「um」、「hmm」。若未設定任何填充詞，會略過這項清理。"
+          }
+        }
+      }
+    },
+    "Cannot Save Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存模式"
+          }
+        }
+      }
+    },
+    "Convert transcription output to lowercase.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將轉錄輸出轉為小寫。"
+          }
+        }
+      }
+    },
+    "Copy License Key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製授權金鑰"
+          }
+        }
+      }
+    },
+    "Deactivate License?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用授權？"
+          }
+        }
+      }
+    },
+    "Default mode is used when no specific app or website matches are found.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到符合的 App 或網站時，會使用預設模式。"
+          }
+        }
+      }
+    },
+    "Delete Mode?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除模式？"
+          }
+        }
+      }
+    },
+    "Dismiss Recorder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉錄音器"
+          }
+        }
+      }
+    },
+    "Dismiss Voco Recorder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉 Voco 錄音器"
+          }
+        }
+      }
+    },
+    "Dismiss the Voco recorder and cancel any active recording.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉 Voco 錄音器並取消進行中的錄音。"
+          }
+        }
+      }
+    },
+    "Filler word": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填充詞"
+          }
+        }
+      }
+    },
+    "Get %@ API Key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得 %@ API 金鑰"
+          }
+        }
+      }
+    },
+    "IMPORTANT: If you were using AI enhancement features, please make sure to reconfigure your API keys in the AI Models section.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重要：如果你使用 AI 增強功能，請記得到「AI 模型」區重新設定 API key。"
+          }
+        }
+      }
+    },
+    "If enabled, your instructions are combined with a general-purpose template to improve transcription quality.\n\nDisable for full control over the AI's system prompt (for advanced users).": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用時，你的指示會與通用範本合併，以提升轉錄品質。\n\n若要完全掌控 AI 的系統提示詞，請關閉此選項（適合進階使用者）。"
+          }
+        }
+      }
+    },
+    "Import Selected (%lld)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入已選取（%lld）"
+          }
+        }
+      }
+    },
+    "Keep preserves punctuation as transcribed. Remove all strips punctuation marks from the transcribed text. Remove trailing period only removes a final period from the transcribed text.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「保留」會保留轉錄時的標點。「全部移除」會移除轉錄文字中的所有標點。「只移除結尾句點」只會移除轉錄文字最後的句點。"
+          }
+        }
+      }
+    },
+    "License key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授權金鑰"
+          }
+        }
+      }
+    },
+    "Mode name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式名稱"
+          }
+        }
+      }
+    },
+    "Mode: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式：%@"
+          }
+        }
+      }
+    },
+    "Model Catalog": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型目錄"
+          }
+        }
+      }
+    },
+    "No apps found": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到 App"
+          }
+        }
+      }
+    },
+    "No matching apps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有符合的 App"
+          }
+        }
+      }
+    },
+    "No preview available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可用的預覽"
+          }
+        }
+      }
+    },
+    "No results found": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到結果"
+          }
+        }
+      }
+    },
+    "No transcriptions yet": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有轉錄紀錄"
+          }
+        }
+      }
+    },
+    "Open %@ API key page": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 %@ API 金鑰頁面"
+          }
+        }
+      }
+    },
+    "Output": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸出"
+          }
+        }
+      }
+    },
+    "Paste API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上 API 金鑰"
+          }
+        }
+      }
+    },
+    "Phonetic correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音修正"
+          }
+        }
+      }
+    },
+    "Prompt name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示詞名稱"
+          }
+        }
+      }
+    },
+    "Protected term guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保護詞守門"
+          }
+        }
+      }
+    },
+    "RIME Vocabulary Import": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RIME 詞彙匯入"
+          }
+        }
+      }
+    },
+    "Refresh Preview": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新整理預覽"
+          }
+        }
+      }
+    },
+    "Refreshing": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新整理中"
+          }
+        }
+      }
+    },
+    "Remove %@ from reserved Apple Speech languages.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從保留的 Apple Speech 語言中移除 %@。"
+          }
+        }
+      }
+    },
+    "Remove API Key?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 API 金鑰？"
+          }
+        }
+      }
+    },
+    "Remove one reserved language to download %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先移除一個保留的語言，才能下載 %@。"
+          }
+        }
+      }
+    },
+    "Remove website": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除網站"
+          }
+        }
+      }
+    },
+    "Search apps or enter website...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋 App 或輸入網站⋯"
+          }
+        }
+      }
+    },
+    "Select an enabled mode to start": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇已啟用的模式以開始"
+          }
+        }
+      }
+    },
+    "Select mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇模式"
+          }
+        }
+      }
+    },
+    "Set how long to wait for the AI provider to respond. If no response is received within this duration, you can either fail immediately and paste the original transcription, or retry the request up to 3 attempts.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定等待 AI 供應商回應的時間。若在這段時間內沒有收到回應，可以選擇立即失敗並貼上原始轉錄，或最多重試 3 次。"
+          }
+        }
+      }
+    },
+    "Skip API setup": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過 API 設定"
+          }
+        }
+      }
+    },
+    "Skip API setup?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要略過 API 設定嗎？"
+          }
+        }
+      }
+    },
+    "Skip Onboarding": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過入門導覽"
+          }
+        }
+      }
+    },
+    "Skip onboarding?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要略過入門導覽嗎？"
+          }
+        }
+      }
+    },
+    "Start or stop the Voco recorder for voice transcription.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始或停止 Voco 錄音器以進行語音轉錄。"
+          }
+        }
+      }
+    },
+    "Start transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始轉錄"
+          }
+        }
+      }
+    },
+    "Summary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要"
+          }
+        }
+      }
+    },
+    "Template": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範本"
+          }
+        }
+      }
+    },
+    "This will remove your %@ API key. You can add it again later.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會移除你的 %@ API 金鑰，之後可以再重新加入。"
+          }
+        }
+      }
+    },
+    "Toggle Voco Recorder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換 Voco 錄音器"
+          }
+        }
+      }
+    },
+    "Transcription Formatting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄格式"
+          }
+        }
+      }
+    },
+    "Try a different search term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "換個關鍵字試試"
+          }
+        }
+      }
+    },
+    "Turn this on if transcriptions with local models are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果使用本機模型的轉錄比預期慢，請開啟此選項。App 啟動與喚醒時會在背景靜默執行轉錄，以觸發最佳化。"
+          }
+        }
+      }
+    },
+    "Use captured on-screen text as context for this mode.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用擷取的螢幕文字作為這個模式的脈絡。"
+          }
+        }
+      }
+    },
+    "Use clipboard text as context for this mode.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用剪貼簿文字作為這個模式的脈絡。"
+          }
+        }
+      }
+    },
+    "Use selected text from the active app as context for this mode.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用目前 App 中選取的文字作為這個模式的脈絡。"
+          }
+        }
+      }
+    },
+    "Variables: VOICEINK_SYSTEM_PROMPT, VOICEINK_USER_PROMPT, VOICEINK_FULL_PROMPT": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT"
+          }
+        }
+      }
+    },
+    "Verifying": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證中"
+          }
+        }
+      }
+    },
+    "Voco automatically switches to this mode when you use the apps or websites you add here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當你使用這裡新增的 App 或網站時，Voco 會自動切換到這個模式。"
+          }
+        }
+      }
+    },
+    "Voco modes include Dictation, Enhance, Email, Assistant, Rewrite, Ask, Summarize, and Translate.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 模式包含 Dictation、Enhance、Email、Assistant、Rewrite、Ask、Summarize 與 Translate。"
+          }
+        }
+      }
+    },
+    "Voco recorder dismissed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已關閉 Voco 錄音器"
+          }
+        }
+      }
+    },
+    "Voco recorder toggled": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已切換 Voco 錄音器"
+          }
+        }
+      }
+    },
+    "Your transcription history will appear here": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的轉錄紀錄會顯示在這裡"
+          }
+        }
+      }
+    },
+    "userdb learned phrase policy": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "userdb 學習詞組策略"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

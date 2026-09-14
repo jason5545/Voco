@@ -2641,7 +2641,9 @@ struct VoiceInkTests {
             "Dismissed fallback",
             "Automatic fallback",
             "Protected term changed",
-            "Phonetic correction",
+            // The test host runs in zh-Hant, so compare against the localized lookup rather than
+            // the English source text (AGENTS.md: 測試斷言不可依賴英文訊息原文).
+            String(localized: "Phonetic correction"),
             "Cleanup changed text",
             "Retranscription meaningful",
             "User substitution",
