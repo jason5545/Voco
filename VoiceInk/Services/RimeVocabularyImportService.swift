@@ -14,11 +14,11 @@ enum RimeVocabularyCategoryGuess: String, CaseIterable, Hashable {
     var label: String {
         switch self {
         case .personName:
-            return "Person name"
+            return String(localized: "Person name")
         case .technicalTerm:
-            return "Technical term"
+            return String(localized: "Technical term")
         case .generalTerm:
-            return "General term"
+            return String(localized: "General term")
         }
     }
 }
@@ -30,9 +30,9 @@ enum RimeVocabularyImportAction: String, CaseIterable, Hashable {
     var label: String {
         switch self {
         case .vocoVocabulary:
-            return "Voco Vocabulary"
+            return String(localized: "Voco Vocabulary")
         case .correctionProtectedTerm:
-            return "Correction protected term"
+            return String(localized: "Correction protected term")
         }
     }
 }
@@ -81,8 +81,8 @@ struct RimeVocabularyPreviewItem: Identifiable, Hashable {
     }
 
     var destinationLabel: String {
-        guard !isSkipped else { return "Skip / review only" }
-        guard !suggestedActions.isEmpty else { return "Skip / review only" }
+        guard !isSkipped else { return String(localized: "Skip / review only") }
+        guard !suggestedActions.isEmpty else { return String(localized: "Skip / review only") }
 
         return RimeVocabularyImportAction.allCases
             .filter { suggestedActions.contains($0) }
@@ -95,12 +95,12 @@ struct RimeVocabularyPreviewItem: Identifiable, Hashable {
             return skipReasons.joined(separator: ", ")
         }
         if pendingActions.isEmpty, !suggestedActions.isEmpty {
-            return "Already exists"
+            return String(localized: "Already exists")
         }
         if isReviewOnly {
-            return "Review only"
+            return String(localized: "Review only")
         }
-        return "Ready to import"
+        return String(localized: "Ready to import")
     }
 }
 
@@ -233,7 +233,7 @@ final class RimeVocabularyImportService {
             let url = rimeDirectory.appendingPathComponent(sourceFile.rawValue)
 
             guard fileManager.fileExists(atPath: url.path) else {
-                warnings.append("Missing \(sourceFile.rawValue)")
+                warnings.append(String(localized: "Missing \(sourceFile.rawValue)"))
                 continue
             }
 
@@ -241,7 +241,7 @@ final class RimeVocabularyImportService {
                 let text = try String(contentsOf: url, encoding: .utf8)
                 candidates.append(contentsOf: parse(text, sourceFile: sourceFile))
             } catch {
-                warnings.append("Could not read \(sourceFile.rawValue): \(error.localizedDescription)")
+                warnings.append(String(localized: "Could not read \(sourceFile.rawValue): \(error.localizedDescription)"))
             }
         }
 
@@ -281,7 +281,7 @@ final class RimeVocabularyImportService {
             var skipReasons = unsafeSkipReasons(for: candidate)
 
             if duplicateInPreview {
-                skipReasons.append("duplicate in RIME preview")
+                skipReasons.append(String(localized: "duplicate in RIME preview"))
             }
 
             let actions = skipReasons.isEmpty
@@ -448,27 +448,27 @@ final class RimeVocabularyImportService {
         var reasons: [String] = []
 
         if term.isEmpty {
-            reasons.append("empty term")
+            reasons.append(String(localized: "empty term"))
         }
 
         if isTooShort(term, category: candidate.categoryGuess) {
-            reasons.append("too short")
+            reasons.append(String(localized: "too short"))
         }
 
         if isCommonEnglishTerm(term) || isCommonChineseTerm(term) {
-            reasons.append("common term")
+            reasons.append(String(localized: "common term"))
         }
 
         if looksSentenceLike(term) {
-            reasons.append("sentence-like")
+            reasons.append(String(localized: "sentence-like"))
         }
 
         if hasTooMuchPunctuation(term) {
-            reasons.append("too much punctuation")
+            reasons.append(String(localized: "too much punctuation"))
         }
 
         if term.contains("@") {
-            reasons.append("email-like")
+            reasons.append(String(localized: "email-like"))
         }
 
         return reasons

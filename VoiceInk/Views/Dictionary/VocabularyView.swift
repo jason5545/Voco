@@ -277,7 +277,7 @@ private struct RimeVocabularyImportSheet: View {
 }
 
 private struct RimePreviewMetric: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: Int
 
     var body: some View {
@@ -365,8 +365,8 @@ private struct RimeVocabularyPreviewRow: View {
     }
 
     private var metadataText: String {
-        let section = item.candidate.section ?? "No section"
-        let weight = item.candidate.weight.map { " · weight \($0)" } ?? ""
+        let section = item.candidate.section ?? String(localized: "No section")
+        let weight = item.candidate.weight.map { String(localized: " · weight \($0)") } ?? ""
         return "\(item.candidate.sourceFile) · \(section) · \(item.candidate.code)\(weight)"
     }
 }

@@ -15584,6 +15584,446 @@
           }
         }
       }
+    },
+    "Fast local transcription with no AI enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速的本機轉錄，不做 AI 增強。"
+          }
+        }
+      }
+    },
+    "Clean up dictated text while preserving your meaning.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整理口述文字，同時保留你的原意。"
+          }
+        }
+      }
+    },
+    "Turn a rough thought into a clean email.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把粗略的想法變成乾淨的郵件。"
+          }
+        }
+      }
+    },
+    "Rewrite selected or dictated text with better clarity.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用更清楚的說法改寫選取或口述的文字。"
+          }
+        }
+      }
+    },
+    "Ask a question and keep the answer in the recorder.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提出問題，並把答案留在錄音器裡。"
+          }
+        }
+      }
+    },
+    "Use this when you want the quickest possible voice-to-text result. It records with Parakeet V3 and pastes the transcript as-is.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想要最快的語音轉文字時用這個。它以 Parakeet V3 錄音，並原樣貼上轉錄結果。"
+          }
+        }
+      }
+    },
+    "Use this for everyday writing when you want grammar, flow, and light formatting improved before the result is pasted.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日常書寫時用這個，在貼上結果之前先改善語法、流暢度與輕量格式。"
+          }
+        }
+      }
+    },
+    "Use this after selecting relevant text or opening the related window. Voco uses that context to shape a clear email draft.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先選取相關文字或開啟相關視窗再用這個。Voco 會用那些脈絡寫出清楚的郵件草稿。"
+          }
+        }
+      }
+    },
+    "Use this when you have text selected and want a stronger version. The selected text is available as context for the rewrite.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選取文字、想要更有力的版本時用這個。選取的文字會作為改寫的脈絡。"
+          }
+        }
+      }
+    },
+    "Use this for answers, summaries, and follow-ups. Instead of pasting, Voco keeps the conversation inside the recorder.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用於回答、摘要與追問。Voco 不貼上結果，而是把對話留在錄音器裡。"
+          }
+        }
+      }
+    },
+    "Respond": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回應"
+          }
+        }
+      }
+    },
+    "Total": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "總計"
+          }
+        }
+      }
+    },
+    "New": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增"
+          }
+        }
+      }
+    },
+    "Existing": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既有"
+          }
+        }
+      }
+    },
+    "Skipped": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過"
+          }
+        }
+      }
+    },
+    "Person name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人名"
+          }
+        }
+      }
+    },
+    "Technical term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "技術術語"
+          }
+        }
+      }
+    },
+    "General term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一般詞語"
+          }
+        }
+      }
+    },
+    "Voco Vocabulary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 詞彙"
+          }
+        }
+      }
+    },
+    "Correction protected term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正保護詞"
+          }
+        }
+      }
+    },
+    "Skip / review only": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過／僅供檢視"
+          }
+        }
+      }
+    },
+    "Already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存在"
+          }
+        }
+      }
+    },
+    "Review only": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅供檢視"
+          }
+        }
+      }
+    },
+    "Ready to import": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以匯入"
+          }
+        }
+      }
+    },
+    "empty term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞語為空"
+          }
+        }
+      }
+    },
+    "too short": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太短"
+          }
+        }
+      }
+    },
+    "common term": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常用詞"
+          }
+        }
+      }
+    },
+    "sentence-like": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "像句子"
+          }
+        }
+      }
+    },
+    "too much punctuation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標點過多"
+          }
+        }
+      }
+    },
+    "email-like": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "像電子郵件"
+          }
+        }
+      }
+    },
+    "duplicate in RIME preview": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 RIME 預覽中重複"
+          }
+        }
+      }
+    },
+    "Missing %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少 %@"
+          }
+        }
+      }
+    },
+    "Could not read %@: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取 %1$@：%2$@"
+          }
+        }
+      }
+    },
+    "No section": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無區段"
+          }
+        }
+      }
+    },
+    "No triggers": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無觸發條件"
+          }
+        }
+      }
+    },
+    "1 app": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個 App"
+          }
+        }
+      }
+    },
+    "%lld apps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個 App"
+          }
+        }
+      }
+    },
+    "1 website": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個網站"
+          }
+        }
+      }
+    },
+    "%lld websites": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個網站"
+          }
+        }
+      }
+    },
+    "No Apps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有 App"
+          }
+        }
+      }
+    },
+    "%lld Apps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個 App"
+          }
+        }
+      }
+    },
+    "No Websites": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有網站"
+          }
+        }
+      }
+    },
+    "%lld Websites": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個網站"
+          }
+        }
+      }
+    },
+    " · weight %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · 權重 %lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

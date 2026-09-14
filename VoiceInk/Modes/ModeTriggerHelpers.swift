@@ -19,17 +19,19 @@ extension ModeTriggerGroup {
 
         switch (appCount, websiteCount) {
         case (0, 0):
-            return "No triggers"
+            return String(localized: "No triggers")
         case (0, _):
-            return countText(websiteCount, singular: "website", plural: "websites")
+            return countText(websiteCount, single: "1 website", many: "\(websiteCount) websites")
         case (_, 0):
-            return countText(appCount, singular: "app", plural: "apps")
+            return countText(appCount, single: "1 app", many: "\(appCount) apps")
         default:
-            return "\(countText(appCount, singular: "app", plural: "apps")) · \(countText(websiteCount, singular: "website", plural: "websites"))"
+            let apps = countText(appCount, single: "1 app", many: "\(appCount) apps")
+            let websites = countText(websiteCount, single: "1 website", many: "\(websiteCount) websites")
+            return "\(apps) · \(websites)"
         }
     }
 
-    private func countText(_ count: Int, singular: String, plural: String) -> String {
-        count == 1 ? "1 \(singular)" : "\(count) \(plural)"
+    private func countText(_ count: Int, single: LocalizedStringResource, many: LocalizedStringResource) -> String {
+        String(localized: count == 1 ? single : many)
     }
 }

@@ -140,8 +140,24 @@ private struct ModeReorderRow: View {
                     .truncationMode(.tail)
 
                 HStack(spacing: 8) {
-                    ModeReorderMeta(icon: "app.fill", value: countText(config.allAppConfigs.count, singular: "App", plural: "Apps"))
-                    ModeReorderMeta(icon: "globe", value: countText(config.allURLConfigs.count, singular: "Website", plural: "Websites"))
+                    ModeReorderMeta(
+                        icon: "app.fill",
+                        value: countText(
+                            config.allAppConfigs.count,
+                            empty: "No Apps",
+                            single: "1 App",
+                            many: "\(config.allAppConfigs.count) Apps"
+                        )
+                    )
+                    ModeReorderMeta(
+                        icon: "globe",
+                        value: countText(
+                            config.allURLConfigs.count,
+                            empty: "No Websites",
+                            single: "1 Website",
+                            many: "\(config.allURLConfigs.count) Websites"
+                        )
+                    )
                 }
             }
 
@@ -203,16 +219,21 @@ private struct ModeReorderRow: View {
         return AppTheme.Border.control.opacity(0.55)
     }
 
-    private func countText(_ count: Int, singular: String, plural: String) -> String {
+    private func countText(
+        _ count: Int,
+        empty: LocalizedStringResource,
+        single: LocalizedStringResource,
+        many: LocalizedStringResource
+    ) -> String {
         if count == 0 {
-            return "No \(plural)"
+            return String(localized: empty)
         }
 
         if count == 1 {
-            return "1 \(singular)"
+            return String(localized: single)
         }
 
-        return "\(count) \(plural)"
+        return String(localized: many)
     }
 }
 
