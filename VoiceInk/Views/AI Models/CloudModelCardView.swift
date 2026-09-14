@@ -79,7 +79,7 @@ struct CloudModelCardView: View {
                 .lineLimit(1)
             
             // Language
-            Label(model.language, systemImage: "globe")
+            Label(LocalizedStringKey(model.language), systemImage: "globe")
                 .font(.system(size: 11))
                 .foregroundColor(Color(.secondaryLabelColor))
                 .lineLimit(1)
@@ -108,7 +108,7 @@ struct CloudModelCardView: View {
     }
     
     private var descriptionSection: some View {
-        Text(model.description)
+        Text(LocalizedStringKey(model.description))
             .font(.system(size: 11))
             .foregroundColor(Color(.secondaryLabelColor))
             .lineLimit(2)
@@ -208,7 +208,7 @@ struct CloudModelCardView: View {
             
             if verificationStatus == .failure {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(verificationError ?? "Could not verify this API key. Check the key and try again.")
+                    Text(verificationError ?? String(localized: "Could not verify this API key. Check the key and try again."))
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(AppTheme.Status.error)
@@ -247,8 +247,8 @@ struct CloudModelCardView: View {
         guard let cloudProvider = CloudProviderRegistry.provider(for: model.provider) else {
             isVerifying = false
             verificationStatus = .failure
-            verificationError = "Could not verify this API key. Check the key and try again."
-            verificationErrorDetail = "Unsupported provider"
+            verificationError = String(localized: "Could not verify this API key. Check the key and try again.")
+            verificationErrorDetail = String(localized: "Unsupported provider")
             return
         }
 
@@ -268,7 +268,7 @@ struct CloudModelCardView: View {
                     }
                 } else {
                     verificationStatus = .failure
-                    verificationError = "Could not verify this API key. Check the key and try again."
+                    verificationError = String(localized: "Could not verify this API key. Check the key and try again.")
                     verificationErrorDetail = result.errorMessage
                 }
             }

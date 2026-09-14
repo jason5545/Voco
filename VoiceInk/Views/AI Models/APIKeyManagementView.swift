@@ -282,7 +282,7 @@ struct APIKeyManagementView: View {
                                 aiService.saveAPIKey(apiKey) { success, errorMessage in
                                     isVerifying = false
                                     if !success {
-                                        alertMessage = errorMessage ?? "Could not verify this API key. Check the key and try again."
+                                        alertMessage = errorMessage ?? String(localized: "Could not verify this API key. Check the key and try again.")
                                         showAlert = true
                                     }
                                     apiKey = ""
@@ -317,7 +317,7 @@ struct APIKeyManagementView: View {
     }
 
     private func providerTitle(_ provider: AIProvider) -> String {
-        provider == .custom ? "Custom Models" : provider.rawValue
+        provider == .custom ? String(localized: "Custom Models") : provider.rawValue
     }
 
     private func syncSelectedProviderAvailability() {

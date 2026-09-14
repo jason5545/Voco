@@ -183,7 +183,7 @@ private struct ProviderListRow: View {
     }
 
     private var statusText: String {
-        isConfigured ? "Connected" : "Not connected"
+        isConfigured ? String(localized: "Connected") : String(localized: "Not connected")
     }
 
     private var statusColor: Color {

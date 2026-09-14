@@ -79,7 +79,7 @@ struct WhisperMLXModelCardRowView: View {
 
     private var metadataSection: some View {
         HStack(spacing: 12) {
-            Label(model.language, systemImage: "globe")
+            Label(LocalizedStringKey(model.language), systemImage: "globe")
             Label(model.size, systemImage: "internaldrive")
             HStack(spacing: 3) {
                 Text("Speed")
@@ -98,7 +98,7 @@ struct WhisperMLXModelCardRowView: View {
     }
 
     private var descriptionSection: some View {
-        Text(model.description)
+        Text(LocalizedStringKey(model.description))
             .font(.system(size: 11))
             .foregroundColor(Color(.secondaryLabelColor))
             .lineLimit(2)

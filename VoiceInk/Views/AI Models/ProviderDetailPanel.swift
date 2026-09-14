@@ -350,10 +350,12 @@ struct ProviderDetailPanel: View {
 
     private func openRouterModelAvailabilityText(for count: Int) -> String {
         if count == 0 {
-            return "No models loaded."
+            return String(localized: "No models loaded.")
         }
 
-        return "\(count) \(count == 1 ? "model" : "models") available"
+        return count == 1
+            ? String(localized: "\(count) model available")
+            : String(localized: "\(count) models available")
     }
 
     private func modelRow(title: String, subtitle: String?, trailing: String?, systemImage: String) -> some View {
@@ -459,7 +461,7 @@ struct ProviderDetailPanel: View {
                     model: verificationModel(for: provider)
                 )
             } else {
-                result = (false, "Provider is not supported")
+                result = (false, String(localized: "Provider is not supported"))
             }
 
             await MainActor.run {
@@ -480,7 +482,7 @@ struct ProviderDetailPanel: View {
                     transcriptionModelManager.refreshAllAvailableModels()
                     NotificationCenter.default.post(name: .aiProviderKeyChanged, object: nil)
                 } else {
-                    verificationMessage = "Could not verify this API key. Check the key and try again."
+                    verificationMessage = String(localized: "Could not verify this API key. Check the key and try again.")
                     verificationDetailMessage = result.errorMessage
                 }
             }

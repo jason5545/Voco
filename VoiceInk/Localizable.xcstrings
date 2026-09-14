@@ -15014,6 +15014,576 @@
           }
         }
       }
+    },
+    "Uses the native Apple Speech framework for transcription. Requires macOS 26": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用原生 Apple Speech 框架轉錄。需要 macOS 26"
+          }
+        }
+      }
+    },
+    "NVIDIA's Parakeet V2 model optimized for lightning-fast English-only transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA Parakeet V2 模型，針對極速的純英文轉錄最佳化"
+          }
+        }
+      }
+    },
+    "Parakeet V3 with English and 25 European language support": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parakeet V3，支援英文與 25 種歐洲語言"
+          }
+        }
+      }
+    },
+    "Alibaba's Qwen3-ASR model with excellent Chinese/English accuracy, 30+ languages and 22 Chinese dialects": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alibaba Qwen3-ASR 模型，中英文準確度優異，支援 30 多種語言與 22 種中文方言"
+          }
+        }
+      }
+    },
+    "Larger Qwen3-ASR model with state-of-the-art accuracy across Chinese (WER 2.71%) and English (WER 2.29%)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "較大的 Qwen3-ASR 模型，中文（WER 2.71%）與英文（WER 2.29%）準確度領先"
+          }
+        }
+      }
+    },
+    "CoreML encoder on ANE + MLX decoder on GPU. Frees GPU for other tasks while maintaining accuracy.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ANE 上的 CoreML 編碼器加上 GPU 上的 MLX 解碼器。在維持準確度的同時把 GPU 讓給其他工作。"
+          }
+        }
+      }
+    },
+    "MLX GPU accelerated. Fastest Whisper model, compact size.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX GPU 加速。最快的 Whisper 模型，體積精簡。"
+          }
+        }
+      }
+    },
+    "MLX GPU accelerated. Whisper v2 with improved training data.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX GPU 加速。使用改良訓練資料的 Whisper v2。"
+          }
+        }
+      }
+    },
+    "MLX GPU accelerated. Higher precision v2 model.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX GPU 加速。精度較高的 v2 模型。"
+          }
+        }
+      }
+    },
+    "MLX GPU accelerated. Full precision v2 model, highest accuracy.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX GPU 加速。全精度 v2 模型，準確度最高。"
+          }
+        }
+      }
+    },
+    "Tiny model, fastest, least accurate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最小模型，速度最快、準確度最低"
+          }
+        }
+      }
+    },
+    "Tiny model optimized for English, fastest, least accurate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "針對英文最佳化的最小模型，速度最快、準確度最低"
+          }
+        }
+      }
+    },
+    "Base model, good balance between speed and accuracy, supports multiple languages": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎模型，速度與準確度均衡，支援多種語言"
+          }
+        }
+      }
+    },
+    "Base model optimized for English, good balance between speed and accuracy": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "針對英文最佳化的基礎模型，速度與準確度均衡"
+          }
+        }
+      }
+    },
+    "Large model v2, slower than Medium but more accurate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大型 v2 模型，比 Medium 慢但更準確"
+          }
+        }
+      }
+    },
+    "Large model v3, very slow but most accurate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大型 v3 模型，速度很慢但最準確"
+          }
+        }
+      }
+    },
+    "Large model v3 Turbo, faster than v3 with similar accuracy": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大型 v3 Turbo 模型，比 v3 快且準確度相近"
+          }
+        }
+      }
+    },
+    "Quantized version of Large v3 Turbo, faster with slightly lower accuracy": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large v3 Turbo 的量化版本，速度更快、準確度略低"
+          }
+        }
+      }
+    },
+    "CoreML ANE-optimized. Best balance of accuracy and efficiency for iOS.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML ANE 最佳化。iOS 上準確度與效率的最佳平衡。"
+          }
+        }
+      }
+    },
+    "CoreML ANE-optimized. Lightweight option for basic transcription.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML ANE 最佳化。基本轉錄的輕量選擇。"
+          }
+        }
+      }
+    },
+    "CoreML ANE-optimized. Higher accuracy for demanding use cases.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML ANE 最佳化。適合高要求情境的更高準確度。"
+          }
+        }
+      }
+    },
+    "CoreML ANE-optimized. Highest accuracy, requires extended memory entitlement on iOS.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML ANE 最佳化。準確度最高，iOS 上需要延伸記憶體授權。"
+          }
+        }
+      }
+    },
+    "Highest-accuracy multilingual transcription with realtime support.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "準確度最高的多語言轉錄，支援即時串流。"
+          }
+        }
+      }
+    },
+    "Balanced multilingual transcription with auto-detect.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "均衡的多語言轉錄，支援自動偵測。"
+          }
+        }
+      }
+    },
+    "Cartesia's fastest streaming STT model — engineered for real-time voice agents with 90+ language support": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cartesia 最快的串流 STT 模型，為即時語音代理打造，支援 90 多種語言"
+          }
+        }
+      }
+    },
+    "Deepgram's latest Nova 3 model for fast, accurate transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deepgram 最新的 Nova 3 模型，轉錄快速又準確"
+          }
+        }
+      }
+    },
+    "Specialized medical transcription model optimized for clinical environments": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "專為臨床環境最佳化的醫療轉錄模型"
+          }
+        }
+      }
+    },
+    "ElevenLabs' Scribe model for fast & accurate transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ElevenLabs Scribe 模型，轉錄快速且準確"
+          }
+        }
+      }
+    },
+    "ElevenLabs' Scribe V2 model for the most accurate transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ElevenLabs Scribe V2 模型，轉錄準確度最高"
+          }
+        }
+      }
+    },
+    "Google's advanced model with high-quality transcription capabilities": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 進階模型，具備高品質轉錄能力"
+          }
+        }
+      }
+    },
+    "Google's latest model with enhanced transcription capabilities": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 最新模型，具備更強的轉錄能力"
+          }
+        }
+      }
+    },
+    "Google's newest fast model combining intelligence with superior speed": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 最新的快速模型，兼具智能與優異速度"
+          }
+        }
+      }
+    },
+    "Google's optimized model for low-latency transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 最佳化模型，低延遲轉錄"
+          }
+        }
+      }
+    },
+    "Mistral's Voxtral model for fast and accurate transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mistral Voxtral 模型，轉錄快速又準確"
+          }
+        }
+      }
+    },
+    "Soniox transcription model v5 with improved accuracy and structured data formatting": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soniox 轉錄模型 v5，準確度提升並支援結構化資料格式"
+          }
+        }
+      }
+    },
+    "Speechmatics enhanced accuracy transcription with real-time streaming and 50+ language support": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speechmatics 高準確度轉錄，支援即時串流與 50 多種語言"
+          }
+        }
+      }
+    },
+    "Whisper Large v3 Turbo model with Groq's lightning-speed inference": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whisper Large v3 Turbo 模型，搭配 Groq 的極速推論"
+          }
+        }
+      }
+    },
+    "xAI's Grok speech-to-text with real-time streaming and batch transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "xAI Grok 語音轉文字，支援即時串流與批次轉錄"
+          }
+        }
+      }
+    },
+    "Custom transcription model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂轉錄模型"
+          }
+        }
+      }
+    },
+    "Multilingual": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多語言"
+          }
+        }
+      }
+    },
+    "English-only": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅英文"
+          }
+        }
+      }
+    },
+    "Built in": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內建"
+          }
+        }
+      }
+    },
+    "No model configured": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未設定模型"
+          }
+        }
+      }
+    },
+    "Unsupported provider": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援的服務商"
+          }
+        }
+      }
+    },
+    "Provider is not supported": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援此服務商"
+          }
+        }
+      }
+    },
+    "No models loaded.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未載入任何模型。"
+          }
+        }
+      }
+    },
+    "Custom Models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂模型"
+          }
+        }
+      }
+    },
+    "Could not verify this API key. Check the key and try again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法驗證這組 API 金鑰。請檢查金鑰後再試一次。"
+          }
+        }
+      }
+    },
+    "Could not verify this API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法驗證這組 API 金鑰"
+          }
+        }
+      }
+    },
+    "API key cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 金鑰不可為空"
+          }
+        }
+      }
+    },
+    "Failed to save API key securely": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 金鑰無法安全儲存"
+          }
+        }
+      }
+    },
+    "Failed to save custom enhancement model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂增強模型儲存失敗"
+          }
+        }
+      }
+    },
+    "Base URL must be a valid URL": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎 URL 必須是有效的網址"
+          }
+        }
+      }
+    },
+    "%lld model available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個模型可用"
+          }
+        }
+      }
+    },
+    "%lld models available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個模型可用"
+          }
+        }
+      }
+    },
+    "Delete Custom Enhancement Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除自訂增強模型"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete the custom enhancement model '%@'?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要刪除自訂增強模型「%@」嗎？"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

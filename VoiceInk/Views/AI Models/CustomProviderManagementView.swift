@@ -141,7 +141,7 @@ private struct CustomEnhancementModelRow: View {
                 Text(provider.name)
                     .font(.system(size: 13, weight: .semibold))
 
-                Text(provider.modelName.isEmpty ? "No model configured" : provider.modelName)
+                Text(provider.modelName.isEmpty ? String(localized: "No model configured") : provider.modelName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -268,7 +268,7 @@ struct CustomTranscriptionModelEditorPanel: View {
         )
 
         if !isEditing && trimmedKey.isEmpty {
-            validationErrors.append("API key cannot be empty")
+            validationErrors.append(String(localized: "API key cannot be empty"))
         }
 
         guard validationErrors.isEmpty else { return }
@@ -297,7 +297,7 @@ struct CustomTranscriptionModelEditorPanel: View {
             )
 
             guard customModelManager.addCustomModel(customModel, apiKey: trimmedKey) else {
-                validationErrors = ["Failed to save API key securely"]
+                validationErrors = [String(localized: "Failed to save API key securely")]
                 isSaving = false
                 return
             }
@@ -456,13 +456,13 @@ struct CustomEnhancementModelEditorPanel: View {
             if didSave {
                 onSave()
             } else {
-                errorMessage = "Failed to save custom enhancement model"
+                errorMessage = String(localized: "Failed to save custom enhancement model")
             }
             return
         }
 
         guard let verificationURL = URL(string: trimmedURL) else {
-            errorMessage = "Base URL must be a valid URL"
+            errorMessage = String(localized: "Base URL must be a valid URL")
             return
         }
 
@@ -479,7 +479,7 @@ struct CustomEnhancementModelEditorPanel: View {
                 isVerifying = false
 
                 guard result.isValid else {
-                    errorMessage = result.errorMessage ?? "Could not verify this API key"
+                    errorMessage = result.errorMessage ?? String(localized: "Could not verify this API key")
                     return
                 }
 
@@ -490,7 +490,7 @@ struct CustomEnhancementModelEditorPanel: View {
                 if didSave {
                     onSave()
                 } else {
-                    errorMessage = "Failed to save API key securely"
+                    errorMessage = String(localized: "Failed to save API key securely")
                 }
             }
         }

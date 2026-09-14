@@ -47,7 +47,7 @@ struct WhisperModelCardView: View {
     private var metadataSection: some View {
         HStack(spacing: 12) {
             // Language
-            Label(model.language, systemImage: "globe")
+            Label(LocalizedStringKey(model.language), systemImage: "globe")
                 .font(.system(size: 11))
                 .foregroundColor(Color(.secondaryLabelColor))
                 .lineLimit(1)
@@ -82,7 +82,7 @@ struct WhisperModelCardView: View {
     }
     
     private var descriptionSection: some View {
-        Text(model.description)
+        Text(LocalizedStringKey(model.description))
             .font(.system(size: 11))
             .foregroundColor(Color(.secondaryLabelColor))
             .lineLimit(2)
@@ -244,7 +244,7 @@ func performanceColor(value: Double) -> Color {
     }
 }
 
-func modelStatusPill(_ text: String, systemImage: String) -> some View {
+func modelStatusPill(_ text: LocalizedStringKey, systemImage: String) -> some View {
     Label(text, systemImage: systemImage)
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(Color(.secondaryLabelColor))
