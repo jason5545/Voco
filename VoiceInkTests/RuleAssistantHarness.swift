@@ -317,11 +317,17 @@ enum FakeGoProvider {
         lock.unlock()
     }
 
-    static func makeClient(sessionId: String = "fixed-session-id") -> OpenCodeGoClient {
+    static func makeClient(
+        sessionId: String = "fixed-session-id",
+        model: String = RuleAssistantConstants.defaultModel,
+        maxStreamChars: Int = OpenCodeGoClient.defaultMaxStreamChars
+    ) -> OpenCodeGoClient {
         OpenCodeGoClient(
             apiKey: "test-go-key",
+            model: model,
             sessionId: sessionId,
-            endpoint: endpoint
+            endpoint: endpoint,
+            maxStreamChars: maxStreamChars
         )
     }
 
@@ -670,6 +676,8 @@ final class FakeMCPServer {
 @MainActor
 func makeRuleAssistantSession(
     server: FakeMCPServer,
+    model: String = RuleAssistantConstants.defaultModel,
+    maxStreamChars: Int = OpenCodeGoClient.defaultMaxStreamChars,
     context: RuleAssistantContext = RuleAssistantContext(
         rowPk: 42,
         timestampMs: 1_700_000_000_000,
@@ -692,7 +700,8 @@ func makeRuleAssistantSession(
 ) -> RuleAssistantSession {
     RuleAssistantSession(
         context: context,
-        providerFactory: { FakeGoProvider.makeClient() },
+        model: model,
+        providerFactory: { FakeGoProvider.makeClient(model: model, maxStreamChars: maxStreamChars) },
         mcpFactory: { server.makeClient() },
         syncNow: { sync },
         neighborLoader: { before, after in

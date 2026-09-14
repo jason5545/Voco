@@ -176,6 +176,20 @@ struct RuleAssistantDraftEntry: Equatable {
     var autoGuardsEnabled = true
 }
 
+/// One turn that ended in a failure, kept so the review export can show it: a failed turn is rolled back
+/// out of the committed history, so without this the export would only say "failed" and nothing about what
+/// was sent or what had arrived. Cleared when the next turn starts.
+struct RuleAssistantFailedAttempt: Equatable {
+    /// The message the App showed Jason (its origin is either the client or the provider).
+    var message: String
+    /// Every wire message the turn had built when it failed, including the user/App prompt it died on.
+    var messages: [OpenCodeMessage]
+    /// Visible answer text that had already streamed in.
+    var answer: String
+    /// Thinking that had already streamed in.
+    var reasoning: String
+}
+
 struct RuleAssistantUIState: Equatable {
     var context: RuleAssistantContext
     var userText = ""
@@ -201,6 +215,8 @@ struct RuleAssistantUIState: Equatable {
     var hasAutoScanned = false
     /// Kind of the turn currently in flight (nil when idle).
     var busyTurnKind: RuleAssistantTurnKind?
+    /// The turn that failed last, for the review export only (see RuleAssistantFailedAttempt).
+    var failedAttempt: RuleAssistantFailedAttempt?
 
     var canSubmitChoice: Bool {
         pendingQuestion != nil && !selectedOptionIds.isEmpty && !phase.isBusy
@@ -297,6 +313,8 @@ final class RuleAssistantSession: ObservableObject {
     private var provider: RuleAssistantProvider?
     private var mcp: RuleAssistantMCP?
     private var toolJSON: [[String: Any]]?
+    /// The model this conversation's provider was told to use; only the review export reads it.
+    private(set) var providerModel: String
     /// Committed wire history; a failed or cancelled round never leaves dangling tool calls here.
     private var history: [OpenCodeMessage] = []
     private var generation: Int64 = 0
@@ -316,6 +334,7 @@ final class RuleAssistantSession: ObservableObject {
 
     init(
         context: RuleAssistantContext,
+        model: String = RuleAssistantConstants.defaultModel,
         providerFactory: @escaping () -> RuleAssistantProvider?,
         mcpFactory: @escaping () -> RuleAssistantMCP?,
         syncNow: @escaping () async -> RuleAssistantSyncResult,
@@ -327,6 +346,7 @@ final class RuleAssistantSession: ObservableObject {
         runtimeReloader: @escaping () -> Void = { VocoAutoApplyModelService.shared.reload() }
     ) {
         state = RuleAssistantUIState(context: context)
+        providerModel = RuleAssistantModelStore.normalized(model)
         self.providerFactory = providerFactory
         self.mcpFactory = mcpFactory
         self.syncNow = syncNow
@@ -364,6 +384,14 @@ final class RuleAssistantSession: ObservableObject {
 
     /// The Go key changed: drop the provider so the next request authenticates with the new key.
     func onProviderKeyChanged() {
+        provider?.close()
+        provider = nil
+    }
+
+    /// The model picker changed: drop the provider so the next request goes out with the new model, and
+    /// record it for the review export. An in-flight turn is unaffected: the caller cancels it first.
+    func onProviderModelChanged(_ model: String) {
+        providerModel = RuleAssistantModelStore.normalized(model)
         provider?.close()
         provider = nil
     }
@@ -426,6 +454,7 @@ final class RuleAssistantSession: ObservableObject {
         state.answer = ""
         state.toolStatus = []
         state.drafts = []
+        state.failedAttempt = nil
         state.publishedSha256 = nil
         state.publishMessage = nil
         state.pendingQuestion = nil
@@ -546,6 +575,12 @@ final class RuleAssistantSession: ObservableObject {
             if gen != generation { return }
             let message = Self.message(of: error)
             state.phase = .failed(message)
+            state.failedAttempt = RuleAssistantFailedAttempt(
+                message: message,
+                messages: transaction,
+                answer: state.answer,
+                reasoning: state.reasoning
+            )
             state.busyTurnKind = nil
             if let restore { state.userText = restore }
             dropTrailingUserTurn(display)
@@ -968,9 +1003,16 @@ final class RuleAssistantSession: ObservableObject {
         var wireContent = ""
         let accumulator = ToolCallAccumulator()
         var finishReason: String?
+        var truncated = false
         try await provider.stream(messages: messages, tools: tools) { delta in
             try self.guardGeneration(gen)
             if let reason = delta.finishReason { finishReason = reason }
+            // The provider ran past the client's safety length. Keep the text that already arrived; the
+            // marker itself carries nothing to append.
+            if delta.truncated {
+                truncated = true
+                return
+            }
             if reasoning.count + delta.reasoning.count > Self.maxTextChars
                 || answer.count + delta.content.count > Self.maxTextChars
                 || wireReasoning.count + delta.rawReasoningContent.count > Self.maxTextChars
@@ -986,6 +1028,11 @@ final class RuleAssistantSession: ObservableObject {
             state.answer = answer
         }
         try Task.checkCancellation()
+        if truncated {
+            // Not a failure: the model may already have produced a usable answer before the runaway. Say so,
+            // and keep the runaway text out of the wire history so the next request stays small.
+            status(String(localized: "The provider stream ran past the safety length limit; reading stopped, so this round may be incomplete."))
+        }
         if !accumulator.isEmpty() {
             if finishReason != "tool_calls" && finishReason != "stop" {
                 let actual = finishReason ?? String(localized: "unknown")
@@ -999,8 +1046,8 @@ final class RuleAssistantSession: ObservableObject {
             throw RuleAssistantFailure(String(localized: "The AI reply was cut off by the length limit; please send again."))
         }
         return RoundOutcome(
-            rawContent: wireContent,
-            rawReasoning: wireReasoning,
+            rawContent: truncated ? String(wireContent.prefix(Self.maxTruncatedWireChars)) : wireContent,
+            rawReasoning: truncated ? String(wireReasoning.prefix(Self.maxTruncatedWireChars)) : wireReasoning,
             visibleAnswer: answer,
             calls: accumulator.isEmpty() ? [] : (try? accumulator.complete()) ?? []
         )
@@ -1422,15 +1469,21 @@ final class RuleAssistantSession: ObservableObject {
     /// questions and choices, drafts with Worker checks, the wire history (tool calls and truncated
     /// results), and a note telling the reviewer what to look at. Never includes keys or audio.
     func exportForReview(client: String, date: Date = Date()) -> String {
-        Self.reviewExport(state: state, history: history, client: client, date: date)
+        Self.reviewExport(state: state, history: history, client: client, model: providerModel, date: date)
     }
 
-    static func reviewExport(state: RuleAssistantUIState, history: [OpenCodeMessage], client: String, date: Date) -> String {
+    static func reviewExport(
+        state: RuleAssistantUIState,
+        history: [OpenCodeMessage],
+        client: String,
+        model: String = RuleAssistantConstants.defaultModel,
+        date: Date
+    ) -> String {
         var out: [String] = []
         let stamp = ISO8601DateFormatter().string(from: date)
         out.append("# Voco rule assistant · turn export for review")
         out.append("client: \(client)")
-        out.append("model: \(RuleAssistantConstants.model)")
+        out.append("model: \(model)")
         out.append("record: \(state.context.sourceNote())" + (state.context.recordId.map { " · recordId \($0)" } ?? ""))
         out.append("exported: \(stamp)")
         out.append("phase: \(state.phase)")
@@ -1551,26 +1604,17 @@ final class RuleAssistantSession: ObservableObject {
             for line in state.toolStatus { out.append("- \(line)") }
             out.append("")
         }
-        out.append("## Wire history (what actually went to the model; system prompt omitted, long fields truncated)")
-        for message in history {
-            switch message.role {
-            case "system":
-                out.append("[system] (system prompt, \(message.content?.count ?? 0) chars; see RuleAssistantSession systemPrompt)")
-            case "tool":
-                out.append("[tool \(message.toolCallId ?? "?")] \(Self.truncate(message.content ?? "", 800))")
-            case "assistant":
-                if let reasoning = message.reasoningContent, !reasoning.isEmpty {
-                    out.append("[assistant · reasoning] \(Self.truncate(reasoning, 1500))")
-                }
-                if let content = message.content, !content.isEmpty { out.append("[assistant] \(content)") }
-                for call in message.toolCalls {
-                    let function = call.raDict("function")
-                    out.append("[assistant → tool] \(function?.raString("name") ?? "?")(\(Self.truncate(function?.raString("arguments") ?? "", 300))) id=\(call.raString("id") ?? "?")")
-                }
-            default:
-                out.append("[\(message.role)] \(Self.truncate(message.content ?? "", 1500))")
-            }
+        if let failed = state.failedAttempt {
+            out.append("## Failed turn (never committed: the wire history below is older than this attempt)")
+            out.append("- message: \(failed.message)")
+            out.append("- partial answer: \(Self.truncate(failed.answer, 1500))")
+            out.append("- partial thinking: \(Self.truncate(failed.reasoning, 1500))")
+            out.append("- what went out:")
+            for line in Self.wireLines(failed.messages) { out.append("  \(line)") }
+            out.append("")
         }
+        out.append("## Wire history (what actually went to the model; system prompt omitted, long fields truncated)")
+        out.append(contentsOf: Self.wireLines(history))
         out.append("")
         out.append("## For the reviewer (Claude Code / Codex)")
         out.append("""
@@ -1585,6 +1629,32 @@ final class RuleAssistantSession: ObservableObject {
 
     private static func truncate(_ text: String, _ limit: Int) -> String {
         text.count <= limit ? text : String(text.prefix(limit)) + "… (\(text.count) chars)"
+    }
+
+    /// One line per wire message, shared by the wire history and the failed-turn section so both describe
+    /// the same wire the same way. Long fields are truncated.
+    private static func wireLines(_ messages: [OpenCodeMessage]) -> [String] {
+        var lines: [String] = []
+        for message in messages {
+            switch message.role {
+            case "system":
+                lines.append("[system] (system prompt, \(message.content?.count ?? 0) chars; see RuleAssistantSession systemPrompt)")
+            case "tool":
+                lines.append("[tool \(message.toolCallId ?? "?")] \(truncate(message.content ?? "", 800))")
+            case "assistant":
+                if let reasoning = message.reasoningContent, !reasoning.isEmpty {
+                    lines.append("[assistant · reasoning] \(truncate(reasoning, 1500))")
+                }
+                if let content = message.content, !content.isEmpty { lines.append("[assistant] \(content)") }
+                for call in message.toolCalls {
+                    let function = call.raDict("function")
+                    lines.append("[assistant → tool] \(function?.raString("name") ?? "?")(\(truncate(function?.raString("arguments") ?? "", 300))) id=\(call.raString("id") ?? "?")")
+                }
+            default:
+                lines.append("[\(message.role)] \(truncate(message.content ?? "", 1500))")
+            }
+        }
+        return lines
     }
 
     /// Apply the App-side authorization for each kind of user turn. `runtimeBaseline` is 原句 re-run through
@@ -1774,6 +1844,8 @@ final class RuleAssistantSession: ObservableObject {
     static let gateFeedbackPrefix = "App 檢查未通過"
     static let maxTextChars = 120_000
     static let maxToolResultChars = 60_000
+    /// Wire text kept from a round the provider cut off at the safety length; the rest never leaves the stream.
+    static let maxTruncatedWireChars = 8_000
     static let maxStatusLines = 30
 
     static let questionNudgePrompt = "你上一則說要讓使用者勾選，但沒有附 question JSON，App 沒有東西可以顯示。請只輸出那一個 question JSON（```json fence，欄位 id、prompt、multiSelect、options[{id,label,detail?,surface?,target?}]），不要再查工具，不要其他文字。"

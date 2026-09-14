@@ -10,6 +10,7 @@ struct RuleAssistantPanelView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var registry = RuleAssistantSessionRegistry.shared
     @AppStorage(RuleAssistantSettingsView.autoScanOnOpenKey) private var autoScanOnOpen = true
+    @AppStorage(RuleAssistantModelStore.defaultsKey) private var selectedModel = RuleAssistantConstants.defaultModel
     @State private var session: RuleAssistantSession?
 
     var body: some View {
@@ -23,6 +24,8 @@ struct RuleAssistantPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear(perform: attach)
         .onChange(of: transcription.id) { _, _ in attach() }
+        // A model change re-creates the provider, so the next turn goes out on the picked model.
+        .onChange(of: selectedModel) { _, _ in registry.providerModelChanged() }
     }
 
     private var unavailableView: some View {
@@ -43,6 +46,10 @@ struct RuleAssistantPanelView: View {
     }
 
     private func attach() {
+        // A stored id outside the bundled catalog (older build, hand-edited defaults) falls back here.
+        if RuleAssistantModelStore.selected != selectedModel {
+            selectedModel = RuleAssistantModelStore.selected
+        }
         let attached = registry.session(for: transcription, modelContext: modelContext)
         session = attached
         // Opening the assistant already states the intent; run the find-issues turn once per session.
@@ -57,6 +64,10 @@ private struct RuleAssistantSessionView: View {
     @ObservedObject var session: RuleAssistantSession
     let transcription: Transcription
 
+    @AppStorage(RuleAssistantModelStore.defaultsKey) private var selectedModel = RuleAssistantConstants.defaultModel
+    /// Go usage windows, read on open and on demand; nil until a read succeeds.
+    @State private var usage: RuleAssistantGoUsage?
+
     private var state: RuleAssistantUIState { session.state }
 
     var body: some View {
@@ -65,6 +76,7 @@ private struct RuleAssistantSessionView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     explanationLine
                     recordCard
+                    modelRow
                     configurationWarnings
                     conversationSection
                     toolStatusSection
@@ -141,6 +153,76 @@ private struct RuleAssistantSessionView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { AppCardBackground() }
+    }
+
+    /// Model picker plus the Go subscription's own usage windows. Both are aids: the conversation runs
+    /// on whatever model is picked, and a failed usage read only leaves the numbers blank.
+    private var modelRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Model")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+
+                Picker("Model", selection: modelBinding) {
+                    ForEach(RuleAssistantConstants.models, id: \.self) { model in
+                        Text(model).tag(model)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .font(.system(size: 12))
+                .disabled(state.phase.isBusy)
+                .help("The two models this assistant has been run against.")
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                if let usage {
+                    Text("Go usage · \(usage.summary)")
+                        .font(.system(size: 11))
+                        .foregroundColor(usage.worstPercent >= 80 ? AppTheme.Status.warningStrong : .secondary)
+                        .help(usage.detail)
+                } else {
+                    Text(state.goKeyConfigured ? "Go usage: not read yet" : "Go usage: set the OpenCode Go API key first")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    Task { await loadUsage() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .disabled(!state.goKeyConfigured)
+                .help("Read the Go usage windows again")
+            }
+        }
+        .padding(10)
+        .background { AppCardBackground() }
+        .task { await loadUsage() }
+    }
+
+    /// Always a catalog member, so the picker never shows a selection it cannot name.
+    private var modelBinding: Binding<String> {
+        Binding(
+            get: { RuleAssistantModelStore.normalized(selectedModel) },
+            set: { selectedModel = RuleAssistantModelStore.normalized($0) }
+        )
+    }
+
+    private func loadUsage() async {
+        guard let key = RuleAssistantKeyStore.shared.apiKey else {
+            usage = nil
+            return
+        }
+        usage = await RuleAssistantUsageClient.fetch(apiKey: key)
     }
 
     // MARK: Configuration warnings

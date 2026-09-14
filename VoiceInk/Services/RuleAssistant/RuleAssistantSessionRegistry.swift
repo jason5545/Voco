@@ -29,9 +29,10 @@ final class RuleAssistantSessionRegistry: ObservableObject {
         let timestamp = transcription.timestamp
         let session = RuleAssistantSession(
             context: RuleAssistantContext(transcription: transcription, rowPk: rowPk),
+            model: RuleAssistantModelStore.selected,
             providerFactory: {
                 guard let key = RuleAssistantKeyStore.shared.apiKey else { return nil }
-                return OpenCodeGoClient(apiKey: key)
+                return OpenCodeGoClient(apiKey: key, model: RuleAssistantModelStore.selected)
             },
             mcpFactory: {
                 guard let syncKey = VocoAutoApplyModelService.defaultWorkerSyncKey(),
@@ -95,6 +96,12 @@ final class RuleAssistantSessionRegistry: ObservableObject {
         guard let session else { return }
         session.onProviderKeyChanged()
         syncConfig(session)
+    }
+
+    /// The model picker changed: the active conversation re-creates its provider with the new model.
+    func providerModelChanged() {
+        guard let session else { return }
+        session.onProviderModelChanged(RuleAssistantModelStore.selected)
     }
 
     private func syncConfig(_ session: RuleAssistantSession) {

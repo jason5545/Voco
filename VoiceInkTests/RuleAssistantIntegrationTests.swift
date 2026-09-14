@@ -85,6 +85,78 @@ struct RuleAssistantIntegrationTests {
 
     // MARK: Full flow
 
+    /// The picked model is what goes on the wire, and the review export names it.
+    @Test func pickedModelTravelsOnTheWireAndIntoTheExport() async throws {
+        server.reset()
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("小振", "小鎮")])),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server, model: "glm-5.3-flash")
+        await session.submit("把小振改成小鎮")
+        let request = try #require(FakeGoProvider.recorded.first)
+        #expect(request.body["model"] as? String == "glm-5.3-flash")
+        #expect(session.exportForReview(client: "voco test").contains("\nmodel: glm-5.3-flash\n"))
+    }
+
+    /// A provider that runs past the safety length is cut, not failed: the answer that already arrived
+    /// survives, the round says it was cut, and the runaway text never reaches the next request.
+    @Test func runawayProviderStreamIsCutInsteadOfFailingTheTurn() async throws {
+        server.reset()
+        let runaway = String(repeating: "重複的思考", count: 1_500)
+        FakeGoProvider.reset(scripts: [
+            .stream([
+                FakeGoProvider.chunk(content: draftAnswer([correctionDraft("小振", "小鎮")])),
+                FakeGoProvider.chunk(reasoning: runaway),
+                FakeGoProvider.chunk(reasoning: runaway),
+                FakeGoProvider.chunk(finish: "stop"),
+            ]),
+        ])
+        let session = makeRuleAssistantSession(server: server, maxStreamChars: 4_000)
+        await session.submit("把小振改成小鎮")
+        guard case .draftReady = session.state.phase else {
+            Issue.record("expected draftReady, got \(session.state.phase)")
+            return
+        }
+        #expect(session.state.toolStatus.contains { $0.contains("safety length") })
+        // The cut text is clamped on the wire, so the next request cannot inherit the runaway.
+        FakeGoProvider.reset(scripts: [
+            .stream([FakeGoProvider.chunk(content: "好"), FakeGoProvider.chunk(finish: "stop")]),
+        ])
+        await session.submit("再確認一次")
+        let last = try #require(FakeGoProvider.recorded.last)
+        let messages = last.body["messages"] as? [[String: Any]] ?? []
+        let assistantChars = messages
+            .filter { $0["role"] as? String == "assistant" }
+            .reduce(0) { total, message in
+                total
+                    + (message["content"] as? String ?? "").count
+                    + (message["reasoning_content"] as? String ?? "").count
+            }
+        #expect(assistantChars <= RuleAssistantSession.maxTruncatedWireChars + 4_000)
+    }
+
+    /// A failed turn is rolled back out of the committed history, so the review export has to carry it on
+    /// its own: the message, what went out, and what had already arrived.
+    @Test func reviewExportCarriesTheFailedTurnThatNeverCommitted() async throws {
+        server.reset()
+        FakeGoProvider.reset(scripts: [.httpError(500)])
+        let session = makeRuleAssistantSession(server: server)
+        await session.submit("把小振改成小鎮")
+        guard case .failed = session.state.phase else {
+            Issue.record("expected failed, got \(session.state.phase)")
+            return
+        }
+        let export = session.exportForReview(client: "voco test")
+        #expect(export.contains("## Failed turn (never committed"))
+        #expect(export.contains("- message: OpenCode Go HTTP 500"))
+        // The user prompt the failed attempt died on is in the export, not only in the committed history.
+        #expect(export.contains("把小振改成小鎮"))
+        #expect(export.contains("## Wire history"))
+    }
+
     @Test func fullFlowPublishesAndSyncs() async throws {
         server.reset()
         server.toolHandler = { name, args in
@@ -117,7 +189,7 @@ struct RuleAssistantIntegrationTests {
         #expect(request.authorization == "Bearer test-go-key")
         #expect(request.userAgent?.hasPrefix("voco-rule-assistant/") == true)
         #expect(request.sessionId == "fixed-session-id")
-        #expect(request.body["model"] as? String == "glm-5.3-flash")
+        #expect(request.body["model"] as? String == RuleAssistantConstants.defaultModel)
         #expect(request.body["stream"] as? Bool == true)
         #expect(request.body["tool_choice"] as? String == "auto")
         let tools = request.body["tools"] as? [[String: Any]] ?? []
@@ -1400,7 +1472,7 @@ struct RuleAssistantIntegrationTests {
             return
         }
         let export = session.exportForReview(client: "voco test · macOS", date: Date(timeIntervalSince1970: 1_700_000_000))
-        #expect(export.hasPrefix("# Voco rule assistant · turn export for review\nclient: voco test · macOS\nmodel: glm-5.3-flash\nrecord: voco:row:42"))
+        #expect(export.hasPrefix("# Voco rule assistant · turn export for review\nclient: voco test · macOS\nmodel: \(RuleAssistantConstants.defaultModel)\nrecord: voco:row:42"))
         #expect(export.contains("- rawTranscript: 我們去小振家"))
         #expect(export.contains("question q1 (multi): 這筆哪些地方是錯的？"))
         #expect(export.contains("- [a] 小振 → 小鎮 {小振 → 小鎮} · 地名 ✓ chosen"))

@@ -247,3 +247,41 @@ Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取�
 - #38：`words(containing:minFrequency:limit:)` 只回傳詞庫中真的包含完整 source 的條目；GuardSuggester 不再做 head＋tail 黏合。
 - #39／#40：Mac 與 Android 的 prompt 新增空 `negativeExamples` 規則及題目卡範圍 wire；候選 scope、預設 broad、choice gate 與匯出狀態同步。
 - #41：模型呼叫 preview／查重工具時，App 補上 `actor=voco-rule-assistant`、`correctionSource=voco` 與目前 `correctionRow`（已有值不覆蓋）。Worker preview／查重另回報 `actorSource`；本次採用這個防禦性欄位方案，未改 SSE session 狀態。
+
+## 模型選擇與 Go 額度（2026-09-14）
+
+規則助手原本把 `glm-5.3-flash` 寫死在 `RuleAssistantConstants.model`，現在可以選。
+
+- **模型清單**：`RuleAssistantConstants.models` 只列兩個，`glm-5.3-flash` 與 `deepseek-v4.1-flash`
+  （2026-09-14 起，Jason 要求只留這兩個）。Go 本身提供 37 個 id（`GET https://opencode.ai/zen/go/v1/models`，
+  該端點不用 key），刻意不全部列出。兩個都實測過串流形狀：OpenAI 式 SSE、`reasoning_content`、串流
+  `tool_calls`、結尾 `[DONE]`，`x-opencode-session` 仍是必帶 header（缺它 Go 回 `MissingSessionID`）。
+- **預設模型**：`deepseek-v4.1-flash`（Jason 2026-09-14 指定）。
+- **儲存**：`RuleAssistantModelStore`（UserDefaults key `RuleAssistantModel`）。`normalized(_:)`
+  把不在清單內的值一律換回預設，所以舊版殘留或手改的值不可能送到 provider，picker 的繫結也走同一個
+  函式。改模型時 registry 呼叫 `session.onProviderModelChanged(_:)`，只丟掉 provider，對話與 wire
+  history 不變，下一回合用新模型。
+- **Go 額度**：`RuleAssistantUsageClient.fetch(apiKey:)` 打 `GET /zen/go/v1/usage`，回
+  `rolling`（5 小時）／`weekly`／`monthly` 三個 window 的**已用**百分比；這是帳號層級，不是
+  每個模型一份。panel 顯示 `Go usage · 5h n% · week n% · month n%`，≥80% 轉警示色，tooltip 帶
+  各窗重置時間（有小數與無小數的 ISO-8601 都接受）。讀不到只留空白，不擋任何回合；旁邊按鈕可重讀。
+- **匯出**：`reviewExport` 多一個 `model` 參數，`exportForReview` 傳入這段對話真正用的模型
+  （原本固定寫 `glm-5.3-flash`）。
+- **測試**：`RuleAssistantModelAndUsageTests`（live usage payload 解析、非法 payload fail-closed、
+  百分比夾在 0–100、模型 fallback 與清單一致性）；`RuleAssistantIntegrationTests` 新增
+  `pickedModelTravelsOnTheWireAndIntoTheExport`，並改掉原本寫死 `glm-5.3-flash` 的斷言。
+- **串流安全長度改成截斷，不是失敗**（2026-09-14，實機回報）：`OpenCodeGoClient` 的 2,000,000 字上限
+  原本直接丟 `RuleAssistantTransportError`，整輪變 Failed。現在超過就停止讀取、保留已收到的內容，
+  送一個 `OpenCodeDelta(truncated: true)` 給 session；`maxStreamChars` 可注入（測試用小的值）。
+  session 收到後留一行狀態「The provider stream ran past the safety length limit…」，並把這一輪
+  `RoundOutcome` 的 wire content／reasoning 各夾在 `maxTruncatedWireChars = 8,000` 字，
+  所以失控的文字不會被下一次請求繼承。截斷留下的半個 SSE 事件只會產生「Invalid provider event」，
+  那是截斷的結果，會被清掉，不判死這一輪。
+  背景：2026-09-14 第一個在 `deepseek-v4.1-flash` 上跑的對話（自動找問題後勾三個候選送出）
+  串流超過 2 MB。兩個模型都要能跑，所以修在 client，不綁模型、也不改預設。
+- **匯出補上失敗輪**（2026-09-14，Jason 從上一份匯出看出來的洞）：失敗的回合會被 rollback 出
+  committed `history`，所以匯出過去只有 `phase: Failed(...)` 那一行提到失敗，**看不到失敗那一輪送出去
+  什麼、收到什麼**。現在 `RuleAssistantUIState.failedAttempt: RuleAssistantFailedAttempt?` 留著那一輪的
+  訊息、失敗當下已組好的 wire messages（含它死在上面的那則指令）、以及已串流進來的 answer／thinking；
+  匯出在 `## Wire history` 之前多一段 `## Failed turn (never committed: the wire history below is older
+  than this attempt)`，內容用跟 wire history 同一個 `wireLines` 渲染（長欄位一樣截斷）。下一輪開始時清掉。

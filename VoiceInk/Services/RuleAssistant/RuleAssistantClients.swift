@@ -156,9 +156,16 @@ final class AsyncSerialGate {
 // MARK: - OpenCode Go provider client
 
 final class OpenCodeGoClient: RuleAssistantProvider {
+    /// Safety bound on one provider stream. A stream past this is cut and reported, never failed: a runaway
+    /// must not throw away an answer the model already produced.
+    static let defaultMaxStreamChars = 2_000_000
+
     private let apiKey: String
+    /// The conversation model. Normalized at construction, so an unknown id can never reach the provider.
+    private let model: String
     let sessionId: String
     private let endpoint: URL
+    private let maxStreamChars: Int
     private let configuration: URLSessionConfiguration
 
     private let stateLock = NSLock()
@@ -167,13 +174,17 @@ final class OpenCodeGoClient: RuleAssistantProvider {
 
     init(
         apiKey: String,
+        model: String = RuleAssistantConstants.defaultModel,
         sessionId: String = UUID().uuidString,
         endpoint: URL = RuleAssistantConstants.endpointURL,
+        maxStreamChars: Int = OpenCodeGoClient.defaultMaxStreamChars,
         configuration: URLSessionConfiguration = .ephemeral
     ) {
         self.apiKey = apiKey
+        self.model = RuleAssistantModelStore.normalized(model)
         self.sessionId = sessionId
         self.endpoint = endpoint
+        self.maxStreamChars = maxStreamChars
         let copy = configuration.copy() as? URLSessionConfiguration ?? .ephemeral
         copy.timeoutIntervalForRequest = Self.readTimeout
         self.configuration = copy
@@ -224,7 +235,7 @@ final class OpenCodeGoClient: RuleAssistantProvider {
         request.setValue(RuleAssistantConstants.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue(sessionId, forHTTPHeaderField: "x-opencode-session")
         var body: [String: Any] = [
-            "model": RuleAssistantConstants.model,
+            "model": model,
             "stream": true,
             "messages": messages.map { $0.toJSON() },
         ]
@@ -269,13 +280,16 @@ final class OpenCodeGoClient: RuleAssistantProvider {
 
         let deadline = ContinuousClock.now + Self.totalTimeout
         var totalChars = 0
+        var truncated = false
         do {
             var feeder = SseByteFeeder()
             for try await byte in bytes {
                 if isClosed { throw RuleAssistantTransportError(String(localized: "Stopped.")) }
                 totalChars += 1
-                if totalChars > Self.maxStreamChars {
-                    throw RuleAssistantTransportError(String(localized: "The provider stream exceeded the safety length limit."))
+                if totalChars > maxStreamChars {
+                    // Stop reading and keep what already arrived; the session decides what to do with it.
+                    truncated = true
+                    break
                 }
                 if ContinuousClock.now > deadline {
                     throw RuleAssistantTransportError(String(localized: "The provider stream exceeded the total time limit."))
@@ -328,7 +342,17 @@ final class OpenCodeGoClient: RuleAssistantProvider {
                 try await onDelta(delta)
             }
         }
+        if truncated {
+            // Cutting the stream leaves a half-written event behind, and parsing that can only produce an
+            // error delta. It is a consequence of the cut, not a provider error, so it must not fail the turn.
+            failure = nil
+        }
         if let failure { throw RuleAssistantTransportError(failure) }
+        if truncated {
+            // The provider kept streaming past the limit: hand the round to the session as a cut one.
+            try await onDelta(OpenCodeDelta(truncated: true))
+            ended = true
+        }
         if !ended {
             throw RuleAssistantTransportError(String(localized: "The provider stream ended before [DONE]."))
         }
@@ -336,7 +360,43 @@ final class OpenCodeGoClient: RuleAssistantProvider {
 
     private static let readTimeout: TimeInterval = 90
     private static let totalTimeout: Duration = .seconds(240)
-    private static let maxStreamChars = 2_000_000
+}
+
+// MARK: - OpenCode Go usage report
+
+/// Reads the Go subscription's usage windows with the same key the conversation uses. The numbers are
+/// per account, so the key travels with the request and goes nowhere else. Any failure returns nil:
+/// the counter is an aid in the picker, never a gate on sending.
+enum RuleAssistantUsageClient {
+    static func fetch(
+        apiKey: String,
+        endpoint: URL = RuleAssistantConstants.usageURL,
+        configuration: URLSessionConfiguration = .ephemeral
+    ) async -> RuleAssistantGoUsage? {
+        guard !apiKey.isEmpty else { return nil }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(RuleAssistantConstants.userAgent, forHTTPHeaderField: "User-Agent")
+        let copy = configuration.copy() as? URLSessionConfiguration ?? .ephemeral
+        copy.timeoutIntervalForRequest = 20
+        let session = URLSession(
+            configuration: copy,
+            delegate: RuleAssistantNoRedirectDelegate(),
+            delegateQueue: nil
+        )
+        defer { session.invalidateAndCancel() }
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
+              data.count <= 64_000,
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return nil }
+        return RuleAssistantGoUsage.parse(json)
+    }
 }
 
 // MARK: - Worker MCP client (legacy HTTP+SSE)

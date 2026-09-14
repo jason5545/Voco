@@ -3,8 +3,21 @@ import Foundation
 // MARK: - Constants
 
 enum RuleAssistantConstants {
-    static let model = "glm-5.3-flash"
+    /// The picker offers exactly these two: the model this assistant ran on from the start, and the one
+    /// Codex runs on. OpenCode Go itself serves 37 ids (`GET https://opencode.ai/zen/go/v1/models`,
+    /// 2026-09-14); this is a deliberately short list, not the provider's catalogue, and both entries have
+    /// been through this client's streaming shape.
+    static let models: [String] = ["glm-5.3-flash", "deepseek-v4.1-flash"]
+
+    /// The model a conversation uses until the user picks another one: Codex's own model on
+    /// 2026-09-14, added to the picker at Jason's request. Both this and `glm-5.3-flash` have to work:
+    /// the picker is the switch, and no model-specific workaround belongs in the app.
+    static let defaultModel = "deepseek-v4.1-flash"
+
     static let endpointURL = URL(string: "https://opencode.ai/zen/go/v1/chat/completions")!
+    /// Go subscription windows (rolling 5 hours, weekly, monthly) as used percentages. Account-wide,
+    /// not per model, and the only quota the provider publishes.
+    static let usageURL = URL(string: "https://opencode.ai/zen/go/v1/usage")!
     static let appVersion: String =
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev"
     static let userAgent = "voco-rule-assistant/\(appVersion)"
@@ -38,6 +51,107 @@ enum RuleAssistantConstants {
 
     static func isMCPWriteTool(_ name: String) -> Bool {
         writeTools.values.contains(name)
+    }
+}
+
+// MARK: - Conversation model
+
+/// The conversation model: a stored value that must name a model in the bundled catalog, so a stale or
+/// hand-edited value can never reach the provider. The panel picker and the session registry share it.
+enum RuleAssistantModelStore {
+    static let defaultsKey = "RuleAssistantModel"
+
+    /// Unknown and blank values fall back to the default; the raw string is never returned.
+    static func normalized(_ stored: String?) -> String {
+        guard let stored = stored?.trimmingCharacters(in: .whitespacesAndNewlines),
+              RuleAssistantConstants.models.contains(stored)
+        else { return RuleAssistantConstants.defaultModel }
+        return stored
+    }
+
+    static var selected: String {
+        get { normalized(UserDefaults.standard.string(forKey: defaultsKey)) }
+        set {
+            let clean = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard RuleAssistantConstants.models.contains(clean) else { return }
+            UserDefaults.standard.set(clean, forKey: defaultsKey)
+        }
+    }
+}
+
+// MARK: - Go usage report
+
+/// One usage window of the Go subscription. `percent` is how much the plan has used, not what is left.
+struct RuleAssistantUsageWindow: Equatable {
+    var status: String?
+    var percent: Int
+    var resetsAt: Date?
+}
+
+/// The Go subscription's usage report. Read-only and never a gate: a failed read just leaves the picker
+/// without numbers, and a turn still goes out.
+struct RuleAssistantGoUsage: Equatable {
+    var rolling: RuleAssistantUsageWindow?
+    var weekly: RuleAssistantUsageWindow?
+    var monthly: RuleAssistantUsageWindow?
+
+    var windows: [(label: String, window: RuleAssistantUsageWindow)] {
+        var result: [(label: String, window: RuleAssistantUsageWindow)] = []
+        if let rolling { result.append(("5h", rolling)) }
+        if let weekly { result.append(("week", weekly)) }
+        if let monthly { result.append(("month", monthly)) }
+        return result
+    }
+
+    var worstPercent: Int { windows.map { $0.window.percent }.max() ?? 0 }
+
+    var summary: String {
+        windows.map { "\($0.label) \($0.window.percent)%" }.joined(separator: " · ")
+    }
+
+    /// Window reset times, for the tooltip.
+    var detail: String {
+        windows.map { entry in
+            guard let resetsAt = entry.window.resetsAt else {
+                return "\(entry.label) \(entry.window.percent)%"
+            }
+            return "\(entry.label) \(entry.window.percent)% → \(Self.plainFormatter.string(from: resetsAt))"
+        }
+        .joined(separator: "\n")
+    }
+
+    private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let plainFormatter = ISO8601DateFormatter()
+
+    /// The endpoint sends fractional seconds today; without fractional seconds is accepted too.
+    static func timestamp(_ string: String) -> Date? {
+        fractionalFormatter.date(from: string) ?? plainFormatter.date(from: string)
+    }
+
+    /// Fail-closed: anything that is not the documented shape yields nil, so a changed payload shows no
+    /// numbers instead of wrong ones.
+    static func parse(_ json: [String: Any]) -> RuleAssistantGoUsage? {
+        guard let usage = json.raDict("usage") else { return nil }
+        func window(_ key: String) -> RuleAssistantUsageWindow? {
+            guard let dict = usage.raDict(key) else { return nil }
+            return RuleAssistantUsageWindow(
+                status: dict.raNonBlankString("status"),
+                percent: max(0, min(100, Int(dict.raInt64("percent") ?? 0))),
+                resetsAt: dict.raNonBlankString("resetsAt").flatMap(timestamp)
+            )
+        }
+        let parsed = RuleAssistantGoUsage(
+            rolling: window("rolling"),
+            weekly: window("weekly"),
+            monthly: window("monthly")
+        )
+        guard parsed.rolling != nil || parsed.weekly != nil || parsed.monthly != nil else { return nil }
+        return parsed
     }
 }
 
@@ -939,6 +1053,9 @@ struct OpenCodeDelta: Equatable {
     var rawReasoningContent: String = ""
     /// Exact provider content bytes (including any <think> markup), retained for the wire history.
     var rawContent: String = ""
+    /// The client stopped reading at the safety length limit: the provider ran away. The session reports
+    /// the cut and keeps the runaway text out of the wire history.
+    var truncated = false
 }
 
 /// Parses OpenAI-compatible SSE deltas and keeps thinking separate from visible answer text.

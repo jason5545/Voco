@@ -263,3 +263,48 @@ struct RuleAssistantToolAccumulatorTests {
         #expect(!accumulator.problems().isEmpty)
     }
 }
+
+// MARK: - Model picker & Go usage report
+
+@Suite(.serialized)
+struct RuleAssistantModelAndUsageTests {
+    /// The payload the live Go endpoint returned on 2026-09-14 (`GET /zen/go/v1/usage`).
+    private static let liveUsageJSON: [String: Any] = [
+        "usage": [
+            "rolling": ["status": "ok", "percent": 0, "resetsAt": "2026-09-14T04:59:46.613Z"],
+            "weekly": ["status": "ok", "percent": 0, "resetsAt": "2026-09-21T00:00:00.613Z"],
+            "monthly": ["status": "ok", "percent": 43, "resetsAt": "2026-09-15T07:14:57.613Z"],
+        ] as [String: Any],
+    ]
+
+    @Test func parsesTheLiveUsagePayload() {
+        let usage = RuleAssistantGoUsage.parse(Self.liveUsageJSON)
+        #expect(usage?.rolling?.percent == 0)
+        #expect(usage?.monthly?.percent == 43)
+        #expect(usage?.worstPercent == 43)
+        #expect(usage?.summary == "5h 0% · week 0% · month 43%")
+        // Fractional seconds are what the endpoint sends; both forms must parse.
+        #expect(usage?.monthly?.resetsAt != nil)
+        #expect(RuleAssistantGoUsage.timestamp("2026-09-15T07:14:57Z") != nil)
+    }
+
+    @Test func rejectsPayloadsThatAreNotTheDocumentedShape() {
+        #expect(RuleAssistantGoUsage.parse([:]) == nil)
+        #expect(RuleAssistantGoUsage.parse(["usage": [:]]) == nil)
+        #expect(RuleAssistantGoUsage.parse(["usage": "nope"]) == nil)
+        // A window on its own is still usable, and an out-of-range percentage is clamped, not shown.
+        #expect(RuleAssistantGoUsage.parse(["usage": ["rolling": ["percent": 5]]])?.rolling?.percent == 5)
+        #expect(RuleAssistantGoUsage.parse(["usage": ["monthly": ["percent": 900]]])?.monthly?.percent == 100)
+    }
+
+    @Test func storedModelFallsBackToTheDefaultWhenItIsNotInTheCatalog() {
+        #expect(RuleAssistantModelStore.normalized(nil) == RuleAssistantConstants.defaultModel)
+        #expect(RuleAssistantModelStore.normalized("") == RuleAssistantConstants.defaultModel)
+        #expect(RuleAssistantModelStore.normalized("not-a-model") == RuleAssistantConstants.defaultModel)
+        #expect(RuleAssistantModelStore.normalized(" glm-5.3-flash ") == "glm-5.3-flash")
+        // The picker offers exactly the two models this assistant has been run against, and the default
+        // has to be one of them.
+        #expect(RuleAssistantConstants.models == ["glm-5.3-flash", "deepseek-v4.1-flash"])
+        #expect(RuleAssistantConstants.models.contains(RuleAssistantConstants.defaultModel))
+    }
+}
