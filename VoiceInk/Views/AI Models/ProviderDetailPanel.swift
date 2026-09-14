@@ -85,7 +85,7 @@ struct ProviderDetailPanel: View {
     }
 
     private var apiKeySection: some View {
-        ProviderConfigurationGroup(title: "Connection") {
+        ProviderConfigurationGroup(title: String(localized: "Connection")) {
             VStack(alignment: .leading, spacing: 8) {
                 if isConfigured {
                     verifiedAPIKeyRow
@@ -258,7 +258,7 @@ struct ProviderDetailPanel: View {
     private var transcriptionModelsSection: some View {
         let models = descriptor.transcriptionModels
 
-        return ProviderModelListSection(title: "Available Transcription Models") {
+        return ProviderModelListSection(title: String(localized: "Available Transcription Models")) {
             ForEach(Array(models.prefix(8).enumerated()), id: \.element.id) { index, model in
                 modelRow(
                     title: model.displayName,
@@ -287,7 +287,7 @@ struct ProviderDetailPanel: View {
         if let provider = descriptor.aiProvider {
             let models = aiService.availableModels(for: provider)
 
-            ProviderModelListSection(title: "Available Enhancement Models") {
+            ProviderModelListSection(title: String(localized: "Available Enhancement Models")) {
                 if provider == .openRouter {
                     HStack(spacing: 12) {
                         Text(openRouterModelAvailabilityText(for: models.count))

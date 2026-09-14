@@ -160,12 +160,14 @@ enum VocoHypothesisSource: String, Codable, Equatable {
     case segmentRescue
     case customRescue
 
+    /// English on purpose: only the CSV export prints these source names, and an exported file
+    /// should read the same whatever the system language is.
     var displayName: String {
         switch self {
         case .autoContext:
             return "AUTO + context"
         case .autoApplyModel:
-            return String(localized: "Auto-apply model")
+            return "Auto-apply model"
         case .suggestedRepair:
             return "Suggestion pass"
         case .originalCleaned:
@@ -355,6 +357,7 @@ enum VocoCandidateSelectionSource: String, Codable, Equatable {
     case automaticFallback
     case finalPaste
 
+    /// English on purpose: only the CSV export prints these, see `VocoHypothesisSource.displayName`.
     var displayName: String {
         switch self {
         case .userSelection:
@@ -375,23 +378,23 @@ enum VocoCandidateLabelDisplayFormatter {
     static func displayName(for label: String) -> String {
         switch label {
         case "Recommended":
-            return "Recommended"
+            return String(localized: "Recommended")
         case "With suggestions":
-            return "With suggestions"
+            return String(localized: "With suggestions")
         case "Segment rescue":
-            return "Segment rescue"
+            return String(localized: "Segment rescue")
         case "Raw cleanup rescue":
-            return "Raw cleanup rescue"
+            return String(localized: "Raw cleanup rescue")
         case "Original":
-            return "Original"
+            return String(localized: "Original")
         case "Raw ASR":
-            return "Raw ASR"
+            return String(localized: "Raw ASR")
         case "Typed correction":
-            return "Typed correction"
+            return String(localized: "Typed correction")
         case "Auto-apply model":
             return String(localized: "Auto-apply model")
         case "Candidate":
-            return "Candidate"
+            return String(localized: "Candidate")
         default:
             return label
         }
@@ -399,56 +402,57 @@ enum VocoCandidateLabelDisplayFormatter {
 }
 
 enum VocoSignalDisplayFormatter {
-    static func displayReasons(for reasons: [String]) -> [String] {
+    static func displayReasons(for reasons: [String], localized: Bool = true) -> [String] {
         var seen: Set<String> = []
         return reasons
-            .map(displayReason(for:))
+            .map { displayReason(for: $0, localized: localized) }
             .filter { seen.insert($0).inserted }
     }
 
-    static func displayStyleGuardReasons(for reasons: [String]) -> [String] {
+    static func displayStyleGuardReasons(for reasons: [String], localized: Bool = true) -> [String] {
         var seen: Set<String> = []
         return reasons
-            .map(displayStyleGuardReason(for:))
+            .map { displayStyleGuardReason(for: $0, localized: localized) }
             .filter { seen.insert($0).inserted }
     }
 
-    static func displayReason(for reason: String) -> String {
+    /// `localized: false` returns the English source text, which the CSV export asks for.
+    static func displayReason(for reason: String, localized: Bool = true) -> String {
         switch reason {
         case "alias-match":
-            return "Alias match"
+            return text("Alias match", localized)
         case "canonical-match":
-            return "Already canonical"
+            return text("Already canonical", localized)
         case "canonicalization-clean":
-            return "Clean"
+            return text("Clean", localized)
         case "candidate-confirmed":
-            return "Candidate confirmed"
+            return text("Candidate confirmed", localized)
         case "candidate-custom":
-            return "Custom candidate"
+            return text("Custom candidate", localized)
         case "candidate-dismissed-fallback":
-            return "Dismissed fallback"
+            return text("Dismissed fallback", localized)
         case "candidate-override":
-            return "Candidate changed"
+            return text("Candidate changed", localized)
         case "candidate-timeout-fallback":
-            return "Timeout fallback"
+            return text("Timeout fallback", localized)
         case "candidate-auto-fallback":
-            return "Automatic fallback"
+            return text("Automatic fallback", localized)
         case "case-normalization":
-            return "Case normalization"
+            return text("Case normalization", localized)
         case "context-required":
-            return "Needs context"
+            return text("Needs context", localized)
         case "contextual-alias-match":
-            return "Context match"
+            return text("Context match", localized)
         case "heavy-normalization":
-            return "Heavy normalization"
+            return text("Heavy normalization", localized)
         case "high-risk-term":
-            return "High-risk term"
+            return text("High-risk term", localized)
         case "inactive-context-suggestion":
-            return "Inactive context"
+            return text("Inactive context", localized)
         case "low-confidence-replacement":
-            return "Low confidence"
+            return text("Low confidence", localized)
         case "low-confidence-score":
-            return "Low score"
+            return text("Low score", localized)
         case "auto-apply-model":
             return String(localized: "Auto-apply model")
         case "auto-apply-model-suggestion":
@@ -458,44 +462,47 @@ enum VocoSignalDisplayFormatter {
         case "phonetic-correction-term":
             return String(localized: "Phonetic correction")
         case "protected-term-replacement":
-            return "Protected term changed"
+            return text("Protected term changed", localized)
         case "raw-cleanup-drift":
-            return "Cleanup drift"
+            return text("Cleanup drift", localized)
         case "raw-cleanup-local-regression":
-            return "Cleanup local regression"
+            return text("Cleanup local regression", localized)
         case "raw-cleanup-significant":
-            return "Cleanup changed text"
+            return text("Cleanup changed text", localized)
         case "recent-correction-rate":
-            return "Recent corrections"
+            return text("Recent corrections", localized)
         case "recent-term-corrections":
-            return "Term was corrected"
+            return text("Term was corrected", localized)
         case "segment-rescue":
-            return "Segment rescue"
+            return text("Segment rescue", localized)
         case "unresolved-suggestions":
-            return "Needs choice"
+            return text("Needs choice", localized)
         case "user-substitution":
-            return "User substitution"
+            return text("User substitution", localized)
         default:
-            if let retranscriptionReason = retranscriptionDisplayReason(for: reason) {
+            if let retranscriptionReason = retranscriptionDisplayReason(for: reason, localized: localized) {
                 return retranscriptionReason
             }
             return fallbackDisplayReason(for: reason)
         }
     }
 
-    static func displayStyleGuardReason(for reason: String) -> String {
-        styleGuardReasonDisplayComponents(for: reason).detail
+    static func displayStyleGuardReason(for reason: String, localized: Bool = true) -> String {
+        styleGuardReasonDisplayComponents(for: reason, localized: localized).detail
     }
 
-    static func displayStyleGuardReasonCategory(for reason: String) -> String {
-        styleGuardReasonDisplayComponents(for: reason).category
+    static func displayStyleGuardReasonCategory(for reason: String, localized: Bool = true) -> String {
+        styleGuardReasonDisplayComponents(for: reason, localized: localized).category
     }
 
-    private static func styleGuardReasonDisplayComponents(for reason: String) -> (category: String, detail: String) {
+    private static func styleGuardReasonDisplayComponents(
+        for reason: String,
+        localized: Bool
+    ) -> (category: String, detail: String) {
         let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = trimmed.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
         let categoryID = parts.first.map(String.init) ?? trimmed
-        let category = styleGuardCategoryDisplayName(for: categoryID)
+        let category = styleGuardCategoryDisplayName(for: categoryID, localized: localized)
         guard parts.count > 1 else {
             return (category, category)
         }
@@ -508,36 +515,41 @@ enum VocoSignalDisplayFormatter {
         return (category, "\(category) (\(payload))")
     }
 
-    private static func styleGuardCategoryDisplayName(for category: String) -> String {
+    private static func styleGuardCategoryDisplayName(for category: String, localized: Bool) -> String {
         switch category {
         case "assistant-opener":
-            return "Assistant opener"
+            return text("Assistant opener", localized)
         case "dropped-mixed-language-term":
-            return "Dropped mixed language term"
+            return text("Dropped mixed language term", localized)
         case "introduced-structured-format":
-            return "Structured formatting"
+            return text("Structured formatting", localized)
         case "style-expansion":
-            return "Style expansion"
+            return text("Style expansion", localized)
         default:
-            return displayReason(for: category)
+            return displayReason(for: category, localized: localized)
         }
     }
 
-    private static func retranscriptionDisplayReason(for reason: String) -> String? {
+    private static func retranscriptionDisplayReason(for reason: String, localized: Bool) -> String? {
         guard reason.hasPrefix("retranscription-") else { return nil }
 
         let rawCategory = String(reason.dropFirst("retranscription-".count))
         guard let category = RetranscriptionChangeCategory(rawValue: rawCategory) else {
-            return "Retranscription change"
+            return text("Retranscription change", localized)
         }
         switch category {
         case .unchanged:
-            return "Retranscription unchanged"
+            return text("Retranscription unchanged", localized)
         case .minorChange:
-            return "Retranscription minor"
+            return text("Retranscription minor", localized)
         case .meaningfulChange:
-            return "Retranscription meaningful"
+            return text("Retranscription meaningful", localized)
         }
+    }
+
+    /// `localized: false` returns the English source text. (The CSV export uses that path.)
+    private static func text(_ english: String, _ localized: Bool) -> String {
+        localized ? String(localized: String.LocalizationValue(english)) : english
     }
 
     private static func fallbackDisplayReason(for reason: String) -> String {
@@ -557,24 +569,27 @@ enum VocoSignalDisplayFormatter {
 }
 
 enum VocoReviewTriggerDisplayFormatter {
-    static func summaries(for triggers: [VocoReviewTrigger]) -> [String] {
+    static func summaries(for triggers: [VocoReviewTrigger], localized: Bool = true) -> [String] {
         var seen: Set<String> = []
         return triggers
             .filter { seen.insert($0.id).inserted }
-            .map(summary(for:))
+            .map { summary(for: $0, localized: localized) }
     }
 
-    static func summary(for trigger: VocoReviewTrigger) -> String {
+    static func summary(for trigger: VocoReviewTrigger, localized: Bool = true) -> String {
         let detail = trigger.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = VocoSignalDisplayFormatter.displayReason(for: trigger.reason, localized: localized)
         guard let detail, !detail.isEmpty else {
-            return trigger.displayName
+            return name
         }
 
-        return "\(trigger.displayName) (\(detail))"
+        return "\(name) (\(detail))"
     }
 }
 
 enum VocoHypothesisDisplayFormatter {
+    /// English on purpose: only the CSV export prints this summary, see
+    /// `VocoHypothesisSource.displayName`.
     static func summary(for hypothesis: VocoHypothesis) -> String? {
         var parts: [String] = []
 
@@ -587,7 +602,7 @@ enum VocoHypothesisDisplayFormatter {
             parts.append("Delta \(percent(divergence))")
         }
 
-        let reasons = VocoSignalDisplayFormatter.displayReasons(for: hypothesis.reasons)
+        let reasons = VocoSignalDisplayFormatter.displayReasons(for: hypothesis.reasons, localized: false)
         if !reasons.isEmpty {
             parts.append(reasons.joined(separator: ", "))
         }

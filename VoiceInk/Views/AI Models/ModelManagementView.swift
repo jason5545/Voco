@@ -7,6 +7,7 @@ enum ModelFilter: String, CaseIterable, Identifiable {
     case cloud = "Cloud"
     case custom = "Custom"
     var id: String { self.rawValue }
+    var displayName: LocalizedStringKey { LocalizedStringKey(rawValue) }
 }
 
 struct ModelManagementView: View {
@@ -203,7 +204,7 @@ struct ModelManagementView: View {
                     }
                     activePanel = nil
                 }) {
-                    Text(filter.rawValue)
+                    Text(filter.displayName)
                         .font(.system(size: 14, weight: selectedFilter == filter ? .semibold : .medium))
                         .foregroundColor(selectedFilter == filter ? .primary : .primary.opacity(0.7))
                         .padding(.horizontal, 16)

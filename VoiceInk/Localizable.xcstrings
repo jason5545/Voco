@@ -14504,6 +14504,516 @@
           }
         }
       }
+    },
+    "25+ languages": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "25+ 種語言"
+          }
+        }
+      }
+    },
+    "Vocabulary is used only with AI enhancement to preserve important names, technical terms, and unique spellings in the final output.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙只在 AI 增強時使用，用來在最終輸出中保留重要名稱、技術術語與特殊拼寫。"
+          }
+        }
+      }
+    },
+    "Word Replacements run after transcription to replace misheard words, phrases, abbreviations, or boilerplate text.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字詞取代會在轉錄之後執行，替換聽錯的字詞、片語、縮寫或固定樣板文字。"
+          }
+        }
+      }
+    },
+    "Word Replacements run after transcription. Vocabulary is used with AI enhancement to better understand names, technical terms, and unique spellings in your transcript.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字詞取代會在轉錄之後執行。詞彙則搭配 AI 增強使用，以更準確理解轉錄內容中的名稱、技術術語與特殊拼寫。"
+          }
+        }
+      }
+    },
+    "Selected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選取"
+          }
+        }
+      }
+    },
+    "Review": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待複核"
+          }
+        }
+      }
+    },
+    "Style guard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風格守門"
+          }
+        }
+      }
+    },
+    "Re-run same": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新執行結果相同"
+          }
+        }
+      }
+    },
+    "Re-run %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新執行 %@"
+          }
+        }
+      }
+    },
+    "Minor %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小幅變更 %@"
+          }
+        }
+      }
+    },
+    "1 fix": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個修正"
+          }
+        }
+      }
+    },
+    "%lld fixes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個修正"
+          }
+        }
+      }
+    },
+    "1 choice": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個選項"
+          }
+        }
+      }
+    },
+    "%lld choices": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個選項"
+          }
+        }
+      }
+    },
+    "1 context": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個脈絡"
+          }
+        }
+      }
+    },
+    "%lld contexts": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個脈絡"
+          }
+        }
+      }
+    },
+    "1 correction": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個修正"
+          }
+        }
+      }
+    },
+    "%lld corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個修正"
+          }
+        }
+      }
+    },
+    "1 feedback signal": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個回饋訊號"
+          }
+        }
+      }
+    },
+    "%lld feedback signals": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個回饋訊號"
+          }
+        }
+      }
+    },
+    "1 style flag": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個風格旗標"
+          }
+        }
+      }
+    },
+    "%lld style flags": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個風格旗標"
+          }
+        }
+      }
+    },
+    "1 signal": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個訊號"
+          }
+        }
+      }
+    },
+    "%lld signals": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個訊號"
+          }
+        }
+      }
+    },
+    "Local & CLI Providers": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機與 CLI 服務商"
+          }
+        }
+      }
+    },
+    "Run enhancement with Ollama on this Mac, or send it to any CLI command.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在這台 Mac 上用 Ollama 執行增強，或把內容送給任何 CLI 指令。"
+          }
+        }
+      }
+    },
+    "Local CLI": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機 CLI"
+          }
+        }
+      }
+    },
+    "Local server": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機伺服器"
+          }
+        }
+      }
+    },
+    "Local Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機模型"
+          }
+        }
+      }
+    },
+    "Not configured": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未設定"
+          }
+        }
+      }
+    },
+    "Checking": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查中"
+          }
+        }
+      }
+    },
+    "No models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有模型"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線"
+          }
+        }
+      }
+    },
+    "Server": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器"
+          }
+        }
+      }
+    },
+    "1 model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個模型"
+          }
+        }
+      }
+    },
+    "%lld models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個模型"
+          }
+        }
+      }
+    },
+    "%lld %@ model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個%@模型"
+          }
+        }
+      }
+    },
+    "%lld %@ models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個%@模型"
+          }
+        }
+      }
+    },
+    "No Custom Transcription Models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有自訂轉錄模型"
+          }
+        }
+      }
+    },
+    "No Custom Enhancement Models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有自訂增強模型"
+          }
+        }
+      }
+    },
+    "Supports any provider that uses the same API format as OpenAI transcription.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援任何使用與 OpenAI 轉錄相同 API 格式的服務商。"
+          }
+        }
+      }
+    },
+    "Supports any provider that uses the same API format as OpenAI chat completion.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援任何使用與 OpenAI 聊天補全相同 API 格式的服務商。"
+          }
+        }
+      }
+    },
+    "CoreML Encoder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreML 編碼器"
+          }
+        }
+      }
+    },
+    "MLX Decoder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MLX 解碼器"
+          }
+        }
+      }
+    },
+    "Saving": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存中"
+          }
+        }
+      }
+    },
+    "Add transcription model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增轉錄模型"
+          }
+        }
+      }
+    },
+    "Add enhancement model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增增強模型"
+          }
+        }
+      }
+    },
+    "Edit Custom Transcription Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯自訂轉錄模型"
+          }
+        }
+      }
+    },
+    "Add Custom Transcription Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增自訂轉錄模型"
+          }
+        }
+      }
+    },
+    "Edit Custom Enhancement Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯自訂增強模型"
+          }
+        }
+      }
+    },
+    "Add Custom Enhancement Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增自訂增強模型"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

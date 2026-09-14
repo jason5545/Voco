@@ -112,11 +112,11 @@ struct Qwen3CoreMLModelCardRowView: View {
             if !isDownloaded && !isDownloading {
                 HStack(spacing: 12) {
                     componentBadge(
-                        label: "CoreML Encoder",
+                        label: String(localized: "CoreML Encoder"),
                         isReady: engine.isQwen3CoreMLEncoderDownloaded(model)
                     )
                     componentBadge(
-                        label: "MLX Decoder",
+                        label: String(localized: "MLX Decoder"),
                         isReady: engine.isQwen3CoreMLDecoderDownloaded(model)
                     )
                 }

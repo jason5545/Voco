@@ -143,7 +143,7 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 TranscriptionAssistiveBadge(
                     id: "canonicalization-replacements",
                     icon: "text.badge.checkmark",
-                    title: countLabel(replacementCount, singular: "fix", plural: "fixes"),
+                    title: countLabel(replacementCount, singular: "1 fix", plural: "\(replacementCount) fixes"),
                     tone: .accent
                 )
             )
@@ -155,7 +155,7 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 TranscriptionAssistiveBadge(
                     id: "canonicalization-suggestions",
                     icon: "questionmark.bubble.fill",
-                    title: countLabel(suggestionCount, singular: "choice", plural: "choices"),
+                    title: countLabel(suggestionCount, singular: "1 choice", plural: "\(suggestionCount) choices"),
                     tone: .orange
                 )
             )
@@ -166,7 +166,11 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
                 TranscriptionAssistiveBadge(
                     id: "contexts",
                     icon: "square.stack.3d.up.fill",
-                    title: countLabel(transcription.activeContextIDs.count, singular: "context", plural: "contexts"),
+                    title: countLabel(
+                        transcription.activeContextIDs.count,
+                        singular: "1 context",
+                        plural: "\(transcription.activeContextIDs.count) contexts"
+                    ),
                     tone: .secondary
                 )
             )
@@ -187,35 +191,35 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             return TranscriptionAssistiveBadge(
                 id: "candidate-user-selection",
                 icon: "checkmark.circle.fill",
-                title: "Selected",
+                title: String(localized: "Selected"),
                 tone: .green
             )
         case .dismissedFallback:
             return TranscriptionAssistiveBadge(
                 id: "candidate-dismissed-fallback",
                 icon: "xmark.circle.fill",
-                title: "Dismissed",
+                title: String(localized: "Dismissed"),
                 tone: .secondary
             )
         case .timeoutFallback:
             return TranscriptionAssistiveBadge(
                 id: "candidate-timeout-fallback",
                 icon: "clock.arrow.circlepath",
-                title: "Timeout",
+                title: String(localized: "Timeout"),
                 tone: .orange
             )
         case .automaticFallback:
             return TranscriptionAssistiveBadge(
                 id: "candidate-automatic-fallback",
                 icon: "arrow.uturn.backward.circle.fill",
-                title: "Auto",
+                title: String(localized: "Auto"),
                 tone: .secondary
             )
         case .finalPaste:
             return TranscriptionAssistiveBadge(
                 id: "candidate-final-paste",
                 icon: "doc.on.clipboard.fill",
-                title: "Pasted",
+                title: String(localized: "Pasted"),
                 tone: .accent
             )
         }
@@ -229,7 +233,7 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             return TranscriptionAssistiveBadge(
                 id: "correction-feedback",
                 icon: "checklist.checked",
-                title: countLabel(correctiveCount, singular: "correction", plural: "corrections"),
+                title: countLabel(correctiveCount, singular: "1 correction", plural: "\(correctiveCount) corrections"),
                 tone: .green
             )
         }
@@ -237,7 +241,7 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
         return TranscriptionAssistiveBadge(
             id: "correction-feedback-passive",
             icon: "checklist",
-            title: countLabel(signals.count, singular: "feedback signal", plural: "feedback signals"),
+            title: countLabel(signals.count, singular: "1 feedback signal", plural: "\(signals.count) feedback signals"),
             tone: .secondary
         )
     }
@@ -276,7 +280,9 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
         return TranscriptionAssistiveBadge(
             id: "style-guard",
             icon: "shield.lefthalf.filled",
-            title: reasonCount > 0 ? countLabel(reasonCount, singular: "style flag", plural: "style flags") : "Style guard",
+            title: reasonCount > 0
+                ? countLabel(reasonCount, singular: "1 style flag", plural: "\(reasonCount) style flags")
+                : String(localized: "Style guard"),
             tone: .purple
         )
     }
@@ -298,11 +304,11 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
         let displayNames = uniqueReviewTriggerDisplayNames(for: triggers)
         switch displayNames.count {
         case 0:
-            return "Review"
+            return String(localized: "Review")
         case 1:
             return displayNames[0]
         default:
-            return countLabel(displayNames.count, singular: "signal", plural: "signals")
+            return countLabel(displayNames.count, singular: "1 signal", plural: "\(displayNames.count) signals")
         }
     }
 
@@ -323,28 +329,32 @@ struct TranscriptionAssistiveBadge: Equatable, Identifiable {
             return TranscriptionAssistiveBadge(
                 id: "retranscription-unchanged",
                 icon: "arrow.triangle.2.circlepath",
-                title: "Re-run same",
+                title: String(localized: "Re-run same"),
                 tone: .secondary
             )
         case .minorChange:
             return TranscriptionAssistiveBadge(
                 id: "retranscription-minor",
                 icon: "arrow.triangle.2.circlepath",
-                title: "Minor \(percent(analysis.changeRatio))",
+                title: String(localized: "Minor \(percent(analysis.changeRatio))"),
                 tone: .secondary
             )
         case .meaningfulChange:
             return TranscriptionAssistiveBadge(
                 id: "retranscription-meaningful",
                 icon: "arrow.triangle.2.circlepath",
-                title: "Re-run \(percent(analysis.changeRatio))",
+                title: String(localized: "Re-run \(percent(analysis.changeRatio))"),
                 tone: .purple
             )
         }
     }
 
-    private static func countLabel(_ count: Int, singular: String, plural: String) -> String {
-        "\(count) \(count == 1 ? singular : plural)"
+    private static func countLabel(
+        _ count: Int,
+        singular: LocalizedStringResource,
+        plural: LocalizedStringResource
+    ) -> String {
+        String(localized: count == 1 ? singular : plural)
     }
 
     private static func percent(_ value: Double) -> String {

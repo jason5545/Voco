@@ -23,16 +23,16 @@ struct CustomProviderManagementView: View {
     private var customTranscriptionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader(
-                title: "Custom Transcription Models",
-                subtitle: "Supports any provider that uses the same API format as OpenAI transcription.",
-                addHelp: "Add transcription model",
+                title: String(localized: "Custom Transcription Models"),
+                subtitle: String(localized: "Supports any provider that uses the same API format as OpenAI transcription."),
+                addHelp: String(localized: "Add transcription model"),
                 onAdd: onAddTranscriptionModel
             )
 
             if customModelManager.customModels.isEmpty {
                 CustomProviderEmptyState(
                     systemImage: "waveform",
-                    title: "No Custom Transcription Models"
+                    title: String(localized: "No Custom Transcription Models")
                 )
             } else {
                 ForEach(customModelManager.customModels) { model in
@@ -51,16 +51,16 @@ struct CustomProviderManagementView: View {
     private var customEnhancementSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader(
-                title: "Custom Enhancement Models",
-                subtitle: "Supports any provider that uses the same API format as OpenAI chat completion.",
-                addHelp: "Add enhancement model",
+                title: String(localized: "Custom Enhancement Models"),
+                subtitle: String(localized: "Supports any provider that uses the same API format as OpenAI chat completion."),
+                addHelp: String(localized: "Add enhancement model"),
                 onAdd: onAddEnhancementModel
             )
 
             if customAIProviderManager.providers.isEmpty {
                 CustomProviderEmptyState(
                     systemImage: "sparkles",
-                    title: "No Custom Enhancement Models"
+                    title: String(localized: "No Custom Enhancement Models")
                 )
             } else {
                 ForEach(customAIProviderManager.providers) { provider in
@@ -185,19 +185,23 @@ struct CustomTranscriptionModelEditorPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            editorHeader(title: isEditing ? "Edit Custom Transcription Model" : "Add Custom Transcription Model")
+            editorHeader(
+                title: isEditing
+                    ? String(localized: "Edit Custom Transcription Model")
+                    : String(localized: "Add Custom Transcription Model")
+            )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    CustomModelEditorSection(title: "Details") {
+                    CustomModelEditorSection(title: String(localized: "Details")) {
                         VStack(spacing: 10) {
-                            CustomModelTextField(label: "Display Name", placeholder: "My Custom Model", text: $displayName)
-                            CustomModelTextField(label: "API Endpoint", placeholder: "https://api.openai.com/v1/audio/transcriptions", text: $apiEndpoint)
+                            CustomModelTextField(label: String(localized: "Display Name"), placeholder: "My Custom Model", text: $displayName)
+                            CustomModelTextField(label: String(localized: "API Endpoint"), placeholder: "https://api.openai.com/v1/audio/transcriptions", text: $apiEndpoint)
                             if !isEditing {
-                                CustomModelTextField(label: "API Key", placeholder: "Paste API key", text: $apiKey, isSecure: true)
+                                CustomModelTextField(label: String(localized: "API Key"), placeholder: "Paste API key", text: $apiKey, isSecure: true)
                             }
-                            CustomModelTextField(label: "Model Name", placeholder: "gpt-4o-mini-transcribe", text: $modelName)
-                            CustomModelToggleRow(title: "Multilingual Model", isOn: $isMultilingual)
+                            CustomModelTextField(label: String(localized: "Model Name"), placeholder: "gpt-4o-mini-transcribe", text: $modelName)
+                            CustomModelToggleRow(title: String(localized: "Multilingual Model"), isOn: $isMultilingual)
                         }
                     }
 
@@ -209,7 +213,9 @@ struct CustomTranscriptionModelEditorPanel: View {
             }
 
             editorFooter(
-                primaryTitle: isSaving ? "Saving" : isEditing ? "Save Changes" : "Add Model",
+                primaryTitle: isSaving
+                    ? String(localized: "Saving")
+                    : isEditing ? String(localized: "Save Changes") : String(localized: "Add Model"),
                 isPrimaryDisabled: !canSave || isSaving,
                 primaryAction: saveModel
             )
@@ -342,14 +348,14 @@ struct CustomEnhancementModelEditorPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    CustomModelEditorSection(title: "Details") {
+                    CustomModelEditorSection(title: String(localized: "Details")) {
                         VStack(spacing: 10) {
-                            CustomModelTextField(label: "Display Name", placeholder: "My Enhancement Model", text: $displayName)
-                            CustomModelTextField(label: "Base URL", placeholder: "https://api.openai.com/v1/chat/completions", text: $baseURL)
+                            CustomModelTextField(label: String(localized: "Display Name"), placeholder: "My Enhancement Model", text: $displayName)
+                            CustomModelTextField(label: String(localized: "Base URL"), placeholder: "https://api.openai.com/v1/chat/completions", text: $baseURL)
                             if !isEditing {
-                                CustomModelTextField(label: "API Key", placeholder: "Paste API key", text: $apiKey, isSecure: true)
+                                CustomModelTextField(label: String(localized: "API Key"), placeholder: "Paste API key", text: $apiKey, isSecure: true)
                             }
-                            CustomModelTextField(label: "Model Name", placeholder: "gpt-5.5", text: $modelName)
+                            CustomModelTextField(label: String(localized: "Model Name"), placeholder: "gpt-5.5", text: $modelName)
                         }
                     }
 
@@ -400,14 +406,14 @@ struct CustomEnhancementModelEditorPanel: View {
 
     private var primaryButtonTitle: String {
         if isVerifying {
-            return "Verifying"
+            return String(localized: "Verifying")
         }
 
         if isSaving {
-            return "Saving"
+            return String(localized: "Saving")
         }
 
-        return isEditing ? "Save Changes" : "Add Model"
+        return isEditing ? String(localized: "Save Changes") : String(localized: "Add Model")
     }
 
     private func saveProvider() {
@@ -666,8 +672,8 @@ private struct CustomModelsSidePanelPreview: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     customSectionHeader(
-                        title: "Custom Transcription Models",
-                        subtitle: "Supports any provider that uses the same API format as OpenAI transcription.",
+                        title: String(localized: "Custom Transcription Models"),
+                        subtitle: String(localized: "Supports any provider that uses the same API format as OpenAI transcription."),
                         action: { activePanel = .transcription }
                     )
 
@@ -678,8 +684,8 @@ private struct CustomModelsSidePanelPreview: View {
                     )
 
                     customSectionHeader(
-                        title: "Custom Enhancement Models",
-                        subtitle: "Supports any provider that uses the same API format as OpenAI chat completion.",
+                        title: String(localized: "Custom Enhancement Models"),
+                        subtitle: String(localized: "Supports any provider that uses the same API format as OpenAI chat completion."),
                         action: { activePanel = .enhancement }
                     )
 
@@ -728,7 +734,7 @@ private struct CustomModelsSidePanelPreview: View {
 
             Spacer()
 
-            AddIconButton(helpText: "Add \(title)", action: action)
+            AddIconButton(helpText: String(localized: "Add \(title)"), action: action)
         }
     }
 

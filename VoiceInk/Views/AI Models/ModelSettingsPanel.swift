@@ -23,6 +23,7 @@ private enum ModelSettingsTab: String, CaseIterable, Identifiable {
     case enhancement = "Enhancement"
 
     var id: String { rawValue }
+    var displayName: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var systemImage: String {
         switch self {
@@ -50,7 +51,7 @@ private struct ModelSettingsTabBar: View {
                             .font(.system(size: 13, weight: .semibold))
                             .symbolRenderingMode(.hierarchical)
 
-                        Text(tab.rawValue)
+                        Text(tab.displayName)
                             .font(.system(size: 14, weight: selection == tab ? .semibold : .medium))
                     }
                     .foregroundStyle(selection == tab ? Color.primary : Color.secondary)

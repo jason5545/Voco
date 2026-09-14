@@ -102,7 +102,7 @@ class VoiceInkCSVExportService {
             replacementSummary(transcription.canonicalizationSuggestions),
             percent(transcription.confidenceScore),
             transcription.confidenceRoute ?? "",
-            joined(VocoSignalDisplayFormatter.displayReasons(for: transcription.confidenceReasons)),
+            joined(VocoSignalDisplayFormatter.displayReasons(for: transcription.confidenceReasons, localized: false)),
             reviewTriggerSummary(transcription.reviewTriggers),
             joined(transcription.hypothesisLabels),
             candidateSummary(labels: transcription.hypothesisLabels, candidates: transcription.hypotheses),
@@ -178,7 +178,7 @@ class VoiceInkCSVExportService {
     }
 
     private func reviewTriggerSummary(_ triggers: [VocoReviewTrigger]) -> String {
-        joined(VocoReviewTriggerDisplayFormatter.summaries(for: triggers))
+        joined(VocoReviewTriggerDisplayFormatter.summaries(for: triggers, localized: false))
     }
 
     private func candidateDetailSummary(labels: [String], hypotheses: [VocoHypothesis]) -> String {
@@ -198,7 +198,7 @@ class VoiceInkCSVExportService {
             .map { signal in
                 var metadata = [
                     signal.kind.displayName,
-                    VocoSignalDisplayFormatter.displayReason(for: signal.reason),
+                    VocoSignalDisplayFormatter.displayReason(for: signal.reason, localized: false),
                 ]
 
                 if let confidenceScore = signal.confidenceScore {

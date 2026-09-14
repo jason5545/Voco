@@ -15,9 +15,9 @@ struct DictionarySettingsView: View {
         var description: String {
             switch self {
             case .spellings:
-                return "Vocabulary is used only with AI enhancement to preserve important names, technical terms, and unique spellings in the final output."
+                return String(localized: "Vocabulary is used only with AI enhancement to preserve important names, technical terms, and unique spellings in the final output.")
             case .replacements:
-                return "Word Replacements run after transcription to replace misheard words, phrases, abbreviations, or boilerplate text."
+                return String(localized: "Word Replacements run after transcription to replace misheard words, phrases, abbreviations, or boilerplate text.")
             }
         }
 
@@ -169,7 +169,7 @@ private struct DictionarySectionButton: View {
     var body: some View {
         Button(action: action) {
             DictionarySectionButtonLabel(
-                title: section.rawValue,
+                title: LocalizedStringKey(section.rawValue),
                 icon: section.systemImage,
                 isSelected: isSelected
             )
@@ -180,7 +180,7 @@ private struct DictionarySectionButton: View {
 }
 
 private struct DictionarySectionButtonLabel: View {
-    let title: String
+    let title: LocalizedStringKey
     let icon: String
     let isSelected: Bool
 

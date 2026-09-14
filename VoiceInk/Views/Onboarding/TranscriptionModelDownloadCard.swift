@@ -69,13 +69,13 @@ struct TranscriptionModelDownloadCard: View {
 
     private var modelMetadata: some View {
         HStack(spacing: 6) {
-            metadataPill(model.size)
+            metadataPill(LocalizedStringKey(model.size))
             metadataPill("25+ languages")
             metadataPill("Local")
         }
     }
 
-    private func metadataPill(_ text: String) -> some View {
+    private func metadataPill(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(AppTheme.Text.secondary)

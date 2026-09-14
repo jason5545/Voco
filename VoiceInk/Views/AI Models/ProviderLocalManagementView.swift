@@ -20,15 +20,15 @@ struct LocalEnhancementProviderManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ProviderSectionHeader(
-                title: "Local & CLI Providers",
-                subtitle: "Run enhancement with Ollama on this Mac, or send it to any CLI command."
+                title: String(localized: "Local & CLI Providers"),
+                subtitle: String(localized: "Run enhancement with Ollama on this Mac, or send it to any CLI command.")
             )
             .padding(.top, 8)
 
             VStack(spacing: 0) {
                 LocalProviderDisclosureRow(
                     title: "Ollama",
-                    subtitle: ollamaModelNames.isEmpty ? "Local server" : localModelCountLabel,
+                    subtitle: ollamaModelNames.isEmpty ? String(localized: "Local server") : localModelCountLabel,
                     systemImage: "server.rack",
                     statusTitle: ollamaStatusTitle,
                     isExpanded: $isOllamaExpanded
@@ -40,10 +40,12 @@ struct LocalEnhancementProviderManagementView: View {
                     .padding(.leading, 58)
 
                 LocalProviderDisclosureRow(
-                    title: "Local CLI",
-                    subtitle: "Claude, Codex, scripts, or any command",
+                    title: String(localized: "Local CLI"),
+                    subtitle: String(localized: "Claude, Codex, scripts, or any command"),
                     systemImage: "terminal",
-                    statusTitle: isLocalCLIConfigured ? "Configured" : "Not configured",
+                    statusTitle: isLocalCLIConfigured
+                        ? String(localized: "Configured")
+                        : String(localized: "Not configured"),
                     isExpanded: $isLocalCLIExpanded
                 ) {
                     localCLIConfiguration
@@ -62,28 +64,32 @@ struct LocalEnhancementProviderManagementView: View {
     }
 
     private var localModelCountLabel: String {
-        "\(ollamaModelNames.count) \(ollamaModelNames.count == 1 ? "model" : "models")"
+        ollamaModelNames.count == 1
+            ? String(localized: "1 model")
+            : String(localized: "\(ollamaModelNames.count) models")
     }
 
     private var ollamaStatusTitle: String {
         if aiService.isOllamaRefreshing {
-            return "Checking"
+            return String(localized: "Checking")
         }
 
         if !aiService.connectedProviders.contains(.ollama) {
-            return "Disconnected"
+            return String(localized: "Disconnected")
         }
 
-        return ollamaModelNames.isEmpty ? "No models" : localModelCountLabel
+        return ollamaModelNames.isEmpty ? String(localized: "No models") : localModelCountLabel
     }
 
     private var ollamaActionTitle: String {
-        aiService.connectedProviders.contains(.ollama) ? "Refresh" : "Connect"
+        aiService.connectedProviders.contains(.ollama)
+            ? String(localized: "Refresh")
+            : String(localized: "Connect")
     }
 
     private var ollamaConfiguration: some View {
         LocalProviderExpandedContent {
-            LocalProviderFormRow(title: "Server") {
+            LocalProviderFormRow(title: String(localized: "Server")) {
                 HStack(spacing: 8) {
                     TextField("http://localhost:11434", text: $ollamaBaseURL)
                         .textFieldStyle(.roundedBorder)
@@ -123,7 +129,7 @@ struct LocalEnhancementProviderManagementView: View {
                 Divider()
                     .padding(.leading, LocalProviderMetrics.labelWidth + 12)
 
-                LocalProviderFormRow(title: "Model") {
+                LocalProviderFormRow(title: String(localized: "Model")) {
                     Picker("Model", selection: $selectedOllamaModel) {
                         ForEach(ollamaModelNames, id: \.self) { model in
                             Text(model).tag(model)
@@ -187,7 +193,7 @@ struct LocalEnhancementProviderManagementView: View {
             Divider()
                 .padding(.leading, LocalProviderMetrics.labelWidth + 12)
 
-            LocalProviderFormRow(title: "Timeout") {
+            LocalProviderFormRow(title: String(localized: "Timeout")) {
                 Picker("Timeout", selection: $localCLITimeoutSeconds) {
                     Text("15s").tag(15.0)
                     Text("30s").tag(30.0)

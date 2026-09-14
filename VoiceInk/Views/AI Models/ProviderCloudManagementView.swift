@@ -57,8 +57,8 @@ struct CloudProviderManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ProviderSectionHeader(
-                title: "Cloud Providers",
-                subtitle: "Connect providers here, then choose models inside Modes."
+                title: String(localized: "Cloud Providers"),
+                subtitle: String(localized: "Connect providers here, then choose models inside Modes.")
             )
 
             ForEach(providerDescriptors) { descriptor in
@@ -201,19 +201,21 @@ private struct ProviderListRow: View {
 
         let transcriptionCount = descriptor.transcriptionModels.count
         if transcriptionCount > 0 {
-            parts.append(modelCountText(transcriptionCount, title: "Transcription"))
+            parts.append(modelCountText(transcriptionCount, title: String(localized: "Transcription")))
         }
 
         if let provider = descriptor.aiProvider {
             let enhancementCount = aiService.availableModels(for: provider).count
-            parts.append(modelCountText(enhancementCount, title: "Enhancement"))
+            parts.append(modelCountText(enhancementCount, title: String(localized: "Enhancement")))
         }
 
         return parts.joined(separator: " · ")
     }
 
     private func modelCountText(_ count: Int, title: String) -> String {
-        "\(count) \(title) \(count == 1 ? "model" : "models")"
+        count == 1
+            ? String(localized: "\(count) \(title) model")
+            : String(localized: "\(count) \(title) models")
     }
 
     var body: some View {

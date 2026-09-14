@@ -1401,7 +1401,7 @@ struct VoiceInkTests {
         #expect(assessment.score > 0.85)
         #expect(assessment.selectedCandidate == "我現在用 VoiceInk 的 fork 做 VOCO")
         #expect(assessment.candidates.first == "我現在用 VoiceInk 的 fork 做 VOCO")
-        #expect(assessment.labelForCandidate(at: 0) == "Recommended")
+        #expect(assessment.labelForCandidate(at: 0) == String(localized: "Recommended"))
     }
 
     @Test func confidenceGateSuggestsReviewForUnresolvedAmbiguousTerms() async throws {
@@ -1905,13 +1905,17 @@ struct VoiceInkTests {
         ]
 
         let allBadges = TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
+        // The app test host runs in zh-Hant, so compare badge titles through the localized lookup
+        // rather than the English source text (AGENTS.md: 測試斷言不可依賴英文訊息原文).
+        let badgeCount = 2
+        let badgePercentText = "24%"
         #expect(allBadges.map(\.title) == [
-            "Needs choice",
-            "Timeout",
-            "Re-run 24%",
-            "2 fixes",
-            "1 choice",
-            "2 contexts",
+            String(localized: "Needs choice"),
+            String(localized: "Timeout"),
+            String(localized: "Re-run \(badgePercentText)"),
+            String(localized: "\(badgeCount) fixes"),
+            String(localized: "1 choice"),
+            String(localized: "\(badgeCount) contexts"),
         ])
         #expect(allBadges.map(\.tone) == [
             .orange,
@@ -1922,9 +1926,9 @@ struct VoiceInkTests {
             .secondary,
         ])
         #expect(TranscriptionAssistiveBadge.badges(for: transcription).map(\.title) == [
-            "Needs choice",
-            "Timeout",
-            "Re-run 24%",
+            String(localized: "Needs choice"),
+            String(localized: "Timeout"),
+            String(localized: "Re-run \(badgePercentText)"),
         ])
 
         let directCanonicalized = Transcription(
@@ -1933,7 +1937,7 @@ struct VoiceInkTests {
             canonicalizationReplacements: [replacement]
         )
 
-        #expect(TranscriptionAssistiveBadge.badges(for: directCanonicalized).map(\.title) == ["1 fix"])
+        #expect(TranscriptionAssistiveBadge.badges(for: directCanonicalized).map(\.title) == [String(localized: "1 fix")])
     }
 
     @Test func historyAssistiveBadgesSurfaceFeedbackAndStyleGuardSignals() async throws {
@@ -1970,19 +1974,25 @@ struct VoiceInkTests {
 
         let badges = TranscriptionAssistiveBadge.badges(for: transcription, limit: 10)
 
+        // Counted badge titles go through the catalog, so assert them via the localized lookup.
+        let badgeCount = 2
+
         #expect(badges.map(\.id) == [
             "correction-feedback",
             "style-guard",
         ])
         #expect(badges.map(\.title) == [
-            "1 correction",
-            "2 style flags",
+            String(localized: "1 correction"),
+            String(localized: "\(badgeCount) style flags"),
         ])
         #expect(badges.map(\.tone) == [
             .green,
             .purple,
         ])
-        #expect(TranscriptionAssistiveBadge.badges(for: transcription, limit: 1).map(\.title) == ["1 correction"])
+        #expect(
+            TranscriptionAssistiveBadge.badges(for: transcription, limit: 1).map(\.title)
+                == [String(localized: "1 correction")]
+        )
 
         let passiveOnly = Transcription(
             text: "我現在用 VoiceInk",
@@ -1990,7 +2000,10 @@ struct VoiceInkTests {
             correctionFeedback: [passiveFeedback]
         )
 
-        #expect(TranscriptionAssistiveBadge.badges(for: passiveOnly).map(\.title) == ["1 feedback signal"])
+        #expect(
+            TranscriptionAssistiveBadge.badges(for: passiveOnly).map(\.title)
+                == [String(localized: "1 feedback signal")]
+        )
         #expect(TranscriptionAssistiveBadge.badges(for: passiveOnly).map(\.tone) == [.secondary])
     }
 
@@ -2018,8 +2031,16 @@ struct VoiceInkTests {
         let legacyReview = Transcription(text: "今天看到焰很大", duration: 0.4)
         legacyReview.confidenceRoute = VocoConfidenceRoute.reviewSuggested.rawValue
 
-        #expect(TranscriptionAssistiveBadge.badges(for: review, limit: 1).first?.title == "2 signals")
-        #expect(TranscriptionAssistiveBadge.badges(for: legacyReview, limit: 1).first?.title == "Review")
+        // The duplicate trigger collapses, so the badge counts two distinct signals.
+        let signalCount = 2
+        #expect(
+            TranscriptionAssistiveBadge.badges(for: review, limit: 1).first?.title
+                == String(localized: "\(signalCount) signals")
+        )
+        #expect(
+            TranscriptionAssistiveBadge.badges(for: legacyReview, limit: 1).first?.title
+                == String(localized: "Review")
+        )
     }
 
     @Test func transcriptionDictationMetadataIncludesReviewSignals() async throws {
@@ -2631,22 +2652,23 @@ struct VoiceInkTests {
         ])
 
         #expect(displayReasons == [
-            "Needs choice",
-            "Inactive context",
-            "Needs context",
-            "Alias match",
-            "Candidate changed",
-            "Candidate confirmed",
-            "Timeout fallback",
-            "Dismissed fallback",
-            "Automatic fallback",
-            "Protected term changed",
             // The test host runs in zh-Hant, so compare against the localized lookup rather than
             // the English source text (AGENTS.md: 測試斷言不可依賴英文訊息原文).
+            String(localized: "Needs choice"),
+            String(localized: "Inactive context"),
+            String(localized: "Needs context"),
+            String(localized: "Alias match"),
+            String(localized: "Candidate changed"),
+            String(localized: "Candidate confirmed"),
+            String(localized: "Timeout fallback"),
+            String(localized: "Dismissed fallback"),
+            String(localized: "Automatic fallback"),
+            String(localized: "Protected term changed"),
             String(localized: "Phonetic correction"),
-            "Cleanup changed text",
-            "Retranscription meaningful",
-            "User substitution",
+            String(localized: "Cleanup changed text"),
+            String(localized: "Retranscription meaningful"),
+            String(localized: "User substitution"),
+            // Unknown ids fall through to the title-cased id, which is never looked up.
             "Unknown signal",
         ])
 
@@ -2659,13 +2681,19 @@ struct VoiceInkTests {
         ])
 
         #expect(styleGuardReasons == [
-            "Assistant opener (以下是)",
-            "Dropped mixed language term (Qwen3-ASR)",
-            "Structured formatting",
-            "Style expansion",
+            "\(String(localized: "Assistant opener")) (以下是)",
+            "\(String(localized: "Dropped mixed language term")) (Qwen3-ASR)",
+            String(localized: "Structured formatting"),
+            String(localized: "Style expansion"),
         ])
-        #expect(VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "assistant-opener:總而言之") == "Assistant opener")
-        #expect(VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "dropped-mixed-language-term:Qwen3-ASR") == "Dropped mixed language term")
+        #expect(
+            VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "assistant-opener:總而言之")
+                == String(localized: "Assistant opener")
+        )
+        #expect(
+            VocoSignalDisplayFormatter.displayStyleGuardReasonCategory(for: "dropped-mixed-language-term:Qwen3-ASR")
+                == String(localized: "Dropped mixed language term")
+        )
     }
 
     @Test func hypothesisDisplayFormatterSummarizesPersistedCandidateDetails() async throws {
