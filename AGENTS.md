@@ -13,7 +13,7 @@
 
 - Voco 是 Jason 的個人輔具，**永遠不做商用**（never for commercial use）：不賣、不授權、不包進任何商品。
 - Jason 的聲音、Jason 的 adapter、Jason 的轉錄資料，**只有 Jason 本人能用**。本 repo 是 public fork，個人語音資料／adapter／datastore／pinned terms 一律不進 git，只存在本機與 Jason 的 private repo。
-- 授權評估以「Jason 個人非商用」為前提：qwen-research 這類非商用授權的模型／元件在本專案**可用**，不需要 Apache／MIT 才能採用。授權仍要查證並記錄，但不得用「非商用授權不能進 production」當否決理由——這裡的 production 就是 Jason 本人的日常使用，沒有其他使用者。
+- 授權評估以「Jason 個人非商用」為前提，但**不得假設非商用授權等於個人日用可**——逐案讀條款本文。已查證例：qwen-research 的 Non-Commercial 定義是 **research or evaluation purposes only**（LICENSE §1(i)），lab probe／候選評測／訓練實驗在範圍內；但裝進日常管線當長期元件超出字面範圍，§9(a) 需向 Alibaba 另取授權。授權查證、條款範圍、以及每個元件落在範圍內外的判斷都要記錄。
 
 ## 建置與測試
 
