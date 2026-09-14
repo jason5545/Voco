@@ -14,6 +14,18 @@
 
 Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **Traditional Chinese (Taiwan)** users. Speech recognition runs entirely on-device via whisper.cpp, Qwen3-ASR (MLX), or Parakeet — only the optional AI refinement step talks to an LLM through your own API key.
 
+## A personal project — and a proof of concept for atypical speech
+
+Voco is first and foremost **one person's daily driver**: it is built, tuned, and gated around exactly one voice — the author's — who has cerebral palsy (CP). Off-the-shelf ASR effectively gives up on atypical speech; this repository exists to show that there is a workable route:
+
+1. **Collect your own real utterances**, with confirmed transcripts.
+2. **Train a speaker adapter on your own voice** (LoRA on top of an open ASR model).
+3. **Gate on your own key rows** — nothing enters daily use until it proves itself on your hardest real-world rows.
+
+The same route applies to anyone whose tone mapping or articulation is shaped by conditions such as **CP, ALS (amyotrophic lateral sclerosis, 漸凍人), Parkinson's disease, stroke, multiple sclerosis, muscular dystrophy, cerebellar ataxia, traumatic brain injury, or hearing-impairment-related speech patterns** — anywhere dysarthria makes generic ASR fail.
+
+**You are welcome to fork this project — but do not use it out of the box.** Any adapter or model artifact referenced here is trained on the author's voice; for anyone else it makes recognition *worse*, not better. The reusable part is the method and the plumbing — the weights are personal. **Collect your own data, train your own adapter, then use it.** This is a personal, non-commercial project.
+
 ## What's different from VoiceInk?
 
 | Feature | VoiceInk | Voco |
