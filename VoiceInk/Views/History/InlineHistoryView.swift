@@ -64,7 +64,14 @@ struct InlineHistoryView: View {
 
     private var panelTranscription: Transcription? {
         guard let id = panelTranscriptionId else { return nil }
-        return displayedTranscriptions.first { $0.id == id }
+        if let shown = displayedTranscriptions.first(where: { $0.id == id }) {
+            return shown
+        }
+        // A new dictation reloads only the first page, so the open record can drop out of the
+        // list (or be briefly absent mid-reload); fetch it directly instead of blanking the panel.
+        var descriptor = FetchDescriptor<Transcription>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 
     private func openPanel(mode: PanelMode, transcriptionID: UUID? = nil) {
