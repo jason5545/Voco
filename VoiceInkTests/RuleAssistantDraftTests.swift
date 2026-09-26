@@ -334,10 +334,12 @@ struct RuleAssistantDraftSafetyTests {
     }
 
     @MainActor
-    @Test func choiceNeverAuthorisesBroadButKeepsContextLockAndManualScanRules() {
+    @Test func choiceWithoutBroadCandidateRejectsBroadButKeepsContextLockAndManualScanRules() {
         let broad = draft("replacementRule", target: "小鎮", pattern: "小振")
+        // Since scope moved onto question cards, a choice only admits a broad rule for a candidate ticked as 任何語境.
         let choiceReason = RuleAssistantSession.gateReason(for: broad, kind: .choice(candidateChosen: true))
-        #expect(choiceReason?.contains("草稿卡") == true)
+        #expect(choiceReason?.contains("勾選時已選") == true)
+        #expect(choiceReason?.contains("sourcePattern=小振") == true)
         let locked = draft("contextLockedRule", target: "小鎮", pattern: "小振", contextTokens: ["家"])
         #expect(RuleAssistantSession.gateReason(for: locked, kind: .choice(candidateChosen: true)) == nil)
         #expect(RuleAssistantSession.gateReason(for: broad, kind: .manual) == nil)
