@@ -13365,12 +13365,12 @@
         }
       }
     },
-    "The two models this assistant has been run against.": {
+    "The models this assistant has been run against.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個助手實際跑過的兩個模型。"
+            "value": "這個助手實際跑過的模型。"
           }
         }
       }

@@ -13,10 +13,20 @@ struct RuleAssistantLiveTests {
         return (key?.isEmpty == false) ? key : nil
     }()
 
+    /// VOCO_GO_MODEL picks which catalog model the live round runs on; unset means the default model.
+    nonisolated private static let goModel: String = {
+        let model = ProcessInfo.processInfo.environment["VOCO_GO_MODEL"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return model.isEmpty ? RuleAssistantConstants.defaultModel : model
+    }()
+
     /// Skipped unless VOCO_GO_KEY is present; never touches the real Worker.
     @Test(.enabled(if: RuleAssistantLiveTests.goKey != nil))
     func liveProviderProducesParseableDraft() async throws {
         let key = try #require(Self.goKey)
+        let model = Self.goModel
+        // The client quietly falls back to the default for an unknown id; a typo must fail, not test the default.
+        try #require(RuleAssistantConstants.models.contains(model), "VOCO_GO_MODEL \(model) is not in the catalog")
         let server = FakeMCPServer.shared
         server.reset()
         let session = RuleAssistantSession(
@@ -27,11 +37,15 @@ struct RuleAssistantLiveTests {
                 text: "我明天要去小振家",
                 recordId: "11111111-2222-3333-4444-555555555555"
             ),
-            providerFactory: { OpenCodeGoClient(apiKey: key) },
+            model: model,
+            providerFactory: { OpenCodeGoClient(apiKey: key, model: model) },
             mcpFactory: { server.makeClient() },
             syncNow: { RuleAssistantSyncResult(outcome: .upToDate, message: "fake", remoteSha256: nil, installedSha256: nil) }
         )
         await session.submit("「小振」其實是「小鎮」，我說的是地名")
+        let drafts = session.state.drafts.map { "\($0.draft.eventType):\($0.draft.sourceText ?? "")->\($0.draft.targetText ?? "")" }
+        print("live round (\(model)): phase=\(session.state.phase) drafts=\(drafts)")
+        print("live answer (\(model)): \(session.state.transcript.last(where: { $0.role == "assistant" })?.text ?? "")")
         // The model must either propose a parseable draft or (acceptably) ask a clarifying
         // question in plain text; a hard failure means the wire contract broke.
         switch session.state.phase {

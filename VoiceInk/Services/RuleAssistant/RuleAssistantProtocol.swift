@@ -3,14 +3,15 @@ import Foundation
 // MARK: - Constants
 
 enum RuleAssistantConstants {
-    /// The picker offers exactly these two: the model this assistant ran on from the start, and the one
-    /// Codex runs on. OpenCode Go itself serves 37 ids (`GET https://opencode.ai/zen/go/v1/models`,
-    /// 2026-09-14); this is a deliberately short list, not the provider's catalogue, and both entries have
-    /// been through this client's streaming shape.
-    static let models: [String] = ["glm-5.3-flash", "deepseek-v4.1-flash"]
+    /// The picker offers exactly these three: the model this assistant ran on from the start, the one
+    /// Codex runs on, and `mimo-v2.6-pro` (2026-09-26, Jason's pick; top open-weights model on the
+    /// Artificial Analysis index at release). OpenCode Go itself serves 42 ids
+    /// (`GET https://opencode.ai/zen/go/v1/models`, 2026-09-26); this is a deliberately short list, not the
+    /// provider's catalogue, and every entry has been through this client's streaming shape.
+    static let models: [String] = ["glm-5.3-flash", "deepseek-v4.1-flash", "mimo-v2.6-pro"]
 
     /// The model a conversation uses until the user picks another one: Codex's own model on
-    /// 2026-09-14, added to the picker at Jason's request. Both this and `glm-5.3-flash` have to work:
+    /// 2026-09-14, added to the picker at Jason's request. Every model in the list has to work:
     /// the picker is the switch, and no model-specific workaround belongs in the app.
     static let defaultModel = "deepseek-v4.1-flash"
 

@@ -285,3 +285,31 @@ Session 由 `RuleAssistantSessionRegistry` 持有：關 panel、切 view 不取�
   訊息、失敗當下已組好的 wire messages（含它死在上面的那則指令）、以及已串流進來的 answer／thinking；
   匯出在 `## Wire history` 之前多一段 `## Failed turn (never committed: the wire history below is older
   than this attempt)`，內容用跟 wire history 同一個 `wireLines` 渲染（長欄位一樣截斷）。下一輪開始時清掉。
+
+## 加入 `mimo-v2.6-pro`（2026-09-26）
+
+Jason 要求把 Xiaomi 9/21 發布的 MiMo-V2.6-Pro 加進選單，Mac 與 Android 同步。預設**不變**，仍是
+`deepseek-v4.1-flash`；Pro 先當選項，實際用過再決定要不要換預設。
+
+- **為什麼是 Pro、不是 Flash**：規則助手卡的是判斷品質，不是請求量。Artificial Analysis 指數 Pro 46（發布時
+  開源權重第 1）、DeepSeek V4.1 Flash 39；MiMo-V2.6-Flash 在 AA 沒有公開分數。Go 官方估 Pro 每 5 小時
+  3,250 次請求（月上限 $15），對規則助手一段對話幾到十幾個請求綽綽有餘（opencode.ai/docs/go，9/26 查）。
+- **模型清單**：`RuleAssistantConstants.models` = `glm-5.3-flash`、`deepseek-v4.1-flash`、`mimo-v2.6-pro`。
+  Go 的 `/models` 9/26 列 42 個 id。picker 的 help 字串改成「The models this assistant has been run against.」
+  （zh-Hant「這個助手實際跑過的模型。」）。
+- **Live 測試可指定模型**：`RuleAssistantLiveTests` 讀 `VOCO_GO_MODEL`（沒設就用預設模型），不在清單內直接
+  失敗，避免 client 靜默退回預設、測到的其實是 DeepSeek。xcodebuild 要用 `TEST_RUNNER_` 前綴把環境變數
+  傳進測試主機：
+  `TEST_RUNNER_VOCO_GO_KEY=… TEST_RUNNER_VOCO_GO_MODEL=mimo-v2.6-pro xcodebuild test-without-building -scheme VoiceInk -destination 'platform=macOS' -only-testing:VoiceInkTests/RuleAssistantLiveTests`
+- **Live 結果（2026-09-26，暫時 Go key，測後由 Jason 輪替）**：
+  - 原始 SSE（curl，一個工具）：`delta` 有 `role`／`reasoning_content`／`content`／`tool_calls`，content 內沒有
+    `<think>`。**tool call 跟 GLM 不同，是分段串流**：第一個 chunk 帶 id 與 name、arguments 空字串，後面約 20
+    個 chunk 只帶 arguments 片段（`id`、`name` 為 null），兩端的 accumulator 都能正確組回。`finish_reason`
+    為 `tool_calls`，`[DONE]` 前有一個 `choices: []` 的 usage chunk，`[DONE]` 之後沒有其他 chunk；串流中夾
+    `: keep-alive` 註解行。
+  - Mac `liveProviderProducesParseableDraft`：通過，57 秒。「小振 → 小鎮（地名）」產出 `contextLockedRule`，
+    理由是「小振」在別句可能是合法人名，所以鎖在本句語境，不做全域取代。
+  - Android 四個 live 測試全過：wire round trip 7 秒、整條 session 35 秒（`[exact]` correction）、找問題
+    39 秒（讀了前後紀錄，西賴 → CLI）、alias 搬移 14 秒（`moveAliasToFamily`）。
+- **沒驗到的**：沒有 DeepSeek 同題的時間基準，所以不知道 Pro 在互動上慢多少；碰臺灣地名內容會不會被擋，
+  這次的測試句沒有涵蓋。

@@ -173,7 +173,7 @@ private struct RuleAssistantSessionView: View {
                 .pickerStyle(.menu)
                 .font(.system(size: 12))
                 .disabled(state.phase.isBusy)
-                .help("The two models this assistant has been run against.")
+                .help("The models this assistant has been run against.")
 
                 Spacer()
             }

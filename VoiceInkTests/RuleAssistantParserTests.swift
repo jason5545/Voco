@@ -302,9 +302,10 @@ struct RuleAssistantModelAndUsageTests {
         #expect(RuleAssistantModelStore.normalized("") == RuleAssistantConstants.defaultModel)
         #expect(RuleAssistantModelStore.normalized("not-a-model") == RuleAssistantConstants.defaultModel)
         #expect(RuleAssistantModelStore.normalized(" glm-5.3-flash ") == "glm-5.3-flash")
-        // The picker offers exactly the two models this assistant has been run against, and the default
+        // The picker offers exactly the models this assistant has been run against, and the default
         // has to be one of them.
-        #expect(RuleAssistantConstants.models == ["glm-5.3-flash", "deepseek-v4.1-flash"])
+        #expect(RuleAssistantConstants.models == ["glm-5.3-flash", "deepseek-v4.1-flash", "mimo-v2.6-pro"])
+        #expect(RuleAssistantModelStore.normalized("mimo-v2.6-pro") == "mimo-v2.6-pro")
         #expect(RuleAssistantConstants.models.contains(RuleAssistantConstants.defaultModel))
     }
 }
