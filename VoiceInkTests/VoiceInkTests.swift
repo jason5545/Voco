@@ -4048,6 +4048,25 @@ struct VoiceInkTests {
         #expect(chain.activeSession == nil)
     }
 
+    @Test func browserPasteUsesEditMenuOnlyWhileAnInputMethodIsActive() {
+        let inputMode = kTISTypeKeyboardInputMode as String
+        let inputMethod = kTISTypeKeyboardInputMethodWithoutModes as String
+        let layout = kTISTypeKeyboardLayout as String
+
+        // Squirrel (RIME) in Helium: the reported Gemini / Taiwan Mobile case.
+        #expect(MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: inputMode))
+        #expect(MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.google.Chrome", inputSourceType: inputMethod))
+
+        // A plain layout hands Cmd+V straight to the browser; keep the old path.
+        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: layout))
+        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: nil))
+
+        // Non-browser apps keep Cmd+V even with an input method active.
+        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.t3tools.t3code", inputSourceType: inputMode))
+        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.apple.Safari", inputSourceType: inputMode))
+        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: nil, inputSourceType: inputMode))
+    }
+
     @Test func recordingContextRejectsTransientVocoPasteSession() {
         #expect(ClipboardContextPolicy.userClipboardText(
             "previous transcription",

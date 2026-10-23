@@ -172,9 +172,31 @@ class CursorPaster {
     private static func postPasteCommand() async -> PasteResult {
         if PasteMethod.current() == .appleScript {
             return pasteUsingAppleScript() ? .commandPosted : .commandNotPosted
-        } else {
-            return await pasteFromClipboard()
         }
+        if pasteThroughMenuIfInputMethodMightSwallowShortcut() {
+            return .commandPosted
+        }
+        return await pasteFromClipboard()
+    }
+
+    // See MenuPastePolicy: an input method can swallow a synthetic Cmd+V in some
+    // browser text fields, while Edit > Paste still lands.
+    @MainActor
+    private static func pasteThroughMenuIfInputMethodMightSwallowShortcut() -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        let inputSourceType = MenuPastePolicy.currentInputSourceType()
+        guard MenuPastePolicy.shouldUseMenuPaste(
+            frontmostBundleID: app.bundleIdentifier,
+            inputSourceType: inputSourceType
+        ), AXIsProcessTrusted() else {
+            return false
+        }
+        guard MenuBarPaster.pressPasteMenuItem(pid: app.processIdentifier) else {
+            logger.warning("Edit > Paste unavailable in \(app.bundleIdentifier ?? "unknown", privacy: .public); falling back to Cmd+V")
+            return false
+        }
+        logger.notice("Pasted via Edit > Paste in \(app.bundleIdentifier ?? "unknown", privacy: .public) (input source type \(inputSourceType ?? "unknown", privacy: .public))")
+        return true
     }
 
     @MainActor
