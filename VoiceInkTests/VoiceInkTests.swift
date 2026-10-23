@@ -4048,23 +4048,33 @@ struct VoiceInkTests {
         #expect(chain.activeSession == nil)
     }
 
-    @Test func browserPasteUsesEditMenuOnlyWhileAnInputMethodIsActive() {
-        let inputMode = kTISTypeKeyboardInputMode as String
-        let inputMethod = kTISTypeKeyboardInputMethodWithoutModes as String
-        let layout = kTISTypeKeyboardLayout as String
+    @Test func pasteVerificationOnlyRunsWhereARetryCannotDuplicateText() {
+        let textArea = kAXTextAreaRole as String
+        #expect(PasteLandingPolicy.shouldVerify(bundleID: "net.imput.helium", role: textArea, valueIsReadable: true, selectedRangeLength: 0))
 
-        // Squirrel (RIME) in Helium: the reported Gemini / Taiwan Mobile case.
-        #expect(MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: inputMode))
-        #expect(MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.google.Chrome", inputSourceType: inputMethod))
+        // A selection would be replaced by the first paste; a retry could insert it again.
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: "net.imput.helium", role: textArea, valueIsReadable: true, selectedRangeLength: 3))
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: "net.imput.helium", role: textArea, valueIsReadable: true, selectedRangeLength: nil))
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: "net.imput.helium", role: textArea, valueIsReadable: false, selectedRangeLength: 0))
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: "net.imput.helium", role: "AXWebArea", valueIsReadable: true, selectedRangeLength: 0))
 
-        // A plain layout hands Cmd+V straight to the browser; keep the old path.
-        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: layout))
-        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "net.imput.helium", inputSourceType: nil))
+        // Apps where pastes were never observed to drop keep the single Cmd+V.
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: "com.t3tools.t3code", role: textArea, valueIsReadable: true, selectedRangeLength: 0))
+        #expect(!PasteLandingPolicy.shouldVerify(bundleID: nil, role: textArea, valueIsReadable: true, selectedRangeLength: 0))
+    }
 
-        // Non-browser apps keep Cmd+V even with an input method active.
-        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.t3tools.t3code", inputSourceType: inputMode))
-        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: "com.apple.Safari", inputSourceType: inputMode))
-        #expect(!MenuPastePolicy.shouldUseMenuPaste(frontmostBundleID: nil, inputSourceType: inputMode))
+    @Test func droppedPasteIsRetriedOnlyWhenTheFieldIsConfirmedUnchanged() {
+        // Gemini's empty prompt box reports its CSS placeholder as the AX value.
+        let before = "問問 Gemini\n"
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .value("今天天氣很好。"), deadlinePassed: false) == .landed)
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .value(before), deadlinePassed: false) == .keepWaiting)
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .value(before), deadlinePassed: true) == .notLanded)
+
+        // Quill briefly focuses its hidden .ql-clipboard while handling paste.
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .focusElsewhere, deadlinePassed: false) == .keepWaiting)
+        // Unknown states never trigger a second paste.
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .focusElsewhere, deadlinePassed: true) == .landed)
+        #expect(PasteLandingPolicy.verdict(before: before, observation: .unreadable, deadlinePassed: false) == .landed)
     }
 
     @Test func recordingContextRejectsTransientVocoPasteSession() {

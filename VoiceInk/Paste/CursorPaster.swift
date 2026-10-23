@@ -136,7 +136,17 @@ class CursorPaster {
             return .commandNotPosted
         }
 
+        let pasteTargetApp = NSWorkspace.shared.frontmostApplication
+        let pasteTarget = PasteTargetSnapshot.capture(for: pasteTargetApp)
         let pasteResult = await postPasteCommand()
+        if pasteResult.didPostPasteCommand, let pasteTarget, let pasteTargetApp {
+            await repostPasteUntilItLands(
+                target: pasteTarget,
+                app: pasteTargetApp,
+                pasteboard: pasteboard,
+                ownership: ownership
+            )
+        }
         if !pasteResult.didPostPasteCommand, needsAbortSnapshot {
             if pasteboardStillOwned(pasteboard, ownership: ownership) {
                 restoreClipboard(savedContents, on: pasteboard)
@@ -168,35 +178,59 @@ class CursorPaster {
         }
     }
 
+    // See PasteLandingVerifier: some browser editors (Gemini) can drop a paste
+    // that was dispatched correctly. Re-post while the field is unchanged.
+    @MainActor
+    private static func repostPasteUntilItLands(
+        target: PasteTargetSnapshot,
+        app: NSRunningApplication,
+        pasteboard: NSPasteboard,
+        ownership: ClipboardPasteOwnership
+    ) async {
+        let bundleID = app.bundleIdentifier ?? "unknown"
+        for attempt in 0...PasteLandingPolicy.maximumRetries {
+            if await pasteLanded(target: target, pid: app.processIdentifier) {
+                if attempt > 0 {
+                    logger.notice("Paste landed in \(bundleID, privacy: .public) after \(attempt) retry(s)")
+                }
+                return
+            }
+            guard attempt < PasteLandingPolicy.maximumRetries,
+                  !Task.isCancelled,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+                  pasteboardStillOwned(pasteboard, ownership: ownership) else {
+                break
+            }
+            logger.warning("Paste did not land in \(bundleID, privacy: .public); posting it again (retry \(attempt + 1))")
+            guard await postPasteCommand().didPostPasteCommand else { break }
+        }
+        logger.warning("Paste still not visible in \(bundleID, privacy: .public) after retries")
+    }
+
+    @MainActor
+    private static func pasteLanded(target: PasteTargetSnapshot, pid: pid_t) async -> Bool {
+        let deadline = Date().addingTimeInterval(PasteLandingPolicy.landingTimeout)
+        while true {
+            await wait(PasteLandingPolicy.pollInterval)
+            switch PasteLandingPolicy.verdict(
+                before: target.value,
+                observation: target.observe(pid: pid),
+                deadlinePassed: Date() >= deadline
+            ) {
+            case .landed: return true
+            case .notLanded: return false
+            case .keepWaiting: continue
+            }
+        }
+    }
+
     @MainActor
     private static func postPasteCommand() async -> PasteResult {
         if PasteMethod.current() == .appleScript {
             return pasteUsingAppleScript() ? .commandPosted : .commandNotPosted
+        } else {
+            return await pasteFromClipboard()
         }
-        if pasteThroughMenuIfInputMethodMightSwallowShortcut() {
-            return .commandPosted
-        }
-        return await pasteFromClipboard()
-    }
-
-    // See MenuPastePolicy: an input method can swallow a synthetic Cmd+V in some
-    // browser text fields, while Edit > Paste still lands.
-    @MainActor
-    private static func pasteThroughMenuIfInputMethodMightSwallowShortcut() -> Bool {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
-        let inputSourceType = MenuPastePolicy.currentInputSourceType()
-        guard MenuPastePolicy.shouldUseMenuPaste(
-            frontmostBundleID: app.bundleIdentifier,
-            inputSourceType: inputSourceType
-        ), AXIsProcessTrusted() else {
-            return false
-        }
-        guard MenuBarPaster.pressPasteMenuItem(pid: app.processIdentifier) else {
-            logger.warning("Edit > Paste unavailable in \(app.bundleIdentifier ?? "unknown", privacy: .public); falling back to Cmd+V")
-            return false
-        }
-        logger.notice("Pasted via Edit > Paste in \(app.bundleIdentifier ?? "unknown", privacy: .public) (input source type \(inputSourceType ?? "unknown", privacy: .public))")
-        return true
     }
 
     @MainActor
