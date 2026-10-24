@@ -1,0 +1,197 @@
+import SwiftUI
+import LaunchAtLogin
+
+struct VocoMenuBarView: View {
+    @EnvironmentObject var engine: VoiceInkEngine
+    @EnvironmentObject var recorderUIManager: RecorderUIManager
+    @EnvironmentObject var transcriptionModelManager: TranscriptionModelManager
+    @EnvironmentObject var whisperModelManager: WhisperModelManager
+    @EnvironmentObject var recordingShortcutManager: RecordingShortcutManager
+    @EnvironmentObject var menuBarManager: MenuBarManager
+    @EnvironmentObject var updaterViewModel: UpdaterViewModel
+    @EnvironmentObject var enhancementService: AIEnhancementService
+    @EnvironmentObject var aiService: AIService
+    @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
+    // View initialization runs again when recording state changes. Reading
+    // LaunchAtLogin here synchronously waits on ServiceManagement and stalls
+    // the main thread before the recorder's continuation can resume.
+    @State private var launchAtLoginEnabled: Bool?
+
+    var body: some View {
+        VStack {
+            Button("Toggle Recorder") {
+                recorderUIManager.handleToggleRecorderPanelNotification()
+            }
+
+            Divider()
+
+            transcriptionModelMenu
+
+            Divider()
+
+            Toggle("AI Enhancement", isOn: $enhancementService.isEnhancementEnabled)
+
+            aiProviderMenu
+
+            LanguageSelectionView(
+                transcriptionModelManager: transcriptionModelManager,
+                displayMode: .menuItem,
+                whisperPrompt: whisperModelManager.whisperPrompt
+            )
+
+            audioInputMenu
+
+            Divider()
+
+            Button("Retry Last Transcription") {
+                LastTranscriptionService.retryLastTranscription(
+                    from: engine.modelContext,
+                    transcriptionModelManager: transcriptionModelManager,
+                    serviceRegistry: engine.serviceRegistry,
+                    enhancementService: enhancementService
+                )
+            }
+
+            Button("Copy Last Transcription") {
+                LastTranscriptionService.copyLastTranscription(from: engine.modelContext)
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+
+            Button("History") {
+                menuBarManager.openHistoryWindow()
+            }
+            .keyboardShortcut("h", modifiers: [.command, .shift])
+
+            Button("Settings") {
+                menuBarManager.openMainWindowAndNavigate(to: "Settings")
+            }
+            .keyboardShortcut(",", modifiers: .command)
+
+            Button(menuBarManager.isMenuBarOnly ? "Show Dock Icon" : "Hide Dock Icon") {
+                menuBarManager.toggleMenuBarOnly()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+
+            Toggle("Launch at Login", isOn: Binding(
+                get: { launchAtLoginEnabled ?? false },
+                set: { newValue in
+                    LaunchAtLogin.isEnabled = newValue
+                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                }
+            ))
+                .disabled(launchAtLoginEnabled == nil)
+                .task {
+                    launchAtLoginEnabled = nil
+                    let enabled = await Task.detached(priority: .utility) {
+                        LaunchAtLogin.isEnabled
+                    }.value
+                    guard !Task.isCancelled else { return }
+                    launchAtLoginEnabled = enabled
+                }
+
+            Divider()
+
+            Button("Check for Updates") {
+                updaterViewModel.checkForUpdates()
+            }
+            .disabled(!updaterViewModel.canCheckForUpdates)
+
+            Button("Help and Support") {
+                EmailSupport.openSupportEmail()
+            }
+
+            Divider()
+
+            Button("Quit Voco") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    private var transcriptionModelMenu: some View {
+        Menu {
+            ForEach(transcriptionModelManager.usableModels, id: \.id) { model in
+                Button {
+                    Task {
+                        transcriptionModelManager.setDefaultTranscriptionModel(model)
+                    }
+                } label: {
+                    HStack {
+                        Text(model.displayName)
+                        if transcriptionModelManager.currentTranscriptionModel?.id == model.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Manage Models") {
+                menuBarManager.openMainWindowAndNavigate(to: "AI Models")
+            }
+        } label: {
+            HStack {
+                Text("Transcription Model: \(transcriptionModelManager.currentTranscriptionModel?.displayName ?? "None")")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
+            }
+        }
+    }
+
+    private var aiProviderMenu: some View {
+        Menu {
+            ForEach(aiService.connectedProviders, id: \.self) { provider in
+                Button {
+                    aiService.selectedProvider = provider
+                } label: {
+                    HStack {
+                        Text(provider.rawValue)
+                        if aiService.selectedProvider == provider {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            if aiService.connectedProviders.isEmpty {
+                Text("No providers connected")
+                    .foregroundColor(.secondary)
+            }
+        } label: {
+            HStack {
+                Text("AI Provider: \(aiService.selectedProvider.rawValue)")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
+            }
+        }
+    }
+
+    private var audioInputMenu: some View {
+        Menu {
+            ForEach(audioDeviceManager.availableDevices, id: \.id) { device in
+                Button {
+                    audioDeviceManager.selectDeviceAndSwitchToCustomMode(id: device.id)
+                } label: {
+                    HStack {
+                        Text(device.name)
+                        if audioDeviceManager.getCurrentDevice() == device.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            if audioDeviceManager.availableDevices.isEmpty {
+                Text("No devices available")
+                    .foregroundColor(.secondary)
+            }
+        } label: {
+            HStack {
+                Text("Audio Input")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10))
+            }
+        }
+    }
+}

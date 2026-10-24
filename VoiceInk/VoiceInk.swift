@@ -384,7 +384,7 @@ struct VoiceInkApp: App {
         }
 
         MenuBarExtra(isInserted: $showMenuBarIcon) {
-            MenuBarView()
+            VocoMenuBarView()
                 .environmentObject(engine)
                 .environmentObject(whisperModelManager)
                 .environmentObject(fluidAudioModelManager)

@@ -17,7 +17,7 @@ struct InlineHistoryView: View {
     @State private var isViewCurrentlyVisible = false
     @ObservedObject private var markingRefresher = RowCorrectionMarkingRefresher.shared
 
-    private let exportService = VoiceInkCSVExportService()
+    private let exportService = VocoCSVExportService()
     private let pageSize = 20
 
     @Query(Self.createLatestTranscriptionIndicatorDescriptor()) private var latestTranscriptionIndicator: [Transcription]
