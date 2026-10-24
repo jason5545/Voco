@@ -76,7 +76,7 @@ struct OnboardingLicenseSetupCard: View {
 
             OnboardingLicenseActionRow(
                 title: "Start 7-day Trial",
-                subtitle: "Use Voco now.",
+                subtitle: String(localized: "Use VoiceInk now."),
                 systemImage: "calendar",
                 isEnabled: true,
                 action: onStartTrial
@@ -92,8 +92,8 @@ struct OnboardingVerifiedLicenseCard: View {
 
     var body: some View {
         LicenseActiveSummaryCard(
-            title: "Voco Pro",
-            subtitle: "License active on this Mac.",
+            title: String(localized: "VoiceInk Pro"),
+            subtitle: String(localized: "License active on this Mac."),
             licenseKey: licenseKey,
             didCopyLicenseKey: didCopyLicenseKey,
             onCopyLicenseKey: copyLicenseKey

@@ -140,24 +140,8 @@ private struct ModeReorderRow: View {
                     .truncationMode(.tail)
 
                 HStack(spacing: 8) {
-                    ModeReorderMeta(
-                        icon: "app.fill",
-                        value: countText(
-                            config.allAppConfigs.count,
-                            empty: "No Apps",
-                            single: "1 App",
-                            many: "\(config.allAppConfigs.count) Apps"
-                        )
-                    )
-                    ModeReorderMeta(
-                        icon: "globe",
-                        value: countText(
-                            config.allURLConfigs.count,
-                            empty: "No Websites",
-                            single: "1 Website",
-                            many: "\(config.allURLConfigs.count) Websites"
-                        )
-                    )
+                    ModeReorderMeta(icon: "app.fill", value: countText(config.allAppConfigs.count, plural: "Apps"))
+                    ModeReorderMeta(icon: "globe", value: countText(config.allURLConfigs.count, plural: "Websites"))
                 }
             }
 
@@ -219,21 +203,16 @@ private struct ModeReorderRow: View {
         return AppTheme.Border.control.opacity(0.55)
     }
 
-    private func countText(
-        _ count: Int,
-        empty: LocalizedStringResource,
-        single: LocalizedStringResource,
-        many: LocalizedStringResource
-    ) -> String {
+    private func countText(_ count: Int, plural: String) -> String {
         if count == 0 {
-            return String(localized: empty)
+            return plural == "Apps" ? String(localized: "No Apps") : String(localized: "No Websites")
         }
 
-        if count == 1 {
-            return String(localized: single)
+        if plural == "Apps" {
+            return String(localized: "\(count) Apps")
+        } else {
+            return String(localized: "\(count) Websites")
         }
-
-        return String(localized: many)
     }
 }
 

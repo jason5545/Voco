@@ -34,6 +34,14 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Localizable.xcstrings,
+			);
+			target = E11473AF2CBE0F0A00318EE4 /* VoiceInk */;
+		};
+		F0C051A60000000000000004 /* VocoLocalization overrides exclusion */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				overrides.json,
 			);
 			target = E11473AF2CBE0F0A00318EE4 /* VoiceInk */;
 		};
@@ -153,6 +161,14 @@
 			path = Voco/Sources;
 			sourceTree = "<group>";
 		};
+		F0C051A60000000000000003 /* VocoLocalization */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0C051A60000000000000004 /* VocoLocalization overrides exclusion */,
+			);
+			path = Voco/Localization;
+			sourceTree = "<group>";
+		};
 		F0C051A60000000000000002 /* VocoTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Voco/Tests;
@@ -247,6 +263,7 @@
 			children = (
 				E11473B22CBE0F0A00318EE4 /* VoiceInk */,
 				F0C051A60000000000000001 /* VocoSources */,
+				F0C051A60000000000000003 /* VocoLocalization */,
 				F0C051A60000000000000002 /* VocoTests */,
 				IA0100000000000000000007 /* VocoiOS */,
 				KB0100000000000000000002 /* VocoKeyboard */,
@@ -299,6 +316,7 @@
 			fileSystemSynchronizedGroups = (
 				E11473B22CBE0F0A00318EE4 /* VoiceInk */,
 				F0C051A60000000000000001 /* VocoSources */,
+				F0C051A60000000000000003 /* VocoLocalization */,
 			);
 			name = VoiceInk;
 			packageProductDependencies = (
@@ -453,6 +471,9 @@
 			knownRegions = (
 				en,
 				Base,
+				de,
+				fr,
+				"zh-Hans",
 				"zh-Hant",
 			);
 			mainGroup = E11473A72CBE0F0A00318EE4;

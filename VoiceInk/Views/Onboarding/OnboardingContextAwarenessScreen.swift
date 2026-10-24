@@ -8,8 +8,8 @@ struct OnboardingContextAwarenessScreen: View {
     var body: some View {
         OnboardingStepScreen(
             systemImage: "sparkles.square.fill.on.square",
-            title: "Voco is Context-Aware",
-            subtitle: "Voco automatically understands what you are working with and selects your preferred setup.",
+            title: String(localized: "VoiceInk is Context-Aware"),
+            subtitle: String(localized: "VoiceInk automatically understands what you are working with and selects your preferred setup."),
             contentMaxWidth: max(contentMaxWidth, 680),
             showsHeader: false,
             contentYOffset: 0
@@ -41,14 +41,14 @@ private struct OnboardingContextAwarenessContent: View {
                     )
 
                 VStack(spacing: 10) {
-                    Text("Voco is context-aware.")
+                    Text("VoiceInk is context-aware.")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(AppTheme.Text.primary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Voco automatically understands what you are working with and selects your preferred setup. You can always configure this by editing or creating new modes.")
+                    Text("VoiceInk automatically understands what you are working with and selects your preferred setup. You can always configure this by editing or creating new modes.")
                         .font(.system(size: 15))
                         .foregroundColor(AppTheme.Text.secondary)
                         .multilineTextAlignment(.center)
@@ -87,7 +87,7 @@ private struct ContextAwarenessCenterSlot: View {
             .frame(maxWidth: 560)
             .frame(height: 250)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Voco modes include Dictation, Enhance, Email, Assistant, Rewrite, Ask, Summarize, and Translate.")
+            .accessibilityLabel("VoiceInk modes include Dictation, Enhance, Email, Assistant, Rewrite, Ask, Summarize, and Translate.")
     }
 }
 
@@ -174,7 +174,7 @@ private struct ContextAwarenessModeHub: View {
                 .foregroundColor(AppTheme.Text.secondary)
                 .frame(width: 18)
 
-            Text("Voco Modes")
+            Text("VoiceInk Modes")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(AppTheme.Text.primary)
                 .lineLimit(1)

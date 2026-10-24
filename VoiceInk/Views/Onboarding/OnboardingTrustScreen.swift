@@ -10,7 +10,7 @@ struct OnboardingTrustScreen: View {
         OnboardingStepScreen(
             systemImage: "lock.shield",
             title: "Privacy Starts Here",
-            subtitle: "Review how Voco handles your data before choosing a license.",
+            subtitle: String(localized: "Review how VoiceInk handles your data before choosing a license."),
             contentMaxWidth: max(contentMaxWidth, 720),
             showsHeader: false,
             contentYOffset: 0
@@ -56,7 +56,7 @@ private struct TrustHeader: View {
                         .fill(AppTheme.Surface.controlActive)
                 )
 
-            Text("Voco is private by default")
+            Text("VoiceInk is private by default")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(AppTheme.Text.primary)
                 .multilineTextAlignment(.center)
@@ -79,7 +79,7 @@ private struct TrustBody: View {
                     .foregroundColor(AppTheme.Text.primary)
                     .multilineTextAlignment(.center)
 
-                Text("Voco is also open source, so you can inspect every single line of code.")
+                Text("VoiceInk is also open source, so you can inspect every single line of code.")
                     .font(.system(size: 13))
                     .foregroundColor(AppTheme.Text.secondary)
                     .multilineTextAlignment(.center)

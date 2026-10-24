@@ -1,0 +1,5 @@
+"NSMicrophoneUsageDescription" = "Voco needs access to your microphone to record audio for transcription.";
+
+"NSAppleEventsUsageDescription" = "Voco needs to interact with your browser to detect the current website for applying website-specific configurations.";
+
+"NSScreenCaptureUsageDescription" = "Voco needs screen recording access to understand context from your screen for improved transcription accuracy.";
