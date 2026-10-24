@@ -52,8 +52,8 @@ open /Applications/Voco.app
 
 ## 規則助手（Rule Assistant）
 
-- 設計、閘門、測試與驗收記錄在 `docs/rule-assistant-mac.md`。
-- `systemPrompt` / `scanPrompt`（`VoiceInk/Services/RuleAssistant/RuleAssistantSession.swift`）與 Android Vocotype 的 `SYSTEM_PROMPT` / `SCAN_PROMPT`（`app/src/main/java/com/vocotype/ruleassistant/RuleAssistantSession.kt`）除平台字眼外必須逐字一致；改一邊就要改另一邊並各自跑測試。
+- 設計、閘門、測試與驗收記錄在 `Voco/Docs/rule-assistant-mac.md`。
+- `systemPrompt` / `scanPrompt`（`Voco/Sources/RuleAssistant/RuleAssistantSession.swift`）與 Android Vocotype 的 `SYSTEM_PROMPT` / `SCAN_PROMPT`（`app/src/main/java/com/vocotype/ruleassistant/RuleAssistantSession.kt`）除平台字眼外必須逐字一致；改一邊就要改另一邊並各自跑測試。
 - Worker（`VocoReplayLab/workers/auto-apply-sync`）改動後用 `npm test` 驗證、`npm run deploy` 部署。
 
 ## ASR context bias / 常駐詞（pinned hotwords）
@@ -65,6 +65,10 @@ open /Applications/Voco.app
 
 - Edit Mode：`EditModeCacheService`、`VoiceCommandService`、`enhanceForEditMode()`；`AIEnhancementService` 的 `systemMessageOverride` / `userMessageOverride` 參數是 edit mode 需要的。
 - 中文後處理管線 `ChinesePostProcessingService` 與多個校正引擎。
-- auto-apply runtime 內建規則 `runtime.single-prefix-restart-collapse`：Mac `VocoAutoApplyModelService.collapseSinglePrefixRestarts`、Android `VocoAutoApplyModelService.kt`、Python `tools/voco_auto_apply_control.py`、ReplayLab `voco_train_auto_apply_model.py` 四份實作必須一致。
+- auto-apply runtime 內建規則 `runtime.single-prefix-restart-collapse`：Mac `VocoAutoApplyModelService.collapseSinglePrefixRestarts`、Android `VocoAutoApplyModelService.kt`、Python `Voco/Tools/voco_auto_apply_control.py`、ReplayLab `voco_train_auto_apply_model.py` 四份實作必須一致。
 - `ModelPrewarmService` 必須接收 `engine.serviceRegistry`（共享 registry），不能自建 `TranscriptionServiceRegistry`。
 - MLX 本機推論、RNNoise 噪音抑制、SwiftyOpenCC（s2twp）。
+
+## This fork
+
+這個 checkout 是 `jason5545/Voco`，fork 自 `Beingpax/VoiceInk`。Fork 的程式、測試、工具與文件集中在 `Voco/`；根 `.gitattributes`、add/add 的 `VoiceInk/Localizable.xcstrings` 與 Xcode scheme 因現行行為或工具限制保留原位置。Fork patch、upstream 基準、建置／測試／部署方法與試合併紀錄集中在 [PATCHES.md](PATCHES.md)。後續階段再抽離上游薄掛點，不在第 1 階段改功能。

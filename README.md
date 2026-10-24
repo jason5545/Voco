@@ -1,161 +1,109 @@
 <div align="center">
   <img src="VoiceInk/Assets.xcassets/AppIcon.appiconset/256-mac.png" width="180" height="180" />
-  <h1>Voco</h1>
-  <p>Offline speech-to-text for macOS, with deep optimization for Traditional Chinese</p>
+  <h1>VoiceInk</h1>
+  <p>Voice to text app for macOS to transcribe what you say to text almost instantly</p>
 
   [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-  ![Platform](https://img.shields.io/badge/platform-macOS%2014.4%2B-brightgreen)
-  [![Based on VoiceInk](https://img.shields.io/badge/based%20on-VoiceInk-orange)](https://github.com/Beingpax/VoiceInk)
+  ![Platform](https://img.shields.io/badge/platform-macOS%2015.0%2B-brightgreen)
+  [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Beingpax/VoiceInk)](https://github.com/Beingpax/VoiceInk/releases)
+  ![GitHub all releases](https://img.shields.io/github/downloads/Beingpax/VoiceInk/total)
+  ![GitHub stars](https://img.shields.io/github/stars/Beingpax/VoiceInk?style=social)
+  <p>
+    <a href="https://tryvoiceink.com">Website</a> •
+    <a href="https://www.youtube.com/@tryvoiceink">YouTube</a>
+  </p>
 
-  **[正體中文說明](README.zh-Hant.md)**
+  <a href="https://tryvoiceink.com">
+    <img src="https://img.shields.io/badge/Download%20Now-Latest%20Version-blue?style=for-the-badge&logo=apple" alt="Download VoiceInk" width="250"/>
+  </a>
 </div>
 
 ---
 
-Voco is a fork of [VoiceInk](https://github.com/Beingpax/VoiceInk), built for **Traditional Chinese (Taiwan)** users. Speech recognition runs entirely on-device via whisper.cpp, Qwen3-ASR (MLX), or Parakeet — only the optional AI refinement step talks to an LLM through your own API key.
+VoiceInk is a native macOS application that transcribes what you say to text almost instantly. You can find all the information and download the app from [here](https://tryvoiceink.com). 
 
-## A personal project — and a proof of concept for atypical speech
+![VoiceInk Mac App](https://github.com/user-attachments/assets/12367379-83e7-48a6-b52c-4488a6a04bba)
 
-Voco is first and foremost **one person's daily driver**: it is built, tuned, and gated around exactly one voice — the author's — who has cerebral palsy (CP). Off-the-shelf ASR effectively gives up on atypical speech; this repository exists to show that there is a workable route:
+After dedicating the past 5 months to developing this app, I've decided to open source it for the greater good. 
 
-1. **Collect your own real utterances**, with confirmed transcripts.
-2. **Train a speaker adapter on your own voice** (LoRA on top of an open ASR model).
-3. **Gate on your own key rows** — nothing enters daily use until it proves itself on your hardest real-world rows.
-
-The same route applies to anyone whose tone mapping or articulation is shaped by conditions such as **CP, ALS (amyotrophic lateral sclerosis, 漸凍人), Parkinson's disease, stroke, multiple sclerosis, muscular dystrophy, cerebellar ataxia, traumatic brain injury, or hearing-impairment-related speech patterns** — anywhere dysarthria makes generic ASR fail.
-
-**You are welcome to fork this project — but do not use it out of the box.** Any adapter or model artifact referenced here is trained on the author's voice; for anyone else it makes recognition *worse*, not better. The reusable part is the method and the plumbing — the weights are personal. **Collect your own data, train your own adapter, then use it.** This is a personal, non-commercial project.
-
-## What's different from VoiceInk?
-
-| Feature | VoiceInk | Voco |
-|---------|----------|------|
-| Traditional Chinese UI | English only | Full zh-Hant localization |
-| Chinese post-processing | None | OpenCC simplified-to-traditional, pinyin homophone correction, nasal/tonal correction, personal learned corrections, colloquial punctuation, repetition detection |
-| Taiwanese Chinese AI prompts | None | Built-in prompts for filler removal, auto-listing, homophone fixing |
-| Qwen3-ASR engine | None | On-device Qwen3 speech recognition via MLX Swift (primary engine for Chinese) |
-| Parakeet engine | None | On-device Parakeet speech recognition with streaming support |
-| App context injection | None | Detects foreground app + window title, optional screen capture context |
-| Edit Mode | None | Voice-driven editing of selected text |
-| Voice commands | None | Voice commands (e.g. "select all + delete") |
-| Confidence routing | None | Multi-layer: confidence-based LLM routing, conservative retry, comma insertion retry |
-| RNNoise noise suppression | None | Real-time noise suppression for cleaner input |
-| Siri Shortcuts | None | Toggle/dismiss recorder via Shortcuts |
-| Licensing | Paid | All features unlocked |
+My goal is to make it **the most efficient and privacy-focused voice-to-text solution for macOS** that is a joy to use. While the source code is now open for experienced developers to build and contribute, purchasing a license helps support continued development and gives you access to automatic updates, priority support, and upcoming features.
 
 ## Features
 
-- **Offline transcription** — whisper.cpp runs locally; audio never leaves your machine
-- **Qwen3-ASR** — primary on-device engine via MLX, optimized for Chinese
-- **Parakeet** — additional on-device engine with streaming support
-- **AI refinement** — post-process text through your own API key (12 providers: OpenAI, Anthropic, Ollama, Groq, Gemini, and more)
-- **Chinese optimization** — pinyin homophone correction, nasal/tonal correction, personal learned corrections, simplified-to-traditional conversion, colloquial punctuation, filler removal
-- **Confidence routing** — multi-layer safety net: confidence-based LLM routing, conservative retry for low-confidence segments, comma insertion retry for long unpunctuated spans
-- **Edit Mode** — select text, speak corrections, and Voco rewrites it in place
-- **App-aware context** — automatically detects the active app to adjust output style; optional screen capture context for richer disambiguation
-- **Voice commands** — hands-free control (e.g. "delete all")
-- **RNNoise** — real-time noise suppression for cleaner audio input
-- **Siri Shortcuts** — toggle and dismiss recorder via Shortcuts
-- **Global hotkey** — customizable keyboard shortcut, supports hold-to-record
-- **Personal dictionary** — custom vocabulary for names, jargon, technical terms
-- **Modes** — per-app and per-website configuration presets
-- **AI Assistant** — built-in conversational assistant mode
+- 🎙️ **Accurate Transcription**: Local AI models that transcribe your voice to text with 99% accuracy, almost instantly
+- 🔒 **Privacy First**: 100% offline processing ensures your data never leaves your device
+- ⚡ **Modes**: Intelligent app detection automatically applies your perfect pre-configured settings based on the app/ URL you're on
+- 🧠 **Context Aware**: Smart AI that understands your screen content and adapts to the context
+- 🎯 **Global Shortcuts**: Configurable keyboard or mouse shortcuts for quick recording and push-to-talk functionality
+- 📝 **Personal Dictionary**: Train the AI to understand your unique terminology with custom words, industry terms, and smart text replacements
+- 🔄 **Smart Modes**: Instantly switch between AI-powered modes optimized for different writing styles and contexts
+- 🤖 **AI Assistant**: Built-in voice assistant mode for a quick chatGPT like conversational assistant
 
-## Build
+## Get Started
 
-### Requirements
+### Download
+Get the latest version with a free trial from [tryvoiceink.com](https://tryvoiceink.com). Your purchase helps me work on VoiceInk full-time and continuously improve it with new features and updates.
 
-- macOS 14.4+
-- Xcode (latest recommended)
-- Git
+#### Homebrew
+Alternatively, you can install VoiceInk via `brew`:
 
-### Quick start
-
-```bash
-git clone https://github.com/jason5545/Voco.git
-cd Voco
-
-# Full build (recommended for first time)
-make all
-
-# Build without Apple Developer certificate
-make local
-
-# Build + run
-make dev
+```shell
+brew install --cask voiceink
 ```
 
-### Makefile targets
+### Build from Source
+As an open-source project, you can build VoiceInk yourself by following the instructions in [BUILDING.md](BUILDING.md). However, the compiled version includes additional benefits like automatic updates, priority support via Discord and email, and helps fund ongoing development.
 
-| Target | Description |
-|--------|-------------|
-| `make check` | Verify build prerequisites |
-| `make whisper` | Build whisper.cpp XCFramework |
-| `make build` | Standard build (requires Apple Developer account) |
-| `make local` | Local build with ad-hoc signing (no certificate needed) |
-| `make dev` | Build + launch |
-| `make clean` | Remove build artifacts |
+## Requirements
 
-See [BUILDING.md](BUILDING.md) for detailed instructions.
+- macOS 15.0 or later
 
-### Local build limitations
+## Documentation
 
-Builds made with `make local` work fully except:
-- No iCloud dictionary sync (requires CloudKit entitlement)
-- No automatic updates (pull and rebuild to update)
+- [Building from Source](BUILDING.md) - Detailed instructions for building the project
+- [Contributing Guidelines](CONTRIBUTING.md) - How to contribute to VoiceInk
+- [Code of Conduct](CODE_OF_CONDUCT.md) - Our community standards
 
-## Forking
+## Contributing
 
-Voco uses `Bundle.main.bundleIdentifier` for all runtime identifiers (logging, data directories, Keychain, window IDs). To create your own fork:
+This project is **not accepting pull requests** at this time. You're welcome to fork and modify VoiceInk for your own use.
 
-1. Change `PRODUCT_BUNDLE_IDENTIFIER` in Xcode project settings (one place for each target)
-2. Update the CloudKit container in `VoiceInk.entitlements` if you use iCloud sync
-3. That's it — all Swift code adapts automatically
+You can still contribute by:
+- Reporting bugs via [issues](https://github.com/Beingpax/VoiceInk/issues)
+- Suggesting features or enhancements
+- Improving documentation via issues
 
-## Architecture
-
-```
-VoiceInk/
-├── Views/              # SwiftUI views
-├── Models/             # Data models (SwiftData)
-├── Services/           # Business logic
-│   ├── AIEnhancement/  #   AI refinement (multi-provider)
-│   └── ChinesePostProcessing/  #   Chinese text pipeline
-├── Transcription/      # Transcription pipeline & services
-├── Whisper/            # whisper.cpp integration
-├── Qwen3ASR/           # Qwen3 speech recognition (MLX)
-├── PowerMode/          # App detection & auto-switching
-├── AppIntents/         # Siri Shortcuts
-└── Resources/          # Models, sounds
-```
-
-- **UI**: SwiftUI + AppKit
-- **Data**: SwiftData
-- **Transcription**: whisper.cpp (offline) + Qwen3-ASR (offline, MLX) + Parakeet (offline, streaming)
-- **AI refinement**: 12 providers including OpenAI, Anthropic, Ollama, Groq, Gemini (user's own API key)
-
-## Privacy
-
-- Speech recognition is 100% offline
-- AI refinement sends **text only** (not audio) to the LLM provider you choose
-- API keys are stored locally in Keychain, never routed through third-party servers
-- App context sends the application name and window title by default; screen capture context is opt-in and requires explicit macOS permission
-
-## Credits
-
-Voco is built on top of:
-
-- [VoiceInk](https://github.com/Beingpax/VoiceInk) — upstream project by Pax
-- [qwen3-asr-swift](https://github.com/ivan-digital/qwen3-asr-swift) — Qwen3-ASR Swift implementation by Ivan (Apache-2.0)
-- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — high-performance speech recognition
-- [mlx-swift](https://github.com/ml-explore/mlx-swift) — on-device ML inference (MLX, MLXNN, MLXFast)
-- [SwiftyOpenCC](https://github.com/exgphe/SwiftyOpenCC) — simplified-to-traditional Chinese conversion (s2twp)
-- [RNNoise](https://github.com/xiph/rnnoise) — real-time noise suppression (bundled as local package)
-- [LLMkit](https://github.com/nicktmro/LLMkit) — multi-provider LLM integration
-- [Sparkle](https://github.com/sparkle-project/Sparkle) — auto-updates
-- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) — global hotkeys
-- [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) — selected text extraction
+For more details, see our [Contributing Guidelines](CONTRIBUTING.md). For build instructions, see our [Building Guide](BUILDING.md).
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE), consistent with upstream VoiceInk.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+If you encounter any issues or have questions, please:
+1. Check the existing issues in the GitHub repository
+2. Create a new issue if your problem isn't already reported
+3. Provide as much detail as possible about your environment and the problem
+
+## Acknowledgments
+
+### Core Technology
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) - High-performance inference of OpenAI's Whisper model
+- [FluidAudio](https://github.com/FluidInference/FluidAudio) - Used for Parakeet model implementation
+- [TranscribeCpp for Swift](https://github.com/Beingpax/Transcribe-cpp-swift) - SwiftPM distribution of [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp), used for local GGUF transcription models
+- [SenseVoice Small](https://huggingface.co/FunAudioLLM/SenseVoiceSmall) by FunAudioLLM / Alibaba - Multilingual model available under the [FunASR Model Open Source License Agreement](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)
+
+### Essential Dependencies
+- [Sparkle](https://github.com/sparkle-project/Sparkle) - Keeping VoiceInk up to date
+- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - User-customizable keyboard shortcuts
+- [LaunchAtLogin](https://github.com/sindresorhus/LaunchAtLogin) - Launch at login functionality
+- [MediaRemoteAdapter](https://github.com/ejbills/mediaremote-adapter) - Media playback control during recording
+- [Zip](https://github.com/marmelroy/Zip) - File compression and decompression utilities
+- [SelectedTextKit](https://github.com/tisfeng/SelectedTextKit) - A modern macOS library for getting selected text
+- [Swift Atomics](https://github.com/apple/swift-atomics) - Low-level atomic operations for thread-safe concurrent programming
+
+
+---
+
+Made with ❤️ by Pax

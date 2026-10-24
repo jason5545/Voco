@@ -47,37 +47,12 @@
 		KB010000000000000000000E /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppIdentifiers.swift,
-					"Transcription/Engine/WhisperTokens.swift",
-					"Transcription/Engine/WhisperMelSpectrogramCore.swift",
-				"WhisperMLX/WhisperTokenizer.swift",
-				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
-				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
-				"WhisperCoreML/WhisperCoreMLEncoder.swift",
-				"WhisperCoreML/WhisperCoreMLDecoder.swift",
-				"WhisperCoreML/WhisperCoreMLModel.swift",
-				"WhisperCoreML/WhisperCoreMLEngine.swift",
-				"WhisperCoreML/WhisperCoreMLModelManager.swift",
-				"Services/ChinesePostProcessing/ChinesePostProcessingService.swift",
-				"Services/ChinesePostProcessing/OpenCCConverter.swift",
-				"Services/ChinesePostProcessing/PinyinCorrector.swift",
-				"Services/ChinesePostProcessing/PinyinDatabase.swift",
-				"Services/ChinesePostProcessing/CorrectionEngine.swift",
-				"Services/ChinesePostProcessing/PunctuationConverter.swift",
-				"Services/ChinesePostProcessing/RepetitionDetector.swift",
-				"Services/ChinesePostProcessing/TranscriptionContextMemory.swift",
-				"Services/ChinesePostProcessing/LLMResponseValidator.swift",
-				"Services/ChinesePostProcessing/RuleBasedPunctuationInserter.swift",
 				"Services/AIEnhancement/AIEnhancementOutputFilter.swift",
 				"Services/AIEnhancement/ReasoningConfig.swift",
 				"Models/AIPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
 				"Models/TranscriptionModel.swift",
-				"Resources/ChineseCorrection/char_pinyin.json",
-				"Resources/ChineseCorrection/pinyin_chars.json",
-				"Resources/ChineseCorrection/word_freq.tsv",
-				"Resources/ChineseCorrection/bigram_freq.tsv",
 			);
 			target = KB0100000000000000000003 /* VocoKeyboard */;
 		};
@@ -91,21 +66,10 @@
 		IA0100000000000000000009 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppIdentifiers.swift,
 				"Models/TranscriptionModel.swift",
 				"Models/AIPrompts.swift",
 				"Models/CustomPrompt.swift",
 				"Models/PromptTemplates.swift",
-					"Transcription/Engine/WhisperTokens.swift",
-					"Transcription/Engine/WhisperMelSpectrogramCore.swift",
-				"WhisperMLX/WhisperTokenizer.swift",
-				"WhisperCoreML/WhisperCoreMLConfiguration.swift",
-				"WhisperCoreML/WhisperCoreMLMelSpectrogram.swift",
-				"WhisperCoreML/WhisperCoreMLEncoder.swift",
-				"WhisperCoreML/WhisperCoreMLDecoder.swift",
-				"WhisperCoreML/WhisperCoreMLModel.swift",
-				"WhisperCoreML/WhisperCoreMLEngine.swift",
-				"WhisperCoreML/WhisperCoreMLModelManager.swift",
 			);
 			target = IA010000000000000000000A /* VocoiOS */;
 		};
@@ -184,12 +148,22 @@
 			path = VoiceInk;
 			sourceTree = "<group>";
 		};
+		F0C051A60000000000000001 /* VocoSources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Voco/Sources;
+			sourceTree = "<group>";
+		};
+		F0C051A60000000000000002 /* VocoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Voco/Tests;
+			sourceTree = "<group>";
+		};
 		KB0100000000000000000002 /* VocoKeyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				KB010000000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
-			path = VocoKeyboard;
+			path = Voco/Platforms/Keyboard;
 			sourceTree = "<group>";
 		};
 		E11473C62CBE0F0B00318EE4 /* VoiceInkTests */ = {
@@ -207,7 +181,7 @@
 			exceptions = (
 				IA0100000000000000000008 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
-			path = VocoiOS;
+			path = Voco/Platforms/iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -272,6 +246,8 @@
 			isa = PBXGroup;
 			children = (
 				E11473B22CBE0F0A00318EE4 /* VoiceInk */,
+				F0C051A60000000000000001 /* VocoSources */,
+				F0C051A60000000000000002 /* VocoTests */,
 				IA0100000000000000000007 /* VocoiOS */,
 				KB0100000000000000000002 /* VocoKeyboard */,
 				E11473C62CBE0F0B00318EE4 /* VoiceInkTests */,
@@ -322,6 +298,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E11473B22CBE0F0A00318EE4 /* VoiceInk */,
+				F0C051A60000000000000001 /* VocoSources */,
 			);
 			name = VoiceInk;
 			packageProductDependencies = (
@@ -359,6 +336,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E11473C62CBE0F0B00318EE4 /* VoiceInkTests */,
+				F0C051A60000000000000002 /* VocoTests */,
 			);
 			name = VoiceInkTests;
 			packageProductDependencies = (
@@ -860,12 +838,12 @@
 		KB0100000000000000000007 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = VocoKeyboard/VocoKeyboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Voco/Platforms/Keyboard/VocoKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 171;
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VocoKeyboard/Info.plist;
+				INFOPLIST_FILE = Voco/Platforms/Keyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Voco Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -888,12 +866,12 @@
 		KB0100000000000000000008 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = VocoKeyboard/VocoKeyboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Voco/Platforms/Keyboard/VocoKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 171;
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VocoKeyboard/Info.plist;
+				INFOPLIST_FILE = Voco/Platforms/Keyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Voco Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -916,12 +894,12 @@
 		IA010000000000000000000D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = VocoiOS/VocoiOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Voco/Platforms/iOS/VocoiOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VocoiOS/Info.plist;
+				INFOPLIST_FILE = Voco/Platforms/iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Voco;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -945,12 +923,12 @@
 		IA010000000000000000000E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = VocoiOS/VocoiOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Voco/Platforms/iOS/VocoiOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MW4GWYGX56;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VocoiOS/Info.plist;
+				INFOPLIST_FILE = Voco/Platforms/iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Voco;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1033,7 +1011,7 @@
 /* Begin XCLocalSwiftPackageReference section */
 		RN01E5A82F1D200000000003 /* XCLocalSwiftPackageReference "Packages/RNNoise" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/RNNoise;
+			relativePath = Voco/Packages/RNNoise;
 		};
 /* End XCLocalSwiftPackageReference section */
 

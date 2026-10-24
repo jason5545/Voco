@@ -1,0 +1,33 @@
+# Python and local test caches
+**/__pycache__/
+**/.pytest_cache/
+
+# ASR evaluation environments and generated data
+Scripts/asr_eval/.venv*/
+Scripts/asr_eval/models/
+Scripts/convert_whisper_coreml/
+Scripts/asr_eval/test_data/*.json
+!Scripts/asr_eval/test_data/example_test_set.json
+Scripts/asr_eval/results/*.json
+Scripts/asr_eval/transcript.txt
+
+# Local model and correction artifacts
+LocalModels/
+artifacts/
+Support/AutoApplyModels/
+full-db.auto-apply-model.json
+Support/Qwen3Models/
+Qwen3Models/
+qwen3-asr-speaker-audio-lora-20260612-balanced-64iter/
+adapters.safetensors
+
+# Local agent notes and transient files
+.claude/
+CLAUDE.md
+AI_HANDOFF.md
+UPSTREAM_PR_GUIDE.md
+ASK_ANYTHING_PRD.md
+PROJECT_OVERVIEW.md
+phonetic-confusion-audit.md
+transcript.txt
+.DS_Store
