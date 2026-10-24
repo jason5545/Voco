@@ -250,8 +250,8 @@ Generated from the stage-2 trial merge. Every path below is an upstream file who
 - `UD` `VoiceInk/Transcription/Native/NativeAppleTranscriptionService.swift`
 - `UD` `VoiceInk/Transcription/Processing/TranscriptionOutputFilter.swift`
 - `UD` `VoiceInk/Transcription/Processing/WordReplacementService.swift`
-- `UD` `VoiceInk/Views/AI`
-- `UD` `VoiceInk/Views/AI`
+- `UD` `VoiceInk/Views/AI Models/CloudModelCardView.swift`
+- `UD` `VoiceInk/Views/AI Models/ModelSettingsPanel.swift`
 - `UD` `VoiceInk/Views/Common/TranscriptionInfoPanel.swift`
 - `UD` `VoiceInk/Views/Dashboard/DashboardContent.swift`
 - `UD` `VoiceInk/Views/Dashboard/DashboardPromotionsSection.swift`
