@@ -3,11 +3,21 @@ import Foundation
 enum PasteMethod: String, CaseIterable, Identifiable {
     case standard = "default"
     case appleScript = "appleScript"
+    case directTyping = "directTyping"
 
     static let userDefaultsKey = "pasteMethod"
     static let legacyAppleScriptPasteKey = "useAppleScriptPaste"
 
     var id: String { rawValue }
+
+    var usesClipboard: Bool {
+        switch self {
+        case .standard, .appleScript:
+            return true
+        case .directTyping:
+            return false
+        }
+    }
 
     var displayName: String {
         switch self {
@@ -15,12 +25,15 @@ enum PasteMethod: String, CaseIterable, Identifiable {
             return String(localized: "Default")
         case .appleScript:
             return String(localized: "AppleScript")
+        case .directTyping:
+            return String(localized: "Direct Typing")
         }
     }
 
     static func current(in defaults: UserDefaults = .standard) -> PasteMethod {
         if let rawValue = defaults.string(forKey: userDefaultsKey),
-           let method = PasteMethod(rawValue: rawValue) {
+            let method = PasteMethod(rawValue: rawValue)
+        {
             return method
         }
 
@@ -34,7 +47,8 @@ enum PasteMethod: String, CaseIterable, Identifiable {
 
     static func migrateLegacyUserDefaultIfNeeded(in defaults: UserDefaults = .standard) {
         if let rawValue = defaults.string(forKey: userDefaultsKey),
-           PasteMethod(rawValue: rawValue) != nil {
+            PasteMethod(rawValue: rawValue) != nil
+        {
             return
         }
 

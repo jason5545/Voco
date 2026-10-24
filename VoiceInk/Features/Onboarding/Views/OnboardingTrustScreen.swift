@@ -10,7 +10,7 @@ struct OnboardingTrustScreen: View {
         OnboardingStepScreen(
             systemImage: "lock.shield",
             title: "Privacy Starts Here",
-            subtitle: String(localized: "Review how VoiceInk handles your data before choosing a license."),
+            subtitle: "Review how VoiceInk handles your data before choosing a license.",
             contentMaxWidth: max(contentMaxWidth, 720),
             showsHeader: false,
             contentYOffset: 0
@@ -94,7 +94,10 @@ private struct TrustMapView: View {
     var body: some View {
         ZStack {
             TrustConnectorLines()
-                .stroke(AppTheme.Border.control.opacity(0.58), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+                .stroke(
+                    AppTheme.Border.control.opacity(0.58),
+                    style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+                )
                 .frame(width: 500, height: 210)
                 .offset(y: 22)
 
@@ -157,7 +160,7 @@ private struct TrustPill: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(AppTheme.Text.secondary)
 
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(AppTheme.Text.primary)
                 .lineLimit(1)
@@ -184,7 +187,7 @@ private struct TrustShield: View {
                     LinearGradient(
                         colors: [
                             AppTheme.Surface.control,
-                            AppTheme.Surface.controlActive
+                            AppTheme.Surface.controlActive,
                         ],
                         startPoint: .top,
                         endPoint: .bottom

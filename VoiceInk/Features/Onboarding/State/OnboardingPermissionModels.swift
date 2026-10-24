@@ -38,7 +38,7 @@ enum OnboardingStage: String, CaseIterable {
         case .microphone:
             return "mic"
         case .model:
-            return "arrow.down"
+            return "captions.bubble"
         case .api:
             return "checkmark.seal"
         case .experience:
@@ -59,7 +59,7 @@ enum OnboardingStage: String, CaseIterable {
         case .microphone:
             return String(localized: "Choose Microphone")
         case .model:
-            return String(localized: "Download Transcription Model")
+            return String(localized: "Configure Transcription Model")
         case .api:
             return String(localized: "Verify API Key")
         case .experience:
@@ -80,13 +80,17 @@ enum OnboardingStage: String, CaseIterable {
         case .microphone:
             return String(localized: "Pick the microphone VoiceInk should use for recordings.")
         case .model:
-            return String(localized: "VoiceInk will download NVIDIA's Parakeet model to set up fast local transcription.")
+            return String(localized: "Use NVIDIA's Parakeet model locally, or connect a cloud transcription provider.")
         case .api:
-            return String(localized: "VoiceInk uses LLMs to enhance transcripts and perform AI actions. Set up an API key before continuing.")
+            return String(
+                localized:
+                    "VoiceInk uses LLMs to enhance transcripts and perform AI actions. Set up an API key before continuing."
+            )
         case .experience:
             return String(localized: "Try a few short samples and see how VoiceInk works before you start.")
         case .contextAwareness:
-            return String(localized: "VoiceInk can select the right mode from the app you are using and the rules you configure.")
+            return String(
+                localized: "VoiceInk can select the right mode from the app you are using and the rules you configure.")
         case .trust:
             return String(localized: "VoiceInk is private by default. No data leaves your device unless you opt in.")
         case .license:
@@ -118,7 +122,7 @@ enum OnboardingPermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return OnboardingPermissionDescriptor(
-                title: String(localized: "Microphone"),
+                title: "Microphone",
                 subtitle: String(localized: "VoiceInk uses your microphone to capture your voice.")
             )
 
@@ -131,7 +135,8 @@ enum OnboardingPermissionKind: String, CaseIterable, Identifiable {
         case .screenRecording:
             return OnboardingPermissionDescriptor(
                 title: String(localized: "Screen Recording"),
-                subtitle: String(localized: "VoiceInk reads visible screen content to improve the accuracy of transcripts.")
+                subtitle: String(
+                    localized: "VoiceInk reads visible screen content to improve the accuracy of transcripts.")
             )
         }
     }
@@ -160,15 +165,15 @@ enum OnboardingPermissionStatus: Equatable {
     var label: String {
         switch self {
         case .granted:
-            return "Granted"
+            return String(localized: "Granted")
         case .needsAccess:
-            return "Needs access"
+            return String(localized: "Needs access")
         case .denied:
-            return "Denied"
+            return String(localized: "Denied")
         case .restricted:
-            return "Restricted"
+            return String(localized: "Restricted")
         case .unknown:
-            return "Unknown"
+            return String(localized: "Unknown")
         }
     }
 

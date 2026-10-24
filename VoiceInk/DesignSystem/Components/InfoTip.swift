@@ -24,14 +24,13 @@ struct InfoTip: View {
             .contentShape(Rectangle())
             .popover(isPresented: $isShowingTip) {
                 VStack(alignment: .leading, spacing: 0) {
-                    if let url = learnMoreLink {
-                        (Text(message) + Text(" "))
-                            .font(.callout)
+                    if learnMoreLink != nil {
+                        (Text(message)
                             .foregroundColor(.secondary)
-                        +
-                        Text("Learn more")
+                            + Text(" ")
+                            + Text("Learn more")
+                            .foregroundColor(AppTheme.Accent.primary))
                             .font(.callout)
-                            .foregroundColor(AppTheme.Accent.primary)
                     } else {
                         Text(message)
                             .font(.callout)
@@ -62,9 +61,21 @@ extension InfoTip {
         self.learnMoreLink = nil
     }
 
+    /// Creates an InfoTip with a dynamic string message
+    init(_ message: String) {
+        self.message = LocalizedStringKey(message)
+        self.learnMoreLink = nil
+    }
+
     /// Creates an InfoTip with a learn more link
     init(_ message: LocalizedStringKey, learnMoreURL: String) {
         self.message = message
+        self.learnMoreLink = URL(string: learnMoreURL)
+    }
+
+    /// Creates an InfoTip with a dynamic string message and learn more link
+    init(_ message: String, learnMoreURL: String) {
+        self.message = LocalizedStringKey(message)
         self.learnMoreLink = URL(string: learnMoreURL)
     }
 }
