@@ -43,7 +43,7 @@ final class VocoTranscriptionProcessor {
         model: any TranscriptionModel,
         transcriptionConfiguration: TranscriptionRuntimeConfiguration,
         formattingConfiguration: TranscriptionFormattingConfiguration,
-        transcriptionDuration: TimeInterval,
+        transcriptionStart: Date,
         editModeSelection: EditModeSelectionSnapshot?,
         onStateChange: @escaping (RecordingState) -> Void,
         shouldCancel: @escaping () -> Bool,
@@ -69,6 +69,7 @@ final class VocoTranscriptionProcessor {
         }
 
         text = TranscriptionOutputFilter.filter(text)
+        let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
         if shouldCancel() {
             await onCancel()
             return .stop

@@ -107,8 +107,6 @@ class TranscriptionPipeline {
                     context: transcriptionConfiguration.requestContext
                 )
             }
-            let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
-
             let afterASR = await vocoProcessor.afterASR(
                 text: text,
                 transcription: transcription,
@@ -116,7 +114,7 @@ class TranscriptionPipeline {
                 model: model,
                 transcriptionConfiguration: transcriptionConfiguration,
                 formattingConfiguration: resolveFormattingConfiguration(),
-                transcriptionDuration: transcriptionDuration,
+                transcriptionStart: transcriptionStart,
                 editModeSelection: editModeSelection,
                 onStateChange: onStateChange,
                 shouldCancel: shouldCancel,
