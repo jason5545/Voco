@@ -1801,7 +1801,7 @@ struct VoiceInkTests {
             ),
         ]
 
-        let csv = VoiceInkCSVExportService().generateCSV(for: [transcription])
+        let csv = VocoCSVExportService().generateCSV(for: [transcription])
         let candidateDivergence = try #require(SessionMetric.candidateDivergenceRatio(in: transcription.hypothesisDetails))
         let candidateDivergenceText = String(format: "%.3f", candidateDivergence)
 
