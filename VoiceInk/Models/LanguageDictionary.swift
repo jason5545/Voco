@@ -1,9 +1,6 @@
 import Foundation
 
 enum TranscriptionLanguageSupport {
-    static let selectedLanguageKey = "SelectedLanguage"
-    static let defaultLanguageCode = "auto"
-
     private static let assemblyAIRealtimeLanguageCodes = ["en", "es", "de", "fr", "pt", "it"]
 
     private static let assemblyAIBatchLanguageCodes = [
@@ -50,11 +47,7 @@ enum TranscriptionLanguageSupport {
 
         return languages.keys.sorted { lhs, rhs in
             languages[lhs, default: lhs] < languages[rhs, default: rhs]
-        }.first ?? defaultLanguageCode
-    }
-
-    static func selectedLanguage(in defaults: UserDefaults = .standard) -> String {
-        defaults.string(forKey: selectedLanguageKey) ?? defaultLanguageCode
+        }.first ?? "en"
     }
 
     private static func assemblyAILanguages(usesRealtime: Bool) -> [String: String] {
