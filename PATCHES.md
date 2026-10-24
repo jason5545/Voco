@@ -2,6 +2,8 @@
 
 Repository: `jason5545/Voco` (`main`). Upstream: `Beingpax/VoiceInk`.
 
+Refactor plan: [Voco/Docs/refactor-plan.md](Voco/Docs/refactor-plan.md).
+
 ## Upstream baseline
 
 - Reviewed upstream commit: `22e5ec5479b712797c3b338fcb875961e58800b6` (`22e5ec54`).
