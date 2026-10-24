@@ -150,10 +150,18 @@ Verify launch, bundle ID `com.jasonchien.Voco`, unchanged version/build, `codesi
 
 ## Deployment record
 
-On 2026-10-24 the Release build and `ditto` deployment to `/Applications/Voco.app` succeeded. Verification followed `AGENTS.md`; `codesign --verify --deep --strict` was not used as a gate.
+On 2026-10-24 the stage-1 Release build and `ditto` deployment to `/Applications/Voco.app` succeeded. Verification followed `AGENTS.md`; `codesign --verify --deep --strict` was not used as a gate.
 
 - Backup: `/tmp/Voco.app.bak-20261024`.
 - `codesign --verify --deep` returned 0 for both backup and installed app. Entitlements were byte-identical (`diff` empty). Bundle ID and version remained `com.jasonchien.Voco`, `2.0 (179)`.
 - The app stayed alive after 30 seconds with no crash. Logs included the existing `Prewarm failed: Unsupported WAV audio format` and network/window noise; `sound7.wav` had the same checksum in both bundles.
 - Forced Qwen3 Edge TTS smoke produced the identical transcript before and after relocation: `世纪风电二零七二今日股价一百八十三元。` (normalized `世紀風電二零七二今日股價一百八十三元`). Runtime correction replay results were identical after excluding path fields; both returned `ready: true` and `deployReady: true`.
 - `Voco/Tests/Qwen3ASRAdapterTests.swift` now resolves the repository root from its new `Voco/Tests` location so existing `LocalModels` fixtures are not skipped.
+
+Stage 2 deployment (2026-10-24):
+
+- App backup: `/tmp/Voco.app.bak-20261024-p2` (107 MB).
+- Data backup: `/tmp/voco-data-bak-20261024-p2` (9.1 GB): `default.store`, `dictionary.store`, `stats.store` with `-wal`/`-shm`, `com.jasonchien.Voco.plist`, `Qwen3ASRContextBias/`, model directories, and `DBDeleteBackups`; `Recordings/`, `ShadowLogs/` and `AutoApplyModels/` were excluded because they are media and logs, not settings.
+- Release build output: `/tmp/voco-p2-dd-release/Build/Products/Release/Voco.app`.
+- Checks after deployment: 30-second liveness, `codesign --verify --deep` exit 0, entitlements byte-identical (`diff` empty), `com.jasonchien.Voco` / `2.0 (179)` unchanged, no crash report after launch. SwiftData row counts were identical before and after: transcriptions 33,095, word replacements 355, session metrics 31,521.
+- Qwen3 file smoke: `Qwen3ASRAdapterTests/edgeTTSCenturyWindStockQuoteSpecialSmokeUsesAdapter` was forced with `VOCO_QWEN3_ADAPTER_EDGE_TTS_SMOKE=1` and passed (company, stock code, price and adapter assertions). Runtime replay via `voco_runtime_correction_control.py replayGate` returned `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
