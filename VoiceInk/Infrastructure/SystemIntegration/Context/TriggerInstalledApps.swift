@@ -5,17 +5,19 @@ typealias InstalledAppInfo = (url: URL, name: String, bundleId: String, icon: NS
 
 enum InstalledApps {
     static func load() -> [InstalledAppInfo] {
-        let appDirectories = FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask) +
-            FileManager.default.urls(for: .applicationDirectory, in: .localDomainMask) +
-            FileManager.default.urls(for: .applicationDirectory, in: .systemDomainMask)
+        let appDirectories =
+            FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask)
+            + FileManager.default.urls(for: .applicationDirectory, in: .localDomainMask)
+            + FileManager.default.urls(for: .applicationDirectory, in: .systemDomainMask)
 
         let appURLs = applicationURLs(in: appDirectories)
 
         let apps: [InstalledAppInfo] = appURLs.compactMap { url in
             guard let bundle = Bundle(url: url),
-                  let bundleId = bundle.bundleIdentifier,
-                  let name = (bundle.infoDictionary?["CFBundleName"] as? String) ??
-                    (bundle.infoDictionary?["CFBundleDisplayName"] as? String) else {
+                let bundleId = bundle.bundleIdentifier,
+                let name = (bundle.infoDictionary?["CFBundleName"] as? String)
+                    ?? (bundle.infoDictionary?["CFBundleDisplayName"] as? String)
+            else {
                 return nil
             }
 
@@ -40,11 +42,13 @@ enum InstalledApps {
         var seenPaths = Set<String>()
 
         for appDirectory in appDirectories {
-            guard let enumerator = fileManager.enumerator(
-                at: appDirectory,
-                includingPropertiesForKeys: [.isApplicationKey, .isSymbolicLinkKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else {
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: appDirectory,
+                    includingPropertiesForKeys: [.isApplicationKey, .isSymbolicLinkKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                )
+            else {
                 continue
             }
 
@@ -67,8 +71,10 @@ enum InstalledApps {
                     continue
                 }
 
-                guard values?.isApplication == true
-                    || url.pathExtension.caseInsensitiveCompare("app") == .orderedSame else {
+                guard
+                    values?.isApplication == true
+                        || url.pathExtension.caseInsensitiveCompare("app") == .orderedSame
+                else {
                     continue
                 }
 

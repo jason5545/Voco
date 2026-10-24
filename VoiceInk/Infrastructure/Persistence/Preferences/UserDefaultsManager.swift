@@ -6,16 +6,15 @@ extension UserDefaults {
         static let selectedAudioDeviceUID = "selectedAudioDeviceUID"
         static let selectedAudioDeviceModelUID = "selectedAudioDeviceModelUID"
         static let prioritizedDevices = "prioritizedDevices"
+        static let audioInputChannelsByDeviceUID = "audioInputChannelsByDeviceUID"
         static let affiliatePromotionDismissed = "VoiceInkAffiliatePromotionDismissed"
     }
 
-    // MARK: - Audio Input Mode
     var audioInputModeRawValue: String? {
         get { string(forKey: Keys.audioInputMode) }
         set { setValue(newValue, forKey: Keys.audioInputMode) }
     }
 
-    // MARK: - Selected Audio Device UID
     var selectedAudioDeviceUID: String? {
         get { string(forKey: Keys.selectedAudioDeviceUID) }
         set { setValue(newValue, forKey: Keys.selectedAudioDeviceUID) }
@@ -26,13 +25,27 @@ extension UserDefaults {
         set { setValue(newValue, forKey: Keys.selectedAudioDeviceModelUID) }
     }
 
-    // MARK: - Prioritized Devices
     var prioritizedDevicesData: Data? {
         get { data(forKey: Keys.prioritizedDevices) }
         set { setValue(newValue, forKey: Keys.prioritizedDevices) }
     }
 
-    // MARK: - Affiliate Promotion Dismissal
+    /// Exact device UIDs keep channel choices separate, even for identical interface models.
+    var audioInputChannelsByDeviceUID: [String: [UInt32]] {
+        get {
+            guard let data = data(forKey: Keys.audioInputChannelsByDeviceUID),
+                  let selections = try? JSONDecoder().decode([String: [UInt32]].self, from: data) else {
+                return [:]
+            }
+            // Older multiple-input overrides return to Automatic instead of choosing an arbitrary input.
+            return selections.filter { $0.value.count == 1 }
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            set(data, forKey: Keys.audioInputChannelsByDeviceUID)
+        }
+    }
+
     var affiliatePromotionDismissed: Bool {
         get { bool(forKey: Keys.affiliatePromotionDismissed) }
         set { setValue(newValue, forKey: Keys.affiliatePromotionDismissed) }

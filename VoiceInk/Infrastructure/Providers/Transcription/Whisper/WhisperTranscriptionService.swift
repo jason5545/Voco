@@ -1,5 +1,5 @@
-import Foundation
 import AVFoundation
+import Foundation
 import os
 
 class WhisperTranscriptionService: TranscriptionService {
@@ -14,7 +14,9 @@ class WhisperTranscriptionService: TranscriptionService {
         self.modelProvider = modelProvider
     }
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel, context: TranscriptionRequestContext) async throws -> String {
+    func transcribe(audioURL: URL, model: any TranscriptionModel, context: TranscriptionRequestContext) async throws
+        -> String
+    {
         guard model.provider == .whisper else {
             throw VoiceInkEngineError.modelLoadFailed
         }
@@ -23,9 +25,10 @@ class WhisperTranscriptionService: TranscriptionService {
 
         // Check if the required model is already loaded in the model provider
         if let provider = modelProvider,
-           await provider.isModelLoaded,
-           let loadedContext = await provider.whisperContext,
-           await provider.loadedWhisperModel?.name == model.name {
+            await provider.isModelLoaded,
+            let loadedContext = await provider.whisperContext,
+            await provider.loadedWhisperModel?.name == model.name
+        {
 
             logger.notice("Using already loaded model: \(model.name, privacy: .public)")
             whisperContext = loadedContext
@@ -41,7 +44,7 @@ class WhisperTranscriptionService: TranscriptionService {
             do {
                 whisperContext = try await WhisperContext.createContext(path: modelURL.path)
             } catch {
-                logger.error("❌ Failed to load model: \(model.name, privacy: .public) - \(error.localizedDescription, privacy: .public)")
+                logger.error("❌ Failed to load model: \(model.name, privacy: .public) - \(error, privacy: .public)")
                 throw VoiceInkEngineError.modelLoadFailed
             }
         }
@@ -80,6 +83,13 @@ class WhisperTranscriptionService: TranscriptionService {
     }
 
     private func readAudioSamples(_ url: URL) throws -> [Float] {
-        try readWAVSamples(from: url)
+        let data = try Data(contentsOf: url)
+        let floats = stride(from: 44, to: data.count, by: 2).map {
+            return data[$0..<$0 + 2].withUnsafeBytes {
+                let short = Int16(littleEndian: $0.load(as: Int16.self))
+                return max(-1.0, min(Float(short) / 32767.0, 1.0))
+            }
+        }
+        return floats
     }
 }

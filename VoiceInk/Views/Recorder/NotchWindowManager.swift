@@ -51,7 +51,10 @@ class NotchWindowManager {
     private func initializeWindow() {
         StartupTracer.checkpoint("NotchWindowManager.initializeWindow_enter")
         deinitializeWindow()
-        let metrics = NotchRecorderPanel.calculateWindowMetrics()
+        guard let metrics = NotchRecorderPanel.calculateWindowMetrics() else {
+            StartupTracer.checkpoint("initializeWindow_no_screen")
+            return
+        }
         StartupTracer.checkpoint("NotchWindowManager.metrics_calculated")
         let newPanel = NotchRecorderPanel(contentRect: metrics.frame)
         StartupTracer.checkpoint("NotchWindowManager.panel_created")

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 /// Represents a single audio file in the transcription queue.
 enum QueueItemStatus: Equatable {
@@ -9,19 +8,10 @@ enum QueueItemStatus: Equatable {
     case failed(message: String)
 
     enum ProcessingPhase: String {
-        case loading
-        case processingAudio
-        case transcribing
-        case enhancing
-
-        var localizedName: LocalizedStringKey {
-            switch self {
-            case .loading: "Loading model..."
-            case .processingAudio: "Processing audio..."
-            case .transcribing: "Transcribing..."
-            case .enhancing: "Enhancing..."
-            }
-        }
+        case loading = "Loading model..."
+        case processingAudio = "Processing audio..."
+        case transcribing = "Transcribing..."
+        case enhancing = "Enhancing..."
     }
 
     var isTerminal: Bool {

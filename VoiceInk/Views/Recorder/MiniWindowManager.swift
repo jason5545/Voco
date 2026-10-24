@@ -51,7 +51,10 @@ class MiniWindowManager {
     private func initializeWindow() {
         StartupTracer.checkpoint("initializeWindow_enter")
         deinitializeWindow()
-        let metrics = MiniRecorderPanel.calculateWindowMetrics()
+        guard let metrics = MiniRecorderPanel.calculateWindowMetrics() else {
+            StartupTracer.checkpoint("initializeWindow_no_screen")
+            return
+        }
         StartupTracer.checkpoint("initializeWindow_metrics_calculated")
         let newPanel = MiniRecorderPanel(contentRect: metrics)
         StartupTracer.checkpoint("initializeWindow_panel_created")
