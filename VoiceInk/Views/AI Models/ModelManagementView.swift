@@ -324,16 +324,7 @@ struct ModelManagementView: View {
 
     private var localModels: [any TranscriptionModel] {
         transcriptionModelManager.allAvailableModels.filter {
-            (
-                $0.provider == .whisper
-                    || $0.provider == .nativeApple
-                    || $0.provider == .fluidAudio
-                    || $0.provider == .qwen3
-                    || $0.provider == .whisperMLX
-                    || $0.provider == .whisperCoreML
-                    || $0.provider == .qwen3CoreML
-            )
-                && transcriptionModelManager.isAvailableOnCurrentOS($0)
+            VocoModelCatalog.isLocal($0) && transcriptionModelManager.isAvailableOnCurrentOS($0)
         }
     }
 

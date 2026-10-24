@@ -1,32 +1,8 @@
 import Foundation
-import SwiftUI
 import SwiftData
 
 class CustomVocabularyService {
     static let shared = CustomVocabularyService()
-
-    private let defaultVocabulary = [
-        "M5 Max",
-        "M5 Max 128GB",
-        "Voco",
-        "Claude",
-        "Claude Code",
-        "Codex",
-        "ChatGPT",
-        "Cloudflare",
-        "Workers",
-        "D1",
-        "RIME",
-        "鼠鬚管",
-        "repo",
-        "SESSION",
-        "UI",
-        "UX",
-        "Qwen3-ASR 1.7B",
-        "ASR",
-        "frontier",
-        "hook",
-    ]
 
     private init() {}
 
@@ -45,25 +21,9 @@ class CustomVocabularyService {
 
         do {
             let items = try context.fetch(descriptor)
-            let words = items.map { $0.word } + defaultVocabulary
-            return uniqueWords(words)
+            return VocoVocabularyProvider.merging(items.map { $0.word })
         } catch {
-            return defaultVocabulary
+            return VocoVocabularyProvider.defaultWords
         }
-    }
-
-    private func uniqueWords(_ words: [String]) -> [String] {
-        var seen: Set<String> = []
-        var result: [String] = []
-
-        for word in words {
-            let normalized = word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard !normalized.isEmpty else { continue }
-            if seen.insert(normalized).inserted {
-                result.append(word)
-            }
-        }
-
-        return result
     }
 }

@@ -1,0 +1,435 @@
+import Foundation
+
+struct TranscriptionDetailText: Equatable, Identifiable {
+    let id: String
+    let label: String
+    let text: String
+    let isEnhanced: Bool
+}
+
+extension Transcription {
+    var activeContextIDs: [String] {
+        get { Self.decodeStringArray(activeContextIDsJSON) }
+        set { activeContextIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var canonicalizationReplacements: [VocoReplacement] {
+        get { Self.decodeReplacements(canonicalizationReplacementsJSON) }
+        set { canonicalizationReplacementsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var canonicalizationSuggestions: [VocoReplacement] {
+        get { Self.decodeReplacements(canonicalizationSuggestionsJSON) }
+        set { canonicalizationSuggestionsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypotheses: [String] {
+        get { Self.decodeStringArray(hypothesesJSON) }
+        set { hypothesesJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypothesisLabels: [String] {
+        get { Self.decodeStringArray(hypothesisLabelsJSON) }
+        set { hypothesisLabelsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hypothesisDetails: [VocoHypothesis] {
+        get { Self.decodeHypotheses(hypothesisDetailsJSON) }
+        set { hypothesisDetailsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var confidenceReasons: [String] {
+        get { Self.decodeStringArray(confidenceReasonsJSON) }
+        set { confidenceReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var reviewTriggers: [VocoReviewTrigger] {
+        get { Self.decodeReviewTriggers(reviewTriggersJSON) }
+        set { reviewTriggersJSON = Self.encodeJSON(newValue) }
+    }
+
+    var correctionRiskTermIDs: [String] {
+        get { Self.decodeStringArray(correctionRiskTermIDsJSON) }
+        set { correctionRiskTermIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var autoApplyPolicyHitIDs: [String] {
+        get { Self.decodeStringArray(autoApplyPolicyHitIDsJSON) }
+        set { autoApplyPolicyHitIDsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var qwen3AdapterMetadata: Qwen3ASRAdapterMetadata? {
+        get { Self.decodeQwen3AdapterMetadata(qwen3AdapterMetadataJSON) }
+        set { qwen3AdapterMetadataJSON = Self.encodeJSON(newValue) }
+    }
+
+    var qwen3SpecialistRoutingMetadata: Qwen3ASRSpecialistRoutingMetadata? {
+        get { Self.decodeJSON(qwen3SpecialistRoutingMetadataJSON, as: Qwen3ASRSpecialistRoutingMetadata.self) }
+        set { qwen3SpecialistRoutingMetadataJSON = Self.encodeJSON(newValue) }
+    }
+
+    var styleGuardReasons: [String] {
+        get { Self.decodeStringArray(styleGuardReasonsJSON) }
+        set { styleGuardReasonsJSON = Self.encodeJSON(newValue) }
+    }
+
+    var retranscriptionAnalysis: RetranscriptionAnalysis? {
+        get { Self.decodeRetranscriptionAnalysis(retranscriptionAnalysisJSON) }
+        set { retranscriptionAnalysisJSON = Self.encodeJSON(newValue) }
+    }
+
+    var correctionFeedback: [CorrectionFeedbackSignal] {
+        get { Self.decodeCorrectionFeedback(correctionFeedbackJSON) }
+        set { correctionFeedbackJSON = Self.encodeJSON(newValue) }
+    }
+
+    var hasDictationMetadata: Bool {
+        Self.hasText(rawTranscript) ||
+        Self.hasText(normalizedTranscript) ||
+        Self.hasText(finalPastedText) ||
+        pasteCommandPosted != nil ||
+        Self.hasText(asrEngineID) ||
+        Self.hasText(languageMode) ||
+        confidenceScore != nil ||
+        Self.hasText(confidenceRoute) ||
+        !confidenceReasons.isEmpty ||
+        !reviewTriggers.isEmpty ||
+        correctionRiskRate != nil ||
+        !correctionRiskTermIDs.isEmpty ||
+        Self.hasText(selectedCandidate) ||
+        Self.hasText(candidateSelectionSource) ||
+        userCorrectionDistance != nil ||
+        !activeContextIDs.isEmpty ||
+        !canonicalizationReplacements.isEmpty ||
+        !canonicalizationSuggestions.isEmpty ||
+        !hypotheses.isEmpty ||
+        !hypothesisDetails.isEmpty ||
+        qwen3AdapterMetadata != nil ||
+        qwen3SpecialistRoutingMetadata != nil
+    }
+
+    var historyDisplayText: String {
+        Self.firstNonEmpty(
+            finalPastedText,
+            enhancedText,
+            selectedCandidate,
+            normalizedTranscript,
+            text
+        ) ?? text
+    }
+
+    var detailDisplayTexts: [TranscriptionDetailText] {
+        let normalizedText = Self.firstNonEmpty(normalizedTranscript, text) ?? text
+        let selectedText = Self.firstNonEmpty(selectedCandidate)
+        var items: [TranscriptionDetailText] = []
+        var seenTexts: Set<String> = []
+
+        if let rawText = Self.firstNonEmpty(rawTranscript),
+           !Self.isSameText(rawText, normalizedText),
+           !Self.isSameText(rawText, selectedText) {
+            Self.appendDetailText(
+                id: "raw-asr",
+                label: "Raw ASR",
+                text: rawText,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        } else if !Self.hasText(rawTranscript),
+                  Self.hasText(normalizedTranscript),
+                  !Self.isSameText(text, normalizedText) {
+            Self.appendDetailText(
+                id: "original",
+                label: "Original",
+                text: text,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        Self.appendDetailText(
+            id: "normalized",
+            label: Self.hasText(normalizedTranscript) ? "Normalized" : "Original",
+            text: normalizedText,
+            isEnhanced: false,
+            to: &items,
+            seenTexts: &seenTexts
+        )
+
+        if let selectedText,
+           !Self.isSameText(selectedText, normalizedText) {
+            Self.appendDetailText(
+                id: "selected",
+                label: "Selected",
+                text: selectedText,
+                isEnhanced: false,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        if let enhancedText = Self.firstNonEmpty(enhancedText) {
+            Self.appendDetailText(
+                id: "enhanced",
+                label: "Enhanced",
+                text: enhancedText,
+                isEnhanced: true,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        if let finalPastedText = Self.firstNonEmpty(finalPastedText) {
+            Self.appendDetailText(
+                id: "pasted",
+                label: "Pasted",
+                text: finalPastedText,
+                isEnhanced: true,
+                to: &items,
+                seenTexts: &seenTexts
+            )
+        }
+
+        return items
+    }
+
+    var powerModeName: String? {
+        get { modeName }
+        set { modeName = newValue }
+    }
+
+    var powerModeEmoji: String? {
+        get { modeEmoji }
+        set { modeEmoji = newValue }
+    }
+
+    func recordASRMetadata(
+        rawTranscript: String?,
+        normalizationResult: VocoNormalizationResult,
+        confidenceAssessment: VocoConfidenceAssessment,
+        asrEngineID: String?,
+        languageMode: String?
+    ) {
+        self.rawTranscript = rawTranscript
+        self.normalizedTranscript = normalizationResult.normalizedText
+        self.activeContextIDs = normalizationResult.activeContextIDs
+        self.canonicalizationReplacements = normalizationResult.replacements
+        self.canonicalizationSuggestions = normalizationResult.suggestions
+        self.asrEngineID = asrEngineID
+        self.languageMode = languageMode
+        self.confidenceScore = confidenceAssessment.score
+        self.confidenceRoute = confidenceAssessment.route.rawValue
+        self.confidenceReasons = confidenceAssessment.reasons
+        self.reviewTriggers = confidenceAssessment.reviewTriggers
+        self.hypotheses = confidenceAssessment.candidates
+        self.hypothesisLabels = confidenceAssessment.candidateLabels
+        self.hypothesisDetails = confidenceAssessment.hypothesisDetails
+        recordCorrectionRisk(confidenceAssessment.correctionRiskProfile)
+        self.selectedCandidate = confidenceAssessment.selectedCandidate
+        self.candidateSelectionSource = nil
+        self.autoApplyModelVersion = normalizationResult.autoApplyModelVersion
+        self.autoApplyModelGeneratedAt = normalizationResult.autoApplyModelGeneratedAt
+        self.autoApplyPolicyHitIDs = normalizationResult.autoApplyPolicyHitIDs
+    }
+
+    func recordCandidateSelectionSource(_ source: VocoCandidateSelectionSource) {
+        candidateSelectionSource = source.rawValue
+    }
+
+    func recordQwen3AdapterMetadata(_ metadata: Qwen3ASRAdapterMetadata) {
+        qwen3AdapterMetadata = metadata
+    }
+
+    func recordQwen3SpecialistRoutingMetadata(_ metadata: Qwen3ASRSpecialistRoutingMetadata?) {
+        qwen3SpecialistRoutingMetadata = metadata
+    }
+
+    func recordStyleGuardRejection(response: String, reasons: [String]) {
+        styleGuardRejectedText = response
+        styleGuardReasons = reasons
+    }
+
+    func recordPasteAttempt(text: String, didPostCommand: Bool) {
+        finalPastedText = text
+        pasteCommandPosted = didPostCommand
+    }
+
+    @discardableResult
+    func recordRetranscriptionAnalysis(source: Transcription) -> CorrectionFeedbackSignal? {
+        let sourceText = source.enhancedText?.isEmpty == false ? source.enhancedText! : source.text
+        let newText = enhancedText?.isEmpty == false ? enhancedText! : text
+        let analysis = RetranscriptionAnalyticsService.analyze(
+            sourceText: sourceText,
+            retranscribedText: newText,
+            sourceConfidenceScore: source.confidenceScore,
+            retranscribedConfidenceScore: confidenceScore
+        )
+
+        sourceTranscriptionID = source.id
+        retranscriptionSourceText = sourceText
+        retranscriptionAnalysis = analysis
+        userCorrectionDistance = analysis.changeRatio
+        let signal = CorrectionFeedbackService.retranscriptionSignal(
+            sourceText: sourceText,
+            retranscribedText: newText,
+            analysis: analysis,
+            confidenceScore: confidenceScore
+        )
+        recordCorrectionFeedback(signal)
+        return signal
+    }
+
+    func recordCorrectionFeedback(_ signal: CorrectionFeedbackSignal?) {
+        guard let signal else { return }
+        var signals = correctionFeedback
+        signals.append(signal)
+        correctionFeedback = signals
+    }
+
+    func markAsCanceledTranscription(
+        duration: TimeInterval? = nil,
+        modelName: String? = nil
+    ) {
+        text = Self.canceledTranscriptionText
+        enhancedText = nil
+        transcriptionStatus = TranscriptionStatus.canceled.rawValue
+        if let duration {
+            self.duration = duration
+        }
+        if let modelName {
+            transcriptionModelName = modelName
+        }
+        transcriptionDuration = nil
+        enhancementDuration = nil
+        aiEnhancementModelName = nil
+        promptName = nil
+        aiRequestSystemMessage = nil
+        aiRequestUserMessage = nil
+        normalizedTranscript = nil
+        finalPastedText = nil
+        pasteCommandPosted = nil
+        activeContextIDs = []
+        canonicalizationReplacements = []
+        canonicalizationSuggestions = []
+        asrEngineID = nil
+        languageMode = nil
+        confidenceScore = nil
+        confidenceRoute = nil
+        confidenceReasons = []
+        reviewTriggers = []
+        hypotheses = []
+        hypothesisLabels = []
+        hypothesisDetails = []
+        correctionRiskRate = nil
+        correctionRiskSampleCount = nil
+        correctionRiskCorrectedCount = nil
+        correctionRiskTermIDs = []
+        selectedCandidate = nil
+        candidateSelectionSource = nil
+        userCorrectionDistance = nil
+        styleGuardReasons = []
+        styleGuardRejectedText = nil
+        sourceTranscriptionID = nil
+        retranscriptionSourceText = nil
+        retranscriptionAnalysis = nil
+        correctionFeedback = []
+        qwen3AdapterMetadata = nil
+        qwen3SpecialistRoutingMetadata = nil
+    }
+
+    private func recordCorrectionRisk(_ profile: VocoCorrectionRiskProfile?) {
+        guard let profile else {
+            correctionRiskRate = nil
+            correctionRiskSampleCount = nil
+            correctionRiskCorrectedCount = nil
+            correctionRiskTermIDs = []
+            return
+        }
+
+        correctionRiskRate = profile.recentCorrectionRate
+        correctionRiskSampleCount = profile.recentSessionCount
+        correctionRiskCorrectedCount = profile.correctedSessionCount
+        correctionRiskTermIDs = profile.highRiskTermIDs
+    }
+
+    static func encodeJSON<T: Encodable>(_ value: T) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeQwen3AdapterMetadata(_ json: String?) -> Qwen3ASRAdapterMetadata? {
+        decodeJSON(json, as: Qwen3ASRAdapterMetadata.self)
+    }
+
+    private static func decodeJSON<T: Decodable>(_ json: String?, as type: T.Type) -> T? {
+        guard let json, let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    private static func hasText(_ value: String?) -> Bool {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private static func firstNonEmpty(_ values: String?...) -> String? {
+        values
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private static func isSameText(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs = lhs?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let rhs = rhs?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !lhs.isEmpty,
+              !rhs.isEmpty
+        else { return false }
+        return lhs == rhs
+    }
+
+    private static func appendDetailText(
+        id: String,
+        label: String,
+        text: String,
+        isEnhanced: Bool,
+        to items: inout [TranscriptionDetailText],
+        seenTexts: inout Set<String>
+    ) {
+        let displayText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayText.isEmpty,
+              seenTexts.insert(displayText).inserted
+        else { return }
+
+        items.append(
+            TranscriptionDetailText(
+                id: id,
+                label: label,
+                text: displayText,
+                isEnhanced: isEnhanced
+            )
+        )
+    }
+
+    private static func decodeStringArray(_ json: String?) -> [String] {
+        decodeJSON(json, as: [String].self) ?? []
+    }
+
+    private static func decodeReplacements(_ json: String?) -> [VocoReplacement] {
+        decodeJSON(json, as: [VocoReplacement].self) ?? []
+    }
+
+    private static func decodeReviewTriggers(_ json: String?) -> [VocoReviewTrigger] {
+        decodeJSON(json, as: [VocoReviewTrigger].self) ?? []
+    }
+
+    private static func decodeHypotheses(_ json: String?) -> [VocoHypothesis] {
+        decodeJSON(json, as: [VocoHypothesis].self) ?? []
+    }
+
+    private static func decodeRetranscriptionAnalysis(_ json: String?) -> RetranscriptionAnalysis? {
+        decodeJSON(json, as: RetranscriptionAnalysis.self)
+    }
+
+    private static func decodeCorrectionFeedback(_ json: String?) -> [CorrectionFeedbackSignal] {
+        decodeJSON(json, as: [CorrectionFeedbackSignal].self) ?? []
+    }
+}

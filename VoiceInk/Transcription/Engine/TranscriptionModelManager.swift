@@ -37,32 +37,14 @@ class TranscriptionModelManager: ObservableObject {
 
     var usableModels: [any TranscriptionModel] {
         allAvailableModels.filter { model in
+            if let isDownloaded = VocoModelDownloadStatus.isDownloaded(model) {
+                return isDownloaded
+            }
             switch model.provider {
             case .whisper:
                 return whisperModelManager?.availableModels.contains { $0.name == model.name } ?? false
             case .fluidAudio:
                 return fluidAudioModelManager?.isFluidAudioModelDownloaded(named: model.name) ?? false
-            case .qwen3:
-                if let qwen3Model = model as? Qwen3Model {
-                    return Qwen3ModelManager.isModelDownloaded(modelId: qwen3Model.modelId)
-                }
-                return false
-            case .whisperMLX:
-                if let mlxModel = model as? WhisperMLXModel {
-                    return WhisperMLXModelManager.isModelDownloaded(modelId: mlxModel.huggingFaceRepo)
-                }
-                return false
-            case .whisperCoreML:
-                if let coreMLModel = model as? WhisperCoreMLModel {
-                    return WhisperCoreMLModelManager.isModelDownloaded(modelId: coreMLModel.coremlModelId)
-                }
-                return false
-            case .qwen3CoreML:
-                if let qwen3CoreMLModel = model as? Qwen3CoreMLModel {
-                    return Qwen3CoreMLModelManager.isEncoderDownloaded(modelId: qwen3CoreMLModel.coremlModelId)
-                        && Qwen3ModelManager.isModelDownloaded(modelId: qwen3CoreMLModel.mlxModelId)
-                }
-                return false
             case .nativeApple:
                 if #available(macOS 26, *) { return true } else { return false }
             case .custom:

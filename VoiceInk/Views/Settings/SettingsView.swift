@@ -186,10 +186,7 @@ struct SettingsView: View {
 
             }
 
-            ChinesePostProcessingSettingsView()
-            AutoApplyModelSettingsView()
-            RuleAssistantSettingsView()
-            ASRContextBiasSettingsView()
+            VocoSettingsSections()
 
             Section("General") {
                 Toggle("Hide Dock Icon", isOn: $menuBarManager.isMenuBarOnly)

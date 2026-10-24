@@ -50,37 +50,6 @@ struct ModelCardView: View {
                         model: nativeAppleModel
                     )
                 }
-            case .qwen3:
-                if let qwen3Model = model as? Qwen3Model {
-                    Qwen3ModelCardRowView(
-                        model: qwen3Model,
-                        engine: engine,
-                        transcriptionModelManager: transcriptionModelManager
-                    )
-                }
-            case .whisperMLX:
-                if let whisperMLXModel = model as? WhisperMLXModel {
-                    WhisperMLXModelCardRowView(
-                        model: whisperMLXModel,
-                        engine: engine,
-                        transcriptionModelManager: transcriptionModelManager
-                    )
-                }
-            case .whisperCoreML:
-                if let coremlModel = model as? WhisperCoreMLModel {
-                    WhisperCoreMLModelCardRowView(
-                        model: coremlModel,
-                        transcriptionModelManager: transcriptionModelManager
-                    )
-                }
-            case .qwen3CoreML:
-                if let qwen3CoreMLModel = model as? Qwen3CoreMLModel {
-                    Qwen3CoreMLModelCardRowView(
-                        model: qwen3CoreMLModel,
-                        engine: engine,
-                        transcriptionModelManager: transcriptionModelManager
-                    )
-                }
             case .groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox, .speechmatics:
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(model: cloudModel)
@@ -97,6 +66,12 @@ struct ModelCardView: View {
                 if let cloudModel = model as? CloudModel {
                     CloudModelCardView(
                         model: cloudModel
+                    )
+                } else {
+                    VocoModelCardFactory.view(
+                        for: model,
+                        engine: engine,
+                        transcriptionModelManager: transcriptionModelManager
                     )
                 }
             }
