@@ -12,6 +12,78 @@ Refactor plan: [Voco/Docs/refactor-plan.md](Voco/Docs/refactor-plan.md).
 - Pre-stage-1 trial merge: **182 unmerged paths** (`UU 82`, `AU 58`, `UD 41`, `AA 1`).
 - Post-stage-1 trial merge: **121 unmerged paths** (`UU 79`, `AU 0`, `UD 41`, `AA 1`), accepted as the stage-1 gate on 2026-10-24. The reduction is 58 eliminated `AU` paths plus three eliminated `UU` paths from restoring `.gitignore`, `Makefile`, and `README.md` to upstream.
 
+## Stage 2 record (2026-10-24)
+
+Stage 2 is partial. It completed the low-risk D/U patches, the remaining localization-only views, and the R/E files that could move without touching the stage-3 pipeline. Core pipeline, registry, audio, paste and SwiftData schema hooks remain for stage 3.
+
+Trial merge against `22e5ec54` after stage 2: **99 unmerged paths** (`UU 62`, `UD 37`, `AA 0`). The stage-1 baseline was 121 (`UU 79`, `UD 41`, `AA 1`). 22 paths cleared, zero new paths.
+
+### Cleared paths
+
+| Path | Stage-1 status | Cleared by |
+|---|---|---|
+| `VoiceInk/Features/Modes/Views/ModeSettingsPanelView.swift` | UU | `b3783732` localization overrides |
+| `VoiceInk/Features/Modes/Views/ModeTriggerSection.swift` | UU | `b3783732` localization overrides |
+| `VoiceInk/Features/Onboarding/Components/AIProviderVerificationCard.swift` | UU | `b3783732` localization overrides |
+| `VoiceInk/Features/Onboarding/Views/OnboardingContextAwarenessScreen.swift` | UU | `b3783732` localization overrides |
+| `VoiceInk/Infrastructure/SystemIntegration/Context/BrowserURLService.swift` | UU | `b3783732` whitespace-only diff reverted |
+| `VoiceInk/Localizable.xcstrings` | AA | `b3783732`; upstream catalog restored, merged catalog lives in `Voco/Localization/` |
+| `VoiceInk/Modes/ModeView.swift` | UU | `b3783732` localization overrides |
+| `VoiceInk/Modes/ModeTriggerHelpers.swift` | UD | `f008c356` adopted upstream file at its new path |
+| `VoiceInk/Modes/TriggerInstalledApps.swift` | UD | `f008c356` adopted upstream file at its new path |
+| `VoiceInk/Services/UserDefaultsManager.swift` | UD | `f008c356` adopted upstream file at its new path (upstream has `modelUID`) |
+| `VoiceInk/Features/Recording/Presentation/MiniRecorderPanel.swift` | UU | `f008c356` adopted upstream file; `RecorderScreenResolver.swift` added |
+| `VoiceInk/Features/Recording/Presentation/NotchRecorderPanel.swift` | UU | `f008c356` adopted upstream file; `RecorderScreenResolver.swift` added |
+| `VoiceInk/Infrastructure/Providers/Transcription/Cloud/Streaming/SonioxStreamingProvider.swift` | UU | `f008c356` adopted upstream file (`stt-rt-v5`) |
+| `VoiceInk/App/AppIntents/DismissMiniRecorderIntent.swift` | UU | `b249d01a` adopted upstream file; brand via catalog |
+| `VoiceInk/App/AppIntents/ToggleMiniRecorderIntent.swift` | UU | `b249d01a` adopted upstream file; brand via catalog |
+| `VoiceInk/DesignSystem/Components/InfoTip.swift` | UU | `b249d01a` adopted upstream file |
+| `VoiceInk/Features/Modes/Templates/StarterModeTemplate.swift` | UU | `b249d01a` adopted upstream file (`String(localized:)` already upstream) |
+| `VoiceInk/Features/Onboarding/State/OnboardingPermissionModels.swift` | UU | `b249d01a` adopted upstream file |
+| `VoiceInk/Infrastructure/SystemIntegration/Paste/PasteMethod.swift` | UU | `b249d01a` adopted upstream file (adds upstream `directTyping`) |
+| `VoiceInk/App/MenuBar/MenuBarView.swift` | UU | `1af543b7` Voco view moved to `Voco/Sources/UI/VocoMenuBarView.swift` |
+| `VoiceInk/Features/History/Export/VoiceInkCSVExportService.swift` | UU | `1af543b7` Voco service moved to `Voco/Sources/Persistence/VocoCSVExportService.swift` |
+| `VoiceInk/Features/ModelLibrary/Models/LanguageDictionary.swift` | UU | `3ad2ca9c` Voco defaults moved to `Voco/Sources/ASR/VocoLanguageDefaults.swift` |
+
+### Fork-owned code added in stage 2
+
+- `Voco/Sources/UI/VocoMenuBarView.swift`: the fork menu bar (direct model, provider and language selection, async launch-at-login) now replaces the upstream view at the composition root in `VoiceInk/VoiceInk.swift`.
+- `Voco/Sources/Persistence/VocoCSVExportService.swift`: correction-aware CSV export; the two history views call it instead of the upstream service.
+- `Voco/Sources/ASR/VocoLanguageDefaults.swift`: `SelectedLanguage` key, `auto` default and `selectedLanguage(in:)` as an extension on `TranscriptionLanguageSupport`.
+- `Voco/Sources/UI/QueueItemStatus+Voco.swift`: localized queue phase labels; upstream `ProcessingPhase` raw values are untouched.
+- `VoiceInk/Features/Recording/Presentation/RecorderScreenResolver.swift`: upstream file added verbatim because the upstream recorder panels call it.
+
+### Deferred D/U patches
+
+These upstream files still carry a fork patch because the upstream replacement depends on structures that only arrive with the stage-3/4 merge.
+
+| Path | Why it cannot be adopted yet |
+|---|---|
+| `VoiceInk/Services/AudioDeviceManager.swift` | upstream file needs `AudioInputChannel`, `RecordingDeviceSession`, `ClamshellStateMonitor`, `AudioInputChannelSelection`; fork keeps base plus `modelUID`/rebind |
+| `VoiceInk/Transcription/Streaming/FluidAudioStreamingProvider.swift` | upstream file needs `StreamingStopDisposition`, `PCMAudioConverter`, `detectedSpeechSegments` |
+| `VoiceInk/Transcription/Cloud/SonioxProvider.swift` | upstream `CloudModel` no longer takes `speed`/`accuracy`; local model still does |
+| `VoiceInk/PlaybackController.swift` | upstream API requires a recording `sessionID` plumbed through `Recorder` |
+| `VoiceInk/Views/Settings/AudioSetupView.swift` | local `PrioritizedDevice` carries `modelUID`; upstream version uses the new audio device types |
+| `VoiceInk/Views/Recorder/MiniWindowManager.swift`, `NotchWindowManager.swift` | upstream rebuilt the panel lifecycle (`AssistantSession`, `show() -> Bool`, panel rebuilt per dictation); stage-3 recorder work |
+| `VoiceInk/Views/Onboarding/OnboardingLicenseScreen.swift`, `OnboardingLicenseCards.swift`, `OnboardingExperienceModels.swift` | upstream versions need `LicenseViewModel.hasVerifiedLicense` and the new experience-card fields |
+| `VoiceInk/Views/AI Models/APIKeyManagementView.swift`, `FluidAudioModelCardView.swift`, `WhisperModelCardView.swift`, `Onboarding/TranscriptionModelDownloadCard.swift` | upstream versions need `AppTheme.Action.destructiveFill/destructiveForeground`, `FluidAudioDownloadStatus.isIndeterminate`, `FluidAudioModelManager.cancelDownload`, `AIProvider.voiceInkRefine` |
+
+### Remaining upstream patches by area
+
+Every remaining path is a stage-3/4 hook that still needs the upstream structure from `22e5ec54`. They are counted here so a later stage can prove each one either disappears or is an intentional thin hook.
+
+| Area | Paths | Disposition | Why it is still patched |
+|---|---:|---|---|
+| `VoiceInk/Features/**` | 43 | H / S / R / L | recording workflows, dictionary learning UI, model library, settings, backup; stage 3 moves the pipeline and registry hooks, stage 4 adopts the new UI shells |
+| `VoiceInk/Views/**` (dashboard, history, recorder) | 15 | M / H | upstream deleted the old dashboard/history files; the replacement views are adopted in stage 4, with Voco panels and metadata hung on the new shells |
+| `VoiceInk/Infrastructure/**` | 11 | H / S / U | audio, persistence models, providers, accessibility; SwiftData stored fields must stay until the schema move is proven |
+| `VoiceInk/Services/**` (legacy paths) | 8 | H / I / D | identity logger patches and services whose upstream replacement is part of the new audio/persistence structure |
+| `VoiceInk/Transcription/**` (legacy paths) | 5 | H / U | delivery, output filter, word replacement and provider fixes that move with the stage-3 pipeline |
+| `VoiceInk/App/**` | 4 | H / R | prewarm, streaming-key migration, sidebar policy, notification actions |
+| `/Xcode/config` (`pbxproj`, `Package.resolved`, `appcast.xml`) | 3 | X | resolved only when the upstream project file is merged in stage 4 |
+| `VoiceInk/Models/**`, root app files, `Paste`, `DesignSystem` | 8 | H / S / I / R | legacy paths that upstream replaced; content moves in stage 3/4 |
+| `VoiceInkTests/VoiceInkTests.swift` | 1 | R | 4,867-line fork test file; split into `Voco/Tests/**/*ForkTests.swift` in stage 3 |
+
 ## Fork layout
 
 Stage 1 is a mechanical relocation only. It does not change class names, bundle IDs, App Group, UserDefaults keys, log subsystem, appcast URL, or feature logic.
@@ -56,7 +128,7 @@ The full `VoiceInkTests` suite is required. A known order-dependent failure may 
 
 ## Trial merge gate
 
-Run against the exact upstream commit above in a temporary detached worktree, collect `git diff --name-only --diff-filter=U`, then abort and remove the worktree. Stage 1 must produce exactly **124 unmerged paths**, with all 58 stage-0 `AU` paths gone. Do not deploy if this gate fails.
+Run against the exact upstream commit above in a temporary detached worktree, collect `git diff --name-only --diff-filter=U`, then abort and remove the worktree. Stage 1 produced **121 unmerged paths** (`UU 79`, `UD 41`, `AA 1`) after the stage-0 baseline of 182. Stage 2 produced **99** (`UU 62`, `UD 37`, `AA 0`). Do not deploy if a stage exceeds its baseline or if a cleared path cannot be matched to a removed patch.
 
 ## Release deployment
 
