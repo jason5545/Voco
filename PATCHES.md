@@ -84,6 +84,55 @@ Every remaining path is a stage-3/4 hook that still needs the upstream structure
 | `VoiceInk/Models/**`, root app files, `Paste`, `DesignSystem` | 8 | H / S / I / R | legacy paths that upstream replaced; content moves in stage 3/4 |
 | `VoiceInkTests/VoiceInkTests.swift` | 1 | R | 4,867-line fork test file; split into `Voco/Tests/**/*ForkTests.swift` in stage 3 |
 
+## Stage 2 remainder and stage 3 record (2026-10-24)
+
+Stage 2 remainder was completed by `572db7f8` (model structs/catalog, SwiftData extensions, backup DTO, settings, history metadata and fork views). Stage 3 core work is in `75309a35`, `ab3c1108`, `87349049`, `521c68da`, `30e4d748`, and `414d389b`.
+
+At `414d389b`, Debug build exited 0. The full `VoiceInkTests` xcresult contains 508 tests: 497 passed, 10 failed, 1 skipped; the 10 unique failures exactly match the stage-6 baseline with no new failures. Python tools finished `Ran 74 tests ... OK`.
+
+The third trial merge against `22e5ec54` is **97 unmerged paths** (`UU 60`, `UD 37`, `AA 0`), down from 99 with zero new paths. The two cleared paths are:
+
+| Cleared path | Patch removed |
+|---|---|
+| `VoiceInk/Features/AudioImport/State/TranscriptionResultView.swift` | `TranscriptionTab.localizedName` moved to `Voco/Sources/UI/TranscriptionTab+Voco.swift`; enum cases/raw behavior stay unchanged |
+| `VoiceInk/Features/ModelLibrary/State/TranscriptionModelManager.swift` | Voco provider download checks moved to `Voco/Sources/ASR/VocoModelDownloadStatus.swift`; the manager calls one augmentation |
+
+### Required upstream hooks left after stage 3
+
+These are intentional hooks, not forgotten logic. The current path is the pre-merge fork path; the upstream path is the location read at `22e5ec54` and used for the trial merge. The final column records why the hook must remain in the upstream-owned file.
+
+| Current path / upstream path | Hook and Voco owner | Why it must remain |
+|---|---|---|
+| `Models/TranscriptionModel.swift` → `Features/ModelLibrary/Models/TranscriptionModel.swift` | Four provider enum cases; structs in `ASR/Models.swift` | Enum cases cannot be added in an extension; persisted raw values must stay |
+| `Models/TranscriptionModelRegistry.swift` → `Features/ModelLibrary/Models/TranscriptionModelRegistry.swift` | One `VocoModelCatalog.augment` call | Upstream owns the base catalog composition |
+| `Transcription/Engine/TranscriptionModelManager.swift` → `Features/ModelLibrary/State/TranscriptionModelManager.swift` | One `VocoModelDownloadStatus.isDownloaded` augmentation (conflict cleared) | Upstream owns usable-model filtering |
+| `Models/Transcription.swift` → `Infrastructure/Persistence/Models/Transcription.swift` | Voco stored fields and designated init; computed/record logic in `Persistence/Transcription+Voco.swift` | SwiftData stored properties and their original names cannot move into an extension |
+| `Models/SessionMetric.swift` → `Infrastructure/Persistence/Models/SessionMetric.swift` | Voco stored fields and init; calculations in `SessionMetric+Voco.swift` | Same SwiftData schema constraint |
+| `Models/WordReplacement.swift` → `Infrastructure/Persistence/Models/WordReplacement.swift` | `source`, `hitCount`, `lastSeenDate` and init; learning computed state in `WordReplacement+Voco.swift` | Learning metadata must remain persisted; upstream all-enabled semantics are not adopted |
+| `Services/BackupTypes.swift` → `Features/Settings/Backup/BackupTypes.swift` | Optional Voco DTO fields/CodingKeys; `WordReplacementBackup` in `Persistence/VocoBackupTypes.swift` | Backup decoding requires these optional fields in `BackupFile` |
+| `Views/Settings/SettingsView.swift` → `Features/Settings/Views/SettingsView.swift` | One `VocoSettingsSections` slot | Upstream owns the Form and navigation shell |
+| `EmailSupport.swift` → `Features/Settings/Support/EmailSupport.swift` | Public entry forwards to `UI/VocoSupport.swift` | Existing support entry is called by the upstream UI |
+| `Views/Dictionary/VocabularyView.swift` → `Features/Dictionary/Views/VocabularyView.swift` | One `VocoRimeImportSection` slot | Rime UI is fork-owned; the base vocabulary layout is upstream-owned |
+| `Views/History/TranscriptionListItem.swift` → `Features/History/Components/TranscriptionListItem.swift` | One `TranscriptionAssistiveBadgeRow` slot in `UI/VocoTranscriptionMetadataSection.swift` | Upstream owns cell selection/background |
+| `Views/Common/TranscriptionInfoPanel.swift` → `Features/History/Views/TranscriptionInfoPanel.swift` | One `VocoCorrectionMetadataRows` slot | Upstream owns the generic details/AI-request panel |
+| `Views/AI Models/ModelCardView.swift` → `Features/ModelLibrary/Components/ModelCardView.swift` | Default dispatch to `UI/VocoModelCardFactory.swift` | Upstream owns the common model-card dispatch |
+| `Views/AI Models/ModelManagementView.swift` → `Features/ModelLibrary/Views/ModelManagementView.swift` | Local-model predicate delegates to `ASR/VocoModelCatalog.swift` | Upstream owns model-management composition |
+| `Services/LastTranscriptionService.swift` → `Features/History/Workflows/LastTranscriptionService.swift` | Output selection supplied by `Persistence/VocoTranscriptionOutput.swift` | Upstream owns fetch/copy/paste/retry entries |
+| `Transcription/Engine/TranscriptionServiceRegistry.swift` → `Features/Recording/Workflows/TranscriptionServiceRegistry.swift` | `VocoTranscriptionServiceRegistry` subclass overrides `service(for:)` and `cleanup()` | Upstream owns the registry protocol/composition; Voco services cannot be added without a subclass hook |
+| `Transcription/Engine/VoiceInkEngine.swift` → `Features/Recording/Workflows/VoiceInkEngine.swift` | One subclass instance, `VocoEngineCoordinator`, `VocoRecordingStartFlow` | This is the composition root. Prewarm, file retranscribe and queue all use `engine.serviceRegistry`; no second registry exists |
+| `Transcription/Engine/TranscriptionPipeline.swift` → `Features/Recording/Workflows/TranscriptionPipeline.swift` | Exactly four calls to `VocoTranscriptionProcessor`: `afterASR`, `postEnhancement`, `preDelivery`, `record` | Upstream retains generic transcribe/cancel/enhance/deliver/save sequencing; fork correction and Edit Mode run only in Voco |
+| `Transcription/Engine/TranscriptionService.swift` → `Features/Recording/Workflows/TranscriptionService.swift` | Base context has only language/prompt; adapter option is wrapped by `ASR/VocoASRRequestContext.swift` | Qwen adapter policy must not change the upstream request struct |
+| `CoreAudioRecorder.swift` → `Infrastructure/Audio/CoreAudioRecorder.swift` | `VocoAudioRenderPipeline` allocate/process/flush/reset/free calls | Only RNNoise/mono buffering is fork-specific; upstream already has ring/atomics/invalidate |
+| `Paste/CursorPaster.swift` → `Infrastructure/SystemIntegration/Paste/CursorPaster.swift` | Public entries forward to `Paste/VocoPasteService.swift` | Target guard, landing retry and restore lineage are fork behavior; upstream `PasteOutcome`/directTyping migration is stage 4 |
+| `Paste/ClipboardManager.swift` → `Infrastructure/SystemIntegration/Paste/ClipboardManager.swift` | Recording-context read supplied by `Paste/ClipboardCoordination.swift` | Generic set/copy/get stays upstream; Voco owns transaction/context policy |
+| `Services/SelectedTextService.swift` → `Infrastructure/SystemIntegration/Accessibility/SelectedTextService.swift` | Public entries forward to `Context/VocoSelectionService.swift` | AX evidence, Electron markers and clipboard locking cannot use upstream's simplified 35-line capture |
+| `Services/AIEnhancement/AIEnhancementService.swift` → `Features/Enhancement/Workflows/AIEnhancementService.swift` | `vocoContext`, system-message builder, requester and clear hooks; raw `makeRequest`/retry and override entry remain | Provider transport stays upstream; Edit Mode requires the system/user override entry and Voco owns its context/prompt policy |
+| `Transcription/Engine/TranscriptionDelivery.swift` → `Features/Recording/Workflows/TranscriptionDelivery.swift` | Paste branch forwards to `Paste/VocoDelivery.swift` | Upstream owns delivery modes; Voco records paste outcome and auto-send behavior |
+| `Services/AudioFileTranscriptionManager.swift` → `Features/AudioImport/Workflows/AudioFileTranscriptionManager.swift` | Uses `engine.serviceRegistry` and `VocoASRRequestContext` with adapter disabled | File import must share resident models without enabling the adapter |
+| `Services/AudioFileTranscriptionService.swift` → `Features/History/Workflows/AudioFileTranscriptionService.swift` | Uses `engine.serviceRegistry` and `VocoASRRequestContext` with adapter disabled | Same shared-registry and retranscription constraints |
+
+The other paths in the 97-path appendix are the already registered deferred D/U dependencies, stage-4 M/R shells, localization/identity patches, and Xcode/release configuration from the tables above. No unexplained path was added. Upstream `transcribeCpp`, direct typing, AutoLearn, the new Dashboard/History shells, and new audio device types were not backported during stage 3.
+
 ## Fork layout
 
 Stage 1 is a mechanical relocation only. It does not change class names, bundle IDs, App Group, UserDefaults keys, log subsystem, appcast URL, or feature logic.
@@ -128,7 +177,7 @@ The full `VoiceInkTests` suite is required. A known order-dependent failure may 
 
 ## Trial merge gate
 
-Run against the exact upstream commit above in a temporary detached worktree, collect `git diff --name-only --diff-filter=U`, then abort and remove the worktree. Stage 1 produced **121 unmerged paths** (`UU 79`, `UD 41`, `AA 1`) after the stage-0 baseline of 182. Stage 2 produced **99** (`UU 62`, `UD 37`, `AA 0`). Do not deploy if a stage exceeds its baseline or if a cleared path cannot be matched to a removed patch.
+Run against the exact upstream commit above in a temporary detached worktree, collect `git diff --name-only --diff-filter=U`, then abort and remove the worktree. Stage 1 produced **121 unmerged paths** (`UU 79`, `UD 41`, `AA 1`) after the stage-0 baseline of 182. Stage 2 produced **99** (`UU 62`, `UD 37`, `AA 0`). Stage 3 produced **97** (`UU 60`, `UD 37`, `AA 0`). Do not deploy if a stage exceeds its baseline or if a cleared path cannot be matched to a removed patch.
 
 ## Release deployment
 
@@ -166,9 +215,9 @@ Stage 2 deployment (2026-10-24):
 - Checks after deployment: 30-second liveness, `codesign --verify --deep` exit 0, entitlements byte-identical (`diff` empty), `com.jasonchien.Voco` / `2.0 (179)` unchanged, no crash report after launch. SwiftData row counts were identical before and after: transcriptions 33,095, word replacements 355, session metrics 31,521.
 - Qwen3 file smoke: `Qwen3ASRAdapterTests/edgeTTSCenturyWindStockQuoteSpecialSmokeUsesAdapter` was forced with `VOCO_QWEN3_ADAPTER_EDGE_TTS_SMOKE=1` and passed (company, stock code, price and adapter assertions). Runtime replay via `voco_runtime_correction_control.py replayGate` returned `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
 
-### Appendix: remaining patched upstream paths (99)
+### Appendix: remaining patched upstream paths (97)
 
-Generated from the stage-2 trial merge. Every path below is an upstream file whose fork change is still present; status is the merge state against `22e5ec54`.
+Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.
 
 - `UU` `VoiceInk.xcodeproj/project.pbxproj`
 - `UU` `VoiceInk.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
@@ -178,7 +227,6 @@ Generated from the stage-2 trial merge. Every path below is an upstream file who
 - `UU` `VoiceInk/App/Notifications/NotificationManager.swift`
 - `UD` `VoiceInk/AppDefaults.swift`
 - `UU` `VoiceInk/DesignSystem/Components/AppControls.swift`
-- `UU` `VoiceInk/Features/AudioImport/State/TranscriptionResultView.swift`
 - `UU` `VoiceInk/Features/AudioImport/Views/AudioFileRow.swift`
 - `UU` `VoiceInk/Features/AudioImport/Workflows/AudioFileTranscriptionManager.swift`
 - `UU` `VoiceInk/Features/Dictionary/Views/DictionarySettingsView.swift`
@@ -193,7 +241,6 @@ Generated from the stage-2 trial merge. Every path below is an upstream file who
 - `UU` `VoiceInk/Features/ModelLibrary/Models/TranscriptionModel.swift`
 - `UU` `VoiceInk/Features/ModelLibrary/Models/TranscriptionModelRegistry.swift`
 - `UU` `VoiceInk/Features/ModelLibrary/State/CustomCloudModelManager.swift`
-- `UU` `VoiceInk/Features/ModelLibrary/State/TranscriptionModelManager.swift`
 - `UU` `VoiceInk/Features/ModelLibrary/Views/APIKeyManagementView.swift`
 - `UU` `VoiceInk/Features/ModelLibrary/Views/CustomProviderManagementView.swift`
 - `UU` `VoiceInk/Features/ModelLibrary/Views/ModelManagementView.swift`

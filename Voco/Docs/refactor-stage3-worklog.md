@@ -41,3 +41,11 @@
 - `engine.serviceRegistry` 是唯一 registry；prewarm 必接同一實例。
 - 所有仍在上游檔案的 hook 最後登錄到 `PATCHES.md`，含位置、用途與不能搬的原因。
 - 不 push；Release 部署後停在第 3 階段，等 Jason 手動驗收。
+
+## 實作與驗收狀態
+
+- 第 2 階段剩餘：`572db7f8`。
+- 第 3 階段核心：`75309a35`、`ab3c1108`、`87349049`、`521c68da`、`30e4d748`、`414d389b`。
+- Debug build 通過。最終完整 suite 為 508 個測試、497 通過、10 失敗、1 略過；10 個唯一失敗與第 6 節基線完全相同。Python 為 `Ran 74 tests ... OK`。
+- 最終第三次試合併為 97 條（`UU 60`、`UD 37`），比 99 少 2，沒有新增路徑。兩個 cleared paths 是 `TranscriptionResultView` 與 `TranscriptionModelManager`。
+- 所有薄掛點、必要 schema 與其他 97 條的分類已登錄 `PATCHES.md`。
