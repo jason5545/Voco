@@ -197,6 +197,18 @@ class Qwen3TranscriptionService: TranscriptionService {
         model: any TranscriptionModel,
         context: TranscriptionRequestContext
     ) async throws -> String {
+        try await transcribe(
+            audioURL: audioURL,
+            model: model,
+            context: VocoASRRequestContext(base: context)
+        )
+    }
+
+    func transcribe(
+        audioURL: URL,
+        model: any TranscriptionModel,
+        context: VocoASRRequestContext
+    ) async throws -> String {
         guard let qwen3Model = model as? Qwen3Model else {
             throw Qwen3ServiceError.invalidModel
         }

@@ -1,13 +1,9 @@
-// TranscriptionPipeline+ForkFeatures.swift
-// Fork-specific pipeline features: Edit Mode branch and Context-Aware Insertion.
-// Isolated from TranscriptionPipeline.swift to minimize upstream merge conflicts.
-
 import Foundation
 import SwiftData
 import AppKit
 import os
 
-extension TranscriptionPipeline {
+extension VocoTranscriptionProcessor {
 
     // MARK: - Edit Mode Branch
 

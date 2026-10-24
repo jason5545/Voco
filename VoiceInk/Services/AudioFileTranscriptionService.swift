@@ -54,7 +54,7 @@ class AudioTranscriptionService: ObservableObject {
                 for: model,
                 realtimeEnabled: mode?.isRealtimeTranscriptionEnabled
             )
-            let requestContext = TranscriptionRequestContext(
+            let requestContext = VocoASRRequestContext(
                 language: language,
                 prompt: UserDefaults.standard.string(forKey: "TranscriptionPrompt"),
                 usesQwen3AudioAdapter: false

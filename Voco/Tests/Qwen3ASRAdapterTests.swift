@@ -262,7 +262,7 @@ struct Qwen3ASRAdapterTests {
     }
 
     @Test func requestContextDefaultsToAdapterButAudioFileCallersCanDisableIt() throws {
-        let defaultContext = TranscriptionRequestContext(language: "Chinese", prompt: nil)
+        let defaultContext = VocoASRRequestContext(language: "Chinese", prompt: nil)
         #expect(defaultContext.usesQwen3AudioAdapter)
 
         let fileContext = defaultContext.withQwen3AudioAdapter(false)

@@ -62,10 +62,7 @@ final class CoreAudioRecorder: @unchecked Sendable {
     private var renderBuffer: UnsafeMutablePointer<Float32>?
     private var renderBufferSize: UInt32 = 0
 
-    // RNNoise denoising
-    private let rnnoiseProcessor = RNNoiseProcessor()
-    private var monoBuffer: UnsafeMutablePointer<Float32>?
-    private var monoBufferSize: UInt32 = 0
+    private let vocoRenderPipeline = VocoAudioRenderPipeline()
 
     // Move conversion and file I/O off the real-time callback. The ring is bounded;
     // when the consumer falls behind, the callback records an overflow and returns
@@ -209,11 +206,11 @@ final class CoreAudioRecorder: @unchecked Sendable {
         }
 
         drainAudioProcessingQueue()
-        let (flushPtr, flushCount) = rnnoiseProcessor.flush()
+        let (flushPtr, flushCount) = vocoRenderPipeline.flush()
         if flushCount > 0 {
             writeConvertedMonoToFile(monoInput: flushPtr, monoFrameCount: UInt32(flushCount))
         }
-        rnnoiseProcessor.reset()
+        vocoRenderPipeline.reset()
         logDroppedInputBufferCounters(context: "stop")
 
         closeOutputFile()
@@ -353,7 +350,7 @@ final class CoreAudioRecorder: @unchecked Sendable {
         )
 
         // Reset RNNoise state for the new device
-        rnnoiseProcessor.reset()
+        vocoRenderPipeline.reset()
 
         // Update stored format
         deviceFormat = newDeviceFormat
@@ -538,7 +535,7 @@ final class CoreAudioRecorder: @unchecked Sendable {
         )
 
         // Reset RNNoise state for new recording
-        rnnoiseProcessor.reset()
+        vocoRenderPipeline.reset()
     }
 
     private func allocateAudioBuffers(
@@ -554,11 +551,7 @@ final class CoreAudioRecorder: @unchecked Sendable {
             renderBufferSize = bufferSamples
         }
 
-        if maxFrames > monoBufferSize {
-            monoBuffer?.deallocate()
-            monoBuffer = UnsafeMutablePointer<Float32>.allocate(capacity: Int(maxFrames))
-            monoBufferSize = maxFrames
-        }
+        vocoRenderPipeline.allocate(maxFrames: maxFrames)
 
         if inputBufferCapacitySamples != bufferSamples || inputBufferSlots.count != inputRingSlotCount {
             inputBufferSlots.removeAll()
@@ -732,17 +725,11 @@ final class CoreAudioRecorder: @unchecked Sendable {
             renderBufferSize = 0
         }
 
-        if let buffer = monoBuffer {
-            buffer.deallocate()
-            monoBuffer = nil
-            monoBufferSize = 0
-        }
-
         inputBufferSlots.removeAll()
         inputBufferCapacitySamples = 0
         resetAudioProcessingState()
 
-        rnnoiseProcessor.reset()
+        vocoRenderPipeline.freeBuffers()
     }
 
     private func resetMeters() {
@@ -836,26 +823,6 @@ final class CoreAudioRecorder: @unchecked Sendable {
         )
 
         return noErr
-    }
-
-    private func mixToMono(from bufferList: inout AudioBufferList, frameCount: UInt32, output: UnsafeMutablePointer<Float32>) {
-        guard let inputData = bufferList.mBuffers.mData else { return }
-        let samples = inputData.assumingMemoryBound(to: Float32.self)
-        let channelCount = Int(deviceFormat.mChannelsPerFrame)
-
-        if channelCount == 1 {
-            // Already mono, just copy
-            memcpy(output, samples, Int(frameCount) * MemoryLayout<Float32>.size)
-        } else {
-            let invChannels = 1.0 / Float32(channelCount)
-            for i in 0..<Int(frameCount) {
-                var sum: Float32 = 0
-                for ch in 0..<channelCount {
-                    sum += samples[i * channelCount + ch]
-                }
-                output[i] = sum * invChannels
-            }
-        }
     }
 
     private func calculateMeters(from bufferList: inout AudioBufferList, frameCount: UInt32) {
@@ -997,24 +964,14 @@ final class CoreAudioRecorder: @unchecked Sendable {
         inputChannels: UInt32,
         inputSampleRate: Double
     ) {
-        guard let monoBuf = monoBuffer, frameCount <= monoBufferSize, inputChannels > 0 else { return }
-        let channels = Int(inputChannels)
-        for i in 0..<Int(frameCount) {
-            var sample: Float32 = 0
-            for ch in 0..<channels {
-                sample += inputSamples[i * channels + ch]
-            }
-            monoBuf[i] = sample / Float32(inputChannels)
-        }
-
-        let (denoisedPtr, denoisedCount) = rnnoiseProcessor.process(
-            input: monoBuf,
-            frameCount: Int(frameCount)
-        )
-        guard denoisedCount > 0 else { return }
+        guard let output = vocoRenderPipeline.process(
+            inputSamples: inputSamples,
+            frameCount: frameCount,
+            inputChannels: inputChannels
+        ) else { return }
         writeConvertedMonoToFile(
-            monoInput: denoisedPtr,
-            monoFrameCount: UInt32(denoisedCount),
+            monoInput: output.samples,
+            monoFrameCount: UInt32(output.frameCount),
             inputSampleRate: inputSampleRate
         )
     }

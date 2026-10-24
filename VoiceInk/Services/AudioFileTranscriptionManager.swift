@@ -147,7 +147,10 @@ class AudioTranscriptionManager: ObservableObject {
             // Phase: Transcribing
             item.status = .processing(phase: .transcribing)
             let transcriptionStart = Date()
-            let requestContext = transcriptionConfiguration.requestContext.withQwen3AudioAdapter(false)
+            let requestContext = VocoASRRequestContext(
+                base: transcriptionConfiguration.requestContext,
+                usesQwen3AudioAdapter: false
+            )
             var text = try await serviceRegistry.transcribe(
                 audioURL: permanentURL,
                 model: currentModel,
