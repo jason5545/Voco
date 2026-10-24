@@ -126,24 +126,16 @@ extension VoiceInkEngine {
     }
 }
 
-// MARK: - Fork Feature Stored Properties
-
-// These use associated objects since Swift extensions cannot add stored properties.
 extension VoiceInkEngine {
     var dictionaryDismissTimer: DispatchWorkItem? {
-        get { objc_getAssociatedObject(self, &ForkFeatureKeys.dictionaryDismissTimer) as? DispatchWorkItem }
-        set { objc_setAssociatedObject(self, &ForkFeatureKeys.dictionaryDismissTimer, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+        get { forkState.dictionaryDismissTimer }
+        set { forkState.dictionaryDismissTimer = newValue }
     }
 
     var deferredModelCleanupTask: Task<Void, Never>? {
-        get { objc_getAssociatedObject(self, &ForkFeatureKeys.deferredModelCleanupTask) as? Task<Void, Never> }
-        set { objc_setAssociatedObject(self, &ForkFeatureKeys.deferredModelCleanupTask, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+        get { forkState.deferredModelCleanupTask }
+        set { forkState.deferredModelCleanupTask = newValue }
     }
 
     var modelKeepAliveSecondsKey: String { "ModelKeepAliveSeconds" }
-}
-
-private enum ForkFeatureKeys {
-    nonisolated(unsafe) static var dictionaryDismissTimer = "dictionaryDismissTimer"
-    nonisolated(unsafe) static var deferredModelCleanupTask = "deferredModelCleanupTask"
 }

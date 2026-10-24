@@ -23,7 +23,7 @@ class TranscriptionPipeline {
     }
 
     let modelContext: ModelContext
-    private let serviceRegistry: TranscriptionServiceRegistry
+    private let serviceRegistry: VocoTranscriptionServiceRegistry
     let enhancementService: AIEnhancementService?
     private let delivery = TranscriptionDelivery()
     let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionPipeline")
@@ -33,7 +33,7 @@ class TranscriptionPipeline {
 
     init(
         modelContext: ModelContext,
-        serviceRegistry: TranscriptionServiceRegistry,
+        serviceRegistry: VocoTranscriptionServiceRegistry,
         enhancementService: AIEnhancementService?
     ) {
         self.modelContext = modelContext

@@ -17,10 +17,6 @@ class TranscriptionServiceRegistry {
     private(set) lazy var cloudTranscriptionService = CloudTranscriptionService(modelContext: modelContext)
     private(set) lazy var nativeAppleTranscriptionService = NativeAppleTranscriptionService()
     private(set) lazy var fluidAudioTranscriptionService = FluidAudioTranscriptionService()
-    private(set) lazy var qwen3TranscriptionService = Qwen3TranscriptionService()
-    private(set) lazy var whisperMLXTranscriptionService = WhisperMLXTranscriptionService()
-    private(set) lazy var whisperCoreMLTranscriptionService = WhisperCoreMLTranscriptionService()
-    private(set) lazy var qwen3CoreMLTranscriptionService = Qwen3CoreMLTranscriptionService()
 
     init(modelProvider: any WhisperModelProvider, modelsDirectory: URL, modelContext: ModelContext) {
         self.modelProvider = modelProvider
@@ -34,14 +30,6 @@ class TranscriptionServiceRegistry {
             return localTranscriptionService
         case .fluidAudio:
             return fluidAudioTranscriptionService
-        case .qwen3:
-            return qwen3TranscriptionService
-        case .whisperMLX:
-            return whisperMLXTranscriptionService
-        case .whisperCoreML:
-            return whisperCoreMLTranscriptionService
-        case .qwen3CoreML:
-            return qwen3CoreMLTranscriptionService
         case .nativeApple:
             return nativeAppleTranscriptionService
         default:
@@ -55,7 +43,6 @@ class TranscriptionServiceRegistry {
         return try await service.transcribe(audioURL: audioURL, model: model, context: context)
     }
 
-    /// Creates a streaming or file-based session for the resolved transcription configuration.
     func createSession(for configuration: TranscriptionRuntimeConfiguration, onPartialTranscript: ((String) -> Void)? = nil) -> TranscriptionSession {
         let model = configuration.model
 
@@ -72,16 +59,11 @@ class TranscriptionServiceRegistry {
         }
     }
 
-    /// Whether the resolved transcription configuration should use real-time transcription.
     func shouldUseRealtimeTranscription(for configuration: TranscriptionRuntimeConfiguration) -> Bool {
         configuration.isRealtimeEnabled
     }
 
     func cleanup() async {
         await fluidAudioTranscriptionService.cleanup()
-        await whisperMLXTranscriptionService.cleanup()
-        await qwen3TranscriptionService.cleanup()
-        await whisperCoreMLTranscriptionService.cleanup()
-        await qwen3CoreMLTranscriptionService.cleanup()
     }
 }

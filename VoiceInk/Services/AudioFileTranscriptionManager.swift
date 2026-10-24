@@ -113,11 +113,7 @@ class AudioTranscriptionManager: ObservableObject {
     }
 
     private func processItem(_ item: AudioFileQueueItem, modelContext: ModelContext, engine: VoiceInkEngine, mode: ModeConfig) async {
-        let serviceRegistry = TranscriptionServiceRegistry(
-            modelProvider: engine.whisperModelManager,
-            modelsDirectory: engine.whisperModelManager.modelsDirectory,
-            modelContext: modelContext
-        )
+        let serviceRegistry = engine.serviceRegistry
 
         do {
             guard let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(

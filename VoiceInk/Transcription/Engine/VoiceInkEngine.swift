@@ -5,85 +5,6 @@ import SwiftData
 import AppKit
 import os
 
-/// Serializes the handoff from the recording-start buffer to a live streaming
-/// callback. New chunks cannot overtake chunks captured before session.prepare()
-/// completes, and the bounded buffer keeps startup memory finite.
-final class RealtimeAudioChunkGate: @unchecked Sendable {
-    private struct State {
-        var callback: ((Data) -> Void)?
-        var isActive = false
-        var droppedChunks = 0
-    }
-
-    let pendingChunks: OSAllocatedUnfairLock<[Data]>
-    private let maxBufferedChunks = 2_048
-    private let state = OSAllocatedUnfairLock(initialState: State())
-
-    init() {
-        pendingChunks = OSAllocatedUnfairLock(initialState: [])
-    }
-
-    func receive(_ data: Data) {
-        let callback = state.withLock { state -> ((Data) -> Void)? in
-            guard state.isActive else {
-                pendingChunks.withLock { chunks in
-                    if chunks.count < maxBufferedChunks {
-                        chunks.append(data)
-                    } else {
-                        state.droppedChunks += 1
-                    }
-                }
-                return nil
-            }
-            return state.callback
-        }
-        callback?(data)
-    }
-
-    func activate(_ callback: @escaping (Data) -> Void) {
-        state.withLock { state in
-            state.callback = callback
-            state.isActive = false
-        }
-
-        while true {
-            let chunks = pendingChunks.withLock { chunks -> [Data] in
-                let result = chunks
-                chunks.removeAll(keepingCapacity: true)
-                return result
-            }
-            for chunk in chunks {
-                callback(chunk)
-            }
-
-            let shouldFinish = state.withLock { state -> Bool in
-                let hasPending = pendingChunks.withLock { !$0.isEmpty }
-                if !hasPending {
-                    state.isActive = true
-                }
-                return !hasPending
-            }
-            if shouldFinish { return }
-        }
-    }
-
-    func reset() {
-        state.withLock { state in
-            state.callback = nil
-            state.isActive = false
-            pendingChunks.withLock { $0.removeAll(keepingCapacity: false) }
-        }
-    }
-
-    func takeDroppedChunkCount() -> Int {
-        state.withLock { state in
-            let count = state.droppedChunks
-            state.droppedChunks = 0
-            return count
-        }
-    }
-}
-
 @MainActor
 class VoiceInkEngine: NSObject, ObservableObject {
     private enum RecordingUseCase {
@@ -107,8 +28,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
     private var activePipelineUseCase: RecordingUseCase = .newSession
     private var activeRecordingContextStore: RecordingContextSnapshotStore?
     private var activeRecordingContextTasks: [Task<Void, Never>] = []
-    private var capturedFrontAppPID: pid_t?
 
+    let vocoCoordinator = VocoEngineCoordinator()
     let recorder = Recorder()
     var recordedFile: URL? = nil
     let recordingsDirectory: URL
@@ -120,7 +41,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
     weak var prewarmService: ModelPrewarmService?
 
     let modelContext: ModelContext
-    internal let serviceRegistry: TranscriptionServiceRegistry
+    internal let serviceRegistry: VocoTranscriptionServiceRegistry
     let enhancementService: AIEnhancementService?
     let assistantSession = AssistantSession()
     let assistantChat: AssistantChatService?
@@ -149,7 +70,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
         self.recordingsDirectory = AppIdentifiers.appSupportDirectory.appendingPathComponent("Recordings")
 
-        self.serviceRegistry = TranscriptionServiceRegistry(
+        self.serviceRegistry = VocoTranscriptionServiceRegistry(
             modelProvider: whisperModelManager,
             modelsDirectory: whisperModelManager.modelsDirectory,
             modelContext: modelContext
@@ -162,6 +83,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
         super.init()
 
+        vocoCoordinator.forwardChanges(to: self)
         setupNotifications()
         createRecordingsDirectoryIfNeeded()
     }
@@ -259,7 +181,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
             StartupTracer.checkpoint("toggleRecord_active_config_started")
 
             do {
-                let startFlow = try await EngineRecordingStartFlow.run(
+                let startFlow = try await VocoRecordingStartFlow.run(
                     makeRecordingURL: {
                         let fileName = "\(UUID().uuidString).wav"
                         return self.recordingsDirectory.appendingPathComponent(fileName)
@@ -792,51 +714,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 await context.setPrompt(currentPrompt)
             }
         }
-    }
-}
-
-@MainActor
-enum EngineRecordingStartFlow {
-    struct Output {
-        let recordingURL: URL
-        let pendingChunks: OSAllocatedUnfairLock<[Data]>
-        let realtimeAudioGate: RealtimeAudioChunkGate
-    }
-
-    static func run(
-        makeRecordingURL: @MainActor () -> URL,
-        setRecordedFile: @MainActor (URL) -> Void,
-        setAudioChunkCallback: @MainActor (@escaping (Data) -> Void) -> Void,
-        setRecordingStateStarting: @MainActor () -> Void,
-        scheduleSystemMute: @MainActor () -> Void,
-        startRecording: @MainActor (URL) async throws -> Void,
-        checkpoint: @MainActor (String) -> Void = { StartupTracer.checkpoint($0) },
-        endTrace: @MainActor (String) -> Void = { StartupTracer.end($0) }
-    ) async throws -> Output {
-        let recordingURL = makeRecordingURL()
-        setRecordedFile(recordingURL)
-        checkpoint("toggleRecord_recording_file_prepared")
-
-        let realtimeAudioGate = RealtimeAudioChunkGate()
-        let pendingChunks = realtimeAudioGate.pendingChunks
-        setAudioChunkCallback { data in
-            realtimeAudioGate.receive(data)
-        }
-        checkpoint("toggleRecord_audio_callback_set")
-
-        setRecordingStateStarting()
-        checkpoint("toggleRecord_state_set_starting")
-        scheduleSystemMute()
-
-        checkpoint("toggleRecord_before_startRecording")
-        try await startRecording(recordingURL)
-        endTrace("recorder_startRecording_done")
-
-        return Output(
-            recordingURL: recordingURL,
-            pendingChunks: pendingChunks,
-            realtimeAudioGate: realtimeAudioGate
-        )
     }
 }
 
