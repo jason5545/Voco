@@ -8,18 +8,6 @@ import LLMkit
 class AIEnhancementService: ObservableObject {
     private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "AIEnhancementService")
 
-    var isEnhancementEnabled: Bool {
-        get {
-            currentRuntimeConfiguration.isEnabled
-        }
-        set {
-            ModeManager.shared.updateCurrentEffectiveConfiguration { config in
-                config.isAIEnhancementEnabled = newValue
-            }
-            objectWillChange.send()
-        }
-    }
-
     @Published var customPrompts: [CustomPrompt] {
         didSet {
             savePrompts()
@@ -33,7 +21,8 @@ class AIEnhancementService: ObservableObject {
         return customPrompts
     }
 
-    private let aiService: AIService
+    let aiService: AIService
+    let vocoContext = VocoEnhancementContext()
     private let screenCaptureService: ScreenCaptureService
     private let customVocabularyService: CustomVocabularyService
     private var baseTimeout: TimeInterval {
@@ -43,13 +32,8 @@ class AIEnhancementService: ObservableObject {
     private let rateLimitInterval: TimeInterval = 1.0
     private var lastRequestTime: Date?
     private let modelContext: ModelContext
-    
-    @Published var lastCapturedClipboard: String?
 
-    // Captured at recording start so enhancement does not perform a late AX query.
-    var cachedAppName: String?
-    var cachedWindowTitle: String?
-    var cachedSelectedText: String?
+    @Published var lastCapturedClipboard: String?
 
     init(aiService: AIService = AIService(), modelContext: ModelContext) {
         self.aiService = aiService
@@ -104,17 +88,6 @@ class AIEnhancementService: ObservableObject {
         return APIKeyManager.shared.hasAPIKey(forProvider: provider.rawValue)
     }
 
-    var currentRuntimeConfiguration: EnhancementRuntimeConfiguration {
-        ModeRuntimeResolver.currentEnhancementConfiguration(
-            enhancementService: self,
-            aiService: aiService
-        )
-    }
-
-    var isConfigured: Bool {
-        isConfigured(for: currentRuntimeConfiguration)
-    }
-
     private func waitForRateLimit() async throws {
         if let lastRequest = lastRequestTime {
             let timeSinceLastRequest = Date().timeIntervalSince(lastRequest)
@@ -130,107 +103,17 @@ class AIEnhancementService: ObservableObject {
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot?
     ) async -> String {
-        let useSelectedText = configuration.useSelectedTextContext
-        let useClipboard = configuration.useClipboardContext
-        let useScreenCapture = configuration.useScreenCaptureContext
-
         lastCapturedClipboard = contextSnapshot?.clipboardText
         screenCaptureService.lastCapturedText = contextSnapshot?.screenText
-
-        let selectedTextContext: String
-        if useSelectedText,
-           let selectedText = contextSnapshot?.selectedText ?? cachedSelectedText,
-           !selectedText.isEmpty {
-            selectedTextContext = "\n\n<CURRENTLY_SELECTED_TEXT>\n\(selectedText)\n</CURRENTLY_SELECTED_TEXT>"
-        } else {
-            selectedTextContext = ""
-        }
-
-        let clipboardContext = if useClipboard,
-                              let clipboardText = lastCapturedClipboard,
-                              !clipboardText.isEmpty {
-            "\n\n<CLIPBOARD_CONTEXT>\n\(clipboardText)\n</CLIPBOARD_CONTEXT>"
-        } else {
-            ""
-        }
-
-        let screenCaptureContext = if useScreenCapture,
-                                   let capturedText = screenCaptureService.lastCapturedText,
-                                   !capturedText.isEmpty {
-            "\n\n<CURRENT_WINDOW_CONTEXT>\n\(capturedText)\n</CURRENT_WINDOW_CONTEXT>"
-        } else {
-            ""
-        }
-
-        let appContext: String
-        if let appName = cachedAppName, !appName.isEmpty {
-            let titlePart = (cachedWindowTitle?.isEmpty == false) ? " - \(cachedWindowTitle!)" : ""
-            appContext = "\n\n<ACTIVE_APPLICATION>\n\(appName)\(titlePart)\n</ACTIVE_APPLICATION>"
-        } else {
-            appContext = ""
-        }
-
-        let customVocabulary = customVocabularyService.getCustomVocabulary(from: modelContext)
-
-        let allContextSections = selectedTextContext + clipboardContext + screenCaptureContext + appContext
-
-        let customVocabularySection = if !customVocabulary.isEmpty {
-            """
-
-
-            The following are important vocabulary words, proper nouns, and technical terms. When these words or similar-sounding words appear in the <USER_MESSAGE>, ensure they are spelled EXACTLY as shown below:
-            <CUSTOM_VOCABULARY>
-            \(customVocabulary)
-            </CUSTOM_VOCABULARY>
-            """
-        } else {
-            ""
-        }
-
-        let postProcessor = ChinesePostProcessingService.shared
-        let recentTranscriptionsSection: String
-        if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
-            let recent = postProcessor.contextMemory.getRecent(count: 5)
-            recentTranscriptionsSection = recent.isEmpty
-                ? ""
-                : "\n\n<RECENT_TRANSCRIPTIONS>\n\(recent.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))\n</RECENT_TRANSCRIPTIONS>"
-        } else {
-            recentTranscriptionsSection = ""
-        }
-
-        let uncertainWords = postProcessor.lastUncertainWords
-        let uncertainWordsSection = uncertainWords.isEmpty
-            ? ""
-            : "\n\n<UNCERTAIN_WORDS>\n\(uncertainWords.map { "「\($0.text)」" }.joined(separator: "、"))\n</UNCERTAIN_WORDS>"
-
-        let descriptor = FetchDescriptor<WordReplacement>(
-            predicate: #Predicate { $0.isEnabled },
-            sortBy: [SortDescriptor(\WordReplacement.dateAdded, order: .reverse)]
+        return vocoContext.systemMessage(
+            prompt: prompt,
+            configuration: configuration,
+            contextSnapshot: contextSnapshot,
+            customVocabulary: customVocabularyService.getCustomVocabulary(from: modelContext),
+            clipboardText: lastCapturedClipboard,
+            screenText: screenCaptureService.lastCapturedText,
+            modelContext: modelContext
         )
-        let knownASRErrors = ((try? modelContext.fetch(descriptor)) ?? [])
-            .prefix(30)
-            .compactMap { replacement -> String? in
-                let original = replacement.originalText.split(separator: ",").first?
-                    .trimmingCharacters(in: .whitespaces) ?? ""
-                guard !original.isEmpty,
-                      !replacement.replacementText.isEmpty,
-                      original.contains(where: \.isCJK),
-                      !CorrectionProtectionList.shared.containsProtectedTerm(in: original) else {
-                    return nil
-                }
-                return "「\(original)」→「\(replacement.replacementText)」"
-            }
-        let knownASRErrorsSection = knownASRErrors.isEmpty
-            ? ""
-            : "\n\n<KNOWN_ASR_ERRORS>\n\(knownASRErrors.joined(separator: "\n"))\n</KNOWN_ASR_ERRORS>"
-
-        let finalContextSection = allContextSections
-            + customVocabularySection
-            + recentTranscriptionsSection
-            + uncertainWordsSection
-            + knownASRErrorsSection
-
-        return prompt.finalPromptText + finalContextSection
     }
 
     func makeRequest(
@@ -483,24 +366,12 @@ class AIEnhancementService: ObservableObject {
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot? = nil
     ) async throws -> (String, TimeInterval, String?) {
-        guard isEnhancementEnabled else {
-            throw EnhancementError.enhancementDisabled
-        }
-        let startTime = Date()
-        let promptName = configuration.prompt?.title
-
-        do {
-            let result = try await makeRequestWithRetry(
-                text: text,
-                configuration: configuration,
-                contextSnapshot: contextSnapshot
-            )
-            let endTime = Date()
-            let duration = endTime.timeIntervalSince(startTime)
-            return (result, duration, promptName)
-        } catch {
-            throw error
-        }
+        try await VocoEnhancementRequester.enhance(
+            self,
+            text: text,
+            configuration: configuration,
+            contextSnapshot: contextSnapshot
+        )
     }
 
     func captureScreenContext() async {
@@ -522,9 +393,7 @@ class AIEnhancementService: ObservableObject {
     func clearCapturedContexts() {
         lastCapturedClipboard = nil
         screenCaptureService.lastCapturedText = nil
-        cachedAppName = nil
-        cachedWindowTitle = nil
-        cachedSelectedText = nil
+        vocoContext.clear()
     }
 
     @discardableResult
