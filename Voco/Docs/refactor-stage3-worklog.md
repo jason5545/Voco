@@ -49,3 +49,6 @@
 - Debug build 通過。最終完整 suite 為 508 個測試、497 通過、10 失敗、1 略過；10 個唯一失敗與第 6 節基線完全相同。Python 為 `Ran 74 tests ... OK`。
 - 最終第三次試合併為 97 條（`UU 60`、`UD 37`），比 99 少 2，沒有新增路徑。兩個 cleared paths 是 `TranscriptionResultView` 與 `TranscriptionModelManager`。
 - 所有薄掛點、必要 schema 與其他 97 條的分類已登錄 `PATCHES.md`。
+- Release 已部署到 `/Applications/Voco.app`，備份為 `/tmp/Voco.app.bak-20261024-p3` 與 `/tmp/voco-data-bak-20261024-p3`。30 秒存活、deep codesign、entitlements 空 diff、版本 `2.0 (179)`、SwiftData 列數不變均通過。
+- Qwen smoke 實跑 2.877 秒，transcript 與基線相同；runtime replay 為 `deployReady: true`、`runtimeReplayPass: true`、5/5 rows、0 regression。
+- 尚未 push。物理錄音、裝置與貼上項目留給 Jason 手動驗收，第 4、5 階段未開始。

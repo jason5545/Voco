@@ -215,6 +215,16 @@ Stage 2 deployment (2026-10-24):
 - Checks after deployment: 30-second liveness, `codesign --verify --deep` exit 0, entitlements byte-identical (`diff` empty), `com.jasonchien.Voco` / `2.0 (179)` unchanged, no crash report after launch. SwiftData row counts were identical before and after: transcriptions 33,095, word replacements 355, session metrics 31,521.
 - Qwen3 file smoke: `Qwen3ASRAdapterTests/edgeTTSCenturyWindStockQuoteSpecialSmokeUsesAdapter` was forced with `VOCO_QWEN3_ADAPTER_EDGE_TTS_SMOKE=1` and passed (company, stock code, price and adapter assertions). Runtime replay via `voco_runtime_correction_control.py replayGate` returned `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
 
+Stage 3 deployment (2026-10-24), through `c4268e5e`:
+
+- App backup: `/tmp/Voco.app.bak-20261024-p3` (108 MB). Data backup: `/tmp/voco-data-bak-20261024-p3` (9.1 GB), with the same store/settings/model scope as p2; recordings, shadow logs and auto-apply model artifacts were excluded. Earlier backups were not modified.
+- Release build exited 0; product: `/tmp/voco-p3-dd-release/Build/Products/Release/Voco.app`. Installation used `ditto` to `/Applications/Voco.app`.
+- The installed app stayed alive after 30 seconds (PID 26993). `codesign --verify --deep` exited 0; entitlements were byte-identical (`/tmp/voco-p3-entitlements.diff` is empty). Bundle ID/version remained `com.jasonchien.Voco` / `2.0 (179)`. No crash report was created after deployment; logs retained the known prewarm WAV, window/network and CloudKit scheduler noise.
+- SwiftData counts were identical before backup, in the backup, and after deployment: transcriptions 33,226, word replacements 355, session metrics 31,639, vocabulary 136.
+- Qwen3 file smoke actually ran for 2.877 seconds and produced `世纪风电二零七二今日股价一百八十三元。` (normalized `世紀風電二零七二今日股價一百八十三元`), identical to the accepted baseline. The suite executed 21 tests with 21 passes. An earlier narrow selector returned 0 tests and was not counted; a suite run without the fixture marker also did not count as the smoke.
+- Runtime replay was semantically identical before and after deployment after excluding path fields: `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
+- Physical recording/device/paste/Edit Mode checks remain Jason's manual acceptance items. Stage 3 was not pushed; stages 4 and 5 were not started.
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.

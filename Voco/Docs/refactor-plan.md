@@ -308,4 +308,7 @@ Python tools 測試目前為 `Ran 74 tests ... OK`，之後也要維持通過。
 - 第 1 階段已以 Release＋`ditto` 部署，app 30 秒後仍存活，deep verify 與 entitlements 跟備份一致，版本為 `2.0 (179)`。
 - Jason 已實測新版語音輸入，TextEdit 與 Google 貼上正常，並放行 push；`3d7e23db` 已在 `origin/main`。
 - 備份 `/tmp/Voco.app.bak-20261024` 保留。
-- 本文件只補齊計畫，不表示第 2 階段已開始或獲准略過任何驗收。
+- 第 2 階段部分已以 `6f908999` 部署並經 Jason 驗收。第 2 階段剩餘於 `572db7f8` 完成；第 3 階段核心 commit 為 `75309a35`、`ab3c1108`、`87349049`、`521c68da`、`30e4d748`、`414d389b`，掛點與試合併紀錄於 `c4268e5e` 定版。
+- 第 3 階段驗收：Debug 與 Release build 通過；完整 suite 為 508 tests／497 passed／10 failed／1 skipped，10 個唯一失敗與第 6 節完全一致；Python `Ran 74 tests ... OK`；第三次試合併為 97 條（`UU 60`、`UD 37`），無新增路徑。
+- 第 3 階段已部署到 `/Applications/Voco.app`，新備份為 `/tmp/Voco.app.bak-20261024-p3` 與 `/tmp/voco-data-bak-20261024-p3`。30 秒存活、deep codesign、entitlements 空 diff、版本 `2.0 (179)`、SwiftData 列數不變均通過。Qwen file smoke 的 transcript 與基線相同，runtime replay 為 5/5 rows、0 regression。
+- 第 3 階段尚未 push，等待 Jason 做錄音、連按、sleep／wake、裝置切換、長音檔、Chromium／Gemini／Electron 貼上、clipboard restore 與 Edit Mode 中止的手動驗收。第 4、5 階段尚未開始。
