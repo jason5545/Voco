@@ -1108,6 +1108,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個現有詞彙項目"
+          }
         }
       }
     },
@@ -1177,6 +1183,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個現有字詞取代規則"
           }
         }
       }
@@ -1317,6 +1329,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個項目"
           }
         }
       }
@@ -1680,6 +1698,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個先前的詞彙項目"
+          }
         }
       }
     },
@@ -1750,6 +1774,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個先前的字詞取代規則"
+          }
         }
       }
     },
@@ -1819,6 +1849,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 條規則"
           }
         }
       }
@@ -2123,6 +2159,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個來源詞組"
+          }
         }
       }
     },
@@ -2311,6 +2353,12 @@
             "state": "translated",
             "value": "「%@」已存在于词语替换中"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」已存在於字詞取代規則中。"
+          }
         }
       }
     },
@@ -2332,6 +2380,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "「%@」已在词汇中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」已存在於詞彙清單中。"
           }
         }
       }
@@ -4007,6 +4061,12 @@
             "state": "translated",
             "value": "一条已审核的替换规则只能包含一个原始值。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已審核的取代規則只能包含一個原始值。"
+          }
         }
       }
     },
@@ -5269,6 +5329,12 @@
             "state": "translated",
             "value": "立即添加"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即新增"
+          }
         }
       }
     },
@@ -5781,6 +5847,12 @@
             "state": "translated",
             "value": "一次添加一个条目，或粘贴多个以逗号分隔的条目。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次新增一個項目，或貼上以逗號分隔的多個項目。"
+          }
         }
       }
     },
@@ -6129,6 +6201,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已将“%@”添加到词典"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已將「%@」加入詞庫。"
           }
         }
       }
@@ -7162,6 +7240,12 @@
             "state": "translated",
             "value": "全部应用（%lld）"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部套用（%lld）"
+          }
         }
       }
     },
@@ -7185,6 +7269,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "应用所选（%lld）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "套用所選項目（%lld）"
           }
         }
       }
@@ -8032,6 +8122,12 @@
             "state": "translated",
             "value": "自动学习失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動學習失敗"
+          }
         }
       }
     },
@@ -8328,7 +8424,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "當您多次修正相同的轉錄錯誤時，自動將詞彙加入字典"
+            "value": "當您多次修正相同的轉錄錯誤時，自動將詞彙加入詞庫"
           }
         }
       }
@@ -8403,6 +8499,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动学习你在听写后所做的更正。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動學習你在轉錄後所做的修正。"
           }
         }
       }
@@ -9538,6 +9640,12 @@
             "state": "translated",
             "value": "更改排序方式"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變更排序順序"
+          }
         }
       }
     },
@@ -9975,6 +10083,12 @@
             "state": "translated",
             "value": "选择一个 VoiceInk 词典 JSON 文件。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 Voco 詞庫 JSON 檔案。"
+          }
         }
       }
     },
@@ -10134,6 +10248,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择何时将已保存的更正发送给你的 AI 提供商。手动审核会将其保留在本地，直到你选择“立即审核”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇已儲存的修正何時傳送至 AI 供應商。手動審核會將修正保留在本機，直到你選擇「立即審核」。"
           }
         }
       }
@@ -10422,6 +10542,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "点击编辑"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點按以編輯"
           }
         }
       }
@@ -11014,6 +11140,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已跳过冲突项"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過的衝突項目"
           }
         }
       }
@@ -12088,6 +12220,12 @@
             "state": "translated",
             "value": "待审核更正"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待審核修正項目"
+          }
         }
       }
     },
@@ -12622,6 +12760,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "将移除当前条目"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移除的現有項目"
           }
         }
       }
@@ -14175,6 +14319,12 @@
             "state": "translated",
             "value": "取消选择更正"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消選取修正"
+          }
         }
       }
     },
@@ -14493,7 +14643,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "字典"
+            "value": "詞庫"
           }
         }
       }
@@ -14541,6 +14691,12 @@
             "state": "translated",
             "value": "词典数据"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞庫資料"
+          }
         }
       }
     },
@@ -14563,6 +14719,12 @@
             "state": "translated",
             "value": "词典已导出"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞庫已匯出"
+          }
         }
       }
     },
@@ -14584,6 +14746,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "词典已导入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞庫已匯入"
           }
         }
       }
@@ -14611,7 +14779,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "字典設定"
+            "value": "詞庫設定"
           }
         }
       }
@@ -14621,7 +14789,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "字典設定"
+            "value": "詞庫設定"
           }
         }
       }
@@ -14806,6 +14974,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "全部忽略"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部略過"
           }
         }
       }
@@ -15647,6 +15821,12 @@
             "state": "translated",
             "value": "已跳过重复项"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過的重複項目"
+          }
         }
       }
     },
@@ -16375,6 +16555,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先启用自动学习，然后再重试待审核的更正。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試待審核修正前，請先啟用自動學習。"
           }
         }
       }
@@ -17573,6 +17759,12 @@
             "state": "translated",
             "value": "导出词典"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出詞庫"
+          }
         }
       }
     },
@@ -17777,7 +17969,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯出或匯入所有設定、提示詞、強力模式、字典和自訂模型。"
+            "value": "匯出或匯入所有設定、提示詞、強力模式、詞庫和自訂模型。"
           }
         }
       }
@@ -17810,6 +18002,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "将词汇和词语替换导出为可移植的 JSON 文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將詞彙與字詞取代規則匯出為可攜式 JSON 檔案。"
           }
         }
       }
@@ -17861,6 +18059,12 @@
             "state": "translated",
             "value": "无法添加「%@」：%@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法新增「%@」：%@"
+          }
         }
       }
     },
@@ -17882,6 +18086,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法添加替换项：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法新增字詞取代規則：%@"
           }
         }
       }
@@ -18289,6 +18499,12 @@
             "state": "translated",
             "value": "无法加载单词替换"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入字詞取代規則"
+          }
         }
       }
     },
@@ -18313,6 +18529,12 @@
             "state": "translated",
             "value": "无法从词语替换中移除原始短语：%@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法移除字詞取代來源詞組：%@"
+          }
         }
       }
     },
@@ -18335,6 +18557,12 @@
             "state": "translated",
             "value": "无法移除替换项：%@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法移除字詞取代規則：%@"
+          }
         }
       }
     },
@@ -18356,6 +18584,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法移除词语：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法移除詞彙：%@"
           }
         }
       }
@@ -18406,6 +18640,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法存储更改：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存變更：%@"
           }
         }
       }
@@ -19987,6 +20227,12 @@
             "state": "translated",
             "value": "如何修复"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正方式"
+          }
         }
       }
     },
@@ -20008,6 +20254,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "如何使用词汇表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙使用說明"
           }
         }
       }
@@ -20253,6 +20505,12 @@
             "state": "translated",
             "value": "导入词典"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入詞庫"
+          }
         }
       }
     },
@@ -20302,6 +20560,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "导入失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入失敗"
           }
         }
       }
@@ -20363,6 +20627,12 @@
             "state": "translated",
             "value": "导入模式"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入模式"
+          }
         }
       }
     },
@@ -20384,6 +20654,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "导入预览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入預覽"
           }
         }
       }
@@ -20615,6 +20891,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匯入 %lld 個詞彙項目。"
+          }
         }
       }
     },
@@ -20684,6 +20966,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匯入 %lld 條字詞取代規則。"
           }
         }
       }
@@ -21146,6 +21434,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已跳过无效或循环项"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過的無效或循環項目"
           }
         }
       }
@@ -21799,6 +22093,12 @@
             "state": "translated",
             "value": "了解词典自动学习"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "了解詞庫自動學習"
+          }
         }
       }
     },
@@ -21850,6 +22150,12 @@
             "state": "translated",
             "value": "已学习 %lld 个更正"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已學習 %lld 項修正"
+          }
         }
       }
     },
@@ -21872,6 +22178,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已学习“%@”→“%@”"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已學習「%@」→「%@」"
           }
         }
       }
@@ -23294,6 +23606,12 @@
             "state": "translated",
             "value": "手动"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手動"
+          }
         }
       }
     },
@@ -23336,6 +23654,12 @@
             "state": "translated",
             "value": "合并"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合併"
+          }
         }
       }
     },
@@ -23357,6 +23681,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "“合并”会在保留当前词典的同时添加新条目，并跳过重复项或冲突项。“替换”会在导入前移除当前词汇和词语替换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合併會保留目前詞庫並新增項目，同時略過重複或衝突項目。替換會在匯入前移除目前的詞彙項目與字詞取代規則。"
           }
         }
       }
@@ -24789,6 +25119,12 @@
             "state": "translated",
             "value": "新的手动审核建议会显示在这里。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新的手動審核建議會顯示在這裡。"
+          }
         }
       }
     },
@@ -24889,6 +25225,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有待审核的更正"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有待審核的修正"
           }
         }
       }
@@ -26272,6 +26614,12 @@
             "state": "translated",
             "value": "未连接 AI 提供商"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未連線至支援的 AI 供應商"
+          }
         }
       }
     },
@@ -26662,6 +27010,12 @@
             "state": "translated",
             "value": "没有可导入的有效条目。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可匯入的有效項目。"
+          }
         }
       }
     },
@@ -26972,6 +27326,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "未选中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未選取"
           }
         }
       }
@@ -28718,6 +29078,12 @@
             "state": "translated",
             "value": "待审核的更正：%1$lld。请在上方选择其他模型或提供商，然后重试。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待審核修正：%lld。請在上方選擇其他模型或供應商，再重試。"
+          }
         }
       }
     },
@@ -29997,7 +30363,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速新增至字典"
+            "value": "快速新增至詞庫"
           }
         }
       }
@@ -31260,6 +31626,12 @@
             "state": "translated",
             "value": "从词语替换中移除%@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從字詞取代規則中移除「%@」"
+          }
         }
       }
     },
@@ -31622,6 +31994,12 @@
             "state": "translated",
             "value": "已移除%1$@和%2$@。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移除 %1$@ 和 %2$@。"
+          }
         }
       }
     },
@@ -31740,6 +32118,12 @@
             "state": "translated",
             "value": "替换当前词典？"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要替換目前的詞庫嗎？"
+          }
         }
       }
     },
@@ -31761,6 +32145,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "替换词典"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替換詞庫"
           }
         }
       }
@@ -32826,6 +33216,12 @@
             "state": "translated",
             "value": "立即审核"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即審核"
+          }
         }
       }
     },
@@ -32944,6 +33340,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在审核待处理的更正…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在審核待處理的修正…"
           }
         }
       }
@@ -33604,6 +34006,12 @@
             "state": "translated",
             "value": "横向滚动以查看所有短语。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水平捲動即可檢視所有詞組。"
+          }
         }
       }
     },
@@ -34252,6 +34660,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择更正"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取修正項目"
           }
         }
       }
@@ -36023,6 +36437,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過 %lld 個重複、衝突、無效或循環項目。"
+          }
         }
       }
     },
@@ -36066,6 +36486,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "部分更正无法审核。请检查所选的 AI 提供商后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分修正無法審核。請檢查所選的 AI 供應商後再試一次。"
           }
         }
       }
@@ -36264,6 +36690,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已跳过含逗号的源短语"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過含逗號的來源詞組"
           }
         }
       }
@@ -37781,6 +38213,12 @@
             "state": "translated",
             "value": "该替换会在现有规则之间形成循环"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此取代會使現有規則形成循環。"
+          }
         }
       }
     },
@@ -37919,6 +38357,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 返回了无效的词典自动学习审核响应。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 回傳的自動學習審核回應無效。"
           }
         }
       }
@@ -38309,6 +38753,12 @@
             "state": "translated",
             "value": "箭头图标表示文字替换。书本图标表示词汇表。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "箭頭圖示代表字詞取代；書本圖示代表詞彙。"
+          }
         }
       }
     },
@@ -38427,6 +38877,12 @@
             "state": "translated",
             "value": "已配置的 AI 增强提供商无法审核自动学习候选项。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前設定的 AI 增強供應商無法審核自動學習候選項目。"
+          }
         }
       }
     },
@@ -38473,6 +38929,12 @@
             "state": "translated",
             "value": "更正后的值不能为空。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正後的值不能留空。"
+          }
         }
       }
     },
@@ -38495,6 +38957,12 @@
             "state": "translated",
             "value": "准备导入时词典发生了更改。请检查后重试。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "準備匯入時，詞庫已變更。請檢查後再試一次。"
+          }
         }
       }
     },
@@ -38516,6 +38984,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存词典：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存詞庫：%@"
           }
         }
       }
@@ -38799,6 +39273,12 @@
             "state": "translated",
             "value": "原始值和更正后的值不能相同。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始值和修正後的值必須不同。"
+          }
         }
       }
     },
@@ -38823,6 +39303,12 @@
             "state": "translated",
             "value": "原始值不能为空。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始值不能留空。"
+          }
         }
       }
     },
@@ -38845,6 +39331,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法读取待审核的更正。请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取待審核的修正。請再試一次。"
           }
         }
       }
@@ -38998,6 +39490,12 @@
             "state": "translated",
             "value": "所选提供商当前不可用。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選供應商目前無法使用。"
+          }
         }
       }
     },
@@ -39020,6 +39518,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选提供商或模型无法审核待处理的更正。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選供應商或模型無法審核待處理的修正。"
           }
         }
       }
@@ -39256,6 +39760,12 @@
             "state": "translated",
             "value": "此操作无法撤销。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作無法復原。"
+          }
         }
       }
     },
@@ -39427,6 +39937,12 @@
             "state": "translated",
             "value": "此词典使用了不受支持的架构版本 %d。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此詞庫使用不支援的結構描述版本 %d。"
+          }
         }
       }
     },
@@ -39464,6 +39980,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此文件不包含有效的 VoiceInk 词典。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此檔案不是有效的 Voco 詞庫檔案。"
           }
         }
       }
@@ -39693,6 +40215,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "这将移除%1$@和%2$@。此操作无法撤销。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會移除 %1$@ 和 %2$@。此操作無法復原。"
           }
         }
       }
@@ -41625,6 +42153,12 @@
             "state": "translated",
             "value": "不受支持的词典格式：%@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援此詞庫格式：%@"
+          }
         }
       }
     },
@@ -42851,6 +43385,12 @@
             "state": "translated",
             "value": "词汇和词语替换已导出到 %@。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙與字詞取代規則已匯出至 %@。"
+          }
         }
       }
     },
@@ -42873,6 +43413,12 @@
             "state": "translated",
             "value": "词汇示例"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙範例"
+          }
         }
       }
     },
@@ -42894,6 +43440,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "词汇可帮助受支持的转写模型和 AI 润色保留重要的人名、专业术语和特殊拼写。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞彙能協助支援的轉錄模型與 AI 增強功能保留重要名稱、專業術語及特殊拼法。"
           }
         }
       }
@@ -44696,6 +45248,12 @@
             "state": "translated",
             "value": "发生了什么"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "發生了什麼"
+          }
         }
       }
     },
@@ -44980,6 +45538,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "词语替换会在转写完成后运行。词汇可帮助受支持的转写模型和 AI 润色识别人名、专业术语和特殊拼写。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字詞取代會在轉錄後執行。詞彙能協助支援的轉錄模型與 AI 增強功能辨識名稱、專業術語及特殊拼法。"
           }
         }
       }
