@@ -240,6 +240,29 @@ Stage 4 merge and deployment (2026-10-25):
 - Runtime replay was semantically identical before and after deployment after excluding path fields: `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
 - Jason's manual acceptance is still required for recording/device/paste/Edit Mode and the new upstream UI. Stage 4 is not pushed; stage 5 has not started.
 
+### Ephemeral dictation hooks (2026-10-25)
+
+The T3「無痕對話」signal and per-session privacy policy live in `Voco/Sources/Privacy/`. The following upstream files retain only the thin integration points needed by the current recorder/pipeline shells. No new local transcription, audio, evidence, learning or Worker payload is written for an ephemeral session; if the signal arrives after cloud ASR or OCR already ran, that earlier external side effect is surfaced rather than hidden. Normal sessions keep their existing records and evidence.
+
+| Path | Hook and Voco owner | Why it must remain |
+|---|---|---|
+| `VoiceInk/Features/Recording/State/RecorderStateProvider.swift` | Optional `isEphemeralDictation` / `ephemeralPrivacyNotice`, backed by `VocoDictationPrivacyController` | Upstream recorder views consume this protocol; default false keeps other providers unchanged |
+| `VoiceInk/Features/Recording/Presentation/RecorderUIManager.swift` | Begin/refresh privacy before Edit Mode detection and skip detection when ephemeral | Hotkey capture starts before `VoiceInkEngine.toggleRecord`; the early hook prevents selection/context capture |
+| `VoiceInk/Features/Recording/Workflows/VoiceInkEngine.swift` | Composition and lifecycle hooks for `VocoDictationPrivacyController` and test boundaries | Upstream owns recording sequencing; pending-row/audio cleanup, early cloud rejection, context/Refine/AutoLearn gates and shared registry must attach here |
+| `VoiceInk/Features/Recording/Workflows/TranscriptionPipeline.swift` | Privacy refresh, `VocoEvidenceScope`, enhancement/persistence gates and ephemeral output configuration | Upstream owns transcribe/enhance/deliver/save sequencing; evidence commits only after normal completion |
+| `VoiceInk/Features/Recording/Context/RecordingContextSnapshot.swift` | Optional screen-text provider for the real engine capture path | Upstream owns clipboard/selection/screen capture tasks; production keeps `ScreenCaptureService`, ephemeral skips the entire capture |
+| `VoiceInk/Features/Recording/Workflows/TranscriptionDelivery.swift` | Ephemeral paste-only branch and `PasteOverride` test boundary | Upstream owns follow-up/respond/custom-command delivery; ephemeral must not invoke those branches |
+| `VoiceInk/Features/Recording/Components/RecorderComponents.swift` | `VocoEphemeralRecorderBadge` slot in `RecorderStatusDisplay` | Upstream owns shared mini/notch status rendering |
+| `VoiceInk/Features/Recording/Views/MiniRecorderView.swift` | Pass ephemeral state to the shared badge slot | Upstream owns recorder layout |
+| `VoiceInk/Features/Recording/Views/NotchRecorderView.swift` | Pass ephemeral state to the shared badge slot | Upstream owns recorder layout |
+| `VoiceInk/Infrastructure/SystemIntegration/Paste/CursorPaster.swift` | Thread ephemeral flag through paste methods, suppress AutoLearn and mark clipboard writes when applicable | Upstream owns directTyping/clipboard delivery and paste outcome |
+| `VoiceInk/Infrastructure/SystemIntegration/Paste/ClipboardManager.swift` | `org.nspasteboard.ConcealedType` plus Transient support supplied by the privacy session | Upstream owns generic clipboard write; Concealed is added only for actual ephemeral clipboard writes |
+| `VoiceInk/Infrastructure/Providers/Transcription/Whisper/LibWhisper.swift` | Native `print_realtime` / `print_timestamps` disabled | whisper.cpp otherwise emits transcript text outside Swift `Logger` |
+| `VoiceInk/Features/Recording/Processing/TranscriptionOutputFilter.swift` | Metadata-only result logging | Upstream owns the shared output filter used by recorder/import/retranscribe; raw text must not enter unified logs |
+| `VoiceInk/Features/Enhancement/Workflows/AIEnhancementService.swift` | Error logging limited to provider/model/duration/error type | Provider errors can contain request or response text |
+
+`RecordingContextSnapshot.swift` also accepts an optional screen-text provider for the real `VoiceInkEngine` capture path. Production still uses `ScreenCaptureService`; ephemeral skips capture entirely. `VocoTranscriptionServiceRegistry` remains Voco-owned and is subclassed only at test composition boundaries.
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.

@@ -205,7 +205,9 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                     currentState: stateProvider.recordingState,
                     audioMeterProvider: recorder.audioMeterSnapshot,
                     menuBarHeight: notchHeight,
-                    isEditMode: stateProvider.isEditMode
+                    isEditMode: stateProvider.isEditMode,
+                    isEphemeralDictation: stateProvider.isEphemeralDictation,
+                    ephemeralPrivacyNotice: stateProvider.ephemeralPrivacyNotice
                 )
             }
             .padding(.trailing, sideEdgePadding)

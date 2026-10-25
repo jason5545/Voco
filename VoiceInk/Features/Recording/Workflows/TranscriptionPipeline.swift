@@ -25,17 +25,27 @@ class TranscriptionPipeline {
     let modelContext: ModelContext
     private let serviceRegistry: VocoTranscriptionServiceRegistry
     let enhancementService: AIEnhancementService?
-    private let delivery = TranscriptionDelivery()
+    private let delivery: TranscriptionDelivery
+    private let dictationPrivacy: VocoDictationPrivacyController?
+    private let shadowLogger: PhoneticShadowLogger
     let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionPipeline")
+
+    private var isEphemeral: Bool { dictationPrivacy?.isEphemeral ?? false }
 
     init(
         modelContext: ModelContext,
         serviceRegistry: VocoTranscriptionServiceRegistry,
-        enhancementService: AIEnhancementService?
+        enhancementService: AIEnhancementService?,
+        delivery: TranscriptionDelivery? = nil,
+        dictationPrivacy: VocoDictationPrivacyController? = nil,
+        shadowLogger: PhoneticShadowLogger? = nil
     ) {
         self.modelContext = modelContext
         self.serviceRegistry = serviceRegistry
         self.enhancementService = enhancementService
+        self.delivery = delivery ?? TranscriptionDelivery()
+        self.dictationPrivacy = dictationPrivacy
+        self.shadowLogger = shadowLogger ?? .shared
     }
 
     func run(
@@ -48,6 +58,7 @@ class TranscriptionPipeline {
         enhancementConfiguration: @escaping () -> EnhancementRuntimeConfiguration?,
         recordingContextSnapshot: @escaping () async -> RecordingContextSnapshot? = { nil },
         outputConfiguration: @escaping () -> OutputRuntimeConfiguration,
+        refreshPrivacy: @escaping () async -> Void = {},
         editModeSelection: EditModeSelectionSnapshot? = nil,
         capturedAppPID: pid_t? = nil,
         sendAfterPaste: Bool = false,
@@ -58,18 +69,30 @@ class TranscriptionPipeline {
         onEditModeComplete: ((WordSubstitution?) -> Void)? = nil,
         assistant: AssistantHooks = .inactive
     ) async {
-        let model = transcriptionConfiguration.model
-        var finalText: String?
-        var responseError: String?
-        var outputForDelivery: OutputRuntimeConfiguration?
-        var responseConfig: EnhancementRuntimeConfiguration?
-        let vocoProcessor = VocoTranscriptionProcessor(
-            modelContext: modelContext,
-            serviceRegistry: serviceRegistry,
-            enhancementService: enhancementService
-        )
+        let evidenceBuffer = VocoEvidenceBuffer()
+        var shouldCommitEvidence = false
+        defer {
+            if !shouldCommitEvidence {
+                evidenceBuffer.discard()
+            }
+        }
 
-        func finishCanceledTranscription() async {
+        await VocoEvidenceScope.$current.withValue(evidenceBuffer) { @MainActor in
+            await refreshPrivacy()
+            let model = transcriptionConfiguration.model
+            var finalText: String?
+            var responseError: String?
+            var outputForDelivery: OutputRuntimeConfiguration?
+            var responseConfig: EnhancementRuntimeConfiguration?
+            let vocoProcessor = VocoTranscriptionProcessor(
+                modelContext: modelContext,
+                serviceRegistry: serviceRegistry,
+                enhancementService: enhancementService,
+                dictationPrivacy: dictationPrivacy,
+                shadowLogger: shadowLogger
+            )
+
+        @MainActor func finishCanceledTranscription() async {
             await onCancel()
 
             let canceledDuration: TimeInterval?
@@ -85,10 +108,12 @@ class TranscriptionPipeline {
                 modelName: transcription.transcriptionModelName ?? model.displayName
             )
 
-            do {
-                try modelContext.save()
-            } catch {
-                logger.error("Failed to save canceled transcription: \(error, privacy: .public)")
+            if !isEphemeral {
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("Failed to save canceled transcription: \(error, privacy: .public)")
+                }
             }
         }
 
@@ -99,6 +124,9 @@ class TranscriptionPipeline {
 
         do {
             let transcriptionStart = Date()
+            if VocoDictationASRPolicy.usesCloudASR(model) {
+                dictationPrivacy?.markCloudASR()
+            }
             var text: String
             if let session {
                 text = try await session.transcribe(audioURL: audioURL)
@@ -109,13 +137,14 @@ class TranscriptionPipeline {
                     context: transcriptionConfiguration.requestContext
                 )
             }
+            await refreshPrivacy()
             text = TranscriptionOutputFilter.filter(text)
             if shouldCancel() {
                 await finishCanceledTranscription()
                 return
             }
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !assistant.isFollowUp,
+            if !isEphemeral, !assistant.isFollowUp,
                 let processedText = triggerWordModeSelection(text)
             {
                 text = processedText
@@ -154,7 +183,8 @@ class TranscriptionPipeline {
 
             if !assistant.isFollowUp {
                 let shouldRespondInRecorder =
-                    resolvedOutputConfiguration.outputMode == .respond
+                    !isEphemeral
+                    && resolvedOutputConfiguration.outputMode == .respond
                     && resolvedEnhancementConfiguration?.isEnabled == true
                     && resolvedEnhancementConfiguration.map { configuration in
                         enhancementService?.isConfigured(for: configuration) == true
@@ -171,7 +201,9 @@ class TranscriptionPipeline {
                             && WordCounter.count(in: text) <= shortEnhancementWordThreshold)
                 )
 
-                if let enhancementService,
+                await refreshPrivacy()
+                if !isEphemeral,
+                    let enhancementService,
                     let resolvedEnhancementConfiguration,
                     resolvedEnhancementConfiguration.isEnabled,
                     enhancementService.isConfigured(for: resolvedEnhancementConfiguration),
@@ -250,7 +282,12 @@ class TranscriptionPipeline {
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
         }
 
-        func saveTranscriptionAndPostCompletion() {
+        @MainActor func saveTranscriptionAndPostCompletion() {
+            if isEphemeral {
+                evidenceBuffer.discard()
+                return
+            }
+
             var didInsertSessionMetric = false
             if transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
                 didInsertSessionMetric = vocoProcessor.record(transcription: transcription, model: model)
@@ -258,6 +295,10 @@ class TranscriptionPipeline {
 
             do {
                 try modelContext.save()
+                if transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+                    evidenceBuffer.commit()
+                    shouldCommitEvidence = true
+                }
                 if didInsertSessionMetric {
                     NotificationCenter.default.post(name: .sessionMetricsDidChange, object: nil)
                 }
@@ -272,7 +313,16 @@ class TranscriptionPipeline {
             return
         }
 
-        let resolvedOutput = outputForDelivery ?? outputConfiguration()
+        await refreshPrivacy()
+        let configuredOutput = outputForDelivery ?? outputConfiguration()
+        let resolvedOutput = isEphemeral
+            ? OutputRuntimeConfiguration(
+                mode: configuredOutput.mode,
+                outputMode: .paste,
+                autoSendKey: .none,
+                customCommand: nil
+            )
+            : configuredOutput
         finalText = await vocoProcessor.preDelivery(
             text: finalText,
             transcription: transcription,
@@ -291,7 +341,12 @@ class TranscriptionPipeline {
                 responseConfig: responseConfig,
                 responseError: responseError,
                 isAssistantFollowUp: assistant.isFollowUp,
-                sendAfterPaste: sendAfterPaste
+                sendAfterPaste: sendAfterPaste,
+                isEphemeral: isEphemeral,
+                refreshPrivacy: {
+                    await refreshPrivacy()
+                    return self.isEphemeral
+                }
             ),
             actions: TranscriptionDelivery.Actions(
                 setState: onStateChange,
@@ -303,6 +358,7 @@ class TranscriptionPipeline {
         )
 
         saveTranscriptionAndPostCompletion()
+        }
     }
 
     private func metadata(for mode: ModeConfig?) -> (name: String?, emoji: String?) {

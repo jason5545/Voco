@@ -79,7 +79,7 @@ extension VocoTranscriptionProcessor {
             let (editedText, editDuration, substitution) = try await enhancementService.enhanceForEditMode(
                 instruction: text, selectedText: selectedText
             )
-            logger.notice("📝 Edit mode result: \(editedText, privacy: .private)")
+            logger.notice("Edit mode result metadata: chars=\(editedText.count, privacy: .public)")
 
             if shouldCancel() { await onCleanup(); return true }
 
@@ -202,7 +202,9 @@ extension VocoTranscriptionProcessor {
             utteranceId: transcription.id.uuidString,
             transcriptionDbId: transcription.id.uuidString
         )
-        PhoneticShadowLogger.shared.log(event)
+        VocoEvidenceScope.record {
+            PhoneticShadowLogger.shared.log(event)
+        }
     }
 
     // MARK: - Context-Aware Insertion
@@ -212,7 +214,8 @@ extension VocoTranscriptionProcessor {
     func applyContextAwareInsertion(
         _ text: String,
         enhancementService: AIEnhancementService?,
-        capturedAppPID: pid_t? = nil
+        capturedAppPID: pid_t? = nil,
+        isEphemeral: Bool = false
     ) async -> String {
         let contextAwareEnabled = UserDefaults.standard.bool(forKey: "ContextAwareInsertionEnabled")
         let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
@@ -240,7 +243,7 @@ extension VocoTranscriptionProcessor {
 
         // LLM merge takes precedence for mid-text insertion — if it succeeds, skip rule-based entirely
         let llmMergeEnabled = UserDefaults.standard.bool(forKey: "ContextAwareLLMMergeEnabled")
-        if llmMergeEnabled,
+        if !isEphemeral, llmMergeEnabled,
            let ctx = context, !ctx.textBefore.isEmpty, !ctx.textAfter.isEmpty,
            let enhancementService, enhancementService.isConfigured {
             do {

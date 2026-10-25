@@ -10904,6 +10904,16 @@
         }
       }
     },
+    "Cloud ASR was already used for this dictation.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次已經送出雲端 ASR"
+          }
+        }
+      }
+    },
     "Cloud Providers": {
       "localizations": {
         "de": {
@@ -17676,6 +17686,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。Voco 也會在每次執行指令時把 VOICEINK_FULL_PROMPT 寫入 stdin。"
+          }
+        }
+      }
+    },
+    "Ephemeral": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation requires a local transcription model. Cloud ASR is disabled for this recording.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫需要使用本機轉錄模型，這次不允許使用雲端 ASR"
           }
         }
       }

@@ -15,8 +15,12 @@ final class VocoTranscriptionProcessor {
     let modelContext: ModelContext
     let enhancementService: AIEnhancementService?
     private let serviceRegistry: VocoTranscriptionServiceRegistry
+    private let dictationPrivacy: VocoDictationPrivacyController?
+    private let shadowLogger: PhoneticShadowLogger
     let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "TranscriptionPipeline")
     private let postProcessor = ChinesePostProcessingService.shared
+
+    private var isEphemeral: Bool { dictationPrivacy?.isEphemeral ?? false }
 
     private static let minContentCharactersForAutoPunctuation = 5
     private static let autoPunctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
@@ -29,11 +33,15 @@ final class VocoTranscriptionProcessor {
     init(
         modelContext: ModelContext,
         serviceRegistry: VocoTranscriptionServiceRegistry,
-        enhancementService: AIEnhancementService?
+        enhancementService: AIEnhancementService?,
+        dictationPrivacy: VocoDictationPrivacyController? = nil,
+        shadowLogger: PhoneticShadowLogger = .shared
     ) {
         self.modelContext = modelContext
         self.serviceRegistry = serviceRegistry
         self.enhancementService = enhancementService
+        self.dictationPrivacy = dictationPrivacy
+        self.shadowLogger = shadowLogger
     }
 
     func afterASR(
@@ -103,7 +111,9 @@ final class VocoTranscriptionProcessor {
             if result.repetitionInfo?.isSevere == true {
                 transcription.text = "Discarded: severe repetition"
                 transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
-                try? modelContext.save()
+                if !isEphemeral {
+                    try? modelContext.save()
+                }
                 await onDismiss()
                 return .stop
             }
@@ -154,7 +164,7 @@ final class VocoTranscriptionProcessor {
             }
         }
 
-        if let command = VoiceCommandService.shared.detectCommand(in: text) {
+        if !isEphemeral, let command = VoiceCommandService.shared.detectCommand(in: text) {
             transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
             try? modelContext.save()
             NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
@@ -208,32 +218,35 @@ final class VocoTranscriptionProcessor {
             preparedText = await applyContextAwareInsertion(
                 preparedText,
                 enhancementService: enhancementService,
-                capturedAppPID: capturedAppPID
+                capturedAppPID: capturedAppPID,
+                isEphemeral: isEphemeral
             )
             preparedText = ShortUtterancePunctuationCleaner.removeTerminalSentencePunctuation(from: preparedText)
             finalText = preparedText
             transcription.finalPastedText = preparedText
-
-            if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
-                postProcessor.contextMemory.add(transcription.text)
-            }
         }
 
-        logPhoneticShadowSnapshot(
-            transcription: transcription,
-            audioURL: audioURL,
-            model: model,
-            rawASRText: shadowRawASRText,
-            postProcessingTrace: shadowPostProcessingTrace,
-            confidenceAssessment: shadowConfidenceAssessment,
-            finalText: finalText
-        )
+        if !isEphemeral {
+            logPhoneticShadowSnapshot(
+                transcription: transcription,
+                audioURL: audioURL,
+                model: model,
+                rawASRText: shadowRawASRText,
+                postProcessingTrace: shadowPostProcessingTrace,
+                confidenceAssessment: shadowConfidenceAssessment,
+                finalText: finalText
+            )
+        }
         return finalText
     }
 
     func record(transcription: Transcription, model: any TranscriptionModel) -> Bool {
-        guard transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue else {
+        guard !isEphemeral,
+              transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue else {
             return false
+        }
+        if postProcessor.isEnabled && postProcessor.isContextMemoryEnabled {
+            postProcessor.contextMemory.add(transcription.text)
         }
         do {
             return try SessionMetricRecorder.recordRecorderSession(
@@ -288,7 +301,9 @@ final class VocoTranscriptionProcessor {
             pipeline: pipeline,
             audio: audio
         )
-        PhoneticShadowLogger.shared.log(event)
+        VocoEvidenceScope.record { [shadowLogger] in
+            shadowLogger.log(event)
+        }
     }
 
     private func shadowASREngineName(for provider: ModelProvider) -> String {

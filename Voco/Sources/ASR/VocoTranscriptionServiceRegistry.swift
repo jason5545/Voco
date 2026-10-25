@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class VocoTranscriptionServiceRegistry: TranscriptionServiceRegistry {
+class VocoTranscriptionServiceRegistry: TranscriptionServiceRegistry {
     private(set) lazy var qwen3TranscriptionService = Qwen3TranscriptionService()
     private(set) lazy var whisperMLXTranscriptionService = WhisperMLXTranscriptionService()
     private(set) lazy var whisperCoreMLTranscriptionService = WhisperCoreMLTranscriptionService()

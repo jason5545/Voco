@@ -278,6 +278,11 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
                     SoundManager.shared.playStartSound()
                 },
                 detectEditMode: {
+                    engine.dictationPrivacy.beginSessionIfNeeded()
+                    guard !engine.isEphemeralDictation else {
+                        engine.forkState.clearEditMode()
+                        return
+                    }
                     await detectEditMode(engine: engine)
                 },
                 setRecorderPanelVisible: {

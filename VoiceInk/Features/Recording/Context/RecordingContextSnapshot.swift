@@ -35,7 +35,8 @@ final class RecordingContextSnapshotStore {
 enum RecordingContextCaptureService {
     static func startCapture(
         into store: RecordingContextSnapshotStore,
-        selectedTextProvider: @escaping @MainActor () async -> String?
+        selectedTextProvider: @escaping @MainActor () async -> String?,
+        screenTextProvider: (@MainActor () async -> String?)? = nil
     ) -> [Task<Void, Never>] {
         [
             Task { @MainActor in
@@ -50,9 +51,13 @@ enum RecordingContextCaptureService {
                 store.updateSelectedText(selectedText)
             },
             Task { @MainActor in
-                guard CGPreflightScreenCaptureAccess(), !Task.isCancelled else { return }
-                let screenCaptureService = ScreenCaptureService()
-                let screenText = await screenCaptureService.captureAndExtractText()
+                guard screenTextProvider != nil || CGPreflightScreenCaptureAccess(), !Task.isCancelled else { return }
+                let screenText: String?
+                if let screenTextProvider {
+                    screenText = await screenTextProvider()
+                } else {
+                    screenText = await ScreenCaptureService().captureAndExtractText()
+                }
                 guard !Task.isCancelled else { return }
                 store.updateScreenText(screenText)
             },

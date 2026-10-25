@@ -229,12 +229,12 @@ class Qwen3TranscriptionService: TranscriptionService {
         let selectedLanguage = languageOverride ?? context.language
         let prompt = context.prompt
 
-        logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), prompt: \(prompt?.prefix(50) ?? "none")")
+        logger.info("Transcribing with Qwen3-ASR, samples: \(audioSamples.count), language: \(selectedLanguage ?? "auto"), promptChars: \(prompt?.count ?? 0)")
 
         var activeDecodingOptions = Qwen3DecodingOptions()
         let pinnedContext = await pinnedBiasContext()
         if let pinnedContext {
-            logger.info("Qwen3-ASR pinned hotword bias terms=\(pinnedContext.options.hotwordBiasTerms.joined(separator: ","), privacy: .public) boost=\(pinnedContext.options.hotwordBiasBoost, privacy: .public)")
+            logger.info("Qwen3-ASR pinned hotword bias termCount=\(pinnedContext.options.hotwordBiasTerms.count, privacy: .public) boost=\(pinnedContext.options.hotwordBiasBoost, privacy: .public)")
             activeDecodingOptions = pinnedContext.options
         }
         var result = try await engine.transcribe(
@@ -248,7 +248,7 @@ class Qwen3TranscriptionService: TranscriptionService {
             prompt: prompt,
             pinned: pinnedContext?.pinned
         ) {
-            logger.info("Qwen3-ASR context hotword bias retry terms=\(biasOptions.hotwordBiasTerms.joined(separator: ","), privacy: .public) boost=\(biasOptions.hotwordBiasBoost, privacy: .public)")
+            logger.info("Qwen3-ASR context hotword bias retry termCount=\(biasOptions.hotwordBiasTerms.count, privacy: .public) boost=\(biasOptions.hotwordBiasBoost, privacy: .public)")
             activeDecodingOptions = biasOptions
             result = try await engine.transcribe(
                 samples: audioSamples,
@@ -366,7 +366,7 @@ class Qwen3TranscriptionService: TranscriptionService {
             ChinesePostProcessingService.shared.lastWordConfidences = result.wordConfidences
         }
 
-        logger.info("Qwen3-ASR transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")
+        logger.info("Qwen3-ASR transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount), chars: \(result.text.count))")
         return result.text
     }
 

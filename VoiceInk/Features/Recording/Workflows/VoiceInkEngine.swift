@@ -31,7 +31,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
     private var voiceInkRefinePreparationTask: Task<Void, Never>?
 
     let vocoCoordinator = VocoEngineCoordinator()
-    let recorder = Recorder()
+    let recorder: Recorder
+    let dictationPrivacy: VocoDictationPrivacyController
     var recordedFile: URL? = nil
     let recordingsDirectory: URL
 
@@ -47,6 +48,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
     let assistantSession = AssistantSession()
     let assistantChat: AssistantChatService?
     private let pipeline: TranscriptionPipeline
+    private let screenTextProvider: (@MainActor () async -> String?)?
 
     let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "VoiceInkEngine")
 
@@ -54,12 +56,22 @@ class VoiceInkEngine: NSObject, ObservableObject {
         modelContext: ModelContext,
         whisperModelManager: WhisperModelManager,
         transcriptionModelManager: TranscriptionModelManager,
-        enhancementService: AIEnhancementService? = nil
+        enhancementService: AIEnhancementService? = nil,
+        recorder: Recorder? = nil,
+        recordingsDirectory: URL? = nil,
+        serviceRegistry: VocoTranscriptionServiceRegistry? = nil,
+        delivery: TranscriptionDelivery? = nil,
+        dictationPrivacy: VocoDictationPrivacyController? = nil,
+        screenTextProvider: (@MainActor () async -> String?)? = nil,
+        shadowLogger: PhoneticShadowLogger? = nil
     ) {
         self.modelContext = modelContext
         self.whisperModelManager = whisperModelManager
         self.transcriptionModelManager = transcriptionModelManager
         self.enhancementService = enhancementService
+        self.recorder = recorder ?? Recorder()
+        self.dictationPrivacy = dictationPrivacy ?? VocoDictationPrivacyController(cleanStaleRecordings: true)
+        self.screenTextProvider = screenTextProvider
         if let aiService = enhancementService?.getAIService() {
             self.assistantChat = AssistantChatService(
                 modelContext: modelContext,
@@ -69,21 +81,28 @@ class VoiceInkEngine: NSObject, ObservableObject {
             self.assistantChat = nil
         }
 
-        self.recordingsDirectory = AppIdentifiers.appSupportDirectory.appendingPathComponent("Recordings")
+        self.recordingsDirectory = recordingsDirectory
+            ?? AppIdentifiers.appSupportDirectory.appendingPathComponent("Recordings")
 
-        self.serviceRegistry = VocoTranscriptionServiceRegistry(
+        self.serviceRegistry = serviceRegistry ?? VocoTranscriptionServiceRegistry(
             modelProvider: whisperModelManager,
             modelsDirectory: whisperModelManager.modelsDirectory,
             modelContext: modelContext
         )
         self.pipeline = TranscriptionPipeline(
             modelContext: modelContext,
-            serviceRegistry: serviceRegistry,
-            enhancementService: enhancementService
+            serviceRegistry: self.serviceRegistry,
+            enhancementService: enhancementService,
+            delivery: delivery,
+            dictationPrivacy: self.dictationPrivacy,
+            shadowLogger: shadowLogger
         )
 
         super.init()
 
+        self.dictationPrivacy.onStateChange = { [weak self] in
+            self?.objectWillChange.send()
+        }
         vocoCoordinator.forwardChanges(to: self)
         setupNotifications()
         createRecordingsDirectoryIfNeeded()
@@ -113,6 +132,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
             partialTranscript = ""
             recordingState = .transcribing
             await recorder.stopRecording()
+            dictationPrivacy.refreshSignal()
             await waitForEditModeDetectionIfNeeded()
 
             if let recordedFile {
@@ -123,9 +143,16 @@ class VoiceInkEngine: NSObject, ObservableObject {
                         duration: 0,
                         transcriptionStatus: .pending
                     )
-                    modelContext.insert(transcription)
-                    try? modelContext.save()
-                    NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
+                    let shouldInsertPendingTranscription = !isEphemeralDictation
+                    dictationPrivacy.trackPendingTranscription(
+                        transcription,
+                        inserted: shouldInsertPendingTranscription
+                    )
+                    if shouldInsertPendingTranscription {
+                        modelContext.insert(transcription)
+                        try? modelContext.save()
+                        NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
+                    }
 
                     await runPipeline(
                         on: transcription,
@@ -143,11 +170,16 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 }
                 recordingState = .idle
                 await cleanupResources()
+                dictationPrivacy.endSession()
             }
         } else {
             let canContinueAssistantSession = isAssistantFollowUp && assistantSession.canSendFollowUp
             let recordingUseCase: RecordingUseCase = canContinueAssistantSession ? .assistantFollowUp : .newSession
 
+            dictationPrivacy.beginSessionIfNeeded()
+            if isEphemeralDictation {
+                forkState.clearEditMode()
+            }
             activePipelineTranscriptionID = nil
             shouldCancelRecording = false
             partialTranscript = ""
@@ -160,9 +192,13 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
             guard requestRecordPermission() else {
                 logger.error("Recording permission denied")
+                dictationPrivacy.endSession()
                 return
             }
-            guard await passesRecordingPreflight() else { return }
+            guard await passesRecordingPreflight() else {
+                dictationPrivacy.endSession()
+                return
+            }
 
             StartupTracer.checkpoint("toggleRecord_permission_granted")
             let startID = UUID()
@@ -175,11 +211,38 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 return self.activeRecordingStartID == startID && !self.shouldCancelRecording
             }
 
+            if isEphemeralDictation {
+                await activeModeTask.value
+                let resolution = ModeRuntimeResolver.transcriptionModelResolution(
+                    transcriptionModelManager: transcriptionModelManager
+                )
+                if case .available(_, let model) = resolution,
+                   VocoDictationASRPolicy.usesCloudASR(model)
+                {
+                    activeModeTask.cancel()
+                    activeRecordingStartID = nil
+                    activeRecordingUseCase = .newSession
+                    recordingState = .idle
+                    capturedFrontAppPID = nil
+                    clearActiveRecordingContext()
+                    dictationPrivacy.endSession()
+                    NotificationManager.shared.showNotification(
+                        title: VocoDictationPrivacyController.cloudASRRejectedMessage,
+                        type: .error,
+                        duration: 7.0
+                    )
+                    await recorderUIManager?.dismissRecorderPanel()
+                    return
+                }
+            }
+
             do {
                 let startFlow = try await VocoRecordingStartFlow.run(
                     makeRecordingURL: {
                         let fileName = "\(UUID().uuidString).wav"
-                        return self.recordingsDirectory.appendingPathComponent(fileName)
+                        return self.dictationPrivacy.makeRecordingURL(
+                            default: self.recordingsDirectory.appendingPathComponent(fileName)
+                        )
                     },
                     setRecordedFile: {
                         self.recordedFile = $0
@@ -214,6 +277,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                     self.recordingState = .idle
                                     self.activeRecordingStartID = nil
                                 }
+                                self.dictationPrivacy.removeRecordingIfNeeded(at: permanentURL)
+                                self.dictationPrivacy.endSession()
                                 return
                             }
 
@@ -222,7 +287,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                             // Only retire the previous paste session once recording
                             // has actually started. Preflight/permission failures
                             // must leave it available for Auto Learn capture.
-                            if AutoLearnSettings.isEnabled {
+                            if !self.isEphemeralDictation, AutoLearnSettings.isEnabled {
                                 await AutoLearnService.shared.recordingDidStart()
                             }
 
@@ -259,6 +324,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 self.activeRecordingStartID = nil
                                 self.clearActiveRecordingContext()
                                 await self.cleanupResources()
+                                self.dictationPrivacy.endSession()
                                 await self.recorderUIManager?.dismissRecorderPanel()
                                 return
                             }
@@ -280,6 +346,9 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 )
                                 self.currentSession = session
                                 self.currentSessionTranscriptionConfiguration = transcriptionConfiguration
+                                if VocoDictationASRPolicy.usesCloudASR(transcriptionConfiguration.model) {
+                                    self.dictationPrivacy.markCloudASR()
+                                }
                                 let realCallback = try await session.prepare(
                                     configuration: transcriptionConfiguration
                                 )
@@ -384,6 +453,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                             self.activeRecordingStartID = nil
                             self.clearActiveRecordingContext()
                             await self.cleanupResources()
+                            self.dictationPrivacy.endSession()
                             if let failure = audioFailure {
                                 NotificationManager.shared.showNotification(
                                     title: failure.title,
@@ -482,6 +552,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
     private func startRecordingContextCapture() {
         clearActiveRecordingContext()
+        guard !isEphemeralDictation else { return }
 
         let store = RecordingContextSnapshotStore()
         let editModeDetectionTask = forkState.editModeDetectionTask
@@ -508,7 +579,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
                     return nil
                 }
                 return selectedText
-            }
+            },
+            screenTextProvider: screenTextProvider
         )
     }
 
@@ -535,13 +607,22 @@ class VoiceInkEngine: NSObject, ObservableObject {
         contextStore: RecordingContextSnapshotStore?,
         sendAfterPaste: Bool
     ) async {
+        dictationPrivacy.refreshSignal()
+        defer {
+            dictationPrivacy.discardPendingTranscriptionIfNeeded(in: modelContext)
+            dictationPrivacy.removeRecordingIfNeeded(at: audioURL)
+            dictationPrivacy.endSession()
+        }
+
         guard
             let transcriptionConfiguration = currentSessionTranscriptionConfiguration
                 ?? ModeRuntimeResolver.transcriptionConfiguration(transcriptionModelManager: transcriptionModelManager)
         else {
             transcription.text = String(localized: "Transcription Failed: No model selected")
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
-            try? modelContext.save()
+            if !isEphemeralDictation {
+                try? modelContext.save()
+            }
             recordingState = .idle
             activePipelineUseCase = .newSession
             return
@@ -551,10 +632,12 @@ class VoiceInkEngine: NSObject, ObservableObject {
         let transcriptionID = transcription.id
         activePipelineTranscriptionID = transcriptionID
 
-        let editModeSelection = EditModeSelectionSnapshotPolicy.validated(
-            forkState.editModeSelection,
-            capturedAppPID: capturedFrontAppPID
-        )
+        let editModeSelection = isEphemeralDictation
+            ? nil
+            : EditModeSelectionSnapshotPolicy.validated(
+                forkState.editModeSelection,
+                capturedAppPID: capturedFrontAppPID
+            )
 
         await pipeline.run(
             transcription: transcription,
@@ -565,7 +648,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
             },
             session: session,
             triggerWordModeSelection: { [weak self] text in
-                self?.selectTriggerWordModeIfNeeded(for: text)
+                guard let self, !self.isEphemeralDictation else { return nil }
+                return self.selectTriggerWordModeIfNeeded(for: text)
             },
             enhancementConfiguration: { [weak self] in
                 guard let self,
@@ -586,6 +670,9 @@ class VoiceInkEngine: NSObject, ObservableObject {
             },
             outputConfiguration: {
                 ModeRuntimeResolver.outputConfiguration()
+            },
+            refreshPrivacy: { [weak self] in
+                self?.dictationPrivacy.refreshSignal()
             },
             editModeSelection: editModeSelection,
             capturedAppPID: capturedFrontAppPID,
@@ -616,7 +703,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
                 self.startDictionaryDismissTimer()
             },
             assistant: TranscriptionPipeline.AssistantHooks(
-                isFollowUp: activePipelineUseCase.isAssistantFollowUp,
+                isFollowUp: !isEphemeralDictation && activePipelineUseCase.isAssistantFollowUp,
                 sendFollowUp: { [weak self] text, transcription in
                     guard let self, self.activePipelineTranscriptionID == transcriptionID else { return }
                     await self.sendAssistantFollowUp(text, transcription: transcription)
@@ -698,6 +785,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
         if shouldFinishSessionImmediately {
             await finishRecorderSession()
+            dictationPrivacy.endSession()
         }
     }
 
@@ -715,9 +803,13 @@ class VoiceInkEngine: NSObject, ObservableObject {
         forkState.clearEditMode()
         capturedFrontAppPID = nil
         await recorder.stopRecording()
+        if let recordedFile {
+            dictationPrivacy.removeRecordingIfNeeded(at: recordedFile)
+        }
         recordedFile = nil
         recordingState = .idle
         await cleanupResources()
+        dictationPrivacy.endSession()
     }
 
     private func requestRecordingCancellation() {
@@ -739,14 +831,18 @@ class VoiceInkEngine: NSObject, ObservableObject {
         capturedFrontAppPID = nil
         await recorder.stopRecording()
         await saveCanceledRecording()
+        if let recordedFile {
+            dictationPrivacy.removeRecordingIfNeeded(at: recordedFile)
+        }
         recordedFile = nil
         partialTranscript = ""
         recordingState = .idle
         await cleanupResources()
+        dictationPrivacy.endSession()
     }
 
     private func saveCanceledRecording() async {
-        guard let recordedFile,
+        guard !isEphemeralDictation, let recordedFile,
             FileManager.default.fileExists(atPath: recordedFile.path)
         else { return }
 
@@ -801,12 +897,14 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
     private func scheduleVoiceInkRefinePreparation(for recordingStartID: UUID) {
         voiceInkRefinePreparationTask?.cancel()
+        guard !isEphemeralDictation else { return }
 
         voiceInkRefinePreparationTask = Task { @MainActor [weak self] in
             guard let self,
                 self.recordingState == .recording,
                 self.activeRecordingStartID == recordingStartID,
                 !self.shouldCancelRecording,
+                !self.isEphemeralDictation,
                 let enhancementService = self.enhancementService,
                 let aiService = enhancementService.getAIService()
             else {
@@ -835,7 +933,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
             guard self.recordingState == .recording,
                 self.activeRecordingStartID == recordingStartID,
-                !self.shouldCancelRecording
+                !self.shouldCancelRecording,
+                !self.isEphemeralDictation
             else {
                 return
             }
@@ -879,10 +978,12 @@ class VoiceInkEngine: NSObject, ObservableObject {
         enhancementService?.clearCapturedContexts()
 
         await preparationTask?.value
-        await enhancementService?
-            .getAIService()?
-            .voiceInkRefineService
-            .unloadPreparedModelIfNeeded()
+        if !dictationPrivacy.shouldSkipRefineCleanup {
+            await enhancementService?
+                .getAIService()?
+                .voiceInkRefineService
+                .unloadPreparedModelIfNeeded()
+        }
     }
 
     func cleanupResources() async {

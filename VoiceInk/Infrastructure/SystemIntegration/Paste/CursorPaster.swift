@@ -41,12 +41,12 @@ class CursorPaster {
 
     @MainActor
     @discardableResult
-    static func startPasteAtCursor(_ text: String) -> Task<PasteOutcome, Never> {
+    static func startPasteAtCursor(_ text: String, isEphemeral: Bool = false) -> Task<PasteOutcome, Never> {
         let requestedAt = ProcessInfo.processInfo.systemUptime
         let previousPasteTask = pasteQueueTask
         let sessionTask = Task { @MainActor in
             await previousPasteTask?.value
-            return await performPasteSession(text, requestedAt: requestedAt)
+            return await performPasteSession(text, requestedAt: requestedAt, isEphemeral: isEphemeral)
         }
 
         pasteQueueTask = Task { @MainActor in
@@ -61,7 +61,7 @@ class CursorPaster {
     }
 
     @MainActor
-    private static func performPasteSession(_ text: String, requestedAt: TimeInterval) async -> (
+    private static func performPasteSession(_ text: String, requestedAt: TimeInterval, isEphemeral: Bool) async -> (
         outcome: PasteOutcome, clipboardRestoreTask: Task<Void, Never>?
     ) {
         let startedAt = ProcessInfo.processInfo.systemUptime
@@ -73,10 +73,11 @@ class CursorPaster {
             let application = NSWorkspace.shared.frontmostApplication
             let pasteResult = await VocoPasteService.pasteAtCursorAndWaitUntilPosted(
                 textToDeliver,
-                targetPID: application?.processIdentifier
+                targetPID: application?.processIdentifier,
+                isEphemeral: isEphemeral
             )
             let autoLearnGeneration: UInt64?
-            if AutoLearnSettings.isEnabled {
+            if !isEphemeral, AutoLearnSettings.isEnabled {
                 autoLearnGeneration = await AutoLearnService.shared.pasteDidFinish(
                     text: textToDeliver,
                     processID: application?.processIdentifier,
@@ -101,7 +102,8 @@ class CursorPaster {
                 ClipboardManager.setClipboard(
                     textToDeliver,
                     transient: shouldRestoreClipboard,
-                    sessionID: shouldRestoreClipboard ? sessionID : nil
+                    sessionID: shouldRestoreClipboard ? sessionID : nil,
+                    concealed: isEphemeral
                 )
             else {
                 logger.error("Failed to prepare clipboard for paste id=\(sessionID, privacy: .public)")
@@ -120,7 +122,7 @@ class CursorPaster {
             "Paste id=\(sessionID, privacy: .public) app=\(appIdentifier, privacy: .public) method=\(method.rawValue, privacy: .public) commandPosted=\(pasteResult.didPostPasteCommand, privacy: .public) queueMs=\(queueWaitMs, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
         )
         let autoLearnGeneration: UInt64?
-        if AutoLearnSettings.isEnabled {
+        if !isEphemeral, AutoLearnSettings.isEnabled {
             autoLearnGeneration = await AutoLearnService.shared.pasteDidFinish(
                 text: textToDeliver,
                 processID: application?.processIdentifier,
@@ -321,15 +323,17 @@ class CursorPaster {
     static func pasteAtCursorAndWaitUntilPosted(
         _ text: String,
         targetPID: pid_t? = nil,
+        isEphemeral: Bool = false,
         beforePosting: (@MainActor () async -> Bool)? = nil
     ) async -> PasteResult {
         guard await beforePosting?() ?? true else { return .commandNotPosted }
         if PasteMethod.current() == .directTyping {
-            return await startPasteAtCursor(text).value.result
+            return await startPasteAtCursor(text, isEphemeral: isEphemeral).value.result
         }
         return await VocoPasteService.pasteAtCursorAndWaitUntilPosted(
             text,
-            targetPID: targetPID
+            targetPID: targetPID,
+            isEphemeral: isEphemeral
         )
     }
 

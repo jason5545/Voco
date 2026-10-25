@@ -4421,6 +4421,16 @@
         }
       }
     },
+    "Cloud ASR was already used for this dictation.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次已經送出雲端 ASR"
+          }
+        }
+      }
+    },
     "Cloud": {
       "localizations": {
         "zh-Hant": {
@@ -7365,6 +7375,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "增強中…"
+          }
+        }
+      }
+    },
+    "Ephemeral": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation requires a local transcription model. Cloud ASR is disabled for this recording.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫需要使用本機轉錄模型，這次不允許使用雲端 ASR"
           }
         }
       }

@@ -74,7 +74,7 @@ class WhisperMLXTranscriptionService: TranscriptionService {
             ChinesePostProcessingService.shared.lastModelProvider = .whisperMLX
         }
 
-        logger.warning("Whisper MLX transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")
+        logger.warning("Whisper MLX transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount), chars: \(result.text.count))")
         return result.text
     }
 

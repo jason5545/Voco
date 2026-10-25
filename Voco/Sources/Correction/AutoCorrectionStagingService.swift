@@ -69,7 +69,7 @@ final class AutoCorrectionStagingService {
             guard similarity >= 0.5 else { return nil }
         }
 
-        logger.info("Extracted ASR correction candidate: \(origSeg, privacy: .private) → \(editSeg, privacy: .private)")
+        logger.info("Extracted ASR correction candidate metadata: originalChars=\(origSeg.count, privacy: .public) replacementChars=\(editSeg.count, privacy: .public)")
         return WordSubstitution(original: origSeg, replacement: editSeg)
     }
 
@@ -84,7 +84,7 @@ final class AutoCorrectionStagingService {
         let coreOriginal = sub.original
         let coreReplacement = sub.replacement
         guard !CorrectionProtectionList.shared.containsProtectedTerm(in: coreOriginal) else {
-            logger.info("Skipped staged correction touching protected source term: \(coreOriginal, privacy: .private)")
+            logger.info("Skipped staged correction touching protected source term metadata: chars=\(coreOriginal.count, privacy: .public)")
             return
         }
 
@@ -111,7 +111,7 @@ final class AutoCorrectionStagingService {
                 source: source
             )
             modelContext.insert(entry)
-            logger.info("New staged correction: \(coreOriginal, privacy: .private) → \(coreReplacement, privacy: .private)")
+            logger.info("New staged correction metadata: originalChars=\(coreOriginal.count, privacy: .public) replacementChars=\(coreReplacement.count, privacy: .public)")
         }
 
         try? modelContext.save()

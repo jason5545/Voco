@@ -447,7 +447,7 @@ final class ContextAwareInsertionService {
             "\($0.lowerBound)..<\($0.upperBound)"
         } ?? "none"
         logger.notice(
-            "Adjacent repetition rule=\(event.ruleID, privacy: .public) decision=\(event.decision.rawValue, privacy: .public) reason=\(event.reason, privacy: .public) matchedRange=\(matchedRange, privacy: .public) removedRange=\(removedRange, privacy: .public) repeatedPhrase=\(event.repeatedPhrase, privacy: .private(mask: .hash)) before=\(event.beforeText, privacy: .private) after=\(event.afterText, privacy: .private)"
+            "Adjacent repetition rule=\(event.ruleID, privacy: .public) decision=\(event.decision.rawValue, privacy: .public) reason=\(event.reason, privacy: .public) matchedRange=\(matchedRange, privacy: .public) removedRange=\(removedRange, privacy: .public) beforeChars=\(event.beforeText.count, privacy: .public) afterChars=\(event.afterText.count, privacy: .public)"
         )
     }
 

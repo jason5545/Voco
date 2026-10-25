@@ -94,7 +94,7 @@ final class SurroundingTextService {
         let afterEnd = String.Index(utf16Offset: afterEndOffset, in: fullText)
         let textAfter = String(fullText[afterStart..<afterEnd])
 
-        logger.debug("Surrounding text: before=\(textBefore.suffix(20), privacy: .private), after=\(textAfter.prefix(20), privacy: .private)")
+        logger.debug("Surrounding text metadata: beforeChars=\(textBefore.count, privacy: .public) afterChars=\(textAfter.count, privacy: .public)")
         return SurroundingTextContext(textBefore: textBefore, textAfter: textAfter)
     }
 }

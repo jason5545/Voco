@@ -258,7 +258,7 @@ class ChinesePostProcessingService: ObservableObject {
             let countedTerms = suspiciousCountedTerms(in: text)
             if !countedTerms.isEmpty {
                 mergeHeuristicUncertainWords(countedTerms)
-                Self.debugLog("FORCE LLM: suspicious counted term(s) \(countedTerms.joined(separator: ",")) | text(\(text.count)): \(text)")
+                Self.debugLog("FORCE LLM: suspicious counted term count=\(countedTerms.count) | text(\(text.count)): \(text)")
                 return false
             }
         }
@@ -293,8 +293,7 @@ class ChinesePostProcessingService: ObservableObject {
                 let allHighConf = lastWordConfidences.allSatisfy { $0.confidence > Self.wordHighConfidenceThreshold }
 
                 if lowConfRatio > Self.lowConfidenceRatioLimit {
-                    let lowConfList = lowConfWords.prefix(5).map { "\($0.word)(\(String(format: "%.2f", $0.confidence)))" }.joined(separator: ", ")
-                    Self.debugLog("FORCE LLM: Qwen3 high low-confidence ratio (\(String(format: "%.0f%%", lowConfRatio * 100)), \(lowConfWords.count)/\(lastWordConfidences.count)) lowConf=[\(lowConfList)] | text(\(text.count)): \(text)")
+                    Self.debugLog("FORCE LLM: Qwen3 high low-confidence ratio (\(String(format: "%.0f%%", lowConfRatio * 100)), \(lowConfWords.count)/\(lastWordConfidences.count)) | text(\(text.count)): \(text)")
                     return false
                 }
                 if allHighConf && lastAvgLogProb > logProbThreshold {
@@ -347,8 +346,11 @@ class ChinesePostProcessingService: ObservableObject {
     }()
 
     static func debugLog(_ message: String) {
+        let metadataMessage = message.range(of: " | text").map {
+            String(message[..<$0.lowerBound])
+        } ?? message
         let timestamp = debugLogFormatter.string(from: Date())
-        let entry = "[\(timestamp)] \(message)\n"
+        let entry = "[\(timestamp)] \(metadataMessage)\n"
         if let data = entry.data(using: .utf8) {
             if FileManager.default.fileExists(atPath: debugLogURL.path) {
                 if let handle = try? FileHandle(forWritingTo: debugLogURL) {

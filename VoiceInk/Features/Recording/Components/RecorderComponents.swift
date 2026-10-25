@@ -343,21 +343,31 @@ struct RecorderStatusDisplay: View {
     let audioMeterProvider: () -> AudioMeter
     let menuBarHeight: CGFloat?
     let isEditMode: Bool
+    let isEphemeralDictation: Bool
+    let ephemeralPrivacyNotice: String?
 
     init(
         currentState: RecordingState,
         audioMeterProvider: @escaping () -> AudioMeter,
         menuBarHeight: CGFloat? = nil,
-        isEditMode: Bool = false
+        isEditMode: Bool = false,
+        isEphemeralDictation: Bool = false,
+        ephemeralPrivacyNotice: String? = nil
     ) {
         self.currentState = currentState
         self.audioMeterProvider = audioMeterProvider
         self.menuBarHeight = menuBarHeight
         self.isEditMode = isEditMode
+        self.isEphemeralDictation = isEphemeralDictation
+        self.ephemeralPrivacyNotice = ephemeralPrivacyNotice
     }
 
     var body: some View {
-        Group {
+        HStack(spacing: 6) {
+            if isEphemeralDictation {
+                VocoEphemeralRecorderBadge(privacyNotice: ephemeralPrivacyNotice)
+            }
+            Group {
             if currentState == .enhancing {
                 ProcessingStatusDisplay(
                     mode: isEditMode ? .editing : .enhancing,
@@ -383,6 +393,7 @@ struct RecorderStatusDisplay: View {
                     .scaleEffect(y: menuBarHeight != nil ? min(1.0, (menuBarHeight! - 8) / 25) : 1.0, anchor: .center)
                     .transition(.opacity)
             }
+        }
         }
         .animation(.easeInOut(duration: 0.2), value: currentState)
         .animation(.easeInOut(duration: 0.2), value: isEditMode)

@@ -30,9 +30,9 @@ enum VocoPasteService {
 
     @MainActor
     @discardableResult
-    static func startPasteAtCursor(_ text: String) -> Task<CursorPaster.PasteResult, Never> {
+    static func startPasteAtCursor(_ text: String, isEphemeral: Bool = false) -> Task<CursorPaster.PasteResult, Never> {
         Task { @MainActor in
-            await performPasteSession(text, targetPID: nil)
+            await performPasteSession(text, targetPID: nil, isEphemeral: isEphemeral)
         }
     }
 
@@ -40,11 +40,13 @@ enum VocoPasteService {
     static func pasteAtCursorAndWaitUntilPosted(
         _ text: String,
         targetPID: pid_t? = nil,
+        isEphemeral: Bool = false,
         beforePosting: (@MainActor () async -> Bool)? = nil
     ) async -> CursorPaster.PasteResult {
         await performPasteSession(
             text,
             targetPID: targetPID,
+            isEphemeral: isEphemeral,
             beforePosting: beforePosting
         )
     }
@@ -53,12 +55,14 @@ enum VocoPasteService {
     private static func performPasteSession(
         _ text: String,
         targetPID: pid_t?,
+        isEphemeral: Bool,
         beforePosting: (@MainActor () async -> Bool)? = nil
     ) async -> CursorPaster.PasteResult {
         await ClipboardTransactionCoordinator.shared.withExclusiveAccess {
             await performExclusivePasteSession(
                 text,
                 targetPID: targetPID,
+                isEphemeral: isEphemeral,
                 beforePosting: beforePosting
             )
         }
@@ -68,6 +72,7 @@ enum VocoPasteService {
     private static func performExclusivePasteSession(
         _ text: String,
         targetPID: pid_t?,
+        isEphemeral: Bool,
         beforePosting: (@MainActor () async -> Bool)?
     ) async -> CursorPaster.PasteResult {
         let pasteboard = NSPasteboard.general
@@ -94,7 +99,8 @@ enum VocoPasteService {
         guard ClipboardManager.setClipboard(
             text,
             transient: shouldRestoreClipboard,
-            sessionID: shouldRestoreClipboard ? sessionID : nil
+            sessionID: shouldRestoreClipboard ? sessionID : nil,
+            concealed: isEphemeral
         ) else {
             logger.error("Failed to prepare clipboard for paste")
             if shouldRestoreClipboard || needsAbortSnapshot {

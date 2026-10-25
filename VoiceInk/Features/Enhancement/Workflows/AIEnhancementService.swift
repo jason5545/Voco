@@ -357,12 +357,11 @@ class AIEnhancementService: ObservableObject {
                 contextSnapshot: contextSnapshot
             )
         } catch {
-            let errorDescription = EnhancementFailureFormatter.description(for: error)
             let providerName = configuration.provider?.rawValue ?? "Unconfigured"
             let modelName = configuration.modelName ?? configuration.provider?.defaultModel ?? "Unconfigured"
             let duration = Date().timeIntervalSince(startTime)
             logger.error(
-                "Enhancement failed provider=\(providerName, privacy: .public) model=\(modelName, privacy: .public) duration=\(duration, format: .fixed(precision: 3), privacy: .public)s: \(errorDescription, privacy: .public)"
+                "Enhancement failed provider=\(providerName, privacy: .public) model=\(modelName, privacy: .public) duration=\(duration, format: .fixed(precision: 3), privacy: .public)s errorType=\(String(describing: type(of: error)), privacy: .public)"
             )
             throw error
         }

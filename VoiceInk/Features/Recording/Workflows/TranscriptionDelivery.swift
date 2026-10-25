@@ -4,7 +4,21 @@ import os
 
 @MainActor
 final class TranscriptionDelivery {
+    typealias PasteOverride = @MainActor (
+        String,
+        Transcription,
+        OutputRuntimeConfiguration,
+        FinishAndSendKey,
+        Bool,
+        () async -> Void
+    ) async -> Void
+
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionDelivery")
+    private let pasteOverride: PasteOverride?
+
+    init(pasteOverride: PasteOverride? = nil) {
+        self.pasteOverride = pasteOverride
+    }
 
     struct Request {
         let transcription: Transcription
@@ -14,6 +28,8 @@ final class TranscriptionDelivery {
         let responseError: String?
         let isAssistantFollowUp: Bool
         let sendAfterPaste: Bool
+        var isEphemeral: Bool = false
+        var refreshPrivacy: (@MainActor () async -> Bool)? = nil
     }
 
     struct Actions {
@@ -27,6 +43,23 @@ final class TranscriptionDelivery {
     func deliver(_ request: Request, actions: Actions) async {
         guard request.transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue else {
             await actions.dismiss()
+            return
+        }
+
+        let isEphemeral = await request.refreshPrivacy?() ?? request.isEphemeral
+        if isEphemeral {
+            if let text = request.text {
+                await paste(
+                    text,
+                    transcription: request.transcription,
+                    output: request.output,
+                    sendKey: .none,
+                    isEphemeral: true,
+                    actions: actions
+                )
+            } else {
+                await actions.dismiss()
+            }
             return
         }
 
@@ -130,20 +163,9 @@ final class TranscriptionDelivery {
             let stdoutBytes = result.stdout.utf8.count
             let stderrBytes = result.stderr.utf8.count
 
-            if !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                logger.notice(
-                    "Custom command stdout bytes=\(stdoutBytes, privacy: .public): \(result.stdout, privacy: .public)")
-            }
-
-            if !result.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                logger.notice(
-                    "Custom command succeeded with stderr duration=\(Self.formattedDuration(duration), privacy: .public)s stdoutBytes=\(stdoutBytes, privacy: .public) stderrBytes=\(stderrBytes, privacy: .public): \(result.stderr, privacy: .public)"
-                )
-            } else {
-                logger.notice(
-                    "Custom command succeeded duration=\(Self.formattedDuration(duration), privacy: .public)s stdoutBytes=\(stdoutBytes, privacy: .public) stderrBytes=\(stderrBytes, privacy: .public)"
-                )
-            }
+            logger.notice(
+                "Custom command succeeded duration=\(Self.formattedDuration(duration), privacy: .public)s stdoutBytes=\(stdoutBytes, privacy: .public) stderrBytes=\(stderrBytes, privacy: .public)"
+            )
 
             if finishAndSendKey.isEnabled {
                 // Let the target app finish pasting before sending.
@@ -156,13 +178,13 @@ final class TranscriptionDelivery {
     }
 
     private func notifyCustomCommandFailure(_ error: Error, duration: TimeInterval? = nil) {
-        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        let errorType = String(describing: type(of: error))
         if let duration {
             logger.error(
-                "Custom command failed duration=\(Self.formattedDuration(duration), privacy: .public)s: \(message, privacy: .public)"
+                "Custom command failed duration=\(Self.formattedDuration(duration), privacy: .public)s errorType=\(errorType, privacy: .public)"
             )
         } else {
-            logger.error("Custom command failed: \(message, privacy: .public)")
+            logger.error("Custom command failed errorType=\(errorType, privacy: .public)")
         }
     }
 
@@ -175,14 +197,20 @@ final class TranscriptionDelivery {
         transcription: Transcription,
         output: OutputRuntimeConfiguration,
         sendKey: FinishAndSendKey,
+        isEphemeral: Bool = false,
         actions: Actions
     ) async {
         actions.setState(.idle)
+        if let pasteOverride {
+            await pasteOverride(text, transcription, output, sendKey, isEphemeral, actions.dismiss)
+            return
+        }
         await VocoDelivery.paste(
             text,
             transcription: transcription,
             output: output,
             sendKey: sendKey,
+            isEphemeral: isEphemeral,
             dismiss: actions.dismiss
         )
     }

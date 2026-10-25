@@ -57,7 +57,7 @@ class Qwen3CoreMLTranscriptionService: TranscriptionService {
             ChinesePostProcessingService.shared.lastWordConfidences = result.wordConfidences
         }
 
-        logger.info("Qwen3 CoreML transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")
+        logger.info("Qwen3 CoreML transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount), chars: \(result.text.count))")
         return result.text
     }
 

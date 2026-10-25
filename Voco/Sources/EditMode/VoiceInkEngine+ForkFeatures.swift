@@ -118,7 +118,7 @@ extension VoiceInkEngine {
     /// Caches app context from EditModeCacheService into the enhancement service.
     /// Called during recording start, before the app loses frontmost status.
     func cacheEditModeAppContext(capturedAppName: String?) {
-        guard let enhancementService else { return }
+        guard !isEphemeralDictation, let enhancementService else { return }
         let editCache = EditModeCacheService.shared
         enhancementService.cachedAppName = editCache.cachedAppName ?? capturedAppName
         enhancementService.cachedWindowTitle = editCache.cachedWindowTitle

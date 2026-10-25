@@ -367,6 +367,12 @@ final class VocoRuntimeCorrectionModelService {
     }
 
     private func appendDecisionEvent(_ decision: VocoRuntimeCorrectionDecision) {
+        if let evidenceBuffer = VocoEvidenceScope.current {
+            evidenceBuffer.append { [weak self] in
+                self?.appendDecisionEvent(decision)
+            }
+            return
+        }
         guard let eventLogURL else { return }
 
         do {

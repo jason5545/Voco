@@ -89,6 +89,8 @@ extension VoiceInkEngine {
 
     var isEditMode: Bool { forkState.isEditMode }
     var editModeSelectedText: String? { forkState.editModeSelectedText }
+    var isEphemeralDictation: Bool { dictationPrivacy.isEphemeral }
+    var ephemeralPrivacyNotice: String? { dictationPrivacy.privacyNotice }
 
     var pendingDictionaryEntry: WordSubstitution? {
         get { forkState.pendingDictionaryEntry }

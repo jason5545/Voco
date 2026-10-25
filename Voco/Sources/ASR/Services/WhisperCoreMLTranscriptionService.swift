@@ -72,7 +72,7 @@ class WhisperCoreMLTranscriptionService: TranscriptionService {
             ChinesePostProcessingService.shared.lastModelProvider = .whisperCoreML
         }
 
-        logger.warning("Whisper CoreML transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount)): \(result.text.prefix(100))")
+        logger.warning("Whisper CoreML transcription complete (avgLogProb: \(String(format: "%.3f", result.avgLogProb)), tokens: \(result.tokenCount), chars: \(result.text.count))")
         return result.text
     }
 
