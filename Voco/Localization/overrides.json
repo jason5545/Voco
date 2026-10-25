@@ -97,6 +97,26 @@
         }
       }
     },
+    "%@ times": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 倍"
+          }
+        }
+      }
+    },
+    "%@ to %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 至 %@"
+          }
+        }
+      }
+    },
     "%@ · %lld/%lld corrected": {
       "localizations": {
         "zh-Hant": {
@@ -113,6 +133,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ → %@"
+          }
+        }
+      }
+    },
+    "%@,": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，"
+          }
+        }
+      }
+    },
+    "%@, %lld words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，%2$lld 個字"
+          }
+        }
+      }
+    },
+    "%@, future date": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，未來日期"
           }
         }
       }
@@ -253,6 +303,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個模型可用"
+          }
+        }
+      }
+    },
+    "%lld pending corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項待審核修正"
           }
         }
       }
@@ -557,6 +617,26 @@
         }
       }
     },
+    "12 AM": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "午夜 12 點"
+          }
+        }
+      }
+    },
+    "12 PM": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中午 12 點"
+          }
+        }
+      }
+    },
     "120s": {
       "localizations": {
         "zh-Hant": {
@@ -737,6 +817,26 @@
         }
       }
     },
+    "6 AM": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上午 6 點"
+          }
+        }
+      }
+    },
+    "6 PM": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下午 6 點"
+          }
+        }
+      }
+    },
     "60s": {
       "localizations": {
         "zh-Hant": {
@@ -804,6 +904,12 @@
             "state": "translated",
             "value": "A closer look at your Voco usage."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深入了解 Voco 的使用情況。"
+          }
         }
       }
     },
@@ -843,6 +949,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 模型"
+          }
+        }
+      }
+    },
+    "AI Model Performance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 模型效能"
+          }
+        }
+      }
+    },
+    "AI Model Usage": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 模型使用情況"
           }
         }
       }
@@ -1124,6 +1250,12 @@
             "state": "translated",
             "value": "Activate a license to continue using Voco."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用授權才能繼續使用 Voco。"
+          }
         }
       }
     },
@@ -1143,6 +1275,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用中"
+          }
+        }
+      }
+    },
+    "Active days": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "活躍天數"
           }
         }
       }
@@ -1741,6 +1883,16 @@
         }
       }
     },
+    "All-Time Productivity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計生產力"
+          }
+        }
+      }
+    },
     "Allow Voco to capture screen context for better AI enhancement": {
       "localizations": {
         "zh-Hant": {
@@ -1941,6 +2093,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "分析中…"
+          }
+        }
+      }
+    },
+    "Animal Farm": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動物農莊"
           }
         }
       }
@@ -2761,6 +2923,16 @@
         }
       }
     },
+    "Back to dashboard": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回儀表板"
+          }
+        }
+      }
+    },
     "Back to history": {
       "localizations": {
         "zh-Hant": {
@@ -2861,6 +3033,26 @@
         }
       }
     },
+    "Best day": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最佳單日"
+          }
+        }
+      }
+    },
+    "Best time": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最佳時段"
+          }
+        }
+      }
+    },
     "Boost": {
       "localizations": {
         "zh-Hant": {
@@ -2957,6 +3149,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設使用電池時會暫停常駐功能以節省電量。啟用此選項可在電池供電時也保持模型常駐。"
+          }
+        }
+      }
+    },
+    "Calculating %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在計算 %@。"
           }
         }
       }
@@ -3501,6 +3703,16 @@
         }
       }
     },
+    "Click to edit dashboard name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點按以編輯儀表板名稱"
+          }
+        }
+      }
+    },
     "Clipboard": {
       "localizations": {
         "zh-Hant": {
@@ -3831,6 +4043,16 @@
         }
       }
     },
+    "Consistency, at a glance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用穩定度一覽"
+          }
+        }
+      }
+    },
     "Context": {
       "localizations": {
         "zh-Hant": {
@@ -3978,6 +4200,12 @@
             "state": "translated",
             "value": "Continue using Voco to unlock peak hours."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖轉錄尖峰時段分析。"
+          }
         }
       }
     },
@@ -3988,6 +4216,12 @@
             "state": "translated",
             "value": "Continue using Voco to unlock stats and insights."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖統計資料與深入分析。"
+          }
         }
       }
     },
@@ -3997,6 +4231,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Continue using Voco to unlock these stats."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖這些統計資料。"
           }
         }
       }
@@ -4153,6 +4393,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "複製到剪貼簿"
+          }
+        }
+      }
+    },
+    "Copy transcript": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製轉錄內容"
           }
         }
       }
@@ -4403,6 +4653,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法驗證這組 API 金鑰。請檢查金鑰後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn't open — try again": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法開啟，請再試一次。"
           }
         }
       }
@@ -5083,6 +5343,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 1 個工作階段中口述了 %@ 個字。"
+          }
+        }
+      }
+    },
+    "Dictated %@, %@ words from %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，再轉錄 %2$@ 個字即可達到 %3$@。"
+          }
+        }
+      }
+    },
+    "Dictated %@, equivalent to %@ %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，相當於《%2$@》的 %3$@。"
+          }
+        }
+      }
+    },
+    "Dictated %@, equivalent to %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，相當於《%2$@》的篇幅。"
+          }
+        }
+      }
+    },
+    "Dictated %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %@。"
           }
         }
       }
@@ -6257,6 +6557,26 @@
         }
       }
     },
+    "Est. duration": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預估時長"
+          }
+        }
+      }
+    },
+    "Est. tokens": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預估詞元數"
+          }
+        }
+      }
+    },
     "Exact correction": {
       "localizations": {
         "zh-Hant": {
@@ -6797,6 +7117,16 @@
         }
       }
     },
+    "GitHub opened": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已開啟 GitHub"
+          }
+        }
+      }
+    },
     "Go usage · %@": {
       "localizations": {
         "zh-Hant": {
@@ -6823,6 +7153,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Go 額度：請先設定 OpenCode Go API 金鑰"
+          }
+        }
+      }
+    },
+    "Good afternoon": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "午安"
+          }
+        }
+      }
+    },
+    "Good evening": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "晚安"
+          }
+        }
+      }
+    },
+    "Good morning": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "早安"
           }
         }
       }
@@ -6970,6 +7330,22 @@
             "state": "translated",
             "value": "Help people discover Voco"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讓更多人認識 Voco"
+          }
+        }
+      }
+    },
+    "Hi": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嗨"
+          }
         }
       }
     },
@@ -7053,6 +7429,36 @@
         }
       }
     },
+    "Homer's Iliad": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伊利亞德"
+          }
+        }
+      }
+    },
+    "Homer's Iliad and Odyssey": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伊利亞德與奧德賽"
+          }
+        }
+      }
+    },
+    "Homer's Odyssey": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "奧德賽"
+          }
+        }
+      }
+    },
     "Hotkey 1": {
       "localizations": {
         "zh-Hant": {
@@ -7069,6 +7475,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "快速鍵 2"
+          }
+        }
+      }
+    },
+    "Hourly dictation activity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每小時轉錄活動"
           }
         }
       }
@@ -7119,6 +7535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "If Voco has been useful, a star on GitHub helps others find it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果 Voco 對你有幫助，請在 GitHub 加星號，讓更多人認識它。"
           }
         }
       }
@@ -7295,6 +7717,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "輸入模式"
+          }
+        }
+      }
+    },
+    "Insights Locked": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深入分析尚未解鎖"
+          }
+        }
+      }
+    },
+    "Insights period": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析期間"
           }
         }
       }
@@ -7625,6 +8067,16 @@
         }
       }
     },
+    "Later": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後"
+          }
+        }
+      }
+    },
     "Launch at Login": {
       "localizations": {
         "zh-Hant": {
@@ -7651,6 +8103,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "瞭解更多"
+          }
+        }
+      }
+    },
+    "Less": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "較少"
           }
         }
       }
@@ -8101,6 +8563,16 @@
         }
       }
     },
+    "Manage Modes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理模式"
+          }
+        }
+      }
+    },
     "Manage custom enhancement models in the Custom tab.": {
       "localizations": {
         "zh-Hant": {
@@ -8497,6 +8969,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modes help you set up Voco for different writing tasks, workflows, and scenarios."
+          }
+        }
+      }
+    },
+    "Monthly Productivity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每月生產力"
+          }
+        }
+      }
+    },
+    "More": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "較多"
           }
         }
       }
@@ -8921,6 +9413,16 @@
         }
       }
     },
+    "No activity recorded": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚無活動紀錄"
+          }
+        }
+      }
+    },
     "No additional devices available": {
       "localizations": {
         "zh-Hant": {
@@ -8947,6 +9449,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "找不到 App"
+          }
+        }
+      }
+    },
+    "No audio duration": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有音訊時長資料"
           }
         }
       }
@@ -9011,12 +9523,32 @@
         }
       }
     },
+    "No enhancement models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有增強模型"
+          }
+        }
+      }
+    },
     "No enhancement timings": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "沒有增強處理時間資料"
+          }
+        }
+      }
+    },
+    "No hourly pattern yet.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未有每小時使用模式。"
           }
         }
       }
@@ -9071,6 +9603,26 @@
         }
       }
     },
+    "No model performance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有模型效能資料"
+          }
+        }
+      }
+    },
+    "No model performance for this period": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此期間沒有模型效能資料"
+          }
+        }
+      }
+    },
     "No model performance in selection": {
       "localizations": {
         "zh-Hant": {
@@ -9087,6 +9639,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "未選取模型"
+          }
+        }
+      }
+    },
+    "No model usage": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有模型使用紀錄"
+          }
+        }
+      }
+    },
+    "No model usage for this period": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此期間沒有模型使用資料"
           }
         }
       }
@@ -9261,6 +9833,16 @@
         }
       }
     },
+    "No token estimates": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有詞元用量估算資料"
+          }
+        }
+      }
+    },
     "No transcription available": {
       "localizations": {
         "zh-Hant": {
@@ -9277,6 +9859,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未選擇轉錄模型"
+          }
+        }
+      }
+    },
+    "No transcription models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有轉錄模型"
           }
         }
       }
@@ -9397,6 +9989,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未連接"
+          }
+        }
+      }
+    },
+    "Not enough data": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料不足"
           }
         }
       }
@@ -9591,6 +10193,16 @@
         }
       }
     },
+    "Open Modes settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟模式設定"
+          }
+        }
+      }
+    },
     "Open Quick History": {
       "localizations": {
         "zh-Hant": {
@@ -9621,6 +10233,26 @@
         }
       }
     },
+    "Open detailed AI model usage": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 AI 模型使用明細"
+          }
+        }
+      }
+    },
+    "Open detailed model performance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看模型效能明細"
+          }
+        }
+      }
+    },
     "Open history from anywhere with a global shortcut": {
       "localizations": {
         "zh-Hant": {
@@ -9647,12 +10279,28 @@
         }
       }
     },
+    "Open recommended AI models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看推薦的 AI 模型"
+          }
+        }
+      }
+    },
     "Open the VoiceInk %@ update": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Open the Voco %@ update"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 Voco %@ 更新項目"
           }
         }
       }
@@ -9693,6 +10341,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "OpenCode Go 連線失敗：%@"
+          }
+        }
+      }
+    },
+    "Opens the update window": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟更新視窗"
           }
         }
       }
@@ -10023,6 +10681,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "錄音開始時暫停播放媒體，完成後恢復播放。"
+          }
+        }
+      }
+    },
+    "Peak Dictation Hours": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄尖峰時段"
+          }
+        }
+      }
+    },
+    "Peak dictation hours": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄尖峰時段"
           }
         }
       }
@@ -10640,6 +11318,12 @@
             "state": "translated",
             "value": "Pulling together your Voco activity."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在整理 Voco 的使用紀錄。"
+          }
         }
       }
     },
@@ -11015,12 +11699,42 @@
         }
       }
     },
+    "Recent Transcripts": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的轉錄紀錄"
+          }
+        }
+      }
+    },
+    "Recent activity from your full history. Empty cells indicate days without recorded activity.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "近期的完整歷史紀錄。空白格表示當天沒有活動紀錄。"
+          }
+        }
+      }
+    },
     "Recent corrections": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "近期修正偏高"
+          }
+        }
+      }
+    },
+    "Recent daily dictation activity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近每日轉錄活動"
           }
         }
       }
@@ -11061,6 +11775,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "錄製快捷鍵"
+          }
+        }
+      }
+    },
+    "Record your first session to start building momentum.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始第一段轉錄，逐步累積使用成果。"
           }
         }
       }
@@ -11923,6 +12647,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "待複核"
+          }
+        }
+      }
+    },
+    "Review %lld pending corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視 %lld 項待審核修正"
+          }
+        }
+      }
+    },
+    "Review Corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視修正項目"
+          }
+        }
+      }
+    },
+    "Review corrections": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視修正項目"
           }
         }
       }
@@ -12843,6 +13597,16 @@
         }
       }
     },
+    "Set Up a Mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定模式"
+          }
+        }
+      }
+    },
     "Set as Default": {
       "localizations": {
         "zh-Hant": {
@@ -13577,6 +14341,26 @@
         }
       }
     },
+    "Star on GitHub": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 加星號"
+          }
+        }
+      }
+    },
+    "Starred — thank you!": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加星號，謝謝！"
+          }
+        }
+      }
+    },
     "Start": {
       "localizations": {
         "zh-Hant": {
@@ -13629,6 +14413,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始或停止 Voco 錄音器以進行語音轉錄。"
+          }
+        }
+      }
+    },
+    "Start recording to build %@.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始錄音，累積 %@。"
           }
         }
       }
@@ -14221,12 +15015,32 @@
         }
       }
     },
+    "The Great Gatsby": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大亨小傳"
+          }
+        }
+      }
+    },
     "The MCP session is closed.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "MCP 連線已關閉。"
+          }
+        }
+      }
+    },
+    "The Metamorphosis": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變形記"
           }
         }
       }
@@ -14601,6 +15415,16 @@
         }
       }
     },
+    "These estimated tokens are a rough estimate of token usage. They are not exact token counts or provider-reported billing usage.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這些詞元用量只是粗略估算，並非精確的詞元數量，也不是供應商回報的計費用量。"
+          }
+        }
+      }
+    },
     "This Year": {
       "localizations": {
         "zh-Hant": {
@@ -14941,6 +15765,26 @@
         }
       }
     },
+    "Today": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
+          }
+        }
+      }
+    },
+    "Today's Productivity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日生產力"
+          }
+        }
+      }
+    },
     "Toggle": {
       "localizations": {
         "zh-Hant": {
@@ -15033,6 +15877,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "詞元數量是根據請求文字估算的。"
+          }
+        }
+      }
+    },
+    "Tolstoy's War and Peace": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戰爭與和平"
           }
         }
       }
@@ -15173,6 +16027,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "轉錄紀錄"
+          }
+        }
+      }
+    },
+    "Transcript from %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來自 %@ 的轉錄紀錄"
           }
         }
       }
@@ -15609,6 +16473,16 @@
         }
       }
     },
+    "Update Available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有可用更新"
+          }
+        }
+      }
+    },
     "Update Model": {
       "localizations": {
         "zh-Hant": {
@@ -16039,6 +16913,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "版本不符"
+          }
+        }
+      }
+    },
+    "View Insights": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看深入分析"
+          }
+        }
+      }
+    },
+    "View dashboard insights": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看儀表板深入分析"
           }
         }
       }
@@ -16516,6 +17410,12 @@
             "state": "translated",
             "value": "Voco impact summary"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用效益摘要"
+          }
         }
       }
     },
@@ -16620,6 +17520,12 @@
             "state": "translated",
             "value": "Voco needs at least one mode to record. Create one to start dictating."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 至少需要一個模式才能錄音。建立模式後即可開始口述。"
+          }
         }
       }
     },
@@ -16639,6 +17545,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco progress"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用進度"
           }
         }
       }
@@ -16883,6 +17795,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "網站"
+          }
+        }
+      }
+    },
+    "Weekly Productivity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每週生產力"
           }
         }
       }
@@ -17249,6 +18171,16 @@
         }
       }
     },
+    "Yearly Productivity": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每年生產力"
+          }
+        }
+      }
+    },
     "You can only customize the trigger words for system prompts.": {
       "localizations": {
         "zh-Hant": {
@@ -17285,6 +18217,16 @@
         }
       }
     },
+    "You have %lld days left in your trial": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試用期還剩 %lld 天"
+          }
+        }
+      }
+    },
     "You have saved ": {
       "localizations": {
         "zh-Hant": {
@@ -17301,6 +18243,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "You have saved %@ with Voco"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Voco 累計節省 %@"
+          }
+        }
+      }
+    },
+    "You made room for": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你省下"
           }
         }
       }
@@ -17391,12 +18349,32 @@
         }
       }
     },
+    "Your data is not ready yet. Keep the momentum going.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料尚未就緒，繼續保持。"
+          }
+        }
+      }
+    },
     "Your data never has to leave your device.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "你的資料永遠不必離開你的裝置。"
+          }
+        }
+      }
+    },
+    "Your first milestone appears after one session.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成一次轉錄後，就會顯示第一個里程碑。"
           }
         }
       }
@@ -17467,6 +18445,36 @@
         }
       }
     },
+    "Your word count and benchmark will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的字數和比較基準會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "You’re building momentum this week. Keep it going.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你本週正逐漸累積成果，繼續保持。"
+          }
+        }
+      }
+    },
+    "You’re on a roll this week. Keep the momentum going.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你本週進展順利，繼續保持。"
+          }
+        }
+      }
+    },
     "change %lld%%": {
       "localizations": {
         "zh-Hant": {
@@ -17503,6 +18511,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "衝突 %1$lld · 略過 %2$lld · 不支援 %3$lld"
+          }
+        }
+      }
+    },
+    "dictation sessions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次轉錄"
           }
         }
       }
@@ -17673,6 +18691,16 @@
         }
       }
     },
+    "of focused work": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "的專注工作時間"
+          }
+        }
+      }
+    },
     "or": {
       "localizations": {
         "zh-Hant": {
@@ -17713,6 +18741,16 @@
         }
       }
     },
+    "there": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "朋友"
+          }
+        }
+      }
+    },
     "too much punctuation": {
       "localizations": {
         "zh-Hant": {
@@ -17739,6 +18777,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "筆轉錄"
+          }
+        }
+      }
+    },
+    "twice": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 倍"
           }
         }
       }
@@ -17800,6 +18848,12 @@
             "state": "translated",
             "value": "with Voco"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Voco"
+          }
         }
       }
     },
@@ -17809,6 +18863,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "with Voco over the last 30 days"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去 30 天使用 Voco"
           }
         }
       }
@@ -17820,6 +18880,12 @@
             "state": "translated",
             "value": "with Voco this week"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本週使用 Voco"
+          }
         }
       }
     },
@@ -17830,6 +18896,12 @@
             "state": "translated",
             "value": "with Voco this year"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今年使用 Voco"
+          }
         }
       }
     },
@@ -17839,6 +18911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "with Voco today"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天使用 Voco"
           }
         }
       }
@@ -17863,6 +18941,16 @@
         }
       }
     },
+    "words captured": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄字數"
+          }
+        }
+      }
+    },
     "words generated": {
       "localizations": {
         "zh-Hant": {
@@ -17873,12 +18961,32 @@
         }
       }
     },
+    "words per average session": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次轉錄平均字數"
+          }
+        }
+      }
+    },
     "xAI's Grok speech-to-text with real-time streaming and batch transcription": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "xAI Grok 語音轉文字，支援即時串流與批次轉錄"
+          }
+        }
+      }
+    },
+    "your name": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的暱稱"
           }
         }
       }

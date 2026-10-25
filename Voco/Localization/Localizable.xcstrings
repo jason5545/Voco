@@ -344,6 +344,12 @@
             "state": "translated",
             "value": "%@ 次"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 倍"
+          }
         }
       }
     },
@@ -367,6 +373,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 到 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 至 %@"
           }
         }
       }
@@ -432,6 +444,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "%@，"
@@ -526,6 +544,12 @@
             "state": "translated",
             "value": "%1$@，%2$lld 个词"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，%2$lld 個字"
+          }
         }
       }
     },
@@ -537,6 +561,12 @@
           "stringUnit": {
             "state": "new",
             "value": "%@, future date"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，未來日期"
           }
         }
       }
@@ -1567,6 +1597,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "待审核更正：%lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項待審核修正"
           }
         }
       }
@@ -2913,6 +2949,12 @@
             "state": "translated",
             "value": "凌晨 12 点"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "午夜 12 點"
+          }
         }
       }
     },
@@ -2936,6 +2978,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "中午 12 点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中午 12 點"
           }
         }
       }
@@ -3611,6 +3659,12 @@
             "state": "translated",
             "value": "上午 6 点"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上午 6 點"
+          }
         }
       }
     },
@@ -3634,6 +3688,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "下午 6 点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下午 6 點"
           }
         }
       }
@@ -3778,6 +3838,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更详细地查看你的 VoiceInk 使用情况。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深入了解 Voco 的使用情況。"
           }
         }
       }
@@ -4077,6 +4143,12 @@
             "state": "translated",
             "value": "AI 模型性能"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 模型效能"
+          }
         }
       }
     },
@@ -4100,6 +4172,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 模型使用情况"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 模型使用情況"
           }
         }
       }
@@ -4767,6 +4845,12 @@
             "state": "translated",
             "value": "激活许可证以继续使用 VoiceInk。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用授權才能繼續使用 Voco。"
+          }
         }
       }
     },
@@ -4860,6 +4944,12 @@
           "stringUnit": {
             "state": "new",
             "value": "Active days"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "活躍天數"
           }
         }
       }
@@ -6284,6 +6374,12 @@
             "state": "translated",
             "value": "总计生产力"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累計生產力"
+          }
         }
       }
     },
@@ -6677,6 +6773,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "动物农场"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動物農莊"
           }
         }
       }
@@ -8602,6 +8704,12 @@
             "state": "translated",
             "value": "返回仪表盘"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回儀表板"
+          }
         }
       }
     },
@@ -8834,6 +8942,12 @@
             "state": "new",
             "value": "Best day"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最佳單日"
+          }
         }
       }
     },
@@ -8857,6 +8971,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "最佳时段"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最佳時段"
           }
         }
       }
@@ -9057,6 +9177,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在计算 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在計算 %@。"
           }
         }
       }
@@ -10237,6 +10363,12 @@
             "state": "translated",
             "value": "点击编辑仪表盘名称"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點按以編輯儀表板名稱"
+          }
         }
       }
     },
@@ -11003,6 +11135,12 @@
             "state": "translated",
             "value": "坚持情况一览"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用穩定度一覽"
+          }
         }
       }
     },
@@ -11209,6 +11347,12 @@
             "state": "translated",
             "value": "继续使用 VoiceInk 以解锁高峰时段。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖轉錄尖峰時段分析。"
+          }
         }
       }
     },
@@ -11239,6 +11383,12 @@
             "state": "translated",
             "value": "继续使用 VoiceInk 以解锁统计和洞察。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖統計資料與深入分析。"
+          }
         }
       }
     },
@@ -11268,6 +11418,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续使用 VoiceInk 以解锁这些统计数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續使用 Voco，即可解鎖這些統計資料。"
           }
         }
       }
@@ -11615,6 +11771,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制转写文本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製轉錄內容"
           }
         }
       }
@@ -12153,6 +12315,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法打开 — 重试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法開啟，請再試一次。"
           }
         }
       }
@@ -14036,6 +14204,12 @@
             "state": "translated",
             "value": "已听写 %@，还差 %@ 字即可达到 %@。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，再轉錄 %2$@ 個字即可達到 %3$@。"
+          }
         }
       }
     },
@@ -14065,6 +14239,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已听写 %@，相当于 %@ %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，相當於《%2$@》的 %3$@。"
           }
         }
       }
@@ -14096,6 +14276,12 @@
             "state": "translated",
             "value": "已听写 %@，相当于 %@。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %1$@，相當於《%2$@》的篇幅。"
+          }
         }
       }
     },
@@ -14119,6 +14305,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已听写 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已轉錄 %@。"
           }
         }
       }
@@ -17013,6 +17205,12 @@
             "state": "translated",
             "value": "估算时长"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預估時長"
+          }
         }
       }
     },
@@ -17036,6 +17234,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "估算令牌"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預估詞元數"
           }
         }
       }
@@ -18836,6 +19040,12 @@
             "state": "translated",
             "value": "已打开 GitHub"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已開啟 GitHub"
+          }
         }
       }
     },
@@ -18914,6 +19124,12 @@
             "state": "translated",
             "value": "下午好"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "午安"
+          }
         }
       }
     },
@@ -18938,6 +19154,12 @@
             "state": "translated",
             "value": "晚上好"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "晚安"
+          }
         }
       }
     },
@@ -18961,6 +19183,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "早上好"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "早安"
           }
         }
       }
@@ -19232,6 +19460,12 @@
             "state": "translated",
             "value": "帮助更多人发现 VoiceInk"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讓更多人認識 Voco"
+          }
         }
       }
     },
@@ -19255,6 +19489,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你好"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嗨"
           }
         }
       }
@@ -19457,6 +19697,12 @@
             "state": "translated",
             "value": "荷马《伊利亚特》"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伊利亞德"
+          }
         }
       }
     },
@@ -19481,6 +19727,12 @@
             "state": "translated",
             "value": "荷马《伊利亚特》和《奥德赛》"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伊利亞德與奧德賽"
+          }
         }
       }
     },
@@ -19504,6 +19756,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "荷马《奥德赛》"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "奧德賽"
           }
         }
       }
@@ -19548,6 +19806,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "每小时听写活动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每小時轉錄活動"
           }
         }
       }
@@ -19716,6 +19980,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "如果 VoiceInk 对你有帮助，在 GitHub 上点个星标可以帮助更多人发现它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果 Voco 對你有幫助，請在 GitHub 加星號，讓更多人認識它。"
           }
         }
       }
@@ -20456,6 +20726,12 @@
             "state": "translated",
             "value": "洞察已锁定"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深入分析尚未解鎖"
+          }
         }
       }
     },
@@ -20479,6 +20755,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "洞察时间范围"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析期間"
           }
         }
       }
@@ -21257,6 +21539,12 @@
             "state": "translated",
             "value": "稍后"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後"
+          }
         }
       }
     },
@@ -21440,6 +21728,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更少"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "較少"
           }
         }
       }
@@ -22746,6 +23040,12 @@
             "state": "translated",
             "value": "转写模式"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理模式"
+          }
         }
       }
     },
@@ -23687,6 +23987,12 @@
             "state": "translated",
             "value": "月度生产力"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每月生產力"
+          }
         }
       }
     },
@@ -23710,6 +24016,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更多"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "較多"
           }
         }
       }
@@ -24677,6 +24989,12 @@
             "state": "translated",
             "value": "尚未记录活动"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚無活動紀錄"
+          }
         }
       }
     },
@@ -24748,6 +25066,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无音频时长"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有音訊時長資料"
           }
         }
       }
@@ -24935,6 +25259,12 @@
             "state": "translated",
             "value": "无润色模型"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有增強模型"
+          }
         }
       }
     },
@@ -25012,6 +25342,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无每小时使用模式。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未有每小時使用模式。"
           }
         }
       }
@@ -25203,6 +25539,12 @@
             "state": "translated",
             "value": "无模型性能数据"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有模型效能資料"
+          }
         }
       }
     },
@@ -25226,6 +25568,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此时间段内无模型性能数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此期間沒有模型效能資料"
           }
         }
       }
@@ -25315,6 +25663,12 @@
             "state": "translated",
             "value": "无模型使用数据"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有模型使用紀錄"
+          }
         }
       }
     },
@@ -25338,6 +25692,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此时间段内无模型使用数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此期間沒有模型使用資料"
           }
         }
       }
@@ -25738,6 +26098,12 @@
             "state": "translated",
             "value": "无令牌估算"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有詞元用量估算資料"
+          }
         }
       }
     },
@@ -25841,6 +26207,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无转写模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有轉錄模型"
           }
         }
       }
@@ -26363,6 +26735,12 @@
             "state": "new",
             "value": "Not enough data"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料不足"
+          }
         }
       }
     },
@@ -26833,6 +27211,12 @@
             "state": "translated",
             "value": "打开模式设置"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟模式設定"
+          }
         }
       }
     },
@@ -26948,6 +27332,12 @@
             "state": "translated",
             "value": "打开详细 AI 模型使用情况"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 AI 模型使用明細"
+          }
         }
       }
     },
@@ -26971,6 +27361,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开详细模型性能"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看模型效能明細"
           }
         }
       }
@@ -27042,6 +27438,12 @@
             "state": "translated",
             "value": "打开推荐 AI 模型"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看推薦的 AI 模型"
+          }
         }
       }
     },
@@ -27070,6 +27472,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 VoiceInk %@ 更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 Voco %@ 更新項目"
           }
         }
       }
@@ -27195,6 +27603,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开更新窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟更新視窗"
           }
         }
       }
@@ -28028,6 +28442,12 @@
             "state": "translated",
             "value": "高峰听写时段"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄尖峰時段"
+          }
         }
       }
     },
@@ -28051,6 +28471,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "高峰听写时段"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄尖峰時段"
           }
         }
       }
@@ -29202,6 +29628,12 @@
             "state": "translated",
             "value": "正在汇总你的 VoiceInk 活动。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在整理 Voco 的使用紀錄。"
+          }
         }
       }
     },
@@ -29843,6 +30275,12 @@
             "state": "translated",
             "value": "最近转写"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的轉錄紀錄"
+          }
         }
       }
     },
@@ -29854,6 +30292,12 @@
           "stringUnit": {
             "state": "new",
             "value": "Recent activity from your full history. Empty cells indicate days without recorded activity."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "近期的完整歷史紀錄。空白格表示當天沒有活動紀錄。"
           }
         }
       }
@@ -29876,6 +30320,12 @@
           "stringUnit": {
             "state": "new",
             "value": "Recent daily dictation activity"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近每日轉錄活動"
           }
         }
       }
@@ -30035,6 +30485,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制第一次会话以开始积累进展。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始第一段轉錄，逐步累積使用成果。"
           }
         }
       }
@@ -32046,6 +32502,12 @@
             "state": "translated",
             "value": "审核 %lld 项待审核更正"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視 %lld 項待審核修正"
+          }
         }
       }
     },
@@ -32069,6 +32531,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "审核更正"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視修正項目"
           }
         }
       }
@@ -32117,6 +32585,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "审核更正"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視修正項目"
           }
         }
       }
@@ -34136,6 +34610,12 @@
             "state": "translated",
             "value": "设置一个模式"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定模式"
+          }
         }
       }
     },
@@ -35570,6 +36050,12 @@
             "state": "translated",
             "value": "在 GitHub 上加星标"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 加星號"
+          }
         }
       }
     },
@@ -35591,6 +36077,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加星标，谢谢！"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加星號，謝謝！"
           }
         }
       }
@@ -35770,6 +36262,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "开始录音以建立 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始錄音，累積 %@。"
           }
         }
       }
@@ -37147,6 +37645,12 @@
             "state": "translated",
             "value": "了不起的盖茨比"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大亨小傳"
+          }
         }
       }
     },
@@ -37180,6 +37684,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "变形记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變形記"
           }
         }
       }
@@ -38298,6 +38808,12 @@
             "state": "translated",
             "value": "这些估算令牌只是对令牌使用量的粗略估计，并非精确的令牌数量，也不是提供商报告的计费用量。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這些詞元用量只是粗略估算，並非精確的詞元數量，也不是供應商回報的計費用量。"
+          }
         }
       }
     },
@@ -39154,6 +39670,12 @@
             "state": "translated",
             "value": "今天"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
+          }
         }
       }
     },
@@ -39177,6 +39699,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日生产力"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日生產力"
           }
         }
       }
@@ -39390,6 +39918,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "托尔斯泰《战争与和平》"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戰爭與和平"
           }
         }
       }
@@ -39669,6 +40203,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "来自 %@ 的转写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來自 %@ 的轉錄紀錄"
           }
         }
       }
@@ -40744,6 +41284,12 @@
             "state": "translated",
             "value": "有可用更新"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有可用更新"
+          }
         }
       }
     },
@@ -41659,6 +42205,12 @@
             "state": "translated",
             "value": "查看洞察"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看深入分析"
+          }
         }
       }
     },
@@ -41682,6 +42234,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看仪表盘洞察"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看儀表板深入分析"
           }
         }
       }
@@ -42807,6 +43365,12 @@
             "state": "translated",
             "value": "VoiceInk 成效概览"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用效益摘要"
+          }
         }
       }
     },
@@ -43057,6 +43621,12 @@
             "state": "translated",
             "value": "VoiceInk 至少需要一个模式才能录音。创建一个模式即可开始听写。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 至少需要一個模式才能錄音。建立模式後即可開始口述。"
+          }
         }
       }
     },
@@ -43114,6 +43684,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk 进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用進度"
           }
         }
       }
@@ -43606,6 +44182,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "每周生产力"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每週生產力"
           }
         }
       }
@@ -44259,6 +44841,12 @@
             "state": "translated",
             "value": "年度生产力"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每年生產力"
+          }
         }
       }
     },
@@ -44388,6 +44976,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試用期還剩 %lld 天"
+          }
         }
       }
     },
@@ -44428,6 +45022,12 @@
             "state": "translated",
             "value": "你已使用 VoiceInk 节省了 %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Voco 累計節省 %@"
+          }
         }
       }
     },
@@ -44451,6 +45051,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你腾出了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你省下"
           }
         }
       }
@@ -44580,6 +45186,12 @@
             "state": "translated",
             "value": "你的数据还没准备好。继续保持进展。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料尚未就緒，繼續保持。"
+          }
         }
       }
     },
@@ -44677,6 +45289,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成一次会话后会显示第一个里程碑。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成一次轉錄後，就會顯示第一個里程碑。"
           }
         }
       }
@@ -44906,6 +45524,12 @@
             "state": "translated",
             "value": "你的字数和基准对比会显示在这里。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的字數和比較基準會顯示在這裡。"
+          }
         }
       }
     },
@@ -44930,6 +45554,12 @@
             "state": "translated",
             "value": "你本周正在积累进展。继续保持。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你本週正逐漸累積成果，繼續保持。"
+          }
         }
       }
     },
@@ -44953,6 +45583,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你本周状态很好。继续保持进展。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你本週進展順利，繼續保持。"
           }
         }
       }
@@ -45017,6 +45653,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "听写次数"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次轉錄"
           }
         }
       }
@@ -45431,6 +46073,12 @@
             "state": "translated",
             "value": "的专注工作时间"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "的專注工作時間"
+          }
         }
       }
     },
@@ -45559,6 +46207,12 @@
             "state": "translated",
             "value": "你"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "朋友"
+          }
         }
       }
     },
@@ -45612,6 +46266,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "两次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 倍"
           }
         }
       }
@@ -45693,6 +46353,12 @@
             "state": "translated",
             "value": "使用 VoiceInk"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Voco"
+          }
         }
       }
     },
@@ -45722,6 +46388,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "过去 30 天使用 VoiceInk"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去 30 天使用 Voco"
           }
         }
       }
@@ -45753,6 +46425,12 @@
             "state": "translated",
             "value": "本周使用 VoiceInk"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本週使用 Voco"
+          }
         }
       }
     },
@@ -45783,6 +46461,12 @@
             "state": "translated",
             "value": "今年使用 VoiceInk"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今年使用 Voco"
+          }
         }
       }
     },
@@ -45812,6 +46496,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "今天使用 VoiceInk"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天使用 Voco"
           }
         }
       }
@@ -45896,6 +46586,12 @@
             "state": "translated",
             "value": "记录的词数"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄字數"
+          }
         }
       }
     },
@@ -45930,6 +46626,12 @@
             "state": "translated",
             "value": "平均每次听写词数"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次轉錄平均字數"
+          }
         }
       }
     },
@@ -45963,6 +46665,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的名字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的暱稱"
           }
         }
       }
