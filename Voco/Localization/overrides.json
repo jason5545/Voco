@@ -2291,6 +2291,16 @@
         }
       }
     },
+    "Auto-Learn Dictionary": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞庫自動學習"
+          }
+        }
+      }
+    },
     "Auto-Restore Preferences": {
       "localizations": {
         "zh-Hant": {
@@ -3417,6 +3427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "關閉"
+          }
+        }
+      }
+    },
+    "Close What's New": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉「新功能」"
           }
         }
       }
@@ -10305,6 +10325,16 @@
         }
       }
     },
+    "Quick History": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速歷史紀錄"
+          }
+        }
+      }
+    },
     "Quick tap for hands-free recording, hold for push-to-talk.": {
       "localizations": {
         "zh-Hant": {
@@ -15658,6 +15688,12 @@
             "state": "translated",
             "value": "Voco %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco %@"
+          }
         }
       }
     },
@@ -15811,6 +15847,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco automatically learns from the corrections you make to improve transcription accuracy over time. Dictionary Auto Learn uses your currently configured AI provider and AI model. You can change them anytime in Dictionary Settings."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 會自動從你做過的修正中學習，逐步提升轉錄準確度。詞庫自動學習會使用你目前設定的 AI 供應商與 AI 模型。你可以隨時在詞庫設定中變更。"
           }
         }
       }
@@ -16297,6 +16339,16 @@
         }
       }
     },
+    "Watch video": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觀看影片"
+          }
+        }
+      }
+    },
     "We'll download the optimized model to get you started.": {
       "localizations": {
         "zh-Hant": {
@@ -16375,6 +16427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "你希望 Voco 做什麼？"
+          }
+        }
+      }
+    },
+    "What's New": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新功能"
           }
         }
       }

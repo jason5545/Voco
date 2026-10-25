@@ -7816,6 +7816,12 @@
             "state": "translated",
             "value": "词典自动学习"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞庫自動學習"
+          }
         }
       }
     },
@@ -10260,6 +10266,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭“新功能”"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉「新功能」"
           }
         }
       }
@@ -29099,6 +29111,12 @@
             "state": "translated",
             "value": "快速历史记录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速歷史紀錄"
+          }
         }
       }
     },
@@ -41756,6 +41774,12 @@
             "state": "translated",
             "value": "VoiceInk %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco %@"
+          }
         }
       }
     },
@@ -42127,6 +42151,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk 会自动学习你所做的更正，从而逐步提高转录准确度。词典自动学习会使用你当前配置的 AI 提供商和 AI 模型。你可以随时在“词典”设置中更改它们。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 會自動從你做過的修正中學習，逐步提升轉錄準確度。詞庫自動學習會使用你目前設定的 AI 供應商與 AI 模型。你可以隨時在詞庫設定中變更。"
           }
         }
       }
@@ -43209,6 +43239,12 @@
             "state": "translated",
             "value": "观看视频"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觀看影片"
+          }
         }
       }
     },
@@ -43359,6 +43395,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新功能"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "新功能"
