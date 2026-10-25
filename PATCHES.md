@@ -162,11 +162,11 @@ Required exceptions left outside `Voco/`: root `AGENTS.md`, root `.gitattributes
 Use a separate derived-data path for reproducible local verification.
 
 ```bash
-xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
+xcodebuild -skipPackagePluginValidation -skipMacroValidation -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
   -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
   -derivedDataPath /tmp/voco-stage1-dd-macos build
 
-xcodebuild test -project VoiceInk.xcodeproj -scheme VoiceInk \
+xcodebuild -skipPackagePluginValidation -skipMacroValidation test -project VoiceInk.xcodeproj -scheme VoiceInk \
   -destination 'platform=macOS' -only-testing:VoiceInkTests \
   -derivedDataPath /tmp/voco-stage1-dd-tests
 ```
@@ -184,7 +184,7 @@ Run against the exact upstream commit above in a temporary detached worktree, co
 Back up the installed app before replacement. Deploy only the Release product to `/Applications/Voco.app` with `ditto`.
 
 ```bash
-xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release \
+xcodebuild -skipPackagePluginValidation -skipMacroValidation -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release \
   -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
   -derivedDataPath /tmp/voco-stage1-dd-release build
 
@@ -223,7 +223,22 @@ Stage 3 deployment (2026-10-24), through `c4268e5e`:
 - SwiftData counts were identical before backup, in the backup, and after deployment: transcriptions 33,226, word replacements 355, session metrics 31,639, vocabulary 136.
 - Qwen3 file smoke actually ran for 2.877 seconds and produced `世纪风电二零七二今日股价一百八十三元。` (normalized `世紀風電二零七二今日股價一百八十三元`), identical to the accepted baseline. The suite executed 21 tests with 21 passes. An earlier narrow selector returned 0 tests and was not counted; a suite run without the fixture marker also did not count as the smoke.
 - Runtime replay was semantically identical before and after deployment after excluding path fields: `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
-- Physical recording/device/paste/Edit Mode checks remain Jason's manual acceptance items. Stage 3 was not pushed; stages 4 and 5 were not started.
+- Physical recording/device/paste/Edit Mode checks remain Jason's manual acceptance items. Jason accepted stage 3 on 2026-10-25 and allowed the push; `c3de55a4c15c8cf44b5a7bf0cb0e6c677990bfc0` is on `origin/main`.
+
+Stage 4 merge and deployment (2026-10-25):
+
+- Actual merge commit: `8692052f01b225fd626e96f48127439d35533baf`, with parents `c3de55a4` and `22e5ec54`. The real merge produced exactly 97 unmerged paths (`UU 60`, `UD 37`), matching the trial merge with no new paths. All conflicts were resolved; the final unmerged count is zero. It has not been pushed.
+- Upstream's new App/Features/Infrastructure/DesignSystem shells were adopted. Voco kept its recording start flow, shared registry, four processing hooks, Edit Mode overrides, schema metadata, per-mode punctuation/lowercase settings, license policy and correction learning. Upstream AutoLearn is disabled by `VocoAutoLearnPolicy`; its defaults, configure/apply/undo paths and UI are gated.
+- `CloudModelCardView` was preserved in `Voco/Sources/UI/CloudModelCardView.swift` because pinned upstream deletes the type while still calling it from `ModelCardView`. `AudioCleanupSettingsView` was preserved in `Voco/Sources/UI/Settings/AudioCleanupSettingsView.swift` for the same reason. These are not revived upstream paths.
+- `Package.resolved` was regenerated from the merged dependency graph. `Localizable.xcstrings` has 2,318 keys across de/en/fr/zh-Hans/zh-Hant. `InfoPlist.xcstrings` carries Voco branding and the existing zh-Hant permission strings; legacy InfoPlist sources moved to `Voco/Config/Localization/` so they no longer form duplicate synchronized variant groups.
+- Debug and Release builds exited 0. The full scheme produced 513 tests: 502 passed, 10 failed, 1 skipped. The 10 unique failures exactly match the stage-6 baseline; no new failures were accepted. The old Voco file retains all 186 `@Test` functions, upstream adds two AutoLearn tests, and the three unique upstream UI tests passed across 12 executions. An earlier run had only seven failures because three known CloudKit timing failures did not reproduce; the next complete run reproduced exactly the baseline ten. Both results are recorded rather than treating the passes as a fix.
+- Python tools: `Ran 74 tests in 0.148s ... OK`. Localization generator: 7 tests OK.
+- App backup: `/tmp/Voco.app.bak-20261024-p4`; data backup: `/tmp/voco-data-bak-20261024-p4`, with the same scope as p3 and no recordings or ShadowLogs. Earlier backups were not modified. Installation used the default DerivedData Release product and `ditto` to `/Applications/Voco.app`.
+- The installed app stayed alive after 30 seconds (PID 12101). `codesign --verify --deep` exited 0 and entitlements were byte-identical (`/tmp/voco-p4-installed-entitlements.plist` versus backup). Bundle ID is `com.jasonchien.Voco`; upstream version advanced from `2.0 (179)` to `2.21 (221)` intentionally. No new launch crash was found; known prewarm WAV, localhost and CloudKit noise remains.
+- SwiftData counts were identical before backup, in the backup, and after deployment: transcriptions 33,428, word replacements 330, session metrics 31,829, vocabulary 136.
+- The forced Qwen3 adapter suite passed all 21 tests. The Edge TTS test actually ran for 2.088 seconds and produced `世纪风电二零七二今日股价一百八十三元。` (normalized `世紀風電二零七二今日股價一百八十三元`), identical to the accepted baseline. An earlier guard-skipped run was not counted as smoke.
+- Runtime replay was semantically identical before and after deployment after excluding path fields: `deployReady: true`, `runtimeReplayPass: true`, `rowsMatchingExpectedFinalText: 5`, `finalTextRegressionCount: 0`.
+- Jason's manual acceptance is still required for recording/device/paste/Edit Mode and the new upstream UI. Stage 4 is not pushed; stage 5 has not started.
 
 ### Appendix: remaining patched upstream paths (97)
 
