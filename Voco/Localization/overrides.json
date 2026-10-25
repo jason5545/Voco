@@ -2157,6 +2157,16 @@
         }
       }
     },
+    "Appearance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外觀"
+          }
+        }
+      }
+    },
     "Apple Silicon": {
       "localizations": {
         "zh-Hant": {
@@ -2683,6 +2693,16 @@
         }
       }
     },
+    "Automatic": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動"
+          }
+        }
+      }
+    },
     "Automatic fallback": {
       "localizations": {
         "zh-Hant": {
@@ -2699,6 +2719,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動文字格式"
+          }
+        }
+      }
+    },
+    "Automatically Check for Updates": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動檢查更新"
           }
         }
       }
@@ -3343,6 +3373,16 @@
         }
       }
     },
+    "Change the input channel after recording stops.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音停止後即可變更輸入通道。"
+          }
+        }
+      }
+    },
     "Changelog": {
       "localizations": {
         "zh-Hant": {
@@ -3449,6 +3489,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇"
+          }
+        }
+      }
+    },
+    "Choose %@ Sound": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 %@ 提示音"
           }
         }
       }
@@ -4677,6 +4727,16 @@
         }
       }
     },
+    "Create & Select": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立並選擇"
+          }
+        }
+      }
+    },
     "Create first mode to automate your Voco workflow based on apps/website you are using": {
       "localizations": {
         "zh-Hant": {
@@ -4927,6 +4987,16 @@
         }
       }
     },
+    "Custom…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂…"
+          }
+        }
+      }
+    },
     "Dashboard": {
       "localizations": {
         "zh-Hant": {
@@ -5007,6 +5077,16 @@
         }
       }
     },
+    "Default and AppleScript temporarily use the clipboard to paste transcription. When enabled, this restores your previous clipboard content after the selected delay. Direct Typing leaves the clipboard unchanged.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設和 AppleScript 會暫時使用剪貼簿貼上轉錄內容。啟用此選項後，會在所選延遲時間後還原先前的剪貼簿內容。直接輸入不會變更剪貼簿內容。"
+          }
+        }
+      }
+    },
     "Default mode is used when no app or website matches": {
       "localizations": {
         "zh-Hant": {
@@ -5033,6 +5113,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "當找不到符合的特定 App 或網站時，會使用預設強力模式。"
+          }
+        }
+      }
+    },
+    "Default uses Cmd+V. AppleScript offers an alternative way to send Cmd+V. Direct Typing enters text without using the clipboard. Some editors may not support it.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設方式使用 Cmd+V。AppleScript 提供另一種傳送 Cmd+V 的方式。直接輸入會在不使用剪貼簿的情況下輸入文字。部分編輯器可能不支援。"
           }
         }
       }
@@ -7711,6 +7801,36 @@
         }
       }
     },
+    "Input %u": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入 %u"
+          }
+        }
+      }
+    },
+    "Input %u (%@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入 %u（%@）"
+          }
+        }
+      }
+    },
+    "Input Channel": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入通道"
+          }
+        }
+      }
+    },
     "Input Mode": {
       "localizations": {
         "zh-Hant": {
@@ -8229,6 +8349,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "終身使用權。"
+          }
+        }
+      }
+    },
+    "Live Text Display": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時文字顯示"
           }
         }
       }
@@ -8819,6 +8949,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "模型目錄"
+          }
+        }
+      }
+    },
+    "Model ID": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 ID"
           }
         }
       }
@@ -11028,6 +11168,12 @@
             "state": "translated",
             "value": "Press Return while recording to stop and deliver the result. Voco will then paste the result and press the selected key to send it. Choose None to disable this feature."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音時按下 Return 鍵即可停止並送出結果。Voco 會貼上結果，再按下所選按鍵傳送。選擇「無」即可停用此功能。"
+          }
         }
       }
     },
@@ -12418,6 +12564,12 @@
             "state": "translated",
             "value": "Restart Voco to Apply Language"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動 Voco 以套用語言"
+          }
         }
       }
     },
@@ -12861,6 +13013,16 @@
         }
       }
     },
+    "Save & Select": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存並選擇"
+          }
+        }
+      }
+    },
     "Save Button Preview": {
       "localizations": {
         "zh-Hant": {
@@ -12947,6 +13109,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已儲存"
+          }
+        }
+      }
+    },
+    "Saved input is unavailable. Using Automatic until it returns.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已儲存的輸入通道目前無法使用。恢復之前會改用自動選擇。"
           }
         }
       }
@@ -13347,6 +13519,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇您要使用的音訊輸入裝置。"
+          }
+        }
+      }
+    },
+    "Select the input connected to your microphone. Automatic uses the device’s preferred inputs.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇連接麥克風的輸入通道。自動模式會使用裝置偏好的輸入通道。"
           }
         }
       }
@@ -14021,6 +14203,16 @@
         }
       }
     },
+    "Shows live text while recording with realtime models.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用即時模型錄音時顯示即時文字。"
+          }
+        }
+      }
+    },
     "Signals": {
       "localizations": {
         "zh-Hant": {
@@ -14667,6 +14859,16 @@
         }
       }
     },
+    "Supports keyboard combinations and mouse buttons.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援鍵盤組合鍵與滑鼠按鍵。"
+          }
+        }
+      }
+    },
     "Switch AI provider": {
       "localizations": {
         "zh-Hant": {
@@ -14749,6 +14951,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在同步 Mac 模型…"
+          }
+        }
+      }
+    },
+    "System Default": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統預設"
+          }
+        }
+      }
+    },
+    "System Default (%@)": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統預設（%@）"
           }
         }
       }
@@ -15491,6 +15713,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "This file does not contain a valid Voco dictionary."
+          }
+        }
+      }
+    },
+    "This filler word already exists.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個填充詞已存在。"
           }
         }
       }
@@ -18385,6 +18617,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your language change will take full effect after you quit and reopen Voco."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結束並重新開啟 Voco 後，語言變更才會完全生效。"
           }
         }
       }

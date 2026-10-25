@@ -6852,6 +6852,12 @@
             "state": "translated",
             "value": "外观"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外觀"
+          }
         }
       }
     },
@@ -8224,6 +8230,12 @@
             "state": "translated",
             "value": "自动"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動"
+          }
         }
       }
     },
@@ -8265,6 +8277,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动检查更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動檢查更新"
           }
         }
       }
@@ -9501,6 +9519,12 @@
             "state": "translated",
             "value": "请在录音停止后更改输入通道。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音停止後即可變更輸入通道。"
+          }
         }
       }
     },
@@ -9788,6 +9812,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选取 %@ 提示音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 %@ 提示音"
           }
         }
       }
@@ -12354,6 +12384,12 @@
             "state": "translated",
             "value": "创建并选择"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立並選擇"
+          }
         }
       }
     },
@@ -13038,6 +13074,12 @@
             "state": "translated",
             "value": "自定义…"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂…"
+          }
         }
       }
     },
@@ -13298,6 +13340,12 @@
             "state": "translated",
             "value": "默认和 AppleScript 会暂时使用剪贴板来粘贴转录。启用后，会在所选延迟后恢复剪贴板之前的内容。直接输入不会更改剪贴板。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設和 AppleScript 會暫時使用剪貼簿貼上轉錄內容。啟用此選項後，會在所選延遲時間後還原先前的剪貼簿內容。直接輸入不會變更剪貼簿內容。"
+          }
         }
       }
     },
@@ -13387,6 +13435,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "默认方式使用 Cmd+V。AppleScript 提供另一种发送 Cmd+V 的方式。直接输入无需使用剪贴板。部分编辑器可能不支持。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設方式使用 Cmd+V。AppleScript 提供另一種傳送 Cmd+V 的方式。直接輸入會在不使用剪貼簿的情況下輸入文字。部分編輯器可能不支援。"
           }
         }
       }
@@ -20646,6 +20700,12 @@
             "state": "translated",
             "value": "输入 %u"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入 %u"
+          }
         }
       }
     },
@@ -20669,6 +20729,12 @@
             "state": "translated",
             "value": "输入 %u（%@）"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入 %u（%@）"
+          }
         }
       }
     },
@@ -20691,6 +20757,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "输入通道"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入通道"
           }
         }
       }
@@ -22187,6 +22259,12 @@
             "state": "translated",
             "value": "实时文本显示"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時文字顯示"
+          }
         }
       }
     },
@@ -23675,6 +23753,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 ID"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "模型 ID"
@@ -29041,6 +29125,12 @@
             "state": "translated",
             "value": "录音时按 Return 可停止录音并输出结果。VoiceInk 随后会粘贴结果，并按下所选按键将其发送。选择“无”可禁用此功能。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音時按下 Return 鍵即可停止並送出結果。Voco 會貼上結果，再按下所選按鍵傳送。選擇「無」即可停用此功能。"
+          }
         }
       }
     },
@@ -32022,6 +32112,12 @@
             "state": "translated",
             "value": "重新启动 VoiceInk 以应用语言"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動 Voco 以套用語言"
+          }
         }
       }
     },
@@ -32941,6 +33037,12 @@
             "state": "translated",
             "value": "存储并选择"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存並選擇"
+          }
         }
       }
     },
@@ -33161,6 +33263,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已保存的输入不可用。恢复之前将使用自动模式。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已儲存的輸入通道目前無法使用。恢復之前會改用自動選擇。"
           }
         }
       }
@@ -34057,6 +34165,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择连接麦克风的输入。自动模式使用设备的首选输入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇連接麥克風的輸入通道。自動模式會使用裝置偏好的輸入通道。"
           }
         }
       }
@@ -35438,6 +35552,12 @@
             "state": "translated",
             "value": "使用实时模型录音时显示实时文本。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用即時模型錄音時顯示即時文字。"
+          }
         }
       }
     },
@@ -36809,6 +36929,12 @@
             "state": "translated",
             "value": "支持键盘组合键和鼠标按键。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援鍵盤組合鍵與滑鼠按鍵。"
+          }
         }
       }
     },
@@ -37005,6 +37131,12 @@
             "state": "translated",
             "value": "系统默认"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統預設"
+          }
         }
       }
     },
@@ -37026,6 +37158,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "系统默认（%@）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統預設（%@）"
           }
         }
       }
@@ -39118,6 +39256,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此填充词已存在。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個填充詞已存在。"
           }
         }
       }
@@ -45346,6 +45490,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出并重新打开 VoiceInk 后，语言更改才会完全生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結束並重新開啟 Voco 後，語言變更才會完全生效。"
           }
         }
       }
