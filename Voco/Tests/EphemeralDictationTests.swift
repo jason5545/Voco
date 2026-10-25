@@ -1,5 +1,6 @@
 import AppKit
 import OSLog
+import ObjectiveC
 import SwiftData
 import Testing
 @testable import Voco
@@ -155,25 +156,100 @@ private final class ScreenCallBox {
     var count = 0
 }
 
+private enum ScopedDefaultsError: Error {
+    case isolatedDefaultsUnavailable
+    case standardDefaultsMethodUnavailable
+    case standardDefaultsIsolationFailed
+}
+
 @MainActor
 private final class ScopedDefaults {
-    private let defaults = UserDefaults.standard
-    private var original: [String: Any?] = [:]
+    private static let protectedKeys = [
+        "ChinesePostProcessingEnabled",
+        "ChinesePostProcessingOpenCC",
+        "ContextAwareInsertionEnabled",
+        "ContextAwareLLMMergeEnabled",
+        "VocoRuntimeCorrectionModelEnabled",
+        "VocoAutoApplyModelEnabled",
+        "VocoPhoneticShadowLoggingEnabled",
+        "SkipShortEnhancement",
+        "AppendTrailingSpace",
+        "IsTextFormattingEnabled",
+        "IsAutoLearnDictionaryEnabled",
+        "IsAudioCleanupEnabled",
+        "IsTranscriptionCleanupEnabled",
+        "modeConfigurationsV2",
+        "activeConfigurationId",
+        "customPrompts",
+    ]
+
+    private let defaults: UserDefaults
+    private let productionDefaults: UserDefaults
+    private let suiteName: String
+    private let method: Method
+    private let originalImplementation: IMP
+    private let replacementImplementation: IMP
+    private let originalProductionValues: [String: Any]
+    private var isRestored = false
+
+    init() throws {
+        let productionDefaults = UserDefaults.standard
+        let originalProductionValues = Self.snapshot(productionDefaults)
+        let suiteName = "Voco.EphemeralDictationTests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            throw ScopedDefaultsError.isolatedDefaultsUnavailable
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+
+        guard let method = class_getClassMethod(
+            UserDefaults.self,
+            Selector(("standardUserDefaults"))
+        ) else {
+            throw ScopedDefaultsError.standardDefaultsMethodUnavailable
+        }
+        let originalImplementation = method_getImplementation(method)
+        let block: @convention(block) () -> UserDefaults = { defaults }
+        let replacementImplementation = imp_implementationWithBlock(block)
+        method_setImplementation(method, replacementImplementation)
+
+        guard UserDefaults.standard === defaults else {
+            method_setImplementation(method, originalImplementation)
+            imp_removeBlock(replacementImplementation)
+            defaults.removePersistentDomain(forName: suiteName)
+            throw ScopedDefaultsError.standardDefaultsIsolationFailed
+        }
+
+        self.defaults = defaults
+        self.productionDefaults = productionDefaults
+        self.suiteName = suiteName
+        self.method = method
+        self.originalImplementation = originalImplementation
+        self.replacementImplementation = replacementImplementation
+        self.originalProductionValues = originalProductionValues
+    }
 
     func set(_ value: Any?, forKey key: String) {
-        if original[key] == nil {
-            original[key] = defaults.object(forKey: key)
-        }
         defaults.set(value, forKey: key)
     }
 
     func restore() {
-        for (key, value) in original {
-            if let value {
-                defaults.set(value, forKey: key)
-            } else {
-                defaults.removeObject(forKey: key)
-            }
+        guard !isRestored else { return }
+        isRestored = true
+        method_setImplementation(method, originalImplementation)
+        imp_removeBlock(replacementImplementation)
+        defaults.removePersistentDomain(forName: suiteName)
+
+        #expect(UserDefaults.standard === productionDefaults, "測試結束後必須還原真實 standard UserDefaults")
+        let currentProductionValues = Self.snapshot(productionDefaults)
+        #expect(
+            (originalProductionValues as NSDictionary).isEqual(currentProductionValues as NSDictionary),
+            "測試不得改動真實 com.jasonchien.Voco UserDefaults domain"
+        )
+    }
+
+    private static func snapshot(_ defaults: UserDefaults) -> [String: Any] {
+        protectedKeys.reduce(into: [String: Any]()) { result, key in
+            result[key] = defaults.object(forKey: key) ?? NSNull()
         }
     }
 }
@@ -198,23 +274,37 @@ private final class EphemeralTestFixture {
     let evidenceDirectory: URL
 
     private let root: URL
-    private let defaults = ScopedDefaults()
-    private let modeManager = ModeManager.shared
+    private let defaults: ScopedDefaults
+    private let modeManager: ModeManager
     private var oldConfigurations: [ModeConfig] = []
     private var oldActiveConfiguration: ModeConfig?
     private var oldPostProcessingEnabled = true
+    private var oldOpenCCEnabled = true
 
-    init(enhancementEnabled: Bool = false, useCloudModel: Bool = false) throws {
+    init(
+        enhancementEnabled: Bool = false,
+        useCloudModel: Bool = false,
+        transcriptionText: String = "raw",
+        chinesePostProcessingEnabled: Bool = false
+    ) throws {
+        let postProcessor = ChinesePostProcessingService.shared
+        let modeManager = ModeManager.shared
+        self.modeManager = modeManager
+
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("EphemeralDictationTests-\(UUID().uuidString)", isDirectory: true)
         recordingsDirectory = root.appendingPathComponent("Recordings", isDirectory: true)
         evidenceDirectory = root.appendingPathComponent("ShadowLogs", isDirectory: true)
         try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
-        oldPostProcessingEnabled = ChinesePostProcessingService.shared.isEnabled
-        ChinesePostProcessingService.shared.isEnabled = false
+
+        defaults = try ScopedDefaults()
+        oldPostProcessingEnabled = postProcessor.isEnabled
+        oldOpenCCEnabled = postProcessor.isOpenCCEnabled
+        postProcessor.isEnabled = chinesePostProcessingEnabled
+        postProcessor.isOpenCCEnabled = true
 
         for (key, value) in [
-            "ChinesePostProcessingEnabled": false,
+            "ChinesePostProcessingEnabled": chinesePostProcessingEnabled,
             "VocoPhoneticShadowLoggingEnabled": true,
             "VocoRuntimeCorrectionModelEnabled": false,
             "VocoAutoApplyModelEnabled": false,
@@ -237,9 +327,18 @@ private final class EphemeralTestFixture {
         let configuration = ModelConfiguration(
             "ephemeral-tests-\(UUID().uuidString)",
             schema: schema,
-            isStoredInMemoryOnly: true
+            isStoredInMemoryOnly: true,
+            cloudKitDatabase: .none
         )
-        container = try ModelContainer(for: schema, configurations: [configuration])
+        do {
+            container = try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            postProcessor.isEnabled = oldPostProcessingEnabled
+            postProcessor.isOpenCCEnabled = oldOpenCCEnabled
+            defaults.restore()
+            try? FileManager.default.removeItem(at: root)
+            throw error
+        }
         modelContext = ModelContext(container)
 
         if useCloudModel {
@@ -274,7 +373,7 @@ private final class EphemeralTestFixture {
             modelProvider: whisperManager,
             modelsDirectory: modelsDirectory,
             modelContext: modelContext,
-            text: "raw"
+            text: transcriptionText
         )
         enhancement = SpyEnhancementService(
             aiService: SpyAIService(),
@@ -403,11 +502,13 @@ private final class EphemeralTestFixture {
         modeManager.replaceConfigurations(oldConfigurations)
         modeManager.setActiveConfiguration(oldActiveConfiguration)
         ChinesePostProcessingService.shared.isEnabled = oldPostProcessingEnabled
+        ChinesePostProcessingService.shared.isOpenCCEnabled = oldOpenCCEnabled
         defaults.restore()
         try? FileManager.default.removeItem(at: root)
     }
 }
 
+@Suite(.serialized)
 @MainActor
 struct EphemeralDictationTests {
     @Test func signalMatcherRequiresT3BundleAndMarker() {
@@ -529,6 +630,47 @@ struct EphemeralDictationTests {
         #expect(row.transcriptionStatus == TranscriptionStatus.completed.rawValue)
         #expect(row.enhancedText == "correctedX")
         #expect(row.finalPastedText == "correctedX")
+    }
+
+    @Test func normalDictationConvertsSimplifiedChineseToTraditional() async throws {
+        let fixture = try EphemeralTestFixture(
+            transcriptionText: "这个软件的设置在哪里",
+            chinesePostProcessingEnabled: true
+        )
+        defer { fixture.tearDown() }
+
+        await fixture.completeDictation()
+
+        let expected = "這個軟體的設定在哪裡"
+        #expect(fixture.deliveryBox.records.count == 1)
+        #expect(fixture.deliveryBox.records.first?.text == expected)
+        #expect(fixture.deliveryBox.records.first?.isEphemeral == false)
+        #expect(fixture.count(of: Transcription.self) == 1)
+        #expect(fixture.audioFiles().count == 1)
+        #expect(fixture.enhancement.enhanceCount == 0)
+        let row = try #require(fixture.modelContext.fetch(FetchDescriptor<Transcription>()).first)
+        #expect(row.text == expected)
+        #expect(row.finalPastedText == expected)
+    }
+
+    @Test func ephemeralDictationAlsoConvertsSimplifiedChineseToTraditional() async throws {
+        let fixture = try EphemeralTestFixture(
+            transcriptionText: "这个软件的设置在哪里",
+            chinesePostProcessingEnabled: true
+        )
+        defer { fixture.tearDown() }
+        fixture.detector.value = true
+
+        await fixture.completeDictation()
+
+        #expect(fixture.deliveryBox.records.count == 1)
+        #expect(fixture.deliveryBox.records.first?.text == "這個軟體的設定在哪裡")
+        #expect(fixture.deliveryBox.records.first?.isEphemeral == true)
+        #expect(fixture.count(of: Transcription.self) == 0)
+        #expect(fixture.audioFiles().isEmpty)
+        #expect(fixture.evidenceFiles().isEmpty)
+        #expect(fixture.enhancement.enhanceCount == 0)
+        #expect(fixture.screenCallBox.count == 0)
     }
 
     @Test func previousNormalSessionIsUntouchedWhenNextTurnsEphemeral() async throws {
