@@ -47,6 +47,16 @@
         }
       }
     },
+    "%.1fx realtime": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時處理速度為 %.1fx"
+          }
+        }
+      }
+    },
     "%@ API Key": {
       "localizations": {
         "zh-Hant": {
@@ -263,6 +273,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已選取 %lld"
+          }
+        }
+      }
+    },
+    "%lld selected transcripts": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 筆已選取的轉錄紀錄"
           }
         }
       }
@@ -2251,6 +2271,16 @@
         }
       }
     },
+    "Audio Files": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音訊檔案"
+          }
+        }
+      }
+    },
     "Audio Input": {
       "localizations": {
         "zh-Hant": {
@@ -2407,6 +2437,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動刪除音訊檔案"
+          }
+        }
+      }
+    },
+    "Auto-delete Transcript History": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動刪除轉錄紀錄"
           }
         }
       }
@@ -2697,6 +2737,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "平均處理"
+          }
+        }
+      }
+    },
+    "Avg. latency": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均延遲時間"
           }
         }
       }
@@ -4867,6 +4917,26 @@
         }
       }
     },
+    "Delete old recordings while keeping transcript history.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留轉錄紀錄，並刪除較舊的錄音檔。"
+          }
+        }
+      }
+    },
+    "Delete transcript history and related audio files after the retention period.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留期限到期後，刪除轉錄紀錄及相關音訊檔案。"
+          }
+        }
+      }
+    },
     "Deleted %lld audio files.": {
       "localizations": {
         "zh-Hant": {
@@ -4883,6 +4953,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已刪除 %1$lld 個檔案。失敗：%2$lld。"
+          }
+        }
+      }
+    },
+    "Deleted files: %lld. Failed: %lld.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已刪除檔案：%lld。失敗：%lld。"
           }
         }
       }
@@ -6953,6 +7033,26 @@
         }
       }
     },
+    "History Settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄設定"
+          }
+        }
+      }
+    },
+    "History settings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄設定"
+          }
+        }
+      }
+    },
     "Hotkey 1": {
       "localizations": {
         "zh-Hant": {
@@ -7511,6 +7611,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近 7 天"
+          }
+        }
+      }
+    },
+    "Last transcription copied": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已複製上次的轉錄內容"
           }
         }
       }
@@ -8851,6 +8961,16 @@
         }
       }
     },
+    "No audio files found older than %lld days.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到超過 %lld 天的音訊檔案。"
+          }
+        }
+      }
+    },
     "No automatic triggers": {
       "localizations": {
         "zh-Hant": {
@@ -8887,6 +9007,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有可用的裝置"
+          }
+        }
+      }
+    },
+    "No enhancement timings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有增強處理時間資料"
           }
         }
       }
@@ -8937,6 +9067,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "尚未設定模型"
+          }
+        }
+      }
+    },
+    "No model performance in selection": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選模型沒有效能資料"
           }
         }
       }
@@ -9121,6 +9261,16 @@
         }
       }
     },
+    "No transcription available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可用的轉錄內容"
+          }
+        }
+      }
+    },
     "No transcription model selected": {
       "localizations": {
         "zh-Hant": {
@@ -9137,6 +9287,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有可用的轉錄模型。請連接雲端服務或在 AI 模型分頁中下載本機模型。"
+          }
+        }
+      }
+    },
+    "No transcription timings": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有轉錄處理時間資料"
           }
         }
       }
@@ -9431,6 +9591,16 @@
         }
       }
     },
+    "Open Quick History": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟「快速歷史紀錄」"
+          }
+        }
+      }
+    },
     "Open Settings": {
       "localizations": {
         "zh-Hant": {
@@ -9467,6 +9637,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open recent transcriptions without opening the main Voco window. Search, select, and press Return to paste into your current app."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無須開啟 Voco 主視窗，就能查看最近的轉錄紀錄。搜尋並選取項目，按下 Return 鍵即可貼到目前使用的應用程式。"
           }
         }
       }
@@ -11717,6 +11893,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新嘗試下載此 Apple 語音語言。%@"
+          }
+        }
+      }
+    },
+    "Retry failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試失敗：%@"
           }
         }
       }
@@ -14435,6 +14621,16 @@
         }
       }
     },
+    "This action cannot be undone. Are you sure you want to delete %lld items?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這項操作無法復原。確定要刪除 %lld 個項目嗎？"
+          }
+        }
+      }
+    },
     "This change moves or merges whole families and cannot be duplicate-checked; confirm only when you are sure.": {
       "localizations": {
         "zh-Hant": {
@@ -14967,6 +15163,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "轉錄格式"
+          }
+        }
+      }
+    },
+    "Transcript History": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄紀錄"
           }
         }
       }

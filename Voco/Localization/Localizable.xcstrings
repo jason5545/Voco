@@ -136,6 +136,12 @@
             "state": "translated",
             "value": "%.1fx 实时"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時處理速度為 %.1fx"
+          }
         }
       }
     },
@@ -1900,6 +1906,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 筆已選取的轉錄紀錄"
           }
         }
       }
@@ -7534,6 +7546,12 @@
             "state": "translated",
             "value": "音频文件"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音訊檔案"
+          }
         }
       }
     },
@@ -7981,6 +7999,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动删除转写历史记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動刪除轉錄紀錄"
           }
         }
       }
@@ -8519,6 +8543,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "平均延迟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均延遲時間"
           }
         }
       }
@@ -13564,6 +13594,12 @@
             "state": "translated",
             "value": "删除旧录音，同时保留转写历史记录。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留轉錄紀錄，並刪除較舊的錄音檔。"
+          }
         }
       }
     },
@@ -13587,6 +13623,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在保留期后删除转写历史记录和相关音频文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留期限到期後，刪除轉錄紀錄及相關音訊檔案。"
           }
         }
       }
@@ -13718,6 +13760,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已删除文件：%lld。失败：%lld。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已刪除檔案：%lld。失敗：%lld。"
           }
         }
       }
@@ -19349,6 +19397,12 @@
             "state": "translated",
             "value": "历史记录设置"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄設定"
+          }
         }
       }
     },
@@ -19372,6 +19426,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "历史记录设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄設定"
           }
         }
       }
@@ -21168,6 +21228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已拷贝上次转写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已複製上次的轉錄內容"
           }
         }
       }
@@ -24763,6 +24829,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到超過 %lld 天的音訊檔案。"
+          }
         }
       }
     },
@@ -24886,6 +24958,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无润色用时"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有增強處理時間資料"
           }
         }
       }
@@ -25172,6 +25250,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选内容中无模型性能数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選模型沒有效能資料"
           }
         }
       }
@@ -25676,6 +25760,12 @@
             "state": "translated",
             "value": "无可用转写内容"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可用的轉錄內容"
+          }
         }
       }
     },
@@ -25825,6 +25915,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无转写用时"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有轉錄處理時間資料"
           }
         }
       }
@@ -26761,6 +26857,12 @@
             "state": "translated",
             "value": "打开快速历史记录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟「快速歷史紀錄」"
+          }
         }
       }
     },
@@ -26909,6 +27011,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无需打开 VoiceInk 主窗口即可打开最近的转录。搜索并选择一项，然后按回车键将其粘贴到当前应用中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無須開啟 Voco 主視窗，就能查看最近的轉錄紀錄。搜尋並選取項目，按下 Return 鍵即可貼到目前使用的應用程式。"
           }
         }
       }
@@ -31869,6 +31977,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试失败：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試失敗：%@"
           }
         }
       }
@@ -38337,6 +38451,12 @@
               }
             }
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這項操作無法復原。確定要刪除 %lld 個項目嗎？"
+          }
         }
       }
     },
@@ -39519,6 +39639,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "转写历史记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄紀錄"
           }
         }
       }
