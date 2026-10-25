@@ -107,6 +107,16 @@
         }
       }
     },
+    "%@ requires macOS 26 or later": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 需要 macOS 26 或以上版本。"
+          }
+        }
+      }
+    },
     "%@ times": {
       "localizations": {
         "zh-Hant": {
@@ -177,6 +187,16 @@
         }
       }
     },
+    "%d seconds": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d 秒"
+          }
+        }
+      }
+    },
     "%lld %@ model": {
       "localizations": {
         "zh-Hant": {
@@ -203,6 +223,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個 App"
+          }
+        }
+      }
+    },
+    "%lld Enhancement models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個增強模型"
+          }
+        }
+      }
+    },
+    "%lld Transcription models": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個轉錄模型"
           }
         }
       }
@@ -547,6 +587,26 @@
         }
       }
     },
+    "+%lld more enhancement models available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%lld 個增強模型可用"
+          }
+        }
+      }
+    },
+    "+%lld more transcription models available": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%lld 個轉錄模型可用"
+          }
+        }
+      }
+    },
     "-": {
       "localizations": {
         "zh-Hant": {
@@ -667,6 +727,16 @@
         }
       }
     },
+    "1 minute": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 分鐘"
+          }
+        }
+      }
+    },
     "1 model": {
       "localizations": {
         "zh-Hant": {
@@ -703,6 +773,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 個網站"
+          }
+        }
+      }
+    },
+    "10 minutes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 分鐘"
+          }
+        }
+      }
+    },
+    "10 seconds": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 秒"
           }
         }
       }
@@ -787,6 +877,26 @@
         }
       }
     },
+    "2 minutes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 分鐘"
+          }
+        }
+      }
+    },
+    "20 minutes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "20 分鐘"
+          }
+        }
+      }
+    },
     "25+ languages": {
       "localizations": {
         "zh-Hant": {
@@ -833,6 +943,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "30 天"
+          }
+        }
+      }
+    },
+    "30 minutes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 分鐘"
+          }
+        }
+      }
+    },
+    "30 seconds": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 秒"
           }
         }
       }
@@ -893,6 +1023,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "4 秒"
+          }
+        }
+      }
+    },
+    "5 minutes": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 分鐘"
           }
         }
       }
@@ -1009,6 +1149,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "深入了解 Voco 的使用情況。"
+          }
+        }
+      }
+    },
+    "A custom enhancement model with this display name already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存在顯示名稱相同的自訂增強模型。"
+          }
+        }
+      }
+    },
+    "A custom enhancement model with this model name already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存在模型名稱相同的自訂增強模型。"
+          }
+        }
+      }
+    },
+    "A model named %@.bin already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名為 %@.bin 的模型已存在。"
+          }
+        }
+      }
+    },
+    "A model with this name already exists": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存在相同名稱的模型。"
           }
         }
       }
@@ -1199,6 +1379,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "已設定 API 金鑰"
+          }
+        }
+      }
+    },
+    "API endpoint cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 端點不能留空。"
+          }
+        }
+      }
+    },
+    "API endpoint must be a valid URL": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 端點必須是有效的網址。"
           }
         }
       }
@@ -1737,6 +1937,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "依照 Voco 應嘗試的順序新增麥克風。"
+          }
+        }
+      }
+    },
+    "Add model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增模型"
           }
         }
       }
@@ -2373,6 +2583,56 @@
         }
       }
     },
+    "Apple Speech could not replace a language reservation automatically. Try again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Speech 無法自動替換已保留的語言。請再試一次。"
+          }
+        }
+      }
+    },
+    "Apple Speech does not support this language.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Speech 不支援這種語言。"
+          }
+        }
+      }
+    },
+    "Apple Speech language download failed: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Speech 語言下載失敗：%@"
+          }
+        }
+      }
+    },
+    "Apple Speech language downloads are not available on this system.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此系統不支援下載 Apple Speech 語言。"
+          }
+        }
+      }
+    },
+    "Apple Speech language is downloaded.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Speech 語言已下載。"
+          }
+        }
+      }
+    },
     "AppleScript": {
       "localizations": {
         "zh-Hant": {
@@ -2849,6 +3109,16 @@
         }
       }
     },
+    "Auto-detect": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動偵測"
+          }
+        }
+      }
+    },
     "Auto-guess": {
       "localizations": {
         "zh-Hant": {
@@ -3119,6 +3389,16 @@
         }
       }
     },
+    "Available on Apple silicon Macs with at least 16 GB of memory.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適用於配備 Apple 晶片且記憶體至少 16 GB 的 Mac。"
+          }
+        }
+      }
+    },
     "Avg. Audio": {
       "localizations": {
         "zh-Hant": {
@@ -3235,6 +3515,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "基礎 URL"
+          }
+        }
+      }
+    },
+    "Base URL cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基底網址不能留空。"
           }
         }
       }
@@ -3411,6 +3701,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設使用電池時會暫停常駐功能以節省電量。啟用此選項可在電池供電時也保持模型常駐。"
+          }
+        }
+      }
+    },
+    "CLI Provider": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令列供應商"
           }
         }
       }
@@ -3695,12 +3995,32 @@
         }
       }
     },
+    "Checking cached models...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在檢查快取模型…"
+          }
+        }
+      }
+    },
     "Checking the draft with the Worker…": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "正在向 Worker 檢查草稿…"
+          }
+        }
+      }
+    },
+    "Checking whether this Apple Speech language is downloaded.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在確認是否已下載此 Apple Speech 語言。"
           }
         }
       }
@@ -3941,6 +4261,16 @@
         }
       }
     },
+    "Cleans up raw transcripts. Processing stays on your Mac.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理原始轉錄內容。所有處理都在你的 Mac 上進行。"
+          }
+        }
+      }
+    },
     "Cleanup Complete": {
       "localizations": {
         "zh-Hant": {
@@ -4111,6 +4441,16 @@
         }
       }
     },
+    "Cloud providers process audio and text under their own privacy policies.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲端供應商會依各自的隱私權政策處理音訊與文字。"
+          }
+        }
+      }
+    },
     "Combines local transcription with an LLM to create a polished version.": {
       "localizations": {
         "zh-Hant": {
@@ -4157,6 +4497,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Command + Return (⌘⏎)"
+          }
+        }
+      }
+    },
+    "Compiling %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在編譯 %@"
           }
         }
       }
@@ -4347,6 +4697,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "連線"
+          }
+        }
+      }
+    },
+    "Connect Ollama or configure a CLI command for local enhancement.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接 Ollama，或設定命令列指令以使用本機增強。"
           }
         }
       }
@@ -6067,6 +6427,16 @@
         }
       }
     },
+    "Display name cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示名稱不能留空。"
+          }
+        }
+      }
+    },
     "Disposition": {
       "localizations": {
         "zh-Hant": {
@@ -6187,12 +6557,32 @@
         }
       }
     },
+    "Download this Apple Speech language.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載此 Apple Speech 語言。"
+          }
+        }
+      }
+    },
     "Downloaded": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "已下載"
+          }
+        }
+      }
+    },
+    "Downloading %@ Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載 %@ 模型"
           }
         }
       }
@@ -6207,12 +6597,42 @@
         }
       }
     },
+    "Downloading Core ML Model for %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載 %@ 的 Core ML 模型"
+          }
+        }
+      }
+    },
+    "Downloading assets for the selected Apple Speech language.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載所選 Apple Speech 語言的資源。"
+          }
+        }
+      }
+    },
     "Downloading model": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "正在下載模型"
+          }
+        }
+      }
+    },
+    "Downloading model files: %lld/%lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載模型檔案：%lld/%lld"
           }
         }
       }
@@ -6723,6 +7143,16 @@
         }
       }
     },
+    "English": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英文"
+          }
+        }
+      }
+    },
     "English-only": {
       "localizations": {
         "zh-Hant": {
@@ -7015,6 +7445,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "輸入您的授權金鑰"
+          }
+        }
+      }
+    },
+    "Environment variables available: VOICEINK_SYSTEM_PROMPT, VOICEINK_USER_PROMPT, VOICEINK_FULL_PROMPT. Custom commands can also read VOICEINK_FULL_PROMPT from stdin.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。自訂指令也可從標準輸入讀取 VOICEINK_FULL_PROMPT。"
           }
         }
       }
@@ -7351,6 +7791,16 @@
         }
       }
     },
+    "Failed to import model: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯入模型：%@"
+          }
+        }
+      }
+    },
     "Failed to load word replacements": {
       "localizations": {
         "zh-Hant": {
@@ -7537,6 +7987,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "最終貼出文字"
+          }
+        }
+      }
+    },
+    "Finalizing model files…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在完成模型檔案處理…"
+          }
+        }
+      }
+    },
+    "Finalizing models...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在完成模型處理…"
           }
         }
       }
@@ -8375,6 +8845,16 @@
         }
       }
     },
+    "Imported %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匯入 %@"
+          }
+        }
+      }
+    },
     "Imported %lld vocabulary entries.": {
       "localizations": {
         "zh-Hant": {
@@ -9027,6 +9507,16 @@
         }
       }
     },
+    "Listing files from repository...": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在列出儲存庫中的檔案…"
+          }
+        }
+      }
+    },
     "Live Text Display": {
       "localizations": {
         "zh-Hant": {
@@ -9173,6 +9663,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "本機 CLI"
+          }
+        }
+      }
+    },
+    "Local Enhancement Services": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機增強服務"
           }
         }
       }
@@ -9707,6 +10207,16 @@
         }
       }
     },
+    "Model download progress": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型下載進度"
+          }
+        }
+      }
+    },
     "Model loaded: %lld apply, %lld suggest": {
       "localizations": {
         "zh-Hant": {
@@ -9723,6 +10233,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已載入：%1$lld 條套用、%2$lld 條建議、%3$lld 條已取代、%4$lld 條已阻擋"
+          }
+        }
+      }
+    },
+    "Model name cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型名稱不能留空。"
           }
         }
       }
@@ -9957,6 +10477,26 @@
         }
       }
     },
+    "My Custom Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的自訂模型"
+          }
+        }
+      }
+    },
+    "My Enhancement Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的增強模型"
+          }
+        }
+      }
+    },
     "NVIDIA": {
       "localizations": {
         "zh-Hant": {
@@ -9983,6 +10523,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "名稱"
+          }
+        }
+      }
+    },
+    "Name cannot be empty": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名稱不能留空。"
           }
         }
       }
@@ -11067,6 +11617,16 @@
         }
       }
     },
+    "Only local Whisper models use this. Add example text to guide spelling and style.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這項設定僅適用於本機 Whisper 模型。新增範例文字可引導拼寫與風格。"
+          }
+        }
+      }
+    },
     "Only this record's texts and this conversation are sent — never audio. When one record is not enough, the model may read up to 5 records before and after.": {
       "localizations": {
         "zh-Hant": {
@@ -11269,6 +11829,16 @@
         }
       }
     },
+    "OpenRouter": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenRouter"
+          }
+        }
+      }
+    },
     "Opens the update window": {
       "localizations": {
         "zh-Hant": {
@@ -11295,6 +11865,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "針對臺灣華語語音辨識最佳化，採用 XVoice 衍生的校正。"
+          }
+        }
+      }
+    },
+    "Optimizing model for your device": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在為你的裝置最佳化模型"
           }
         }
       }
@@ -13391,6 +13971,16 @@
         }
       }
     },
+    "Requires at least 16 GB of memory.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "至少需要 16 GB 記憶體。"
+          }
+        }
+      }
+    },
     "Reset": {
       "localizations": {
         "zh-Hant": {
@@ -14399,6 +14989,16 @@
         }
       }
     },
+    "Select a supported transcription language or locale. Automatic multilingual transcription is shown when available.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇支援的轉錄語言或地區設定。若可用，會顯示自動多語言轉錄。"
+          }
+        }
+      }
+    },
     "Select a transcription to view details": {
       "localizations": {
         "zh-Hant": {
@@ -14801,6 +15401,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Set how Voco transcribes and formats your speech, then start dictating in any app."
+          }
+        }
+      }
+    },
+    "Set how long to wait for batch cloud transcription to finish. This does not affect local or realtime transcription.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定等待雲端批次轉錄完成的時間。這不會影響本機或即時轉錄。"
           }
         }
       }
@@ -16151,6 +16761,16 @@
         }
       }
     },
+    "Test successful": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "測試成功"
+          }
+        }
+      }
+    },
     "Test the connection to continue.": {
       "localizations": {
         "zh-Hant": {
@@ -16167,6 +16787,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "測試中..."
+          }
+        }
+      }
+    },
+    "Testing…": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "測試中…"
           }
         }
       }
@@ -17777,6 +18407,16 @@
         }
       }
     },
+    "Turn this on if local transcriptions take longer than expected. It prepares the selected model in the background when the app launches or wakes.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機轉錄時間超出預期時，請開啟此選項。應用程式啟動或喚醒時，會在背景預先載入所選模型。"
+          }
+        }
+      }
+    },
     "Turn this on if transcriptions with local models (including Whisper MLX) are taking longer than expected. Runs silent background transcription on app launch and wake to trigger optimization.": {
       "localizations": {
         "zh-Hant": {
@@ -18746,6 +19386,12 @@
             "state": "translated",
             "value": "Voco Refine is not downloaded."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未下載 Voco Refine。"
+          }
         }
       }
     },
@@ -18775,6 +19421,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco Refine requires an Apple silicon Mac with at least 16 GB of memory."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco Refine 需要配備 Apple 晶片且記憶體至少 16 GB 的 Mac。"
           }
         }
       }
@@ -19529,6 +20181,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要 Whisper 模型"
+          }
+        }
+      }
+    },
+    "Whisper Prompt": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whisper 提示詞"
           }
         }
       }
