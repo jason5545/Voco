@@ -276,6 +276,12 @@
             "state": "translated",
             "value": "%1$@ / %2$@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前 %1$@，共 %2$@"
+          }
         }
       }
     },
@@ -4001,6 +4007,12 @@
             "state": "translated",
             "value": "AI 润色未开启或未配置"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未啟用或設定 AI 增強功能。"
+          }
         }
       }
     },
@@ -7223,6 +7235,12 @@
             "state": "translated",
             "value": "约 %@ 个令牌"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "約 %@ 個詞元"
+          }
         }
       }
     },
@@ -7633,6 +7651,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "音频文件不可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法使用音訊檔案。"
           }
         }
       }
@@ -8571,6 +8595,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "返回历史记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回歷史紀錄"
           }
         }
       }
@@ -11516,6 +11546,12 @@
             "state": "translated",
             "value": "复制文本"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製文字"
+          }
         }
       }
     },
@@ -11573,6 +11609,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制转写文本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製轉錄內容"
           }
         }
       }
@@ -11951,6 +11993,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存重新增强的转录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存重新增強結果。"
           }
         }
       }
@@ -12678,6 +12726,12 @@
             "state": "translated",
             "value": "VoiceInk Refine 不支持自定义提示词。请选择使用其他 AI 提供商的模式。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco Refine 不支援自訂提示詞。請改選使用其他 AI 供應商的模式。"
+          }
         }
       }
     },
@@ -12707,6 +12761,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk Refine 不支持自定义提示词。请先选择其他模式。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco Refine 不支援自訂提示詞。請先選擇其他模式。"
           }
         }
       }
@@ -16206,6 +16266,12 @@
             "state": "translated",
             "value": "增强后的转录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強後的轉錄內容"
+          }
         }
       }
     },
@@ -16868,6 +16934,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escape"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消鍵"
           }
         }
       }
@@ -19197,6 +19269,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "隐藏转录信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏轉錄資訊"
           }
         }
       }
@@ -24909,6 +24987,12 @@
             "state": "translated",
             "value": "没有匹配的转录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到符合的轉錄紀錄"
+          }
         }
       }
     },
@@ -24982,6 +25066,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "未选择模式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未選擇模式"
           }
         }
       }
@@ -27022,6 +27112,12 @@
             "state": "translated",
             "value": "打开转录详情"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟轉錄詳細資訊。"
+          }
         }
       }
     },
@@ -27181,6 +27277,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "原始转录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始轉錄內容"
           }
         }
       }
@@ -27590,6 +27692,12 @@
             "state": "translated",
             "value": "粘贴文本"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上文字"
+          }
         }
       }
     },
@@ -27635,6 +27743,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有增强文本时粘贴增强文本，否则粘贴原始转录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有增強後的文字時貼上，否則貼上原始轉錄內容。"
           }
         }
       }
@@ -27727,6 +27841,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停"
           }
         }
       }
@@ -28048,6 +28168,12 @@
             "state": "translated",
             "value": "播放"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
         }
       }
     },
@@ -28066,6 +28192,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放位置"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "播放位置"
@@ -31528,6 +31660,12 @@
             "state": "translated",
             "value": "使用所选模式重新转录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用所選模式重新轉錄"
+          }
         }
       }
     },
@@ -33002,6 +33140,12 @@
             "state": "translated",
             "value": "选择模式并重新转录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇模式並重新轉錄"
+          }
         }
       }
     },
@@ -33035,6 +33179,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择提示词并增强"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇提示詞並執行增強"
           }
         }
       }
@@ -33370,6 +33520,12 @@
             "state": "translated",
             "value": "选择转录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取轉錄紀錄"
+          }
         }
       }
     },
@@ -33521,6 +33677,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择此转录。双击即可粘贴。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取這筆轉錄紀錄。按兩下即可貼上。"
           }
         }
       }
@@ -34613,6 +34775,12 @@
             "state": "translated",
             "value": "在“访达”中显示录音"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中顯示錄音檔"
+          }
         }
       }
     },
@@ -34646,6 +34814,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示转录信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示轉錄資訊"
           }
         }
       }
@@ -39067,6 +39241,12 @@
             "state": "translated",
             "value": "令牌数量根据请求文本估算。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞元數量是根據請求文字估算的。"
+          }
         }
       }
     },
@@ -39415,6 +39595,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "转录详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄詳細資訊"
           }
         }
       }
@@ -40051,6 +40237,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请尝试其他搜索词。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請嘗試其他搜尋詞。"
           }
         }
       }
@@ -44470,6 +44662,12 @@
             "state": "translated",
             "value": "你最近的转录将显示在这里。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的轉錄紀錄會顯示在這裡。"
+          }
         }
       }
     },
@@ -44855,6 +45053,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "esc"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
           }
         }
       }

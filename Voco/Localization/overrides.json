@@ -67,6 +67,16 @@
         }
       }
     },
+    "%@ of %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前 %1$@，共 %2$@"
+          }
+        }
+      }
+    },
     "%@ reported an error: %@": {
       "localizations": {
         "zh-Hant": {
@@ -793,6 +803,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 增強"
+          }
+        }
+      }
+    },
+    "AI Enhancement is not enabled or configured": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未啟用或設定 AI 增強功能。"
           }
         }
       }
@@ -2095,6 +2115,16 @@
         }
       }
     },
+    "Around %@ tokens": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "約 %@ 個詞元"
+          }
+        }
+      }
+    },
     "Artifact": {
       "localizations": {
         "zh-Hant": {
@@ -2227,6 +2257,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "音訊輸入"
+          }
+        }
+      }
+    },
+    "Audio file is unavailable": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法使用音訊檔案。"
           }
         }
       }
@@ -2667,6 +2707,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "返回"
+          }
+        }
+      }
+    },
+    "Back to history": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回歷史紀錄"
           }
         }
       }
@@ -4037,12 +4087,32 @@
         }
       }
     },
+    "Copy text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製文字"
+          }
+        }
+      }
+    },
     "Copy to clipboard": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "複製到剪貼簿"
+          }
+        }
+      }
+    },
+    "Copy transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製轉錄內容"
           }
         }
       }
@@ -4253,6 +4323,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法讀取 %1$@：%2$@"
+          }
+        }
+      }
+    },
+    "Could not save re-enhancement": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存重新增強結果。"
           }
         }
       }
@@ -4482,6 +4562,12 @@
             "state": "translated",
             "value": "Custom prompts aren't available with Voco Refine. Select a Mode that uses another AI provider."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco Refine 不支援自訂提示詞。請改選使用其他 AI 供應商的模式。"
+          }
         }
       }
     },
@@ -4491,6 +4577,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Custom prompts aren't available with Voco Refine. Select another mode first."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco Refine 不支援自訂提示詞。請先選擇其他模式。"
           }
         }
       }
@@ -5799,6 +5891,16 @@
         }
       }
     },
+    "Enhanced transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強後的轉錄內容"
+          }
+        }
+      }
+    },
     "Enhancement": {
       "localizations": {
         "zh-Hant": {
@@ -6061,6 +6163,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "匯入設定時發生錯誤：%@。檔案可能已損毀或格式不正確。"
+          }
+        }
+      }
+    },
+    "Escape": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消鍵"
           }
         }
       }
@@ -6797,6 +6909,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "隱藏 Dock 圖示"
+          }
+        }
+      }
+    },
+    "Hide transcription info": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏轉錄資訊"
           }
         }
       }
@@ -8779,12 +8901,32 @@
         }
       }
     },
+    "No matching transcriptions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到符合的轉錄紀錄"
+          }
+        }
+      }
+    },
     "No microphones found": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "未找到麥克風"
+          }
+        }
+      }
+    },
+    "No mode selected": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未選擇模式"
           }
         }
       }
@@ -9379,6 +9521,16 @@
         }
       }
     },
+    "Opens transcription details.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟轉錄詳細資訊。"
+          }
+        }
+      }
+    },
     "Optimized for Taiwanese Mandarin speech recognition with XVoice-derived corrections.": {
       "localizations": {
         "zh-Hant": {
@@ -9435,6 +9587,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "原始文字（多個用逗號分隔）"
+          }
+        }
+      }
+    },
+    "Original transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始轉錄內容"
           }
         }
       }
@@ -9579,6 +9741,26 @@
         }
       }
     },
+    "Paste Text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上文字"
+          }
+        }
+      }
+    },
+    "Paste enhanced text when available, otherwise paste the original transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有增強後的文字時貼上，否則貼上原始轉錄內容。"
+          }
+        }
+      }
+    },
     "Paste transcribed text at your cursor.": {
       "localizations": {
         "zh-Hant": {
@@ -9625,6 +9807,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "模式"
+          }
+        }
+      }
+    },
+    "Pause": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停"
           }
         }
       }
@@ -9795,6 +9987,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "拼音校正"
+          }
+        }
+      }
+    },
+    "Play": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        }
+      }
+    },
+    "Playback position": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放位置"
           }
         }
       }
@@ -11389,6 +11601,16 @@
         }
       }
     },
+    "Retranscribe with the selected mode": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用所選模式重新轉錄"
+          }
+        }
+      }
+    },
     "Retranscription": {
       "localizations": {
         "zh-Hant": {
@@ -12059,12 +12281,32 @@
         }
       }
     },
+    "Select a mode and retranscribe": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇模式並重新轉錄"
+          }
+        }
+      }
+    },
     "Select a model to download": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "選擇要下載的模型"
+          }
+        }
+      }
+    },
+    "Select a prompt and enhance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇提示詞並執行增強"
           }
         }
       }
@@ -12195,6 +12437,16 @@
         }
       }
     },
+    "Select transcription": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取轉錄紀錄"
+          }
+        }
+      }
+    },
     "Selected": {
       "localizations": {
         "zh-Hant": {
@@ -12241,6 +12493,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇來源"
+          }
+        }
+      }
+    },
+    "Selects this transcription. Double-click to paste.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取這筆轉錄紀錄。按兩下即可貼上。"
           }
         }
       }
@@ -12779,12 +13041,32 @@
         }
       }
     },
+    "Show recording in Finder": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中顯示錄音檔"
+          }
+        }
+      }
+    },
     "Show thinking": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "顯示思考過程"
+          }
+        }
+      }
+    },
+    "Show transcription info": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示轉錄資訊"
           }
         }
       }
@@ -14549,6 +14831,16 @@
         }
       }
     },
+    "Token count is estimated from the request text.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詞元數量是根據請求文字估算的。"
+          }
+        }
+      }
+    },
     "Tool call #%lld (%@) has incomplete argument JSON": {
       "localizations": {
         "zh-Hant": {
@@ -14685,6 +14977,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "轉錄"
+          }
+        }
+      }
+    },
+    "Transcription Details": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉錄詳細資訊"
           }
         }
       }
@@ -14905,6 +15207,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try a few short samples and see how Voco works before you start."
+          }
+        }
+      }
+    },
+    "Try another search term.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請嘗試其他搜尋詞。"
           }
         }
       }
@@ -16909,6 +17221,16 @@
         }
       }
     },
+    "Your recent transcriptions will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的轉錄紀錄會顯示在這裡。"
+          }
+        }
+      }
+    },
     "Your transcription history will appear here": {
       "localizations": {
         "zh-Hant": {
@@ -17061,6 +17383,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "詞語為空"
+          }
+        }
+      }
+    },
+    "esc": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
           }
         }
       }
