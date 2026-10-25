@@ -254,6 +254,12 @@
             "state": "translated",
             "value": "%@ 连接已验证。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 連線已驗證。"
+          }
         }
       }
     },
@@ -4873,6 +4879,12 @@
             "state": "translated",
             "value": "激活现有密钥、购买许可证，或开始 7 天免费试用。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用現有金鑰、購買授權，或開始 7 天免費試用。"
+          }
         }
       }
     },
@@ -4894,6 +4906,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在激活"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用中"
           }
         }
       }
@@ -6402,6 +6420,12 @@
             "state": "translated",
             "value": "允许"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許"
+          }
         }
       }
     },
@@ -6423,6 +6447,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许权限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授予權限"
           }
         }
       }
@@ -6555,6 +6585,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许 VoiceInk 在你的所有 App 中工作。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許 Voco 在所有應用程式中運作。"
           }
         }
       }
@@ -9140,6 +9176,12 @@
             "state": "translated",
             "value": "购买 VoiceInk 许可证"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購買 Voco 授權"
+          }
         }
       }
     },
@@ -9889,6 +9931,12 @@
             "state": "translated",
             "value": "选取麦克风"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇麥克風"
+          }
         }
       }
     },
@@ -10009,6 +10057,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "选取一个快捷键以开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇快速鍵以開始使用。"
           }
         }
       }
@@ -10607,6 +10661,12 @@
             "state": "translated",
             "value": "将转写与 LLM 结合，生成润色后的版本。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結合轉錄內容與大型語言模型，產生增強後的文字。"
+          }
         }
       }
     },
@@ -10858,6 +10918,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "配置转写模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定轉錄模型"
           }
         }
       }
@@ -14021,6 +14087,12 @@
             "state": "translated",
             "value": "已拒绝"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒絕"
+          }
         }
       }
     },
@@ -16799,6 +16871,12 @@
             "state": "translated",
             "value": "润色模式与 AI 操作将保持关闭，直到你添加密钥。你可以随时在设置中完成配置。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增金鑰前，增強模式與 AI 操作會保持停用。你可以隨時前往「設定」完成設定。"
+          }
         }
       }
     },
@@ -17380,6 +17458,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "体验 VoiceInk"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體驗 Voco"
           }
         }
       }
@@ -18824,6 +18908,12 @@
             "state": "translated",
             "value": "完成新手引导"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成新手引導"
+          }
         }
       }
     },
@@ -19120,6 +19210,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "返回"
@@ -21985,6 +22081,12 @@
             "state": "translated",
             "value": "许可证已在这台 Mac 上激活。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 已啟用授權。"
+          }
         }
       }
     },
@@ -22765,6 +22867,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "本地存储"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機儲存空間"
           }
         }
       }
@@ -24548,6 +24656,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要访问权限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要存取權限"
           }
         }
       }
@@ -27382,6 +27496,12 @@
             "state": "translated",
             "value": "开源"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開放原始碼"
+          }
         }
       }
     },
@@ -28036,6 +28156,12 @@
             "state": "translated",
             "value": "Parakeet V3 不可用。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parakeet V3 目前無法使用。"
+          }
         }
       }
     },
@@ -28095,6 +28221,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "粘贴 %@ API 密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上 %@ API 金鑰"
           }
         }
       }
@@ -28742,6 +28874,12 @@
             "state": "translated",
             "value": "选取 VoiceInk 录音时应使用的麦克风。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 Voco 錄音時使用的麥克風。"
+          }
         }
       }
     },
@@ -29225,6 +29363,12 @@
             "state": "translated",
             "value": "按下快捷键，朗读示例文本，然后再次按下。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下快速鍵並朗讀範例文字，再按一次快速鍵。"
+          }
         }
       }
     },
@@ -29426,6 +29570,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "隐私从这里开始"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私從這裡開始"
           }
         }
       }
@@ -30439,6 +30589,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新检查"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新檢查"
           }
         }
       }
@@ -32188,6 +32344,12 @@
             "state": "translated",
             "value": "受限"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受限"
+          }
         }
       }
     },
@@ -32237,6 +32399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续下载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續下載"
           }
         }
       }
@@ -32717,6 +32885,12 @@
             "state": "translated",
             "value": "选择许可证前，请先查看 VoiceInk 如何处理你的数据。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇授權前，請先了解 Voco 如何處理你的資料。"
+          }
         }
       }
     },
@@ -32793,6 +32967,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "改写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改寫"
           }
         }
       }
@@ -32986,6 +33166,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "示例文本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範例文字"
           }
         }
       }
@@ -34680,6 +34866,12 @@
             "state": "translated",
             "value": "稍后设置"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後設定"
+          }
         }
       }
     },
@@ -34893,6 +35085,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "稍后设置 AI 润色？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後再設定 AI 增強功能？"
           }
         }
       }
@@ -35738,7 +35936,16 @@
         }
       }
     },
-    "Skip the remaining onboarding steps": {},
+    "Skip the remaining onboarding steps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過剩餘的新手引導步驟"
+          }
+        }
+      }
+    },
     "Skipped": {
       "localizations": {
         "zh-Hant": {
@@ -36254,6 +36461,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "开始 7 天试用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始 7 天試用"
           }
         }
       }
@@ -36802,6 +37015,12 @@
             "state": "translated",
             "value": "总结"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要"
+          }
         }
       }
     },
@@ -37022,6 +37241,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "切换提供商"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換供應商"
           }
         }
       }
@@ -38439,6 +38664,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "密钥有效，但 VoiceInk 无法安全地存储它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "金鑰有效，但 Voco 無法安全地儲存。"
           }
         }
       }
@@ -40705,6 +40936,12 @@
             "state": "translated",
             "value": "翻译"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻譯"
+          }
         }
       }
     },
@@ -41024,6 +41261,12 @@
             "state": "translated",
             "value": "开始之前，先试几个简短的示例，看看 VoiceInk 是如何工作的。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始前先試著說幾段簡短範例，了解 Voco 的運作方式。"
+          }
         }
       }
     },
@@ -41294,6 +41537,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "未知"
@@ -41580,6 +41829,12 @@
             "state": "translated",
             "value": "在本地使用 NVIDIA 的 Parakeet 模型，或连接云端转写提供商。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在本機使用 NVIDIA 的 Parakeet 模型，或連接雲端轉錄供應商。"
+          }
         }
       }
     },
@@ -41662,6 +41917,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即使用 VoiceInk。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即開始使用 Voco。"
           }
         }
       }
@@ -41988,6 +42249,12 @@
             "state": "translated",
             "value": "使用你配置的转写模型进行快速听写。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你設定的轉錄模型快速聽寫。"
+          }
         }
       }
     },
@@ -42146,6 +42413,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "验证 API 密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證 API 金鑰"
           }
         }
       }
@@ -43285,6 +43558,12 @@
             "state": "translated",
             "value": "VoiceInk 可以根据你正在使用的 App 和你配置的规则选择合适的模式。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 會根據你使用的應用程式和設定的規則，自動選擇合適的模式。"
+          }
         }
       }
     },
@@ -43543,6 +43822,12 @@
             "state": "translated",
             "value": "VoiceInk 支持上下文感知"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 具備上下文感知能力"
+          }
         }
       }
     },
@@ -43570,6 +43855,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk 是开源软件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 是開放原始碼軟體。"
           }
         }
       }
@@ -43700,6 +43991,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk 默认保护隐私。除非你主动选择，否则任何数据都不会离开你的设备。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 預設會保護你的隱私。除非你主動同意，否則資料不會離開你的裝置。"
           }
         }
       }
@@ -44074,6 +44371,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "VoiceInk 使用大语言模型润色转写记录并执行 AI 操作。请先设置 API 密钥再继续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用大型語言模型增強轉錄內容並執行 AI 操作。請先設定 API 金鑰再繼續。"
           }
         }
       }
@@ -45014,6 +45317,12 @@
             "state": "translated",
             "value": "由你掌控"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由你掌控"
+          }
         }
       }
     },
@@ -45387,6 +45696,12 @@
             "state": "translated",
             "value": "你听写的文字会显示在这里。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽寫文字會顯示在這裡。"
+          }
         }
       }
     },
@@ -45409,6 +45724,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "润色后的内容会显示在这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強後的訊息會顯示在這裡。"
           }
         }
       }
@@ -45462,6 +45783,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "整理好的邮件会显示在这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格式化後的電子郵件會顯示在這裡。"
           }
         }
       }

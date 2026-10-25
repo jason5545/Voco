@@ -77,6 +77,16 @@
         }
       }
     },
+    "%@ connection verified.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 連線已驗證。"
+          }
+        }
+      }
+    },
     "%@ of %@": {
       "localizations": {
         "zh-Hant": {
@@ -1259,6 +1269,26 @@
         }
       }
     },
+    "Activate an existing key, purchase a license, or start a 7-day free trial.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用現有金鑰、購買授權，或開始 7 天免費試用。"
+          }
+        }
+      }
+    },
+    "Activating": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用中"
+          }
+        }
+      }
+    },
     "Activation Delay": {
       "localizations": {
         "zh-Hant": {
@@ -1893,6 +1923,26 @@
         }
       }
     },
+    "Allow": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許"
+          }
+        }
+      }
+    },
+    "Allow Permissions": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授予權限"
+          }
+        }
+      }
+    },
     "Allow Voco to capture screen context for better AI enhancement": {
       "localizations": {
         "zh-Hant": {
@@ -2003,6 +2053,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Allow Voco to work across all your apps."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許 Voco 在所有應用程式中運作。"
           }
         }
       }
@@ -3170,6 +3226,12 @@
             "state": "translated",
             "value": "Buy Voco License"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購買 Voco 授權"
+          }
         }
       }
     },
@@ -3533,6 +3595,16 @@
         }
       }
     },
+    "Choose Microphone": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇麥克風"
+          }
+        }
+      }
+    },
     "Choose a Language to Remove": {
       "localizations": {
         "zh-Hant": {
@@ -3569,6 +3641,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇設定備份，然後選取要匯入的內容。"
+          }
+        }
+      }
+    },
+    "Choose a shortcut to get started.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇快速鍵以開始使用。"
           }
         }
       }
@@ -3833,6 +3915,16 @@
         }
       }
     },
+    "Combines transcription with an LLM to create a polished version.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結合轉錄內容與大型語言模型，產生增強後的文字。"
+          }
+        }
+      }
+    },
     "Coming Soon": {
       "localizations": {
         "zh-Hant": {
@@ -3959,6 +4051,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定快速鍵"
+          }
+        }
+      }
+    },
+    "Configure Transcription Model": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定轉錄模型"
           }
         }
       }
@@ -5327,6 +5429,16 @@
         }
       }
     },
+    "Denied": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒絕"
+          }
+        }
+      }
+    },
     "Describe what you actually said": {
       "localizations": {
         "zh-Hant": {
@@ -6471,6 +6583,16 @@
         }
       }
     },
+    "Enhancement modes and AI actions will stay off until you add a key. You can set this up anytime from Settings.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增金鑰前，增強模式與 AI 操作會保持停用。你可以隨時前往「設定」完成設定。"
+          }
+        }
+      }
+    },
     "Enhancement modes and AI actions will stay off. You can always set it up later in the app.": {
       "localizations": {
         "zh-Hant": {
@@ -6713,6 +6835,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Experience Voco"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體驗 Voco"
           }
         }
       }
@@ -7067,6 +7195,16 @@
         }
       }
     },
+    "Finish Onboarding": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成新手引導"
+          }
+        }
+      }
+    },
     "Fix with AI": {
       "localizations": {
         "zh-Hant": {
@@ -7213,6 +7351,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已開啟 GitHub"
+          }
+        }
+      }
+    },
+    "Go Back": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
           }
         }
       }
@@ -8313,6 +8461,16 @@
         }
       }
     },
+    "License active on this Mac.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 已啟用授權。"
+          }
+        }
+      }
+    },
     "License key": {
       "localizations": {
         "zh-Hant": {
@@ -8519,6 +8677,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "本機模型"
+          }
+        }
+      }
+    },
+    "Local Storage": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機儲存空間"
           }
         }
       }
@@ -9289,6 +9457,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要協助？查看「說明」選單以取得支援選項"
+          }
+        }
+      }
+    },
+    "Needs access": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要存取權限"
           }
         }
       }
@@ -10363,6 +10541,16 @@
         }
       }
     },
+    "Open Source": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開放原始碼"
+          }
+        }
+      }
+    },
     "Open System Settings": {
       "localizations": {
         "zh-Hant": {
@@ -10625,6 +10813,16 @@
         }
       }
     },
+    "Parakeet V3 is not available.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parakeet V3 目前無法使用。"
+          }
+        }
+      }
+    },
     "Parakeet V3 with English and 25 European language support": {
       "localizations": {
         "zh-Hant": {
@@ -10641,6 +10839,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "貼上"
+          }
+        }
+      }
+    },
+    "Paste %@ API key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上 %@ API 金鑰"
           }
         }
       }
@@ -10962,6 +11170,12 @@
             "state": "translated",
             "value": "Pick the microphone Voco should use for recordings."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 Voco 錄音時使用的麥克風。"
+          }
         }
       }
     },
@@ -11207,6 +11421,16 @@
         }
       }
     },
+    "Press your shortcut, read the sample text, then press it again.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下快速鍵並朗讀範例文字，再按一次快速鍵。"
+          }
+        }
+      }
+    },
     "Preview: would not publish": {
       "localizations": {
         "zh-Hant": {
@@ -11283,6 +11507,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "隱私"
+          }
+        }
+      }
+    },
+    "Privacy Starts Here": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私從這裡開始"
           }
         }
       }
@@ -11881,6 +12115,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近每日轉錄活動"
+          }
+        }
+      }
+    },
+    "Recheck": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新檢查"
           }
         }
       }
@@ -12603,12 +12847,32 @@
         }
       }
     },
+    "Restricted": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受限"
+          }
+        }
+      }
+    },
     "Resume Delay": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "恢復延遲"
+          }
+        }
+      }
+    },
+    "Resume Download": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續下載"
           }
         }
       }
@@ -12840,6 +13104,12 @@
             "state": "translated",
             "value": "Review how Voco handles your data before choosing a license."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇授權前，請先了解 Voco 如何處理你的資料。"
+          }
         }
       }
     },
@@ -12869,6 +13139,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "建議審查"
+          }
+        }
+      }
+    },
+    "Rewrite": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改寫"
           }
         }
       }
@@ -12999,6 +13279,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "SHA"
+          }
+        }
+      }
+    },
+    "Sample text": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範例文字"
           }
         }
       }
@@ -13759,6 +14049,16 @@
         }
       }
     },
+    "Set It Up Later": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後設定"
+          }
+        }
+      }
+    },
     "Set Keyboard Shortcut": {
       "localizations": {
         "zh-Hant": {
@@ -13845,6 +14145,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定 OpenCode Go API 金鑰才能使用規則助手。"
+          }
+        }
+      }
+    },
+    "Set up AI enhancement later?": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後再設定 AI 增強功能？"
           }
         }
       }
@@ -14353,6 +14663,16 @@
         }
       }
     },
+    "Skip the remaining onboarding steps": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過剩餘的新手引導步驟"
+          }
+        }
+      }
+    },
     "Skipped": {
       "localizations": {
         "zh-Hant": {
@@ -14559,6 +14879,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始"
+          }
+        }
+      }
+    },
+    "Start 7-day Trial": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始 7 天試用"
           }
         }
       }
@@ -14809,6 +15139,16 @@
         }
       }
     },
+    "Summarize": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要"
+          }
+        }
+      }
+    },
     "Summary": {
       "localizations": {
         "zh-Hant": {
@@ -14911,6 +15251,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用 ⌘ 1 至 ⌘ 0 在已儲存的提示詞之間切換，按儲存順序啟動對應的提示詞。僅在 Voco 執行中且錄音器可見時可用。"
+          }
+        }
+      }
+    },
+    "Switch provider": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換供應商"
           }
         }
       }
@@ -15523,6 +15873,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The key worked, but Voco could not save it securely."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "金鑰有效，但 Voco 無法安全地儲存。"
           }
         }
       }
@@ -16363,6 +16719,16 @@
         }
       }
     },
+    "Translate": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻譯"
+          }
+        }
+      }
+    },
     "Trial": {
       "localizations": {
         "zh-Hant": {
@@ -16510,6 +16876,12 @@
             "state": "translated",
             "value": "Try a few short samples and see how Voco works before you start."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始前先試著說幾段簡短範例，了解 Voco 的運作方式。"
+          }
         }
       }
     },
@@ -16615,6 +16987,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已復原"
+          }
+        }
+      }
+    },
+    "Unknown": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
           }
         }
       }
@@ -16801,6 +17183,16 @@
         }
       }
     },
+    "Use NVIDIA's Parakeet model locally, or connect a cloud transcription provider.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在本機使用 NVIDIA 的 Parakeet 模型，或連接雲端轉錄供應商。"
+          }
+        }
+      }
+    },
     "Use System Template": {
       "localizations": {
         "zh-Hant": {
@@ -16843,6 +17235,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use Voco now."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即開始使用 Voco。"
           }
         }
       }
@@ -17029,6 +17427,16 @@
         }
       }
     },
+    "Uses your configured transcription model for fast dictation.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你設定的轉錄模型快速聽寫。"
+          }
+        }
+      }
+    },
     "Validation Errors": {
       "localizations": {
         "zh-Hant": {
@@ -17085,6 +17493,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "驗證"
+          }
+        }
+      }
+    },
+    "Verify API Key": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證 API 金鑰"
           }
         }
       }
@@ -17550,6 +17968,12 @@
             "state": "translated",
             "value": "Voco can select the right mode from the app you are using and the rules you configure."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 會根據你使用的應用程式和設定的規則，自動選擇合適的模式。"
+          }
         }
       }
     },
@@ -17658,6 +18082,12 @@
             "state": "translated",
             "value": "Voco is Context-Aware"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 具備上下文感知能力"
+          }
         }
       }
     },
@@ -17667,6 +18097,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco is Open Source"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 是開放原始碼軟體。"
           }
         }
       }
@@ -17725,6 +18161,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco is private by default. No data leaves your device unless you opt in."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 預設會保護你的隱私。除非你主動同意，否則資料不會離開你的裝置。"
           }
         }
       }
@@ -17915,6 +18357,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voco uses LLMs to enhance transcripts and perform AI actions. Set up an API key before continuing."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voco 使用大型語言模型增強轉錄內容並執行 AI 操作。請先設定 API 金鑰再繼續。"
           }
         }
       }
@@ -18413,6 +18861,16 @@
         }
       }
     },
+    "You Control It": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由你掌控"
+          }
+        }
+      }
+    },
     "You can only customize the trigger words for system prompts.": {
       "localizations": {
         "zh-Hant": {
@@ -18601,12 +19059,42 @@
         }
       }
     },
+    "Your dictated text will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽寫文字會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "Your enhanced message will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增強後的訊息會顯示在這裡。"
+          }
+        }
+      }
+    },
     "Your first milestone appears after one session.": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "完成一次轉錄後，就會顯示第一個里程碑。"
+          }
+        }
+      }
+    },
+    "Your formatted email will appear here.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格式化後的電子郵件會顯示在這裡。"
           }
         }
       }
