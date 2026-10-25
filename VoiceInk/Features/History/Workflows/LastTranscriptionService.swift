@@ -1,0 +1,183 @@
+import Foundation
+import SwiftData
+
+class LastTranscriptionService: ObservableObject {
+
+    static func getLastTranscription(from modelContext: ModelContext) -> Transcription? {
+        var descriptor = FetchDescriptor<Transcription>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 50
+
+        do {
+            let transcriptions = try modelContext.fetch(descriptor)
+            return transcriptions.first { isReusableOutput($0) }
+        } catch {
+            print("Error fetching last transcription: \(error)")
+            return nil
+        }
+    }
+
+    static func copyLastTranscription(from modelContext: ModelContext) {
+        guard let lastTranscription = getLastTranscription(from: modelContext) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "No transcription available"),
+                    type: .error
+                )
+            }
+            return
+        }
+
+        guard let textToCopy = preferredOutputText(for: lastTranscription, preferEnhanced: true) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
+            }
+            return
+        }
+
+        let success = ClipboardManager.copyToClipboard(textToCopy)
+
+        Task { @MainActor in
+            if success {
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "Last transcription copied"),
+                    type: .success
+                )
+            } else {
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "Failed to copy transcription"),
+                    type: .error
+                )
+            }
+        }
+    }
+
+    static func pasteLastTranscription(from modelContext: ModelContext) {
+        guard let lastTranscription = getLastTranscription(from: modelContext) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "No transcription available"),
+                    type: .error
+                )
+            }
+            return
+        }
+
+        guard let textToPaste = preferredOutputText(for: lastTranscription, preferEnhanced: false) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
+            }
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            CursorPaster.pasteAtCursor(textToPaste)
+        }
+    }
+
+    static func pasteLastEnhancement(from modelContext: ModelContext) {
+        guard let lastTranscription = getLastTranscription(from: modelContext) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "No transcription available"),
+                    type: .error
+                )
+            }
+            return
+        }
+
+        guard let textToPaste = preferredOutputText(for: lastTranscription, preferEnhanced: true) else {
+            Task { @MainActor in
+                NotificationManager.shared.showNotification(
+                    title: "No reusable transcription text",
+                    type: .error
+                )
+            }
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            CursorPaster.pasteAtCursor(textToPaste)
+        }
+    }
+
+    static func retryLastTranscription(
+        from modelContext: ModelContext, transcriptionModelManager: TranscriptionModelManager,
+        serviceRegistry: TranscriptionServiceRegistry, enhancementService: AIEnhancementService?
+    ) {
+        Task { @MainActor in
+            guard let lastTranscription = getLastTranscription(from: modelContext),
+                let audioURLString = lastTranscription.audioFileURL,
+                let audioURL = URL(string: audioURLString),
+                FileManager.default.fileExists(atPath: audioURL.path)
+            else {
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "Cannot retry: Audio file not found"),
+                    type: .error
+                )
+                return
+            }
+
+            guard
+                let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(
+                    transcriptionModelManager: transcriptionModelManager
+                )
+            else {
+                NotificationManager.shared.showNotification(
+                    title: String(localized: "No transcription model selected"),
+                    type: .error
+                )
+                return
+            }
+
+            let transcriptionService = AudioTranscriptionService(
+                modelContext: modelContext,
+                serviceRegistry: serviceRegistry,
+                enhancementService: enhancementService
+            )
+            do {
+                let result = try await transcriptionService.retranscribeAudio(
+                    from: audioURL,
+                    using: transcriptionConfiguration.model,
+                    sourceTranscription: lastTranscription
+                )
+                let newTranscription = result.transcription
+
+                guard let textToCopy = preferredOutputText(for: newTranscription, preferEnhanced: true) else {
+                    NotificationManager.shared.showNotification(
+                        title: "Retry produced no reusable text",
+                        type: .error
+                    )
+                    return
+                }
+
+                let success = ClipboardManager.copyToClipboard(textToCopy)
+                if let enhancementFailure = result.enhancementFailure {
+                    NotificationManager.shared.showNotification(
+                        title: EnhancementFailureFormatter.transcriptionSavedMessage(
+                            description: enhancementFailure
+                        ),
+                        type: .warning
+                    )
+                } else {
+                    NotificationManager.shared.showNotification(
+                        title: success ? "Copied to clipboard" : "Failed to copy transcription",
+                        type: success ? .success : .error
+                    )
+                }
+            } catch {
+                NotificationManager.shared.showNotification(
+                    title: String(format: String(localized: "Retry failed: %@"), error.localizedDescription),
+                    type: .error
+                )
+            }
+        }
+    }
+}

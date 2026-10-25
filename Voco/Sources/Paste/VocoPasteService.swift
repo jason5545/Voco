@@ -404,7 +404,7 @@ enum VocoPasteService {
         deleteUp?.post(tap: .cghidEventTap)
     }
 
-    static func performAutoSend(_ key: AutoSendKey) {
+    static func performAutoSend(_ key: FinishAndSendKey) {
         guard key.isEnabled else { return }
         guard AXIsProcessTrusted() else { return }
 

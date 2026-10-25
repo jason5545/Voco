@@ -6,10 +6,11 @@ enum VocoDelivery {
         _ text: String,
         transcription: Transcription,
         output: OutputRuntimeConfiguration,
+        sendKey: FinishAndSendKey? = nil,
         dismiss: () async -> Void
     ) async {
         var textToPaste = text
-        if let restrictionMessage = LicenseViewModel().usageRestrictionMessage {
+        if let restrictionMessage = LicenseViewModel.shared.usageRestrictionMessage {
             textToPaste = """
                 \(restrictionMessage)
                 \n\(textToPaste)
@@ -19,18 +20,21 @@ enum VocoDelivery {
         let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
         let needsTrailingSpace = appendSpace && textToPaste.last?.isWhitespace != true
         let pastedText = textToPaste + (needsTrailingSpace ? " " : "")
-        let pasteResult = await CursorPaster.startPasteAtCursor(pastedText).value
+        let pasteOutcome = await CursorPaster.startPasteAtCursor(pastedText).value
         transcription.recordPasteAttempt(
             text: pastedText,
-            didPostCommand: pasteResult.didPostPasteCommand
+            didPostCommand: pasteOutcome.result.didPostPasteCommand
         )
         SoundManager.shared.playStopSound()
 
-        let autoSendKey = output.outputMode == .paste ? output.autoSendKey : .none
-        if autoSendKey.isEnabled {
+        let autoSendKey = sendKey ?? (output.outputMode == .paste ? output.autoSendKey : .none)
+        if autoSendKey.isEnabled && pasteOutcome.result.didPostPasteCommand {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                CursorPaster.performAutoSend(autoSendKey)
+                if let generation = pasteOutcome.autoLearnGeneration {
+                    await AutoLearnService.shared.cancelForAutoSend(generation: generation)
+                }
+                CursorPaster.performSendKey(autoSendKey)
             }
         }
 

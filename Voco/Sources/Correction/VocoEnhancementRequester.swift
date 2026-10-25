@@ -7,7 +7,7 @@ enum VocoEnhancementRequester {
         text: String,
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot?
-    ) async throws -> (String, TimeInterval, String?) {
+    ) async throws -> AIEnhancementResult {
         guard service.isEnhancementEnabled else {
             throw EnhancementError.enhancementDisabled
         }
@@ -17,7 +17,13 @@ enum VocoEnhancementRequester {
             configuration: configuration,
             contextSnapshot: contextSnapshot
         )
-        return (result, Date().timeIntervalSince(startTime), configuration.prompt?.title)
+        return AIEnhancementResult(
+            text: result.text,
+            duration: Date().timeIntervalSince(startTime),
+            promptName: configuration.prompt?.title,
+            systemMessage: result.systemMessage,
+            userMessage: result.userMessage
+        )
     }
 
     static func enhanceConservative(
@@ -34,7 +40,7 @@ enum VocoEnhancementRequester {
             configuration: service.currentRuntimeConfiguration,
             systemMessageOverride: systemMessage
         )
-        return (result, Date().timeIntervalSince(startTime))
+        return (result.text, Date().timeIntervalSince(startTime))
     }
 
     static func enhanceCommaInsertion(
@@ -47,7 +53,7 @@ enum VocoEnhancementRequester {
             configuration: service.currentRuntimeConfiguration,
             systemMessageOverride: AIPrompts.commaInsertionPrompt
         )
-        return (result, Date().timeIntervalSince(startTime))
+        return (result.text, Date().timeIntervalSince(startTime))
     }
 
     static func enhanceForEditMode(
@@ -92,7 +98,7 @@ enum VocoEnhancementRequester {
         )
         let duration = Date().timeIntervalSince(startTime)
 
-        var jsonString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var jsonString = raw.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if jsonString.hasPrefix("```") {
             let lines = jsonString.components(separatedBy: "\n")
             let stripped = lines.dropFirst().prefix(while: { !$0.hasPrefix("```") })
@@ -111,7 +117,7 @@ enum VocoEnhancementRequester {
             }
             return (result, duration, substitution)
         }
-        return (raw, duration, nil)
+        return (raw.text, duration, nil)
     }
 
     static func enhanceMerge(
@@ -145,7 +151,7 @@ enum VocoEnhancementRequester {
             userMessageOverride: userMessage
         )
         return (
-            result.trimmingCharacters(in: .whitespacesAndNewlines),
+            result.text.trimmingCharacters(in: .whitespacesAndNewlines),
             Date().timeIntervalSince(startTime)
         )
     }

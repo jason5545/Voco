@@ -19,15 +19,19 @@
 
 ```bash
 # 單元測試（規則助手相關 suite 範例）
-xcodebuild test -scheme VoiceInk -destination 'platform=macOS' \
+xcodebuild test -skipPackagePluginValidation -skipMacroValidation \
+  -scheme VoiceInk -destination 'platform=macOS' \
   -only-testing:VoiceInkTests/RuleAssistantDraftTests \
   -only-testing:VoiceInkTests/RuleAssistantIntegrationTests
 
 # Debug build
-xcodebuild -scheme VoiceInk -configuration Debug -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+xcodebuild -skipPackagePluginValidation -skipMacroValidation \
+  -scheme VoiceInk -configuration Debug \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
 ```
 
 - Commit 前確認 build 通過。
+- 目前 pinned 的 MLX／mlx-swift-lm 依賴含套件外掛與 macro；Xcode 27 命令列建置要加上述兩個授權旗標，只用於這組已審查的依賴，不要拿去略過未知套件。
 - app 測試主機以系統語言（zh-Hant）執行，測試斷言不可依賴英文訊息原文。
 
 ## 部署到本機（唯一正確做法）
@@ -35,7 +39,9 @@ xcodebuild -scheme VoiceInk -configuration Debug -allowProvisioningUpdates -allo
 日常使用的是 **`/Applications/Voco.app`**，部署一律是 Release build 用 `ditto` 覆蓋它：
 
 ```bash
-xcodebuild -scheme VoiceInk -configuration Release -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+xcodebuild -skipPackagePluginValidation -skipMacroValidation \
+  -scheme VoiceInk -configuration Release \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
 pkill -x Voco 2>/dev/null; sleep 1
 rm -rf /Applications/Voco.app
 ditto ~/Library/Developer/Xcode/DerivedData/VoiceInk-*/Build/Products/Release/Voco.app /Applications/Voco.app

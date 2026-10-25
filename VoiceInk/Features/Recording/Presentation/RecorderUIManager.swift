@@ -1,0 +1,644 @@
+import AppKit
+import Combine
+import Foundation
+import SwiftUI
+import AppKit
+import os
+
+enum RecorderPanelStyle: String, CaseIterable, Identifiable {
+    case notch
+    case mini
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notch:
+            return String(localized: "Notch")
+        case .mini:
+            return String(localized: "Mini")
+        }
+    }
+
+    static var stored: RecorderPanelStyle {
+        let rawValue = UserDefaults.standard.string(forKey: "RecorderType") ?? RecorderPanelStyle.mini.rawValue
+        return RecorderPanelStyle(rawValue: rawValue) ?? .mini
+    }
+}
+
+@MainActor
+protocol RecorderPanelPresenting: AnyObject {
+    var isRecorderPanelVisible: Bool { get }
+    func dismissRecorderPanel() async
+}
+
+@MainActor
+class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
+    @Published var recorderPanelStyle: RecorderPanelStyle = .stored {
+        didSet {
+            guard oldValue != recorderPanelStyle else { return }
+            rebuildVisiblePanel(previousStyle: oldValue)
+            UserDefaults.standard.set(recorderPanelStyle.rawValue, forKey: "RecorderType")
+        }
+    }
+
+    var recorderType: String {
+        get { recorderPanelStyle.rawValue }
+        set { recorderPanelStyle = RecorderPanelStyle(rawValue: newValue) ?? .mini }
+    }
+
+    @Published var isRecorderPanelVisible = false {
+        didSet {
+            guard oldValue != isRecorderPanelVisible else { return }
+
+            if isRecorderPanelVisible {
+                showRecorderPanel()
+            } else {
+                hideRecorderPanel()
+            }
+        }
+    }
+
+    private var notchWindowManager: NotchWindowManager?
+    private var miniWindowManager: MiniWindowManager?
+    private var panelInvalidationTask: Task<Void, Never>?
+    private var defaultNotificationObservers: [NSObjectProtocol] = []
+    private var workspaceNotificationObservers: [NSObjectProtocol] = []
+    private var didSetupNotifications = false
+    private var lifecycleCancellable: AnyCancellable?
+
+    private weak var engine: VoiceInkEngine?
+    private var recorder: Recorder?
+
+    private let logger = Logger(subsystem: AppIdentifiers.subsystem, category: "RecorderUIManager")
+    private var lastRecordingStopTime: Date?
+    private var doublePressStopTask: Task<Void, Never>?
+
+    init() {}
+
+    deinit {
+        panelInvalidationTask?.cancel()
+        lifecycleCancellable?.cancel()
+        NotificationCenter.default.removeObserver(self)
+        for observer in defaultNotificationObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        for observer in workspaceNotificationObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+    }
+
+    /// Call after VoiceInkEngine is created to break the circular init dependency.
+    func configure(engine: VoiceInkEngine, recorder: Recorder) {
+        self.engine = engine
+        self.recorder = recorder
+        setupNotifications()
+        EditModeCacheService.shared.startPolling()
+    }
+
+    // MARK: - Recorder Panel Management
+
+    private func showRecorderPanel() {
+        guard let engine = engine, let recorder = recorder else { return }
+        StartupTracer.checkpoint("showRecorderPanel_enter(\(recorderPanelStyle.rawValue))")
+
+        let shown: Bool
+
+        switch recorderPanelStyle {
+        case .notch:
+            if notchWindowManager == nil {
+                notchWindowManager = NotchWindowManager(
+                    engine: engine,
+                    recorder: recorder,
+                    assistantSession: engine.assistantSession,
+                    onRecordButtonTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.toggleRecorderPanel()
+                        }
+                    },
+                    onCloseTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.dismissRecorderPanel()
+                        }
+                    },
+                    onAssistantFollowUp: { [weak engine] text in
+                        Task { @MainActor in
+                            await engine?.sendAssistantFollowUp(text)
+                        }
+                    }
+                )
+            }
+            shown = notchWindowManager?.show() ?? false
+        case .mini:
+            if miniWindowManager == nil {
+                miniWindowManager = MiniWindowManager(
+                    engine: engine,
+                    recorder: recorder,
+                    assistantSession: engine.assistantSession,
+                    onRecordButtonTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.toggleRecorderPanel()
+                        }
+                    },
+                    onCloseTapped: { [weak self] in
+                        Task { @MainActor in
+                            await self?.dismissRecorderPanel()
+                        }
+                    },
+                    onAssistantFollowUp: { [weak engine] text in
+                        Task { @MainActor in
+                            await engine?.sendAssistantFollowUp(text)
+                        }
+                    }
+                )
+            }
+            shown = miniWindowManager?.show() ?? false
+        }
+
+        if shown {
+            logger.notice("Showed recorder panel style=\(self.recorderPanelStyle.rawValue, privacy: .public)")
+        } else {
+            logger.error("Recorder panel could not be shown style=\(self.recorderPanelStyle.rawValue, privacy: .public) screens=\(NSScreen.screens.count, privacy: .public)")
+        }
+    }
+
+    private func hideRecorderPanel() {
+        // `dismissRecorderPanel()` calls this directly and then clears the flag, which calls it
+        // again, so this deliberately stays at debug level.
+        logger.debug("Hiding recorder panel style=\(self.recorderPanelStyle.rawValue, privacy: .public)")
+        switch recorderPanelStyle {
+        case .notch:
+            notchWindowManager?.hide()
+        case .mini:
+            miniWindowManager?.hide()
+        }
+    }
+
+    // MARK: - Panel Invalidation
+
+    /// Recorder panels must not outlive a sleep/wake cycle or a display reconfiguration.
+    ///
+    /// `NotchWindowManager.show()` already rebuilds a panel that is not on screen, so the work
+    /// here is only about the panel that is currently *hidden but retained*: dropping it frees
+    /// the window early and keeps `destroyWindow()` on a path that actually runs. When a
+    /// dictation is in progress the panel stays put and is only repositioned, so an active
+    /// session never loses its UI.
+    ///
+    /// `didChangeScreenParameters` fires several times per reconfiguration and displays need a
+    /// moment to settle afterwards, so the work is debounced and re-armed on every event
+    /// instead of guessing a single settle delay.
+    private func invalidatePanels(reason: String) {
+        panelInvalidationTask?.cancel()
+        panelInvalidationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.applyPanelInvalidation(reason: reason)
+        }
+    }
+
+    private func applyPanelInvalidation(reason: String) {
+        guard isRecorderPanelVisible else {
+            logger.notice("Discarding idle recorder panels (\(reason, privacy: .public))")
+            notchWindowManager?.destroyWindow()
+            notchWindowManager = nil
+            miniWindowManager?.destroyWindow()
+            miniWindowManager = nil
+            return
+        }
+
+        logger.notice("Repositioning visible recorder panel (\(reason, privacy: .public))")
+        showRecorderPanel()
+    }
+
+    private func rebuildVisiblePanel(previousStyle: RecorderPanelStyle) {
+        guard isRecorderPanelVisible else { return }
+
+        switch previousStyle {
+        case .notch:
+            notchWindowManager?.destroyWindow()
+            notchWindowManager = nil
+        case .mini:
+            miniWindowManager?.destroyWindow()
+            miniWindowManager = nil
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard self.isRecorderPanelVisible else { return }
+            self.showRecorderPanel()
+        }
+    }
+
+    // MARK: - Recorder Panel Management
+
+    func toggleRecorderPanel(modeId: UUID? = nil) async {
+        guard let engine = engine else { return }
+
+        if isRecorderPanelVisible {
+            switch engine.recordingState {
+            case .recording:
+                if lastRecordingStopTime != nil {
+                    lastRecordingStopTime = nil
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = nil
+                    await cancelRecording()
+                } else {
+                    lastRecordingStopTime = Date()
+                    doublePressStopTask?.cancel()
+                    doublePressStopTask = Task { @MainActor [weak self, weak engine] in
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        guard let self, let engine, !Task.isCancelled else { return }
+                        self.lastRecordingStopTime = nil
+                        self.doublePressStopTask = nil
+                        await engine.toggleRecord(modeId: modeId)
+                    }
+                }
+            case .starting, .transcribing, .enhancing:
+                await cancelRecording()
+            case .idle:
+                if engine.assistantSession.canSendFollowUp {
+                    SoundManager.shared.playStartSound()
+                    await engine.toggleRecord(
+                        modeId: modeId,
+                        isAssistantFollowUp: true
+                    )
+                } else {
+                    await dismissRecorderPanel()
+                }
+            case .busy:
+                await dismissRecorderPanel()
+            }
+        } else {
+            await RecorderPanelStartFlow.run(
+                resetStopStateAndCancelModelCleanup: {
+                    lastRecordingStopTime = nil
+                    engine.cancelScheduledModelCleanup()
+                },
+                playStartSound: {
+                    SoundManager.shared.playStartSound()
+                },
+                detectEditMode: {
+                    await detectEditMode(engine: engine)
+                },
+                setRecorderPanelVisible: {
+                    isRecorderPanelVisible = true
+                },
+                toggleRecord: {
+                    await engine.toggleRecord(modeId: modeId)
+                }
+            )
+        }
+    }
+
+    func finishRecordingAndSend() async {
+        guard isRecorderPanelVisible, let engine, engine.recordingState == .recording else { return }
+        await engine.toggleRecord(sendAfterPaste: true)
+    }
+
+    var isActivelyRecording: Bool {
+        isRecorderPanelVisible && engine?.recordingState == .recording
+    }
+
+    var recordingStatePublisher: AnyPublisher<RecordingState, Never>? {
+        engine?.$recordingState.eraseToAnyPublisher()
+    }
+
+    func dismissRecorderPanel() async {
+        guard let engine = engine else { return }
+
+        hideRecorderPanel()
+        isRecorderPanelVisible = false
+        engine.assistantSession.reset()
+        lastRecordingStopTime = nil
+        doublePressStopTask?.cancel()
+        doublePressStopTask = nil
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+        engine.forkState.clearEditMode()
+        engine.forkState.pendingDictionaryEntry = nil
+        engine.scheduleModelResourceCleanup()
+        EditModeCacheService.shared.startPolling()
+    }
+
+    func resetOnLaunch() async {
+        guard let engine = engine else { return }
+        logger.notice("Resetting recording state on launch")
+        await engine.resetRecordingSession()
+        hideRecorderPanel()
+        isRecorderPanelVisible = false
+        engine.assistantSession.reset()
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+        engine.forkState.clearEditMode()
+        engine.forkState.pendingDictionaryEntry = nil
+    }
+
+    func cancelRecording() async {
+        guard let engine = engine else { return }
+        lastRecordingStopTime = nil
+        doublePressStopTask?.cancel()
+        doublePressStopTask = nil
+        SoundManager.shared.playEscSound()
+        await engine.cancelRecording()
+        await dismissRecorderPanel()
+        NotificationManager.shared.showNotification(
+            title: String(localized: "Recording Cancelled"),
+            type: .info,
+            duration: 1.5
+        )
+    }
+
+    // MARK: - Edit Mode Detection
+
+    private func detectEditMode(engine: VoiceInkEngine) async {
+        defer { EditModeCacheService.shared.stopPolling() }
+
+        engine.forkState.editModeDetectionTask?.cancel()
+        engine.forkState.editModeDetectionTask = nil
+
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        let bundleID = frontmostApplication?.bundleIdentifier
+        let currentPID = frontmostApplication?.processIdentifier
+        if let bundleID, EditModeCacheService.terminalBundleIDs.contains(bundleID) {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        guard let currentPID else {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        let snapshot = EditModeCacheService.shared.snapshotEditModeState()
+        let decision = EditModeDetectionPolicy.initialDecision(
+            bundleID: bundleID,
+            currentPID: currentPID,
+            cachedPID: snapshot.pid,
+            cachedIsEditable: snapshot.isEditable
+        )
+
+        switch decision {
+        case .clear:
+            engine.forkState.clearEditMode()
+            return
+
+        case .applyLive(let searchFocusedWindow):
+            await applyLiveEditModeDetection(
+                engine: engine,
+                pid: currentPID,
+                searchFocusedWindow: searchFocusedWindow
+            )
+        }
+    }
+
+    private func applyLiveEditModeDetection(
+        engine: VoiceInkEngine,
+        pid: pid_t,
+        searchFocusedWindow: Bool
+    ) async {
+        switch SelectedTextService.focusedEditableSelectionEvidence(for: pid) {
+        case .selected(let selectedText):
+            applyEditModeResult(
+                engine: engine,
+                targetPID: pid,
+                hasTrustedEditableSignal: true,
+                selectedText: selectedText
+            )
+            return
+        case .noSelection:
+            if !searchFocusedWindow {
+                engine.forkState.clearEditMode()
+                return
+            }
+        case .unavailable:
+            if !searchFocusedWindow {
+                engine.forkState.clearEditMode()
+                return
+            }
+        }
+
+        guard searchFocusedWindow else {
+            engine.forkState.clearEditMode()
+            return
+        }
+
+        // Do not block recorder startup on a deep Electron AX traversal. The
+        // result remains tied to this PID and is awaited (up to 500 ms) before
+        // the transcription pipeline decides whether it is in Edit Mode.
+        engine.forkState.clearEditMode()
+        engine.forkState.editModeDetectionTask = Task { @MainActor [weak self, weak engine] in
+            guard let self, let engine else { return }
+
+            let scanTask = Task.detached(priority: .userInitiated) {
+                SelectedTextService.focusedWindowEditableSelectionEvidence(for: pid)
+            }
+            let evidence = await withTaskCancellationHandler(
+                operation: { await scanTask.value },
+                onCancel: { scanTask.cancel() }
+            )
+            guard !Task.isCancelled else { return }
+
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                engine.forkState.clearEditMode()
+                return
+            }
+
+            switch evidence {
+            case .selected(let selectedText):
+                self.applyEditModeResult(
+                    engine: engine,
+                    targetPID: pid,
+                    hasTrustedEditableSignal: true,
+                    selectedText: selectedText
+                )
+            case .noSelection, .unavailable:
+                engine.forkState.clearEditMode()
+            }
+        }
+    }
+
+    private func applyEditModeResult(
+        engine: VoiceInkEngine,
+        targetPID: pid_t,
+        hasTrustedEditableSignal: Bool,
+        selectedText: String?
+    ) {
+        if let selectedText,
+           EditModeDetectionPolicy.shouldEnterEditMode(
+               hasTrustedEditableSignal: hasTrustedEditableSignal,
+               selectedText: selectedText
+           ) {
+            engine.forkState.armEditMode(selectedText: selectedText, pid: targetPID)
+        } else {
+            engine.forkState.clearEditMode()
+        }
+    }
+
+    // MARK: - Notification Handling
+
+    private func setupNotifications() {
+        guard !didSetupNotifications else { return }
+        didSetupNotifications = true
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleToggleRecorderPanelNotification),
+            name: .toggleRecorderPanel,
+            object: nil
+        )
+
+        let defaultCenter = NotificationCenter.default
+        defaultNotificationObservers.append(
+            defaultCenter.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.invalidatePanels(reason: "screen parameters changed") }
+            }
+        )
+
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for (name, reason) in [
+            (NSWorkspace.didWakeNotification, "system wake"),
+            (NSWorkspace.screensDidWakeNotification, "displays wake")
+        ] {
+            workspaceNotificationObservers.append(
+                workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    Task { @MainActor in self?.invalidatePanels(reason: reason) }
+                }
+            )
+        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDismissRecorderPanelNotification),
+            name: .dismissRecorderPanel,
+            object: nil
+        )
+        lifecycleCancellable = LifecycleObserver.shared.publisher(
+            for: [.systemDidWake, .displaysDidWake, .screenConfigurationChanged]
+        ).sink { [weak self] event in
+            Task { @MainActor in
+                guard let self else { return }
+                switch event {
+                case .systemDidWake:
+                    self.invalidatePanels(reason: "system wake")
+                case .displaysDidWake:
+                    self.invalidatePanels(reason: "displays wake")
+                case .screenConfigurationChanged:
+                    self.invalidatePanels(reason: "screen parameters changed")
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    @objc public func handleToggleRecorderPanelNotification() {
+        Task {
+            await toggleRecorderPanel()
+        }
+    }
+
+    @objc public func handleDismissRecorderPanelNotification() {
+        Task {
+            switch engine?.recordingState {
+            case .starting, .recording, .transcribing, .enhancing:
+                await cancelRecording()
+            case .idle, .busy, nil:
+                await dismissRecorderPanel()
+            }
+        }
+    }
+}
+
+@MainActor
+enum RecorderPanelStartFlow {
+    static func run(
+        resetStopStateAndCancelModelCleanup: @MainActor () -> Void,
+        playStartSound: @MainActor () -> Void,
+        detectEditMode: @MainActor () async -> Void,
+        setRecorderPanelVisible: @MainActor () -> Void,
+        toggleRecord: @MainActor () async -> Void,
+        beginTrace: @MainActor (String) -> Void = { StartupTracer.begin($0) },
+        checkpoint: @MainActor (String) -> Void = { StartupTracer.checkpoint($0) }
+    ) async {
+        beginTrace("hotkey_press")
+        resetStopStateAndCancelModelCleanup()
+        checkpoint("cancelModelCleanup_done")
+        playStartSound()
+        checkpoint("playStartSound_done")
+        await detectEditMode()
+        checkpoint("detectEditMode_done")
+        setRecorderPanelVisible()
+        checkpoint("isRecorderPanelVisible_set")
+        await toggleRecord()
+    }
+}
+
+enum EditModeDetectionPolicy {
+    enum InitialDecision: Equatable {
+        case clear
+        case applyLive(searchFocusedWindow: Bool)
+    }
+
+    private static let focusedWindowSelectionBundleIDs: Set<String> = [
+        "com.anthropic.claudefordesktop",
+        "com.exafunction.windsurf",
+        "com.microsoft.VSCode",
+        "com.openai.chat",
+        "com.openai.codex",
+        "com.todesktop.230313mzl4w4u92",
+        "dev.kiro.desktop",
+    ]
+
+    static func initialDecision(
+        bundleID: String?,
+        currentPID: pid_t?,
+        cachedPID: pid_t?,
+        cachedIsEditable: Bool,
+        terminalBundleIDs: Set<String> = EditModeCacheService.terminalBundleIDs
+    ) -> InitialDecision {
+        if let bundleID, terminalBundleIDs.contains(bundleID) {
+            return .clear
+        }
+
+        guard let currentPID else {
+            return .clear
+        }
+
+        let cacheMatchesFrontmostApp = cacheMatchesFrontmostApp(
+            cachedPID: cachedPID,
+            currentPID: currentPID
+        )
+        let searchFocusedWindow = shouldSearchFocusedWindow(bundleID: bundleID)
+
+        if cacheMatchesFrontmostApp,
+           !cachedIsEditable,
+           !searchFocusedWindow {
+            return .clear
+        }
+
+        return .applyLive(searchFocusedWindow: searchFocusedWindow)
+    }
+
+    static func cacheMatchesFrontmostApp(cachedPID: pid_t?, currentPID: pid_t?) -> Bool {
+        guard let cachedPID, let currentPID else { return false }
+        return cachedPID == currentPID
+    }
+
+    static func shouldSearchFocusedWindow(bundleID: String?) -> Bool {
+        guard let bundleID else { return false }
+        return focusedWindowSelectionBundleIDs.contains(bundleID)
+    }
+
+    static func shouldEnterEditMode(hasTrustedEditableSignal: Bool, selectedText: String?) -> Bool {
+        guard hasTrustedEditableSignal,
+              let selectedText,
+              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return true
+    }
+
+}

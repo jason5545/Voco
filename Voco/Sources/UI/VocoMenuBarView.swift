@@ -1,21 +1,19 @@
 import SwiftUI
-import LaunchAtLogin
 
 struct VocoMenuBarView: View {
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var engine: VoiceInkEngine
     @EnvironmentObject var recorderUIManager: RecorderUIManager
     @EnvironmentObject var transcriptionModelManager: TranscriptionModelManager
     @EnvironmentObject var whisperModelManager: WhisperModelManager
     @EnvironmentObject var recordingShortcutManager: RecordingShortcutManager
     @EnvironmentObject var menuBarManager: MenuBarManager
+    @EnvironmentObject var mainWindowNavigation: MainWindowNavigation
     @EnvironmentObject var updaterViewModel: UpdaterViewModel
     @EnvironmentObject var enhancementService: AIEnhancementService
     @EnvironmentObject var aiService: AIService
+    @ObservedObject private var launchAtLoginManager = LaunchAtLoginManager.shared
     @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
-    // View initialization runs again when recording state changes. Reading
-    // LaunchAtLogin here synchronously waits on ServiceManagement and stalls
-    // the main thread before the recorder's continuation can resume.
-    @State private var launchAtLoginEnabled: Bool?
 
     var body: some View {
         VStack {
@@ -57,37 +55,34 @@ struct VocoMenuBarView: View {
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
 
-            Button("History") {
-                menuBarManager.openHistoryWindow()
+            Button("Quick History") {
+                menuBarManager.openQuickHistory()
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
 
             Button("Settings") {
-                menuBarManager.openMainWindowAndNavigate(to: "Settings")
+                showMainWindowAndNavigate(to: "Settings")
             }
             .keyboardShortcut(",", modifiers: .command)
 
             Button(menuBarManager.isMenuBarOnly ? "Show Dock Icon" : "Hide Dock Icon") {
+                let shouldShowMainWindow = menuBarManager.isMenuBarOnly
                 menuBarManager.toggleMenuBarOnly()
+
+                if shouldShowMainWindow {
+                    showMainWindow()
+                }
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
 
-            Toggle("Launch at Login", isOn: Binding(
-                get: { launchAtLoginEnabled ?? false },
-                set: { newValue in
-                    LaunchAtLogin.isEnabled = newValue
-                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
-                }
-            ))
-                .disabled(launchAtLoginEnabled == nil)
-                .task {
-                    launchAtLoginEnabled = nil
-                    let enabled = await Task.detached(priority: .utility) {
-                        LaunchAtLogin.isEnabled
-                    }.value
-                    guard !Task.isCancelled else { return }
-                    launchAtLoginEnabled = enabled
-                }
+            Toggle(
+                "Launch at Login",
+                isOn: Binding(
+                    get: { launchAtLoginManager.isEnabled },
+                    set: { launchAtLoginManager.setEnabled($0) }
+                )
+            )
+            .disabled(launchAtLoginManager.isUpdating)
 
             Divider()
 
@@ -128,7 +123,7 @@ struct VocoMenuBarView: View {
             Divider()
 
             Button("Manage Models") {
-                menuBarManager.openMainWindowAndNavigate(to: "AI Models")
+                showMainWindowAndNavigate(to: "AI Models")
             }
         } label: {
             HStack {
@@ -193,5 +188,23 @@ struct VocoMenuBarView: View {
                     .font(.system(size: 10))
             }
         }
+    }
+
+    private func showMainWindow() {
+        let existingWindow = WindowManager.shared.currentMainWindow()
+        menuBarManager.activateForPresentedWindow()
+
+        if existingWindow == nil {
+            WindowManager.shared.prepareForUserRequestedMainWindow()
+            openWindow(id: AppWindowID.main)
+        } else {
+            openWindow(id: AppWindowID.main)
+            WindowManager.shared.showMainWindow()
+        }
+    }
+
+    private func showMainWindowAndNavigate(to destination: String) {
+        mainWindowNavigation.navigate(to: destination)
+        showMainWindow()
     }
 }
