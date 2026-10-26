@@ -56,7 +56,8 @@ final class PersistentQuickPanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        guard event.type == .keyDown else {
+        // Voco: keys that confirm or cancel an IME composition belong to the text view.
+        guard event.type == .keyDown, !isComposingText else {
             super.sendEvent(event)
             return
         }
@@ -106,10 +107,13 @@ final class PersistentQuickPanel: NSPanel {
 
     func resizeKeepingTopEdge(to size: NSSize) {
         let currentFrame = frame
-        let origin = NSPoint(
+        var origin = NSPoint(
             x: currentFrame.midX - size.width / 2,
             y: currentFrame.maxY - size.height
         )
+        if let visibleFrame = screen?.visibleFrame {
+            origin.y = max(origin.y, visibleFrame.minY)
+        }
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.18
@@ -120,6 +124,10 @@ final class PersistentQuickPanel: NSPanel {
 
     @objc private func panelDidMove() {
         persistPosition()
+    }
+
+    private var isComposingText: Bool {
+        (firstResponder as? NSTextInputClient)?.hasMarkedText() == true
     }
 
     private var isHostingFocusedAuxiliaryWindow: Bool {

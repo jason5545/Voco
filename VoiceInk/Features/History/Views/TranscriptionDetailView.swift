@@ -66,6 +66,11 @@ struct TranscriptionDetailView: View {
                 HistoryWindowDragArea()
                     .frame(width: 120)
                     .frame(maxHeight: .infinity)
+
+                // Voco: Quick History has no audio player, so the rule assistant entry lives here.
+                if let onRuleAssistant {
+                    HistoryIconButton(systemName: "text.badge.checkmark", help: "Fix with AI", action: onRuleAssistant)
+                }
             }
         }
         .padding(.horizontal, HistoryLayout.headerInset)

@@ -291,6 +291,18 @@ Upstream `DashboardFormatters` hard-codes English suffixes, so the zh-Hant Dashb
 | `VoiceInk/Features/Dashboard/Components/ModelUsageCard.swift` | `0m` fallback reuses the localized formatter | Same reason |
 | `VoiceInk/Features/Dashboard/Components/DashboardActivityCalendarCard.swift` | Best-day `%@ words` wrapped in `String(localized:)` | Same reason |
 
+### Quick History rule assistant (2026-10-26)
+
+Upstream Quick History (new in `22e5ec54`) had no rule assistant: the main-window entry lives on the audio player, which the quick panel hides. The quick panel now swaps its detail page for `VocoQuickHistoryRuleAssistantView` (`Voco/Sources/RuleAssistant/UI/`) and grows from 470 to 640 pt, keeping the top edge. Staying inside the floating panel keeps paste targeting the app it was opened from; the session registry keeps in-flight work when the panel closes.
+
+| Path | Hook | Why it must remain |
+|---|---|---|
+| `VoiceInk/Features/History/Views/TranscriptionDetailView.swift` | Quick-panel header shows the `Fix with AI` button when `onRuleAssistant` is set | Upstream owns the shared detail view; the quick panel has no audio player to host the button |
+| `VoiceInk/Features/History/Views/QuickHistoryView.swift` | Shows the rule assistant view and switches panel height | Upstream owns the quick panel layout |
+| `VoiceInk/Features/History/Views/QuickHistoryViewModel.swift` | `isShowingRuleAssistant` state | Same reason |
+| `VoiceInk/Features/History/Presentation/QuickHistoryController.swift` | Resizes the panel, passes Return through to the composer, Escape returns to details; hosting `sizingOptions = []` | Upstream intercepts Return for paste and Escape for back/dismiss |
+| `VoiceInk/App/Windows/PersistentQuickPanel.swift` | Keys pass to the text view while an IME composition is open; resize stays on screen | Without it Return/Escape during 注音 composition paste or close the panel |
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.

@@ -3539,6 +3539,16 @@
         }
       }
     },
+    "Back to details": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回詳細資訊"
+          }
+        }
+      }
+    },
     "Back to history": {
       "localizations": {
         "zh-Hant": {

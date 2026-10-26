@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftData
 import SwiftUI
 
@@ -11,6 +12,7 @@ final class QuickHistoryController: NSObject {
     private var targetApplication: NSRunningApplication?
     private var lastExternalApplication: NSRunningApplication?
     private var activationObserver: NSObjectProtocol?
+    private var ruleAssistantObserver: AnyCancellable?
 
     private override init() {
         super.init()
@@ -72,6 +74,8 @@ final class QuickHistoryController: NSObject {
             .environmentObject(enhancementService)
 
         let hostingController = NSHostingController(rootView: rootView)
+        // The panel frame is driven explicitly below; keep SwiftUI from resizing the window.
+        hostingController.sizingOptions = []
         let panel = PersistentQuickPanel(
             size: NSSize(width: 680, height: 470),
             positionDefaultsKey: "VoiceInkHistoryQuickAccessOrigin"
@@ -90,6 +94,13 @@ final class QuickHistoryController: NSObject {
 
         self.panel = panel
         self.viewModel = viewModel
+        ruleAssistantObserver = viewModel.$isShowingRuleAssistant
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak panel] isShowing in
+                let height = isShowing ? VocoQuickHistoryRuleAssistantView.panelHeight : 470
+                panel?.resizeKeepingTopEdge(to: NSSize(width: 680, height: height))
+            }
         panel.makeKeyAndOrderFront(nil)
     }
 
@@ -100,6 +111,7 @@ final class QuickHistoryController: NSObject {
         panel.onEscape = nil
         panel.onKeyDown = nil
         panel.onDismissRequest = nil
+        ruleAssistantObserver = nil
         self.panel = nil
         viewModel = nil
         panel.orderOut(nil)
@@ -107,6 +119,11 @@ final class QuickHistoryController: NSObject {
     }
 
     private func handlePanelKeyDown(_ event: NSEvent) -> Bool {
+        // The rule assistant composer owns Return and ⌘Return.
+        if viewModel?.isShowingRuleAssistant == true {
+            return false
+        }
+
         let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
 
         switch event.keyCode {
@@ -184,7 +201,9 @@ final class QuickHistoryController: NSObject {
     }
 
     private func handleEscape() {
-        if viewModel?.isShowingInfo == true {
+        if viewModel?.isShowingRuleAssistant == true {
+            viewModel?.isShowingRuleAssistant = false
+        } else if viewModel?.isShowingInfo == true {
             viewModel?.isShowingInfo = false
         } else if viewModel?.isShowingDetail == true {
             viewModel?.isShowingDetail = false

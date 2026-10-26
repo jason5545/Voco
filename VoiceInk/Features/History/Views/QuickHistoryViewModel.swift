@@ -11,6 +11,7 @@ final class QuickHistoryViewModel: ObservableObject {
     @Published private(set) var keyboardSelectionID: UUID?
     @Published var isShowingDetail = false
     @Published var isShowingInfo = false
+    @Published var isShowingRuleAssistant = false
     @Published private(set) var isSearching = false
 
     private let modelContext: ModelContext

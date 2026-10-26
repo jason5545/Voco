@@ -14,13 +14,20 @@ struct QuickHistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if viewModel.isShowingDetail {
+            if viewModel.isShowingRuleAssistant, let transcription = viewModel.selectedTranscription {
+                VocoQuickHistoryRuleAssistantView(transcription: transcription) {
+                    viewModel.isShowingRuleAssistant = false
+                }
+            } else if viewModel.isShowingDetail {
                 detailView
             } else {
                 historyView
             }
         }
-        .frame(width: 680, height: 470)
+        .frame(
+            width: 680,
+            height: viewModel.isShowingRuleAssistant ? VocoQuickHistoryRuleAssistantView.panelHeight : 470
+        )
         .background {
             VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
             AppTheme.Surface.window.opacity(0.50)
@@ -39,6 +46,7 @@ struct QuickHistoryView: View {
             isSearchFocused = !isShowingDetail
             if !isShowingDetail {
                 viewModel.isShowingInfo = false
+                viewModel.isShowingRuleAssistant = false
             }
         }
     }
@@ -108,7 +116,11 @@ struct QuickHistoryView: View {
                 },
                 onTranscriptionUpdated: { viewModel.reload(selecting: $0) },
                 presentation: .quickPanel,
-                onPaste: { onPaste(transcription) }
+                onPaste: { onPaste(transcription) },
+                onRuleAssistant: {
+                    viewModel.isShowingInfo = false
+                    viewModel.isShowingRuleAssistant = true
+                }
             )
         }
     }
