@@ -281,6 +281,16 @@ On 2026-10-26 the dictionary was first fixed with SQLite, reverted to the CloudK
 
 `VocoCanonicalizationService.wordReplacementTerms` now drops only protected aliases instead of the whole merged row, so `轉錄, 裝載, 圖案→專案` keeps `裝載` and `圖案`. Upstream AutoLearn's merge in `WordReplacementStore` is unchanged because `VocoAutoLearnPolicy` keeps AutoLearn off.
 
+### Dashboard unit localization (2026-10-26)
+
+Upstream `DashboardFormatters` hard-codes English suffixes, so the zh-Hant Dashboard showed `12K`, `3h 5m` and `1.2 sec`. Compact numbers now use Foundation's locale-aware `.compactName` (zh-Hant `1.2萬`, en unchanged `1.2K`); hour/minute/second strings go through `String(localized:)` with zh-Hant entries in `Voco/Localization/overrides.json`.
+
+| Path | Hook | Why it must remain |
+|---|---|---|
+| `VoiceInk/Features/Dashboard/Support/DashboardFormatters.swift` | `formattedCompactNumber` uses `.compactName`; duration strings wrapped in `String(localized:)` | Upstream owns the shared Dashboard formatters and only ships English |
+| `VoiceInk/Features/Dashboard/Components/ModelUsageCard.swift` | `0m` fallback reuses the localized formatter | Same reason |
+| `VoiceInk/Features/Dashboard/Components/DashboardActivityCalendarCard.swift` | Best-day `%@ words` wrapped in `String(localized:)` | Same reason |
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.

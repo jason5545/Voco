@@ -263,6 +263,16 @@
         }
       }
     },
+    "%@ h": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 小時"
+          }
+        }
+      }
+    },
     "%@ of %@": {
       "localizations": {
         "de": {
@@ -331,6 +341,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 需要 macOS 26 或以上版本。"
+          }
+        }
+      }
+    },
+    "%@ sec": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 秒"
           }
         }
       }
@@ -415,6 +435,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 個字"
           }
         }
       }
@@ -2354,6 +2380,46 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lldh": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 小時"
+          }
+        }
+      }
+    },
+    "%lldh %lldm": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 小時 %2$lld 分"
+          }
+        }
+      }
+    },
+    "%lldm": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分鐘"
+          }
+        }
+      }
+    },
+    "%lldm %@s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 分 %2$@ 秒"
           }
         }
       }
@@ -47344,6 +47410,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "小时"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小時"
           }
         }
       }

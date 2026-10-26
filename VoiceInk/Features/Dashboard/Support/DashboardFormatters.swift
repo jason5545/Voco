@@ -16,22 +16,13 @@ enum Formatters {
             return "\(value)"
         }
 
-        var divisor: Double = value >= 1_000_000 ? 1_000_000 : 1000
-        var suffix = value >= 1_000_000 ? "M" : "K"
-        let compactValue = Double(value) / divisor
-        var roundedValue = (compactValue * 10).rounded() / 10
-
-        if suffix == "K", roundedValue >= 1000 {
-            divisor = 1_000_000
-            suffix = "M"
-            roundedValue = ((Double(value) / divisor) * 10).rounded() / 10
-        }
-
-        if roundedValue.truncatingRemainder(dividingBy: 1) == 0 {
-            return "\(Int(roundedValue))\(suffix)"
-        }
-
-        return String(format: "%.1f%@", roundedValue, suffix)
+        // Voco: locale-aware compact notation (zh-Hant: 1.2萬, en: 1.2K).
+        return value.formatted(
+            .number
+                .notation(.compactName)
+                .precision(.fractionLength(0...1))
+                .locale(Locale.autoupdatingCurrent)
+        )
     }
 
     static func formattedAxisValue(_ value: Int) -> String {
@@ -53,18 +44,18 @@ enum Formatters {
         let minutes = totalMinutes % 60
 
         if hours >= 1000 {
-            return "\(formattedCompactNumber(hours)) h"
+            return String(localized: "\(formattedCompactNumber(hours)) h")
         }
 
         if hours > 0, minutes > 0 {
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
 
         if hours > 0 {
-            return "\(hours)h"
+            return String(localized: "\(hours)h")
         }
 
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     static func formattedSavedTime(_ interval: TimeInterval) -> String {
@@ -121,18 +112,18 @@ enum Formatters {
         let roundedTenths = Int((interval * 10).rounded())
 
         if roundedTenths < 600 {
-            return String(format: "%.1f sec", Double(roundedTenths) / 10)
+            return String(localized: "\(String(format: "%.1f", Double(roundedTenths) / 10)) sec")
         }
 
         if roundedTenths < 36_000 {
             let minutes = roundedTenths / 600
             let seconds = Double(roundedTenths % 600) / 10
-            return "\(minutes)m \(String(format: "%.1f", seconds))s"
+            return String(localized: "\(minutes)m \(String(format: "%.1f", seconds))s")
         }
 
         let totalMinutes = roundedTenths / 600
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        return "\(hours)h \(minutes)m"
+        return String(localized: "\(hours)h \(minutes)m")
     }
 }

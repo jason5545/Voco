@@ -87,6 +87,16 @@
         }
       }
     },
+    "%@ h": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 小時"
+          }
+        }
+      }
+    },
     "%@ of %@": {
       "localizations": {
         "zh-Hant": {
@@ -117,6 +127,16 @@
         }
       }
     },
+    "%@ sec": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 秒"
+          }
+        }
+      }
+    },
     "%@ times": {
       "localizations": {
         "zh-Hant": {
@@ -133,6 +153,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 至 %@"
+          }
+        }
+      }
+    },
+    "%@ words": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 個字"
           }
         }
       }
@@ -523,6 +553,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 個網站"
+          }
+        }
+      }
+    },
+    "%lldh": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 小時"
+          }
+        }
+      }
+    },
+    "%lldh %lldm": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 小時 %2$lld 分"
+          }
+        }
+      }
+    },
+    "%lldm": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分鐘"
+          }
+        }
+      }
+    },
+    "%lldm %@s": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 分 %2$@ 秒"
           }
         }
       }
@@ -4421,22 +4491,22 @@
         }
       }
     },
-    "Cloud ASR was already used for this dictation.": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這次已經送出雲端 ASR"
-          }
-        }
-      }
-    },
     "Cloud": {
       "localizations": {
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "雲端"
+          }
+        }
+      }
+    },
+    "Cloud ASR was already used for this dictation.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次已經送出雲端 ASR"
           }
         }
       }
@@ -7379,36 +7449,6 @@
         }
       }
     },
-    "Ephemeral": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無痕"
-          }
-        }
-      }
-    },
-    "Ephemeral dictation": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無痕聽寫"
-          }
-        }
-      }
-    },
-    "Ephemeral dictation requires a local transcription model. Cloud ASR is disabled for this recording.": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無痕聽寫需要使用本機轉錄模型，這次不允許使用雲端 ASR"
-          }
-        }
-      }
-    },
     "Enter License": {
       "localizations": {
         "zh-Hant": {
@@ -7521,6 +7561,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "可用環境變數：VOICEINK_SYSTEM_PROMPT、VOICEINK_USER_PROMPT、VOICEINK_FULL_PROMPT。Voco 也會在每次執行指令時把 VOICEINK_FULL_PROMPT 寫入 stdin。"
+          }
+        }
+      }
+    },
+    "Ephemeral": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫"
+          }
+        }
+      }
+    },
+    "Ephemeral dictation requires a local transcription model. Cloud ASR is disabled for this recording.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無痕聽寫需要使用本機轉錄模型，這次不允許使用雲端 ASR"
           }
         }
       }
@@ -20987,6 +21057,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "更少的按鍵次數"
+          }
+        }
+      }
+    },
+    "hours": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小時"
           }
         }
       }

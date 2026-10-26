@@ -64,7 +64,7 @@ struct ModelUsageCard: View {
 enum ModelUsageFormatting {
     static func duration(_ interval: TimeInterval) -> String {
         if interval < 3600 {
-            return Formatters.formattedDuration(interval, style: .abbreviated, fallback: "0m")
+            return Formatters.formattedDuration(interval, style: .abbreviated, fallback: Formatters.formattedCompactHoursAndMinutes(0))
         }
 
         return Formatters.formattedCompactHoursAndMinutes(interval)

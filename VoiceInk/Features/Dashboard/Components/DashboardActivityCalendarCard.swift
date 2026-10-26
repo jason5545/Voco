@@ -65,7 +65,7 @@ struct DashboardActivityCalendarCard: View {
 
             HStack(alignment: .top, spacing: 30) {
                 metric(label: "Active days", value: Formatters.formattedCompactNumber(activeDayCount))
-                metric(label: "Best day", value: activeDayCount > 0 ? "\(Formatters.formattedCompactNumber(bestDayWords)) words" : "--")
+                metric(label: "Best day", value: activeDayCount > 0 ? String(localized: "\(Formatters.formattedCompactNumber(bestDayWords)) words") : "--")
                 metric(label: "Best time", value: peakWindowText)
             }
         }
