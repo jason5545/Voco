@@ -263,6 +263,24 @@ The T3「無痕對話」signal and per-session privacy policy live in `Voco/Sour
 
 `RecordingContextSnapshot.swift` also accepts an optional screen-text provider for the real `VoiceInkEngine` capture path. Production still uses `ScreenCaptureService`; ephemeral skips capture entirely. `VocoTranscriptionServiceRegistry` remains Voco-owned and is subclassed only at test composition boundaries.
 
+### Dictionary merge guard (2026-10-26)
+
+Before stage 4 the launch hook called Voco's `removeExactDuplicateContent`, which only removes exact duplicates. The stage-4 resolution of `VoiceInk.swift` adopted upstream `cleanUpDictionaryContent` (upstream `d217463a`), which merges every row with the same destination and ignores `isEnabled`. On 2026-10-25 12:11 it merged disabled Edit Mode learning candidates into enabled rules (`檔案→記憶`, `出發→觸發`, `預測→預設值`, `遊的風口→Open Code`) and confirmed rules into disabled candidates (`三 11B→31B`, `COI→CLI`). The pre-merge rows are in `/tmp/voco-data-bak-20261024-p3/dictionary.store`.
+
+`WordReplacement.destinationMergeState` (`Voco/Sources/Persistence/WordReplacement+Voco.swift`) returns nil for learning candidates and `isEnabled` otherwise. Rows only share a destination row when this value matches.
+
+| Path | Hook | Why it must remain |
+|---|---|---|
+| `VoiceInk/Features/Dictionary/Workflows/DictionaryService.swift` | Cleanup keys exact duplicates and destination merges by merge state; add/edit only merge into rows with the same merge state | Upstream owns launch/import cleanup and the add/edit sheets; upstream has no learning candidates |
+| `VoiceInk/Features/Dictionary/Workflows/DictionaryImportExportService.swift` | Merge-mode import only merges into enabled non-candidate rows | Same reason; imported rows are enabled |
+| `VoiceInk/App/VoiceInk.swift` | One `VocoDictionaryRepairPlan.applyIfRequested` call next to the Worker sync start, skipped under tests | Repairs must run in the CloudKit-enabled app process after container creation |
+
+Direct SQLite edits leave no persistent history, so CloudKit never uploads them and a reinstall restores the old rows. `Voco/Sources/Persistence/VocoDictionaryRepairPlan.swift` applies a JSON plan (updates, inserts with original ids and learning metadata, deletes) through SwiftData when Voco is launched with `-VocoDictionaryRepairPlanPath <file>`; the file is renamed to `*.applied`. Plans contain dictionary text and stay in `~/Library/Application Support/com.jasonchien.Voco/DictionaryRepair/`, never in git.
+
+On 2026-10-26 the dictionary was first fixed with SQLite, reverted to the CloudKit-consistent state, then repaired through the plan: transaction 489 recorded 5 inserts, 6 updates and 1 delete (`raw→corrected`, leaked by an earlier ephemeral test). Export event 16577 succeeded; all 11 touched rows have record metadata with last exported transaction 489, the deleted row's metadata is gone, and no metadata is pending upload or cloud delete.
+
+`VocoCanonicalizationService.wordReplacementTerms` now drops only protected aliases instead of the whole merged row, so `轉錄, 裝載, 圖案→專案` keeps `裝載` and `圖案`. Upstream AutoLearn's merge in `WordReplacementStore` is unchanged because `VocoAutoLearnPolicy` keeps AutoLearn off.
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.

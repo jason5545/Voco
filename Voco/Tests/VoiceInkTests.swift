@@ -3358,6 +3358,159 @@ struct VoiceInkTests {
         #expect(result.replacements.isEmpty)
     }
 
+    @Test func canonicalizationDropsOnlyProtectedAliasesFromMergedWordReplacements() async throws {
+        let terms = VocoCanonicalizationService.wordReplacementTerms(
+            from: [WordReplacement(originalText: "轉錄, 裝載, 圖案", replacementText: "專案")]
+        )
+
+        let term = try #require(terms.first)
+        #expect(terms.count == 1)
+        #expect(term.aliases == ["裝載", "圖案"])
+    }
+
+    @Test @MainActor func dictionaryCleanupKeepsLearningCandidatesOutOfEnabledRules() throws {
+        let (container, context) = try makeRetainedDictionaryContext()
+        defer { withExtendedLifetime(container) {} }
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let enabled = WordReplacement(originalText: "低一", replacementText: "記憶", dateAdded: base)
+        let candidate = WordReplacement(
+            originalText: "檔案",
+            replacementText: "記憶",
+            dateAdded: base.addingTimeInterval(60),
+            isEnabled: false,
+            source: WordReplacement.sourceEditMode
+        )
+        let disabledCanonical = WordReplacement(
+            originalText: "C or I",
+            replacementText: "CLI",
+            dateAdded: base,
+            isEnabled: false,
+            source: WordReplacement.sourceEditMode
+        )
+        let confirmed = WordReplacement(
+            originalText: "COI",
+            replacementText: "CLI",
+            dateAdded: base.addingTimeInterval(60)
+        )
+        let enabledDuplicate = WordReplacement(
+            originalText: "布洛克",
+            replacementText: "記憶",
+            dateAdded: base.addingTimeInterval(120)
+        )
+        for entry in [enabled, candidate, disabledCanonical, confirmed, enabledDuplicate] {
+            context.insert(entry)
+        }
+        try context.save()
+
+        DictionaryService.cleanUpDictionaryContent(context: context, source: "test")
+
+        let rows = try context.fetch(FetchDescriptor<WordReplacement>())
+        func row(_ original: String) -> WordReplacement? {
+            rows.first { $0.originalText == original }
+        }
+        #expect(rows.count == 4)
+        #expect(row("低一, 布洛克")?.isEnabled == true)
+        #expect(row("檔案")?.isEnabled == false)
+        #expect(row("檔案")?.isLearningCandidate == true)
+        #expect(row("C or I")?.isEnabled == false)
+        #expect(row("COI")?.isEnabled == true)
+
+        let terms = VocoCanonicalizationService.wordReplacementTerms(from: rows)
+        let result = VocoCanonicalizationService(contextPacks: []).normalize(
+            "這份檔案的 COI",
+            activeContextIDs: [],
+            additionalTerms: terms,
+            correctionPolicy: .skipPostASRCorrectionModels
+        )
+        #expect(result.normalizedText == "這份檔案的 CLI")
+    }
+
+    @Test @MainActor func dictionaryAddAndEditDoNotMergeIntoLearningCandidates() throws {
+        let (container, context) = try makeRetainedDictionaryContext()
+        defer { withExtendedLifetime(container) {} }
+        let candidate = WordReplacement(
+            originalText: "出發",
+            replacementText: "觸發",
+            dateAdded: Date(timeIntervalSince1970: 1_700_000_000),
+            isEnabled: false,
+            source: WordReplacement.sourceEditMode
+        )
+        context.insert(candidate)
+        try context.save()
+
+        let addError = DictionaryService.addWordReplacement(
+            original: "突發",
+            replacement: "觸發",
+            existing: try context.fetch(FetchDescriptor<WordReplacement>()),
+            context: context
+        )
+        #expect(addError == nil)
+
+        var rows = try context.fetch(FetchDescriptor<WordReplacement>())
+        #expect(rows.count == 2)
+        #expect(rows.first { $0.originalText == "突發" }?.isEnabled == true)
+        #expect(rows.first { $0.originalText == "出發" }?.isLearningCandidate == true)
+
+        let editError = DictionaryService.updateWordReplacement(
+            candidate,
+            original: "出發, 出发",
+            replacementText: "觸發",
+            context: context
+        )
+        #expect(editError == nil)
+
+        rows = try context.fetch(FetchDescriptor<WordReplacement>())
+        #expect(rows.count == 2)
+        #expect(rows.first { $0.originalText == "突發" }?.isEnabled == true)
+        #expect(rows.first { $0.originalText == "出發, 出发" }?.isLearningCandidate == true)
+    }
+
+    @Test @MainActor func dictionaryRepairPlanSplitsMergedRowsAndIsIdempotent() throws {
+        let (container, context) = try makeRetainedDictionaryContext()
+        defer { withExtendedLifetime(container) {} }
+        let merged = WordReplacement(originalText: "突發, 出發", replacementText: "觸發")
+        let leaked = WordReplacement(originalText: "raw", replacementText: "corrected")
+        context.insert(merged)
+        context.insert(leaked)
+        try context.save()
+
+        let candidateID = UUID()
+        let json = """
+        {
+          "updates": [{"id": "\(merged.id.uuidString)", "originalText": "突發"}],
+          "inserts": [{
+            "id": "\(candidateID.uuidString)",
+            "originalText": "出發",
+            "replacementText": "觸發",
+            "isEnabled": false,
+            "source": "editMode",
+            "dateAdded": 1778919838,
+            "hitCount": 2,
+            "lastSeenDate": 1778919900
+          }],
+          "deletes": ["\(leaked.id.uuidString)"]
+        }
+        """
+        let plan = try VocoDictionaryRepairPlan.decode(Data(json.utf8))
+
+        let first = try VocoDictionaryRepairPlan.apply(plan, context: context)
+        #expect(first == VocoDictionaryRepairPlan.Result(updated: 1, inserted: 1, deleted: 1))
+
+        let rows = try context.fetch(FetchDescriptor<WordReplacement>())
+        #expect(rows.count == 2)
+        #expect(rows.first { $0.id == merged.id }?.originalText == "突發")
+        let candidate = try #require(rows.first { $0.id == candidateID })
+        #expect(candidate.isLearningCandidate)
+        #expect(candidate.hitCount == 2)
+        #expect(candidate.dateAdded == Date(timeIntervalSince1970: 1_778_919_838))
+
+        DictionaryService.cleanUpDictionaryContent(context: context, source: "test")
+        #expect(try context.fetch(FetchDescriptor<WordReplacement>()).count == 2)
+
+        let second = try VocoDictionaryRepairPlan.apply(plan, context: context)
+        #expect(second == VocoDictionaryRepairPlan.Result())
+    }
+
     @Test func personalStyleGuardEnabledDefaultsToTrueAndPersists() throws {
         let suiteName = "PersonalStyleGuardTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -4777,6 +4930,20 @@ private final class TestAsyncGate {
         waiters.removeAll()
         pending.forEach { $0.resume() }
     }
+}
+
+/// Keeps the container alive for the whole test; a context alone does not.
+@MainActor
+private func makeRetainedDictionaryContext() throws -> (container: ModelContainer, context: ModelContext) {
+    let schema = Schema([VocabularyWord.self, WordReplacement.self])
+    let config = ModelConfiguration(
+        "dictionary-merge-test-\(UUID().uuidString)",
+        schema: schema,
+        isStoredInMemoryOnly: true,
+        cloudKitDatabase: .none
+    )
+    let container = try ModelContainer(for: schema, configurations: [config])
+    return (container, ModelContext(container))
 }
 
 @MainActor

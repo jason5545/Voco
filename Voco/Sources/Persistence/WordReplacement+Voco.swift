@@ -13,6 +13,13 @@ extension WordReplacement {
         )
     }
 
+    /// Rows may share one destination row only when this value matches.
+    /// Learning candidates return nil and never merge, so a merge cannot
+    /// enable an unreviewed alias or disable a confirmed one.
+    var destinationMergeState: Bool? {
+        isLearningCandidate ? nil : isEnabled
+    }
+
     var sourceDisplayName: String {
         switch source {
         case Self.sourceUser:

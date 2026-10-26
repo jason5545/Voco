@@ -57,7 +57,8 @@ enum DictionaryImportExportService {
 
         var replacementsByDestination: [String: [WordReplacement]] = [:]
         if mode == .merge {
-            for item in existingReplacements {
+            // Voco: imported rows are enabled, so they only merge into enabled non-candidate rows.
+            for item in existingReplacements where item.destinationMergeState == true {
                 let key = WordReplacementVariants.destinationKey(for: item.replacementText)
                 replacementsByDestination[key, default: []].append(item)
             }

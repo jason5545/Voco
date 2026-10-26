@@ -207,16 +207,15 @@ final class VocoCanonicalizationService {
             .filter(\.isEnabled)
             .compactMap { replacement in
                 let canonical = replacement.replacementText.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Merged rows can mix protected and ordinary aliases; drop only the protected ones.
                 let aliases = replacement.originalText
                     .split(separator: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
+                    .filter { !$0.isEmpty && !containsProtectedWord($0) }
 
                 guard !canonical.isEmpty,
                       !aliases.isEmpty
                 else { return nil }
-
-                guard !aliases.contains(where: containsProtectedWord) else { return nil }
 
                 return VocoCanonicalTerm(
                     id: "word-replacement.\(replacement.id.uuidString.lowercased())",

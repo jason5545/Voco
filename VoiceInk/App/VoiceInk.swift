@@ -199,6 +199,7 @@ struct VoiceInkApp: App {
         }
 
         if !Self.isRunningTests {
+            VocoDictionaryRepairPlan.applyIfRequested(context: resolvedContainer.mainContext)
             VocoAutoApplyModelService.shared.startAutomaticWorkerSync()
         }
     }

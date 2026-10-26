@@ -101,6 +101,7 @@ enum DictionaryService {
 
         if let wordReplacements = try? context.fetch(FetchDescriptor<WordReplacement>()) {
             var seenReplacements = Set<[String]>()
+            // Voco: keyed by merge state so enabled rules and learning candidates stay separate.
             var replacementsByDestination: [String: WordReplacement] = [:]
 
             for wordReplacement in wordReplacements.sorted(by: replacementOrder) {
@@ -119,7 +120,9 @@ enum DictionaryService {
                     normalizedReplacementCount += 1
                 }
 
-                let key = [normalizedOriginal, normalizedDestination]
+                let mergeState = wordReplacement.destinationMergeState
+                let mergeStateKey = mergeState.map { $0 ? "enabled" : "disabled" } ?? "candidate"
+                let key = [normalizedOriginal, normalizedDestination, mergeStateKey]
                 guard !normalizedOriginal.isEmpty || !normalizedDestination.isEmpty else {
                     continue
                 }
@@ -133,8 +136,10 @@ enum DictionaryService {
                 guard !normalizedOriginal.isEmpty, !normalizedDestination.isEmpty else {
                     continue
                 }
+                guard mergeState != nil else { continue }
 
-                let destinationKey = WordReplacementVariants.destinationKey(for: normalizedDestination)
+                let destinationKey = mergeStateKey + "\u{1F}"
+                    + WordReplacementVariants.destinationKey(for: normalizedDestination)
                 if let canonical = replacementsByDestination[destinationKey] {
                     canonical.originalText = WordReplacementVariants.serialize(
                         WordReplacementVariants.parse(canonical.originalText)
@@ -206,6 +211,7 @@ enum DictionaryService {
         let destinationMatches = existing
             .filter {
                 WordReplacementVariants.destinationKey(for: $0.replacementText) == destinationKey
+                    && $0.destinationMergeState == true
             }
             .sorted {
                 if $0.dateAdded != $1.dateAdded { return $0.dateAdded < $1.dateAdded }
@@ -297,9 +303,12 @@ enum DictionaryService {
             }
         }
 
+        let mergeState = replacement.destinationMergeState
         let destinationMatches = otherReplacements
             .filter {
                 WordReplacementVariants.destinationKey(for: $0.replacementText) == destinationKey
+                    && mergeState != nil
+                    && $0.destinationMergeState == mergeState
             }
             .sorted(by: replacementOrder)
 
