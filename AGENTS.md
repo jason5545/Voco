@@ -1,6 +1,6 @@
 # Voco（macOS）協作指引
 
-給所有 AI 工具（Codex、Claude Code、OpenCode）的專案層規則。`CLAUDE.md` 是本機私有筆記、不進 git；本檔才是 repo 內唯一的建置與部署規範，兩者衝突以本檔為準。
+給所有 AI 工具（Codex、Claude Code、OpenCode）的專案層規則。本機的 `CLAUDE.md` 是指向本檔的 symlink（由 `.git/info/exclude` 排除，不進 git），規則只改這一份。
 
 ## 專案基本資料
 
@@ -56,6 +56,19 @@ open /Applications/Voco.app
 - 只有改到 Swift runtime、UI、schema decoder 時才需要 rebuild 部署。新增／停用 auto-apply 規則、`activateModel`、`publishWorkerRelease` 不需要重建 app，Voco 會自動偵測 active model 檔案變更並重新載入。
 - 部署目標若在文件裡找不到明確路徑，先查既有安裝位置（`/Applications`、`pgrep -fl Voco`），還不確定就停下來問，不要猜路徑。
 
+## 架構
+
+- UI 是 SwiftUI＋AppKit 混合；資料用 SwiftData（`Transcription`、`VocabularyWord`、`WordReplacement`）；MVVM＋Service 層。
+- `VoiceInk/` 是 upstream 的殼，fork 的程式集中在 `Voco/Sources/`（目錄分工見文末 This fork 與 PATCHES.md）。
+- 最低系統需求 macOS 14.4。
+
+## 本地化
+
+- 支援 en（source）與 zh-Hant。`VoiceInk/Localizable.xcstrings` 是 upstream 原檔，不直接改；Voco 實際用的 catalog 是 `Voco/Localization/Localizable.xcstrings`，由 `python3 Voco/Scripts/generate_localization.py` 把 upstream catalog 和 `Voco/Localization/overrides.json` 合併產生（`--check` 只檢查不寫入）。新增或修正翻譯改 `overrides.json`，再重新產生。
+- SwiftUI 的 `Text()`、`Button()` 會自動掃描；自訂 View 的字串參數用 `LocalizedStringKey`（不是 `String`）才會被掃到。
+- Enum raw value、動態插值字串用 `String(localized:)`（插值用 `\()`）。
+- zh-Hant 翻譯的格式參數順序跟英文不同時，一定要用位置參數（`%1$@`、`%2$lld`）。
+
 ## 規則助手（Rule Assistant）
 
 - 設計、閘門、測試與驗收記錄在 `Voco/Docs/rule-assistant-mac.md`。
@@ -74,6 +87,9 @@ open /Applications/Voco.app
 - auto-apply runtime 內建規則 `runtime.single-prefix-restart-collapse`：Mac `VocoAutoApplyModelService.collapseSinglePrefixRestarts`、Android `VocoAutoApplyModelService.kt`、Python `Voco/Tools/voco_auto_apply_control.py`、ReplayLab `voco_train_auto_apply_model.py` 四份實作必須一致。
 - `ModelPrewarmService` 必須接收 `engine.serviceRegistry`（共享 registry），不能自建 `TranscriptionServiceRegistry`。
 - MLX 本機推論、RNNoise 噪音抑制、SwiftyOpenCC（s2twp）。
+- `AIEnhancementService` 的 request override 參數 upstream 會簡化掉，合併時保留 fork 的版本。
+- Upstream 的 commit 歷史只在 upstream 分支上，不要把 fork 自己的 commit 誤認成 upstream 的。
+- `Voco/Sources/ASR/Qwen3ASR/` 改編自 `ivan-digital/qwen3-asr-swift`（Apache-2.0，本機 remote 名稱 `ivan-qwen3`）；CoreML 權重在 HuggingFace `aufklarer/Qwen3-ASR-CoreML`。
 
 ## This fork
 
