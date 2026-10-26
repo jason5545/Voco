@@ -22,6 +22,9 @@ final class VocoTranscriptionProcessor {
 
     private var isEphemeral: Bool { dictationPrivacy?.isEphemeral ?? false }
 
+    /// Test seam: production sends the real key events.
+    static var executeVoiceCommand: (VoiceCommand) -> Void = { $0.execute() }
+
     private static let minContentCharactersForAutoPunctuation = 5
     private static let autoPunctuationMarks: Set<Character> = ["，", "。", "？", "！", "、", "；", "："]
     private static let asciiPunctuationMarks: Set<Character> = [",", ".", "?", "!", ";", ":"]
@@ -164,12 +167,15 @@ final class VocoTranscriptionProcessor {
             }
         }
 
-        if !isEphemeral, let command = VoiceCommandService.shared.detectCommand(in: text) {
-            transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
-            try? modelContext.save()
-            NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+        if let command = VoiceCommandService.shared.detectCommand(in: text) {
+            // Ephemeral only skips persistence; the command itself is just local key events.
+            if !isEphemeral {
+                transcription.transcriptionStatus = TranscriptionStatus.completed.rawValue
+                try? modelContext.save()
+                NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                command.execute()
+                Self.executeVoiceCommand(command)
             }
             await onDismiss()
             return .stop

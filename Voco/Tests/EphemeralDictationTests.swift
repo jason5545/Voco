@@ -673,6 +673,42 @@ struct EphemeralDictationTests {
         #expect(fixture.screenCallBox.count == 0)
     }
 
+    @Test func ephemeralDictationStillExecutesDeleteAllCommand() async throws {
+        let fixture = try EphemeralTestFixture(transcriptionText: "全部刪除。")
+        defer { fixture.tearDown() }
+        var executed: [VoiceCommand] = []
+        let originalExecutor = VocoTranscriptionProcessor.executeVoiceCommand
+        VocoTranscriptionProcessor.executeVoiceCommand = { executed.append($0) }
+        defer { VocoTranscriptionProcessor.executeVoiceCommand = originalExecutor }
+        fixture.detector.value = true
+
+        await fixture.completeDictation()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(executed == [.deleteAll])
+        #expect(fixture.deliveryBox.records.isEmpty)
+        #expect(fixture.count(of: Transcription.self) == 0)
+        #expect(fixture.audioFiles().isEmpty)
+        #expect(fixture.evidenceFiles().isEmpty)
+        #expect(!fixture.privacy.hasActiveSession)
+    }
+
+    @Test func normalDictationExecutesDeleteAllCommandAndKeepsRow() async throws {
+        let fixture = try EphemeralTestFixture(transcriptionText: "全部刪除")
+        defer { fixture.tearDown() }
+        var executed: [VoiceCommand] = []
+        let originalExecutor = VocoTranscriptionProcessor.executeVoiceCommand
+        VocoTranscriptionProcessor.executeVoiceCommand = { executed.append($0) }
+        defer { VocoTranscriptionProcessor.executeVoiceCommand = originalExecutor }
+
+        await fixture.completeDictation()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(executed == [.deleteAll])
+        #expect(fixture.deliveryBox.records.isEmpty)
+        #expect(fixture.count(of: Transcription.self) == 1)
+    }
+
     @Test func previousNormalSessionIsUntouchedWhenNextTurnsEphemeral() async throws {
         let fixture = try EphemeralTestFixture()
         defer { fixture.tearDown() }
