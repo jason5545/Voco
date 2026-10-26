@@ -124,7 +124,7 @@ class ModeShortcutManager {
     }
 
     private var standaloneModifierActions: Set<ShortcutAction> {
-        modeProvider() == .toggle || modeProvider() == .doubleTap ? monitoredActions : []
+        VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(modeProvider()) ? monitoredActions : []
     }
 
     private func modeId(for action: ShortcutAction) -> UUID? {

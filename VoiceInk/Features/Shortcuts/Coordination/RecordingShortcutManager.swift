@@ -266,10 +266,10 @@ class RecordingShortcutManager: ObservableObject {
 
     private var standaloneModifierActions: Set<ShortcutAction> {
         var actions = Set<ShortcutAction>()
-        if primaryRecordingShortcutMode == .toggle || primaryRecordingShortcutMode == .doubleTap {
+        if VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(primaryRecordingShortcutMode) {
             actions.insert(.primaryRecording)
         }
-        if secondaryRecordingShortcutMode == .toggle || secondaryRecordingShortcutMode == .doubleTap {
+        if VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(secondaryRecordingShortcutMode) {
             actions.insert(.secondaryRecording)
         }
         return actions

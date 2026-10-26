@@ -4384,6 +4384,13 @@ struct VoiceInkTests {
         #expect(source.contains("private func requestRecordPermission() -> Bool"))
     }
 
+    @Test func modifierOnlyToggleStartsOnPressOnlyDoubleTapWaitsForRelease() {
+        #expect(!VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(.toggle))
+        #expect(!VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(.hybrid))
+        #expect(!VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(.pushToTalk))
+        #expect(VocoShortcutActivationPolicy.requiresStandaloneModifierRelease(.doubleTap))
+    }
+
     @Test @MainActor func toggleShortcutAllowsSecondStopTapInsideCancelWindow() async throws {
         var isRecorderVisible = false
         var recordingState: RecordingState = .idle

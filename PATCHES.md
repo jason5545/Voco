@@ -303,6 +303,17 @@ Upstream Quick History (new in `22e5ec54`) had no rule assistant: the main-windo
 | `VoiceInk/Features/History/Presentation/QuickHistoryController.swift` | Resizes the panel, passes Return through to the composer, Escape returns to details; hosting `sizingOptions = []` | Upstream intercepts Return for paste and Escape for back/dismiss |
 | `VoiceInk/App/Windows/PersistentQuickPanel.swift` | Keys pass to the text view while an IME composition is open; resize stays on screen | Without it Return/Escape during 注音 composition paste or close the panel |
 
+### Modifier-only toggle starts on press (2026-10-26)
+
+Upstream `ee6cf208` (in `22e5ec54`) waits for the release of a modifier-only shortcut in toggle mode before it starts recording. Jason's primary shortcut is Fn alone in toggle mode and he speaks right after pressing it, so capture began one key-hold later. Across 1,480 recordings from 10-23 to the merge deployment (10-25 12:29) and 954 after it, recordings whose speech is already loud within the first 200 ms rose from 15.7% to 39.2%, and the median speech onset moved from 390 ms to 250 ms into the file. The jump starts in the 10-25 12:00 hour; stage 2/3 deployments on 10-24 did not move it. The first syllable was lost in those recordings, e.g. 「不用管」→「用管」.
+
+`Voco/Sources/Shortcuts/VocoShortcutActivationPolicy.swift` keeps the release-only behavior for double tap and starts toggle, hybrid and push-to-talk on press, as before the merge. A chord such as Fn+arrow still goes through the existing interruption path, which cancels an accidental start.
+
+| Path | Hook | Why it must remain |
+|---|---|---|
+| `VoiceInk/Features/Shortcuts/Coordination/RecordingShortcutManager.swift` | `standaloneModifierActions` asks `VocoShortcutActivationPolicy` | Upstream owns the recording shortcut monitor setup |
+| `VoiceInk/Features/Shortcuts/Coordination/ModeShortcutManager.swift` | Same policy for mode shortcuts | Upstream owns the mode shortcut monitor setup |
+
 ### Appendix: remaining patched upstream paths (97)
 
 Generated from the final stage-3 trial merge at `414d389b`. Every path below is either an intentional hook registered above or an already classified stage-4/config patch; status is the merge state against `22e5ec54`.
