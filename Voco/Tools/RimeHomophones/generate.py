@@ -14,7 +14,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import configure_variants, load_char_readings, load_essay, required_path
+from common import (
+    RimeProfile,
+    active_rime_profile,
+    configure_variants,
+    load_char_readings,
+    load_essay,
+    required_path,
+)
 
 FORMAT = "voco.rime-homophones.v1"
 READING_WEIGHT_MIN = 5.0
@@ -32,9 +39,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def export_learning_records(dict_manager: Path, staged_rime: Path, output: Path) -> None:
+def export_learning_records(
+    dict_manager: Path,
+    staged_rime: Path,
+    output: Path,
+    profile: RimeProfile,
+) -> None:
     subprocess.run(
-        [str(dict_manager), "--export", "terra_pinyin", str(output)],
+        [str(dict_manager), "--export", profile.schema, str(output)],
         cwd=staged_rime,
         check=True,
         stdout=subprocess.DEVNULL,
@@ -125,10 +137,11 @@ def main() -> None:
             ],
             check=True,
         )
+        profile = active_rime_profile(staged_rime)
         exported = Path(temporary_root) / "userdb.tsv"
-        export_learning_records(dict_manager, staged_rime, exported)
+        export_learning_records(dict_manager, staged_rime, exported, profile)
         learned_words = read_learning_records(exported)
-        char_readings = filtered_readings(load_char_readings(staged_rime))
+        char_readings = filtered_readings(load_char_readings(staged_rime, profile))
         essay = load_essay(essay_path)
         opencc_to_taiwan, taiwan_to_opencc = configure_variants(variants_path)
 

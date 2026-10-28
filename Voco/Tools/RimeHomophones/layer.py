@@ -1,13 +1,13 @@
 """Rime 學習紀錄重挑同音字：離線版規則（第 0 步模擬用，不是 Voco 程式）。
 
-做法：Voco 文字逐字取 terra_pinyin（臺灣讀音版）的讀音；跟 Jason 在鼠鬚管送出過的詞（userdb commits > 0）
+做法：Voco 文字逐字取目前 Rime 詞典的讀音；跟 Jason 在鼠鬚管送出過的詞（userdb commits > 0）
 同字數、讀音完全相同（預設比聲調）但字不同時，候選換成 Jason 打過的那個詞。
 """
 import collections
 from common import is_cjk, to_t, to_tw
 
 def strip_tone(code):
-    return code[:-1] if code and code[-1].isdigit() else code
+    return code[:-1] if code and (code[-1].isdigit() or code[-1] in "ˊˇˋ˙") else code
 
 class Layer:
     def __init__(self, userdb, char_rd, essay, *, min_len=2, max_len=10, min_commits=1,

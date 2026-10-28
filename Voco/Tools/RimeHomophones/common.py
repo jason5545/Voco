@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+from dataclasses import dataclass
 import json
 import os
 import re
@@ -13,6 +14,20 @@ from urllib.parse import quote
 CJK = re.compile(r"[㐀-䶿一-鿿\U00020000-\U0002a6df]")
 _T2TW: dict[str, str] = {}
 _TW2T: dict[str, str] = {}
+
+
+@dataclass(frozen=True)
+class RimeProfile:
+    schema: str
+    code_format: str
+
+
+def active_rime_profile(rime_dir: str | Path) -> RimeProfile:
+    """依目前存在的學習紀錄選擇 Rime 方案與碼格式。"""
+    root = Path(rime_dir).expanduser()
+    if (root / "penglai_zhuyin.userdb").exists():
+        return RimeProfile(schema="penglai_zhuyin", code_format="zhuyin")
+    return RimeProfile(schema="terra_pinyin", code_format="pinyin")
 
 
 def required_path(value: str | None, env_name: str, label: str) -> Path:
@@ -52,28 +67,33 @@ def to_tw(value: str) -> str:
     return "".join(_T2TW.get(ch, ch) for ch in value)
 
 
-def load_char_readings(rime_dir: str | Path) -> dict[str, dict[str, float]]:
+def load_char_readings(
+    rime_dir: str | Path,
+    profile: RimeProfile | None = None,
+) -> dict[str, dict[str, float]]:
     readings: dict[str, dict[str, float]] = collections.defaultdict(dict)
     body = False
-    source = Path(rime_dir).expanduser() / "terra_pinyin.dict.yaml"
-    for line in source.open(encoding="utf-8"):
-        if line.startswith("..."):
-            body = True
-            continue
-        if not body or line.startswith("#") or "\t" not in line:
-            continue
-        parts = line.rstrip("\n").split("\t")
-        if len(parts[0]) != 1 or len(parts) < 2:
-            continue
-        weight = 100.0
-        if len(parts) >= 3 and parts[2]:
-            raw_weight = parts[2].strip()
-            try:
-                weight = float(raw_weight[:-1] if raw_weight.endswith("%") else raw_weight)
-            except ValueError:
-                weight = 100.0
-        code = parts[1].strip()
-        readings[parts[0]][code] = max(readings[parts[0]].get(code, 0.0), weight)
+    active_profile = profile or active_rime_profile(rime_dir)
+    source = Path(rime_dir).expanduser() / f"{active_profile.schema}.dict.yaml"
+    with source.open(encoding="utf-8") as dictionary:
+        for line in dictionary:
+            if line.startswith("..."):
+                body = True
+                continue
+            if not body or line.startswith("#") or "\t" not in line:
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts[0]) != 1 or len(parts) < 2:
+                continue
+            weight = 100.0
+            if len(parts) >= 3 and parts[2]:
+                raw_weight = parts[2].strip()
+                try:
+                    weight = float(raw_weight[:-1] if raw_weight.endswith("%") else raw_weight)
+                except ValueError:
+                    weight = 100.0
+            code = parts[1].strip()
+            readings[parts[0]][code] = max(readings[parts[0]].get(code, 0.0), weight)
     return readings
 
 
