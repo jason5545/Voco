@@ -9,8 +9,13 @@ VOCO_RIME_RSYNC=${VOCO_RIME_RSYNC:-/usr/bin/rsync}
 VOCO_RIME_OPENCC=${VOCO_RIME_OPENCC:-/opt/homebrew/bin/opencc}
 VOCO_RIME_SSL_CERT_FILE=${VOCO_RIME_SSL_CERT_FILE:-/etc/ssl/cert.pem}
 VOCO_RIME_HOME=${VOCO_RIME_HOME:-$HOME/Library/Rime}
-VOCO_RIME_DICT_MANAGER=${VOCO_RIME_DICT_MANAGER:-/Library/Input Methods/Squirrel.app/Contents/MacOS/rime_dict_manager}
-VOCO_RIME_ESSAY=${VOCO_RIME_ESSAY:-/Library/Input Methods/Squirrel.app/Contents/SharedSupport/essay.txt}
+if [ -d "$HOME/Library/Input Methods/Sable.app" ]; then
+  VOCO_RIME_APP=${VOCO_RIME_APP:-$HOME/Library/Input Methods/Sable.app}
+else
+  VOCO_RIME_APP=${VOCO_RIME_APP:-/Library/Input Methods/Squirrel.app}
+fi
+VOCO_RIME_DICT_MANAGER=${VOCO_RIME_DICT_MANAGER:-$VOCO_RIME_APP/Contents/MacOS/rime_dict_manager}
+VOCO_RIME_ESSAY=${VOCO_RIME_ESSAY:-$VOCO_RIME_APP/Contents/SharedSupport/essay.txt}
 VOCO_RIME_TW_VARIANTS=${VOCO_RIME_TW_VARIANTS:-$HOME/GitHub/rime-penglai/bench-data/TWVariants.txt}
 VOCO_RIME_AUTO_APPLY_MODEL=${VOCO_RIME_AUTO_APPLY_MODEL:-$HOME/Library/Application Support/com.jasonchien.Voco/AutoApplyModels/full-db.auto-apply-model.json}
 VOCO_RIME_ACTIVE_MODEL=${VOCO_RIME_ACTIVE_MODEL:-$VOCO_RIME_AUTO_APPLY_MODEL}
