@@ -50,6 +50,15 @@ struct VocoRimeHomophoneEvaluation: Equatable {
     var changed: Bool { inputText != outputText }
 }
 
+struct VocoRimeHomophoneDataStatus: Equatable {
+    let path: String
+    let isLoaded: Bool
+    let learnedWordCount: Int
+    let characterReadingCount: Int
+    let essayEntryCount: Int
+    let modificationDate: Date?
+}
+
 final class VocoRimeHomophoneService {
     static let shared = VocoRimeHomophoneService()
     static let reason = "rime-homophone"
@@ -99,6 +108,28 @@ final class VocoRimeHomophoneService {
             )
         }
         return VocoRimeHomophoneEvaluation(inputText: text, outputText: output, applied: fires)
+    }
+
+    func dataStatus() -> VocoRimeHomophoneDataStatus {
+        let modificationDate = (try? FileManager.default.attributesOfItem(atPath: dataURL.path)[.modificationDate]) as? Date
+        guard let engine = loadedEngine() else {
+            return VocoRimeHomophoneDataStatus(
+                path: dataURL.path,
+                isLoaded: false,
+                learnedWordCount: 0,
+                characterReadingCount: 0,
+                essayEntryCount: 0,
+                modificationDate: modificationDate
+            )
+        }
+        return VocoRimeHomophoneDataStatus(
+            path: dataURL.path,
+            isLoaded: true,
+            learnedWordCount: engine.learnedWordCount,
+            characterReadingCount: engine.characterReadingCount,
+            essayEntryCount: engine.essayEntryCount,
+            modificationDate: modificationDate
+        )
     }
 
     private func loadedEngine() -> VocoRimeHomophoneEngine? {
@@ -164,6 +195,10 @@ private struct VocoRimeHomophoneEngine {
     private let candidatesByFirst: [VocoRimeFirstReadingKey: [VocoRimeCandidateWord]]
     private let essayTotal: Double
     let deferredSourcePatterns: [String]
+
+    var learnedWordCount: Int { data.learnedWords.count }
+    var characterReadingCount: Int { data.characterReadings.count }
+    var essayEntryCount: Int { data.essayFrequencies.count }
 
     private static let minimumLength = 3
     private static let maximumLength = 10

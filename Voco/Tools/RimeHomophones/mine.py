@@ -114,17 +114,28 @@ def rime_record_counts(records):
     return counts, examples
 
 
-def active_literal_policies(model: dict, candidate_pairs: set[tuple[str, str]]):
+def active_literal_policies(model: dict, candidate_pairs: set[tuple[str, str]], events):
     selected = []
     covered = set()
+    regex_sources = {
+        (str(payload.get("sourcePattern") or ""), str(payload.get("targetText") or "")): str(payload.get("sourceText") or "")
+        for event in events
+        if event.get("action") == "addReplacementRule"
+        for payload in [event.get("payload") if isinstance(event.get("payload"), dict) else {}]
+        if payload.get("sourcePatternType") == "regex" and payload.get("sourceText") and payload.get("targetText")
+    }
     for policy in model.get("policies", []):
         if policy.get("autoApplyMode") != "apply":
             continue
-        if policy.get("sourcePatternType") == "regex":
-            continue
-        source = str(policy.get("sourcePattern") or policy.get("inputText") or "")
+        pattern = str(policy.get("sourcePattern") or "")
         target = str(policy.get("targetText") or "")
+        if policy.get("sourcePatternType") == "regex":
+            source = regex_sources.get((pattern, target), "")
+        else:
+            source = pattern or str(policy.get("inputText") or "")
         pair = (source, target)
+        if not source:
+            continue
         if pair in candidate_pairs:
             selected.append(policy)
             covered.add(pair)
@@ -241,7 +252,7 @@ def position_map(changes):
     return expected
 
 
-def simulate_b(rows, policies, expected_characters, control):
+def simulate_b(rows, policies, expected_characters, control, approved_exception_pks):
     changed_rows = set()
     changed_characters = 0
     oracle_matched_rows = set()
@@ -267,14 +278,13 @@ def simulate_b(rows, policies, expected_characters, control):
             if expected_char == target_char:
                 oracle_matched_rows.add(pk)
                 continue
-            exception_start = text.find("該怎麼作") if pk == 4975 else -1
             if (
-                exception_start >= 0
-                and offset == exception_start + len("該怎麼")
+                pk in approved_exception_pks
                 and source_char == "作"
                 and target_char == "做"
             ):
                 exceptions += 1
+                approved_exception_pks.add(pk)
                 continue
             snippet = text[max(0, offset - 8):offset + 9]
             mismatches.append((pk, offset, source_char, target_char, expected_char, snippet))
@@ -288,6 +298,7 @@ def simulate_b(rows, policies, expected_characters, control):
         "mismatches": mismatches,
         "extraRows": set(extra_rows),
         "exceptions": exceptions,
+        "approvedExceptionPks": approved_exception_pks,
     }
 
 
@@ -341,7 +352,17 @@ def record_counts(records):
     return counts, row_ids
 
 
-def run_cli(command, *, wordfreq_path: Path, capture=True):
+def load_approved_exception_pks(path: Path) -> set[int]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("schema") != "voco.rime-homophones-approved-subset-exceptions.v1":
+        raise SystemExit(f"核准例外設定 schema 不符：{path}")
+    raw_pks = value.get("approvedSingleCharacterMismatchPks")
+    if not isinstance(raw_pks, list) or any(not isinstance(pk, int) or isinstance(pk, bool) or pk <= 0 for pk in raw_pks):
+        raise SystemExit(f"核准例外設定必須是正整數清單：{path}")
+    return set(raw_pks)
+
+
+def run_cli(command, *, wordfreq_path: Path, capture=True, allow_failed=False):
     environment = os.environ.copy()
     environment["VOCO_WORD_FREQ_PATH"] = str(wordfreq_path)
     result = subprocess.run(command, check=False, capture_output=capture, text=True, env=environment)
@@ -351,7 +372,7 @@ def run_cli(command, *, wordfreq_path: Path, capture=True):
         value = json.loads(result.stdout) if capture else {}
     except json.JSONDecodeError as error:
         raise SystemExit(f"control CLI 回傳非 JSON：{error}") from error
-    if value.get("failed") is True:
+    if value.get("failed") is True and not allow_failed:
         raise SystemExit("control CLI 回報 failed=true")
     return value
 
@@ -380,8 +401,162 @@ def atomic_json_write(path: Path, value: dict) -> None:
     os.replace(temporary, path)
 
 
+def model_rule_signatures(model: dict) -> set[tuple[str, str]]:
+    return {
+        (str(policy.get("sourcePattern") or ""), str(policy.get("targetText") or ""))
+        for policy in model.get("policies", [])
+        if isinstance(policy, dict) and policy.get("sourcePattern") and policy.get("targetText")
+    }
+
+
+def release_gate_failures(
+    *,
+    new_rules: int,
+    candidate: dict,
+    formal: dict,
+    validation: dict,
+    wrong_positions: int,
+    positive_changed: int,
+    negative_changed: int,
+) -> list[str]:
+    failures = []
+    candidate_signatures = model_rule_signatures(candidate)
+    formal_signatures = model_rule_signatures(formal)
+    if new_rules <= 0 and candidate_signatures == formal_signatures:
+        failures.append("condition1:no_new_rules_or_model_rule_changes")
+    if validation.get("ready") is not True:
+        failures.append("condition2:ready_is_not_true")
+    failure_metrics = {
+        key: value
+        for key, value in validation.items()
+        if "failure" in key.lower() or key.lower().endswith("conflicts")
+    }
+    if not failure_metrics:
+        failures.append("condition2:missing_failure_metrics")
+    for key, value in sorted(failure_metrics.items()):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or value != 0:
+            failures.append(f"condition2:{key}={value!r}")
+    if wrong_positions != 0:
+        failures.append(f"condition3:wrong_positions={wrong_positions}")
+    if positive_changed != 0:
+        failures.append(f"condition3:positive_changed={positive_changed}")
+    if negative_changed != 0:
+        failures.append(f"condition3:negative_changed={negative_changed}")
+    missing = sorted(formal_signatures - candidate_signatures)
+    if missing:
+        failures.append("condition4:missing=" + json.dumps(missing, ensure_ascii=False, separators=(",", ":")))
+    return failures
+
+
+def run_gated_release(
+    *,
+    gate_failures: list[str],
+    current_formal: callable,
+    candidate: dict,
+    activate: callable,
+    publish: callable,
+    log: callable,
+) -> bool:
+    if gate_failures:
+        log("AUTO_PUBLISH_BLOCKED " + "; ".join(gate_failures))
+        return False
+    log("AUTO_PUBLISH_GATE_PASSED activate=1 publish=1")
+    activate()
+    # Re-read the installed formal model immediately before publishing. This catches
+    # any local model change made while activation ran.
+    latest_formal = current_formal()
+    latest_candidate_signatures = model_rule_signatures(candidate)
+    latest_formal_signatures = model_rule_signatures(latest_formal)
+    latest_missing = sorted(latest_formal_signatures - latest_candidate_signatures)
+    log(
+        f"AUTO_PUBLISH_CONDITION4_PRE_PUBLISH formal_signatures={len(latest_formal_signatures)} "
+        f"candidate_signatures={len(latest_candidate_signatures)} missing={len(latest_missing)}"
+    )
+    if latest_missing:
+        log(
+            "AUTO_PUBLISH_BLOCKED condition4:missing="
+            + json.dumps(latest_missing, ensure_ascii=False, separators=(",", ":"))
+        )
+        return False
+    publish()
+    log("AUTO_PUBLISH_PUBLISHED")
+    return True
+
+
+def self_test_auto_publish_gate() -> None:
+    validation = {
+        "ready": True,
+        "positiveFailures": 0,
+        "negativeFailures": 0,
+        "exactApplyConflicts": 0,
+        "manualContextLockFailures": 0,
+        "familyMetadataFailures": 0,
+        "corpusFailures": 0,
+        "failureCount": 0,
+    }
+    candidate = {
+        "policies": [
+            {"sourcePattern": "既有", "targetText": "規則"},
+            {"sourcePattern": "原文", "targetText": "改字"},
+        ]
+    }
+    formal = {"policies": [{"sourcePattern": "既有", "targetText": "規則"}]}
+    actions = []
+    logs = []
+    allowed = release_gate_failures(
+        new_rules=1, candidate=candidate, formal=formal, validation=validation,
+        wrong_positions=0, positive_changed=0, negative_changed=0,
+    )
+    passed = run_gated_release(
+        gate_failures=allowed,
+        current_formal=lambda: formal,
+        candidate=candidate,
+        activate=lambda: actions.append("activateModel"),
+        publish=lambda: actions.append("publishWorkerRelease"),
+        log=logs.append,
+    )
+    if not passed or actions != ["activateModel", "publishWorkerRelease"]:
+        raise SystemExit(f"auto-publish self-test all-pass failed: {actions!r} {logs!r}")
+    print(f"SELF_TEST all_pass actions={','.join(actions)} published=true")
+
+    actions.clear()
+    logs.clear()
+    formal_with_missing = {
+        "policies": [
+            {"sourcePattern": "既有", "targetText": "規則"},
+            {"sourcePattern": "正式模型獨有", "targetText": "保留"},
+        ]
+    }
+    blocked = release_gate_failures(
+        new_rules=1, candidate=candidate, formal=formal_with_missing, validation=validation,
+        wrong_positions=0, positive_changed=0, negative_changed=0,
+    )
+    passed = run_gated_release(
+        gate_failures=blocked,
+        current_formal=lambda: formal_with_missing,
+        candidate=candidate,
+        activate=lambda: actions.append("activateModel"),
+        publish=lambda: actions.append("publishWorkerRelease"),
+        log=logs.append,
+    )
+    if passed or actions or not any("condition4:missing" in line for line in logs):
+        raise SystemExit(f"auto-publish self-test condition4-block failed: {actions!r} {logs!r}")
+    print(f"SELF_TEST condition4_fail actions=none published=false log={logs[0]}")
+
+
+def log_auto_publish(message: str, log_path: Path) -> None:
+    stamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    line = f"[{stamp}] {message}"
+    print(line, flush=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as output:
+        output.write(line + "\n")
+        output.flush()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--self-test-auto-publish-gate", action="store_true")
     parser.add_argument("--generated-data")
     parser.add_argument("--voco-store")
     parser.add_argument("--tw-variants")
@@ -391,8 +566,14 @@ def main() -> None:
     parser.add_argument("--wordfreq")
     parser.add_argument("--artifact-dir")
     parser.add_argument("--s2twp-cache")
+    parser.add_argument("--approved-exceptions")
+    parser.add_argument("--log-path")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if args.self_test_auto_publish_gate:
+        self_test_auto_publish_gate()
+        return
 
     generated_path = required_path(args.generated_data, "VOCO_RIME_GENERATED_DATA", "產生器資料")
     store_path = required_path(args.voco_store, "VOCO_RIME_VOCO_STORE", "Voco 資料庫")
@@ -403,6 +584,14 @@ def main() -> None:
     wordfreq_path = required_path(args.wordfreq, "VOCO_RIME_WORDFREQ", "Voco word frequency table")
     os.environ["VOCO_WORD_FREQ_PATH"] = str(wordfreq_path)
     artifact_dir = required_path(args.artifact_dir, "VOCO_RIME_ARTIFACT_DIR", "B 模型 artifact 資料夾")
+    approved_exceptions_path = required_path(
+        args.approved_exceptions,
+        "VOCO_RIME_APPROVED_EXCEPTIONS",
+        "B oracle 子集核准例外設定",
+    )
+    log_path = Path(args.log_path or os.environ.get(
+        "VOCO_RIME_LOG_PATH", str(Path.home() / "Library/Logs/Voco-RimeHomophones.log")
+    )).expanduser()
     cache_path = args.s2twp_cache or os.environ.get("VOCO_RIME_S2TWP_CACHE")
 
     generated = json.loads(generated_path.read_text(encoding="utf-8"))
@@ -411,16 +600,17 @@ def main() -> None:
     configure_variants(variants_path)
     raw_rows, transcription_records = read_store_rows_and_rime_records(store_path)
     rows = s2twp_rows(raw_rows, cache_path)
+    approved_exception_pks = load_approved_exception_pks(approved_exceptions_path)
     layer, oracle = oracle_changes(rows, generated, active_model, control)
     oracle_counts = collections.Counter((item[2], item[3]) for item in oracle)
     recorded_counts, record_rows = record_counts(transcription_records)
     totals = oracle_counts + recorded_counts
 
     candidate_pairs = {pair for pair, count in totals.items() if count >= MINIMUM_OCCURRENCES}
-    active_policies, active_pairs = active_literal_policies(active_model, candidate_pairs)
+    events = control.load_events(evidence_path)
+    active_policies, active_pairs = active_literal_policies(active_model, candidate_pairs, events)
     base_apply_policies = [p for p in active_model.get("policies", []) if p.get("autoApplyMode") == "apply"]
     protected_guards = control.protected_term_allowlist_guards(active_model)
-    events = control.load_events(evidence_path)
     existing_events_by_pair = {}
     for event in events:
         if event.get("action") != "addReplacementRule":
@@ -505,7 +695,13 @@ def main() -> None:
             if guard.get("text") or guard.get("context")
         })
 
-    b_summary = simulate_b(rows, active_policies + new_policies, expected_characters, control)
+    b_summary = simulate_b(
+        rows,
+        active_policies + new_policies,
+        expected_characters,
+        control,
+        approved_exception_pks,
+    )
     positive_sentences = load_positive_sentences(evidence_path)
     positive_changes = [
         (index, text, apply_scoped_policies(text, new_policies, control)[0])
@@ -537,6 +733,7 @@ def main() -> None:
         f"B rows={len(b_summary['changedRows'])} changed_codepoints={b_summary['changedCharacters']} "
         f"oracle_matched_rows={len(b_summary['oracleMatchedRows'])} approved_exceptions={b_summary['exceptions']} "
         f"wrong_positions={len(b_summary['mismatches'])} "
+        f"approved_exception_rows={len(b_summary['approvedExceptionPks'])}/{len(approved_exception_pks)} "
         f"positive_sentences={len(positive_sentences)} positive_changed={len(positive_changes)} "
         f"boundary_negative_sentences={len(all_negative_texts)} negative_changed={len(negative_changes)} "
         f"control_validation_negatives={sum(len(d['validationNegativeSpecs']) for d in definitions)} "
@@ -552,14 +749,18 @@ def main() -> None:
         for text, output in negative_changes:
             print(f"NEGATIVE_CHANGED input={text!r} output={output!r}")
 
-    expected_exception = any(pk == 4975 and "該怎麼作" in text for pk, text in rows)
     if b_summary["mismatches"] or positive_changes or negative_changes:
         raise SystemExit("B 預檢未通過；尚未寫入 evidence")
     if len(rows) == 34_190 and len(oracle) == 62:
-        if (len(b_summary["changedRows"]), b_summary["changedCharacters"], len(b_summary["oracleMatchedRows"])) != (40, 55, 39) or b_summary["exceptions"] != 1:
+        if (
+            (len(b_summary["changedRows"]), b_summary["changedCharacters"], len(b_summary["oracleMatchedRows"]))
+            != (40, 55, 39)
+            or b_summary["exceptions"] != 1
+            or b_summary["approvedExceptionPks"] != approved_exception_pks
+        ):
             raise SystemExit("B 全歷史計數不符合裁決預期 40 筆／55 字／39 筆 oracle 同位")
-        if not expected_exception:
-            raise SystemExit("oracle 未包含 pk 4975 的唯一認可例外")
+        if b_summary["exceptions"] != 1:
+            raise SystemExit("B 全歷史沒有唯一命中已核准的單筆例外")
     if args.dry_run:
         print("dry_run=1 evidence_written=0 compile=0 validate=0")
         return
@@ -621,6 +822,9 @@ def main() -> None:
         for item in definitions
     ])
     state_path = artifact_dir / "rime-homophones-state.json"
+    candidate_path = None
+    validation_report = None
+    validation_value = None
     if not event_changes_needed and state_path.is_file():
         try:
             previous = json.loads(state_path.read_text(encoding="utf-8"))
@@ -635,43 +839,122 @@ def main() -> None:
                 and report_value.get("ready") is True
             ):
                 print(f"compile=skipped_unchanged candidate_model={candidate} validate=previously_ready")
-                return
+                candidate_path = candidate
+                validation_report = report
+                validation_value = control.validation_summary(report_value)
         except (KeyError, OSError, json.JSONDecodeError):
             pass
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    candidate_dir = artifact_dir / f"rime-homophones-{timestamp}"
-    candidate_path = candidate_dir / "full-db.auto-apply-model.json"
-    # This task's validation corpus is the scoped Voco history plus the local control examples.
-    # ReplayLab corpora are a separate data source and are not part of this approval scope.
-    common_validation_args = ["--skip-corpus-replay", "--skip-raw-input-replay"]
-    compile_command = [
-        sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
-        "compileModel", "--base-model", str(active_model_path), "--output-model", str(candidate_path),
-        *common_validation_args,
-    ]
-    compiled = run_cli(compile_command, wordfreq_path=wordfreq_path)
-    print(f"compiled_model={compiled.get('compiledModel')} validation={compiled.get('validation')}")
-    validation_report = candidate_path.with_suffix(".validation.json")
-    validate_command = [
-        sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
-        "validateModel", "--model", str(candidate_path), "--base-model", str(active_model_path),
-        "--report", str(validation_report), "--no-write-readiness", *common_validation_args,
-    ]
-    validated = run_cli(validate_command, wordfreq_path=wordfreq_path)
-    print(f"validated_model={validated.get('model')} report={validated.get('report')} validation={validated.get('validation')}")
-    validation_summary = validated.get("validation") if isinstance(validated.get("validation"), dict) else {}
-    if validation_summary.get("ready") is True:
-        atomic_json_write(
-            state_path,
-            {
-                "schema": "voco.rime-homophones-miner-state.v1",
-                "activeModelSha256": active_model_hash,
-                "evidenceSha256": evidence_hash,
-                "rulesSha256": rules_hash,
-                "candidateModel": str(candidate_path),
-                "validationReport": str(validation_report),
-            },
-        )
+    if candidate_path is None:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        candidate_dir = artifact_dir / f"rime-homophones-{timestamp}"
+        candidate_path = candidate_dir / "full-db.auto-apply-model.json"
+        # This task's validation corpus is the scoped Voco history plus the local control examples.
+        # ReplayLab corpora are a separate data source and are not part of this approval scope.
+        common_validation_args = ["--skip-corpus-replay", "--skip-raw-input-replay"]
+        compile_command = [
+            sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
+            "compileModel", "--base-model", str(active_model_path), "--output-model", str(candidate_path),
+            *common_validation_args,
+        ]
+        compiled = run_cli(compile_command, wordfreq_path=wordfreq_path)
+        print(f"compiled_model={compiled.get('compiledModel')} validation={compiled.get('validation')}")
+        validation_report = candidate_path.with_suffix(".validation.json")
+        validate_command = [
+            sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
+            "validateModel", "--model", str(candidate_path), "--base-model", str(active_model_path),
+            "--report", str(validation_report), "--no-write-readiness", *common_validation_args,
+        ]
+        validated = run_cli(validate_command, wordfreq_path=wordfreq_path, allow_failed=True)
+        validation_value = validated.get("validation") if isinstance(validated.get("validation"), dict) else {}
+        print(f"validated_model={validated.get('model')} report={validated.get('report')} validation={validation_value}")
+        if validation_value.get("ready") is True:
+            atomic_json_write(
+                state_path,
+                {
+                    "schema": "voco.rime-homophones-miner-state.v1",
+                    "activeModelSha256": active_model_hash,
+                    "evidenceSha256": evidence_hash,
+                    "rulesSha256": rules_hash,
+                    "candidateModel": str(candidate_path),
+                    "validationReport": str(validation_report),
+                },
+            )
+
+    if args.dry_run:
+        print("auto_publish=skipped dry_run=1")
+        return
+
+    if candidate_path is None or validation_report is None or validation_value is None:
+        raise SystemExit("候選模型或 validate 結果缺失，拒絕發布")
+    candidate_model = json.loads(candidate_path.read_text(encoding="utf-8"))
+    formal_model = json.loads(active_model_path.read_text(encoding="utf-8"))
+    validation_failures = release_gate_failures(
+        new_rules=len(definitions),
+        candidate=candidate_model,
+        formal=formal_model,
+        validation=validation_value,
+        wrong_positions=len(b_summary["mismatches"]),
+        positive_changed=len(positive_changes),
+        negative_changed=len(negative_changes),
+    )
+    candidate_signatures = model_rule_signatures(candidate_model)
+    formal_signatures = model_rule_signatures(formal_model)
+    validation_failure_metrics = {
+        key: value
+        for key, value in validation_value.items()
+        if "failure" in key.lower() or key.lower().endswith("conflicts")
+    }
+    log_auto_publish(
+        f"AUTO_PUBLISH_PREFLIGHT new_rules={len(definitions)} "
+        f"candidate_signatures={len(candidate_signatures)} formal_signatures={len(formal_signatures)} "
+        f"missing={len(formal_signatures - candidate_signatures)} ready={validation_value.get('ready')} "
+        f"failures={json.dumps(validation_failure_metrics, ensure_ascii=False, sort_keys=True)} "
+        f"wrong_positions={len(b_summary['mismatches'])} positive_changed={len(positive_changes)} "
+        f"negative_changed={len(negative_changes)}"
+    )
+    def activate_candidate() -> None:
+        command = [
+            sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
+            "activateModel", "--model", str(candidate_path), "--active-model", str(active_model_path),
+            "--base-model", str(active_model_path), "--backup-dir", str(artifact_dir / "activation-backups"),
+            "--skip-corpus-replay", "--skip-raw-input-replay",
+        ]
+        try:
+            result = run_cli(command, wordfreq_path=wordfreq_path)
+        except SystemExit as error:
+            log_auto_publish(f"AUTO_ACTIVATE_FAILED {error}", log_path)
+            raise
+        print("AUTO_ACTIVATE " + json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+    def current_formal_model() -> dict:
+        return json.loads(active_model_path.read_text(encoding="utf-8"))
+
+    def publish_candidate() -> None:
+        # The active model is re-read directly before this call; run_gated_release checks
+        # condition 4 at the last possible point before the Worker write.
+        command = [
+            sys.executable, str(control_cli_path), "--json", "--evidence-store", str(evidence_path),
+            "publishWorkerRelease", "--model", str(candidate_path), "--base-model", str(active_model_path),
+            "--skip-corpus-replay", "--skip-raw-input-replay",
+        ]
+        try:
+            result = run_cli(command, wordfreq_path=wordfreq_path)
+        except SystemExit as error:
+            log_auto_publish(f"AUTO_PUBLISH_FAILED {error}", log_path)
+            raise
+        print("AUTO_PUBLISH_RESULT " + json.dumps(result, ensure_ascii=False, sort_keys=True))
+        if result.get("published") is not True:
+            log_auto_publish("AUTO_PUBLISH_FAILED " + json.dumps(result, ensure_ascii=False, sort_keys=True), log_path)
+            raise SystemExit("Worker release 未成功發布")
+
+    run_gated_release(
+        gate_failures=validation_failures,
+        current_formal=current_formal_model,
+        candidate=candidate_model,
+        activate=activate_candidate,
+        publish=publish_candidate,
+        log=lambda message: log_auto_publish(message, log_path),
+    )
 
 
 if __name__ == "__main__":

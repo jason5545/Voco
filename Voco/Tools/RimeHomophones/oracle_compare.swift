@@ -37,14 +37,35 @@ private struct Change: Hashable, Comparable, CustomStringConvertible {
 private enum RimeOracleCompare {
     static func main() throws {
         let environment = ProcessInfo.processInfo.environment
+        let dataURL = try requiredURL("VOCO_RIME_GENERATED_DATA", environment: environment)
+        let service = VocoRimeHomophoneService(dataURL: dataURL)
+        if environment["VOCO_RIME_SMOKE"] == "1" {
+            let status = service.dataStatus()
+            let input = environment["VOCO_RIME_SMOKE_INPUT"] ?? "粉絲專業"
+            let expectedOutput = environment["VOCO_RIME_SMOKE_EXPECTED"] ?? "粉絲專頁"
+            let result = service.evaluate(input)
+            let modificationDate = status.modificationDate?.description ?? "missing"
+            let reason = result.applied.isEmpty ? "none" : VocoRimeHomophoneService.reason
+            print(
+                "rime_data path=\(status.path) loaded=\(status.isLoaded) " +
+                    "learned_words=\(status.learnedWordCount) characters=\(status.characterReadingCount) " +
+                    "essay_words=\(status.essayEntryCount) mtime=\(modificationDate)"
+            )
+            print(
+                "smoke input=\(input) output=\(result.outputText) " +
+                    "reason=\(reason)"
+            )
+            fflush(stdout)
+            guard status.isLoaded, result.outputText == expectedOutput else { throw CompareError.mismatch }
+            return
+        }
+
         let rowsURL = try requiredURL("VOCO_RIME_ROWS_S2TWP_JSON", environment: environment)
         let oracleURL = try requiredURL("VOCO_RIME_ORACLE_DUMP", environment: environment)
-        let dataURL = try requiredURL("VOCO_RIME_GENERATED_DATA", environment: environment)
         let rowsRoot = try JSONSerialization.jsonObject(with: Data(contentsOf: rowsURL))
         let rows = (rowsRoot as? [String: Any])?["rows"] as? [[Any]] ?? rowsRoot as? [[Any]] ?? []
         let oracleRoot = try JSONSerialization.jsonObject(with: Data(contentsOf: oracleURL))
         let oracleChanges = (oracleRoot as? [String: Any])?["changes"] as? [[Any]] ?? []
-        let service = VocoRimeHomophoneService(dataURL: dataURL)
 
         var expected = oracleChanges.compactMap { values -> Change? in
             guard values.count >= 4,
