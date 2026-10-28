@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.jasonchien.Voco.RimeHomophones</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>/Users/jianruicheng/GitHub/Voco/Voco/Tools/RimeHomophones/run_daily.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/jianruicheng/GitHub/Voco</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>3</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>VOCO_RIME_PYTHON</key>
+		<string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+		<key>VOCO_RIME_RSYNC</key>
+		<string>/usr/bin/rsync</string>
+		<key>VOCO_RIME_OPENCC</key>
+		<string>/opt/homebrew/bin/opencc</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/jianruicheng/Library/Logs/Voco-RimeHomophones.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/jianruicheng/Library/Logs/Voco-RimeHomophones.error.log</string>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+</dict>
+</plist>

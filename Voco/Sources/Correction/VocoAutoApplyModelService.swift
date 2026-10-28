@@ -553,6 +553,16 @@ final class VocoAutoApplyModelService: ObservableObject {
         )).sorted()
     }
 
+    func contextRequiredSourcePatterns() -> [String] {
+        guard isRuntimeEnabled, let loadedModel else { return [] }
+        return Array(Set(
+            loadedModel.scopedApplyPolicies
+                .filter { $0.contextRequired == true }
+                .compactMap(\.sourcePattern)
+                .filter { !$0.isEmpty }
+        )).sorted()
+    }
+
     init(
         modelURL: URL = VocoAutoApplyModelService.defaultModelURL,
         defaults: UserDefaults = .standard,

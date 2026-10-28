@@ -1,0 +1,12 @@
+# 這個資料夾只允許追蹤明列的程式與排程範本；Rime／轉錄資料一律忽略。
+/*
+!/.gitignore
+!/common.py
+!/layer.py
+!/run.py
+!/librime_check.py
+!/generate.py
+!/mine.py
+!/oracle_compare.swift
+!/run_daily.sh
+!/com.jasonchien.Voco.RimeHomophones.plist

@@ -15,6 +15,10 @@ enum VocoCanonicalizationCorrectionPolicy: Equatable {
     var usesPhoneticCorrectionTerms: Bool {
         self == .full
     }
+
+    var usesRimeHomophoneCorrection: Bool {
+        self == .full
+    }
 }
 
 final class VocoCanonicalizationService {
@@ -27,17 +31,20 @@ final class VocoCanonicalizationService {
     private let autoApplyModelService: VocoAutoApplyModelService
     private let runtimeCorrectionModelService: VocoRuntimeCorrectionModelService
     private let phoneticCorrectionService: VocoPhoneticCorrectionService
+    private let rimeHomophoneService: VocoRimeHomophoneService
 
     init(
         contextPacks: [VocoContextPack] = VocoCanonicalizationService.builtInContextPacks,
         autoApplyModelService: VocoAutoApplyModelService = .shared,
         runtimeCorrectionModelService: VocoRuntimeCorrectionModelService = .shared,
-        phoneticCorrectionService: VocoPhoneticCorrectionService = .shared
+        phoneticCorrectionService: VocoPhoneticCorrectionService = .shared,
+        rimeHomophoneService: VocoRimeHomophoneService = .shared
     ) {
         self.contextPacks = contextPacks
         self.autoApplyModelService = autoApplyModelService
         self.runtimeCorrectionModelService = runtimeCorrectionModelService
         self.phoneticCorrectionService = phoneticCorrectionService
+        self.rimeHomophoneService = rimeHomophoneService
     }
 
     func normalize(
@@ -144,11 +151,33 @@ final class VocoCanonicalizationService {
             in: phoneticCorrection.inputText
         )
 
+        let rimeHomophoneCorrection: VocoRimeHomophoneEvaluation
+        if correctionPolicy.usesRimeHomophoneCorrection {
+            rimeHomophoneCorrection = rimeHomophoneService.evaluate(
+                phoneticCorrection.outputText,
+                deferredSourcePatterns: correctionPolicy.usesAutoApplyModel
+                    ? autoApplyModelService.contextRequiredSourcePatterns()
+                    : []
+            )
+        } else {
+            rimeHomophoneCorrection = VocoRimeHomophoneEvaluation(
+                inputText: phoneticCorrection.outputText,
+                outputText: phoneticCorrection.outputText,
+                applied: []
+            )
+        }
+        let rimeHomophoneReplacements = replacementRecords(
+            from: rimeHomophoneCorrection.applied,
+            in: rimeHomophoneCorrection.inputText
+        )
+
         let postRuleText = Self.removeStandaloneVocabularyTerminalPeriod(
-            phoneticCorrection.outputText,
+            rimeHomophoneCorrection.outputText,
             vocabularyWords: vocabularyWords
         )
-        let deterministicRuleFires = autoApply.applied + phoneticCorrection.applied.map(\.autoApplyPolicyFire)
+        let deterministicRuleFires = autoApply.applied +
+            phoneticCorrection.applied.map(\.autoApplyPolicyFire) +
+            rimeHomophoneCorrection.applied.map(\.autoApplyPolicyFire)
         let runtimeCorrection: VocoRuntimeCorrectionEvaluation
         if correctionPolicy.usesRuntimeCorrectionModel {
             runtimeCorrection = runtimeCorrectionModelService.evaluate(
@@ -177,7 +206,8 @@ final class VocoCanonicalizationService {
             activeContextIDs: activeContextIDs,
             replacements: safeAccepted.map { replacementRecord(for: $0, in: text) } +
                 autoApplyReplacements +
-                phoneticCorrectionReplacements,
+                phoneticCorrectionReplacements +
+                rimeHomophoneReplacements,
             suggestions: suggestions + autoApplySuggestions + autoApplyGuardSuggestions,
             autoApplyModelVersion: autoApply.modelVersion,
             autoApplyModelGeneratedAt: autoApply.modelGeneratedAt,
@@ -490,6 +520,24 @@ final class VocoCanonicalizationService {
                 reason: VocoPhoneticCorrectionService.reason,
                 rangeStart: characterRange?.start,
                 rangeLength: characterRange?.length
+            )
+        }
+    }
+
+    private func replacementRecords(
+        from fires: [VocoRimeHomophoneFire],
+        in text: String
+    ) -> [VocoReplacement] {
+        fires.map { fire in
+            let range = characterRange(for: fire.range, in: text)
+            return VocoReplacement(
+                originalText: fire.sourceText,
+                replacementText: fire.targetText,
+                termID: "\(VocoRimeHomophoneService.reason).\(fire.sourceText).\(fire.targetText)",
+                confidence: 0.995,
+                reason: VocoRimeHomophoneService.reason,
+                rangeStart: range?.start,
+                rangeLength: range?.length
             )
         }
     }
