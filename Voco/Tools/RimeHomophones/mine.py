@@ -910,7 +910,8 @@ def main() -> None:
         f"missing={len(formal_signatures - candidate_signatures)} ready={validation_value.get('ready')} "
         f"failures={json.dumps(validation_failure_metrics, ensure_ascii=False, sort_keys=True)} "
         f"wrong_positions={len(b_summary['mismatches'])} positive_changed={len(positive_changes)} "
-        f"negative_changed={len(negative_changes)}"
+        f"negative_changed={len(negative_changes)}",
+        log_path,
     )
     def activate_candidate() -> None:
         command = [
