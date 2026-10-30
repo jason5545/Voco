@@ -20,7 +20,7 @@ from urllib.parse import quote
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import configure_variants, required_path, voco_rows
+from common import NOT_IMPORTED_FILE, configure_variants, required_path, voco_rows
 from layer import Layer
 from run import CONFIGS, s2twp_rows
 
@@ -51,11 +51,11 @@ def read_store_rows_and_rime_records(store_path: Path):
     connection = sqlite3.connect(f"file:{quote(str(absolute))}?mode=ro", uri=True)
     try:
         rows = connection.execute(
-            "select Z_PK, coalesce(ZFINALPASTEDTEXT, ZTEXT) from ZTRANSCRIPTION"
+            "select Z_PK, coalesce(ZFINALPASTEDTEXT, ZTEXT) from ZTRANSCRIPTION where " + NOT_IMPORTED_FILE
         ).fetchall()
         records = connection.execute(
             "select Z_PK, ZCANONICALIZATIONREPLACEMENTSJSON from ZTRANSCRIPTION "
-            "where ZCANONICALIZATIONREPLACEMENTSJSON is not null"
+            "where ZCANONICALIZATIONREPLACEMENTSJSON is not null and " + NOT_IMPORTED_FILE
         ).fetchall()
     finally:
         connection.close()

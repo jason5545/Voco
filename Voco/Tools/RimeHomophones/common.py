@@ -12,6 +12,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 CJK = re.compile(r"[㐀-䶿一-鿿\U00020000-\U0002a6df]")
+# 匯入的音檔、影片檔（檔案轉錄，錄音檔名 transcribed_<UUID>.wav）不是 Jason 的口述，不拿來挖規則。
+NOT_IMPORTED_FILE = r"coalesce(ZAUDIOFILEURL, '') not like '%/transcribed\_%' escape '\'"
 _T2TW: dict[str, str] = {}
 _TW2T: dict[str, str] = {}
 
@@ -127,7 +129,7 @@ def _connect_readonly(path: str | Path) -> sqlite3.Connection:
 def voco_rows(store_path: str | Path) -> list[tuple[int, str]]:
     with _connect_readonly(store_path) as connection:
         rows = connection.execute(
-            "select Z_PK, coalesce(ZFINALPASTEDTEXT, ZTEXT) from ZTRANSCRIPTION"
+            "select Z_PK, coalesce(ZFINALPASTEDTEXT, ZTEXT) from ZTRANSCRIPTION where " + NOT_IMPORTED_FILE
         ).fetchall()
     return [(pk, text) for pk, text in rows if text]
 
